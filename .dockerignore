@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Logs and databases
+*.log
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files (use .env.docker.example instead)
+.env
+.env.*
+!.env.docker.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (not needed in container)
+*.md
+!README.md
+docs/
+
+# Data directories (will use volumes)
+data/
+outputs/
+
+# Node modules (if operator-dashboard is built separately)
+operator-dashboard/node_modules/
+operator-dashboard/dist/
+operator-dashboard/build/
+
+# Portal (not needed for backend deployment)
+portal/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Docker files in subdirectories (use root-level Dockerfile)
+backend/Dockerfile
+backend/docker-compose.yml
+backend/.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+nul

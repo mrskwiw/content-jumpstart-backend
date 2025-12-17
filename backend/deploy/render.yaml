@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: content-jumpstart-api
+    env: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: content-jumpstart-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-20241022
+      - key: DEBUG_MODE
+        value: false
+      - key: CORS_ORIGINS
+        value: https://your-frontend.netlify.app
+      - key: PARALLEL_GENERATION
+        value: true
+      - key: MAX_CONCURRENT_API_CALLS
+        value: 5
+    healthCheckPath: /health
+    autoDeploy: true
+
+databases:
+  - name: content-jumpstart-db
+    plan: starter
+    region: oregon
+    databaseName: content_jumpstart
+    user: content_jumpstart_user
+    postgresMajorVersion: 18  # PostgreSQL 18 (Render's latest)

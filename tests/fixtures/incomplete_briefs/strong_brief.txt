@@ -1,0 +1,94 @@
+# Strong Client Brief
+
+## Basic Information
+
+**Company Name:** ContentFlow AI
+**Founder:** Sarah Martinez, CEO
+**Website:** contentflow.ai
+**Business Description:** We help content marketing teams at mid-market B2B companies (50-500 employees) produce 10x more high-quality content by automating research, outlining, and first-draft writing using custom-trained AI models that match their brand voice.
+
+**Ideal Customer:** Head of Content or VP of Marketing at B2B SaaS/tech companies with $10-50M ARR who have a content team of 2-5 people but need to publish 20+ pieces monthly to compete. They're drowning in content requests from sales/product teams and can't scale their team fast enough.
+
+**Main Problem:** Content teams are bottlenecked - they can only produce 5-8 quality pieces per month, but the business needs 20-30 to stay competitive. Hiring more writers is expensive ($80K+ per person) and takes 3+ months. AI tools like ChatGPT produce generic content that doesn't match their brand voice and requires heavy editing.
+
+## Voice & Tone
+
+**Brand Personality:** Data-driven, approachable, conversational
+**Tone to Avoid:** Corporate jargon, overly salesy, hype-driven AI buzzwords
+**Key Phrases:**
+- "10x content velocity"
+- "brand-matched AI"
+- "from research to publish in 48 hours"
+- "quality at scale"
+- "your voice, amplified"
+
+**Role Model:** Brian Dean (Backlinko) - practical, data-backed, actionable
+
+## Customer Insights
+
+**Pain Points:**
+1. Content team overwhelmed with requests - 20+ content ideas in backlog
+2. Hiring takes 3-6 months and costs $80K+ per writer
+3. Generic AI tools produce content that needs 80% rewriting
+4. Can't keep up with competitors who are publishing 3x more
+5. Sales team constantly asking for more case studies, blog posts, social content
+6. Long production cycles (2-3 weeks from idea to publish)
+
+**Customer Questions:**
+1. How does it learn our brand voice? (Answer: Train on your best 10-15 pieces)
+2. How much editing is still required? (Answer: Typically 20-30% vs 80% with generic AI)
+3. Does it replace our writers? (Answer: No - amplifies them, handles research/drafts)
+4. What's the time savings? (Answer: 48 hours from outline to first draft vs 1-2 weeks)
+5. Can it write in different formats? (Answer: Yes - blog, LinkedIn, email, case studies)
+6. How much does it cost compared to hiring? (Answer: $2,500/month vs $80K/year per writer)
+7. What if the AI makes factual errors? (Answer: Built-in fact-checking, human review workflow)
+
+**Misconceptions to Correct:**
+1. "AI content is always generic and low-quality" → We train on YOUR content, not generic web data
+2. "AI will replace our writers" → Writers become editors/strategists, not replaced
+3. "It takes months to set up" → 2-week onboarding, seeing results in first week
+4. "We'll lose our unique voice" → The opposite - we amplify YOUR voice, not create a new one
+
+## Credibility & Proof
+
+**Measurable Results:**
+- Clients increase content output from 6 pieces/month to 25+ pieces/month (4x improvement)
+- Reduce time-to-publish from 14 days to 2-3 days (5x faster)
+- Content teams report 60% time savings on research and first drafts
+- 85% of AI-generated content published with only minor edits
+
+**Case Studies:**
+- DataCorp: Increased blog output from 8/month to 30/month, grew organic traffic 140% in 6 months
+- SalesHub: Cut content production costs by $120K annually by avoiding 2 writer hires
+- CloudMetrics: Published 50 LinkedIn posts in 30 days (vs usual 10), generated 200+ qualified leads
+
+## Stories & Examples
+
+**Customer Success Story:**
+"We had a VP of Product who kept requesting feature announcement blogs, but our 3-person content team was already maxed out. We were turning down 70% of internal requests. After using ContentFlow, we went from 6 published pieces per month to 22, and the Product team finally got their announcements out on time. Our Head of Content said it was like adding 2 full-time writers to the team without the hiring headache."
+- Jason Park, CMO at TechVenture ($15M ARR B2B SaaS)
+
+**Personal Story:**
+"I built ContentFlow after spending 5 years as a VP of Marketing at a Series B company. We had a team of 4 content writers producing maybe 10 pieces per month, but Sales wanted 30+ pieces. I tried hiring more writers, but it took 4 months and cost $90K+ per person. Then I tried generic AI tools - disaster. The content was so bland it needed complete rewrites. I realized the solution wasn't 'just use AI' but 'teach AI to write like YOUR team.' That's why we train custom models on each client's best content."
+
+## Platform & CTAs
+
+**Target Platforms:** LinkedIn (primary), Blog, Email newsletter
+
+**Posting Frequency:** 4x per week on LinkedIn, 1-2 blog posts per week
+
+**Main CTA:** Book a content audit call - we'll analyze your current content and show exactly how much time/money you could save
+
+**Lead Magnets:**
+- Free content velocity calculator (shows cost of current process vs ContentFlow)
+- "10 Signs Your Content Team Is Bottlenecked" checklist
+- Case study library with before/after metrics
+
+**Data Usage Preference:** Heavy - use lots of numbers, percentages, time/cost savings
+
+## Logistics
+
+**Delivery Timeline:** End of week
+**Review Preference:** All 30 at once, then batch revisions if needed
+**Topics to Avoid:** Anything implying AI will fully replace humans (we augment, not replace)
+

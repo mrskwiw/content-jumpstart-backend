@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__resolve-library-id",
+      "mcp__MCP_DOCKER__get-library-docs",
+      "WebSearch",
+      "WebFetch(domain:www.freecodecamp.org)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

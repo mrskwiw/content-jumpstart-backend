@@ -1,0 +1,35 @@
+# Medium Quality Client Brief
+
+## Basic Information
+
+**Company Name:** SalesForce Accelerator
+**Founder:** Mike Chen
+**Business Description:** We help B2B SaaS companies increase their sales velocity through AI-powered lead scoring and automated outreach.
+**Ideal Customer:** VP of Sales at Series A/B SaaS companies with $2-10M ARR struggling to scale their sales team.
+**Main Problem:** Sales teams waste 60% of their time on unqualified leads and can't predict which deals will close.
+
+## Voice & Tone
+
+**Brand Personality:** Data-driven, direct, conversational
+**Key Phrases:** "sales velocity", "predictable revenue", "qualified pipeline"
+
+## Content Topics
+
+**Customer Pain Points:**
+1. Can't predict monthly revenue accurately
+2. Sales reps spending too much time on deals that won't close
+3. No visibility into what's working in the sales process
+4. Losing deals to competitors with better data
+
+**Customer Questions:**
+1. How long until we see ROI?
+2. Does it integrate with Salesforce?
+3. What's the learning curve for our team?
+4. Can we customize the lead scoring algorithm?
+5. What kind of support do you provide?
+
+## Platform & Goals
+
+**Target Platforms:** LinkedIn, Blog
+**Main CTA:** Book a 15-minute demo
+

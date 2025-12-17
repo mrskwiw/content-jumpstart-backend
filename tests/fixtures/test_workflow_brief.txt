@@ -1,0 +1,77 @@
+# Client Discovery Brief - TechFlow Solutions
+
+## Company Information
+
+**Company Name:** TechFlow Solutions
+
+**Business Description:** We're a B2B SaaS platform that helps mid-size companies automate their workflow approvals and document routing. We eliminate the bottleneck of manual approval processes that slow down operations.
+
+**Ideal Customer:** Operations managers and IT directors at mid-size companies (100-500 employees) who are frustrated with email chains, lost documents, and approval delays that cost them time and money.
+
+**Main Problem Solved:** We solve the chaos of manual approval workflows - the back-and-forth emails, lost documents, and approval bottlenecks that waste 15-20 hours per week per team.
+
+## Target Audience Details
+
+**Top 3 Customer Pain Points:**
+1. Approval requests getting lost in email chains or Slack threads
+2. No visibility into where documents are stuck in the approval pipeline
+3. Manual routing that creates bottlenecks and slows down critical business processes
+
+**Top 5 Questions Customers Ask:**
+1. How long does implementation take?
+2. Can it integrate with our existing tools like Salesforce and DocuSign?
+3. What happens if someone is out of office - does the approval get stuck?
+4. How much time will we actually save?
+5. Is it secure enough for sensitive financial documents?
+
+## Brand Voice & Personality
+
+**Brand Personality Traits:** Direct, approachable, data-driven
+
+**Key Phrases We Use:**
+- "Stop chasing approvals"
+- "Workflow visibility"
+- "Automated routing"
+- "Get unstuck"
+- "15 hours back per week"
+
+**Tone to Avoid:** Too technical or enterprise-y. We want to sound helpful and practical, not like a corporate brochure.
+
+**Communication Role Model:** Patrick McKenzie (patio11) - practical, data-driven, but approachable
+
+## Content Strategy
+
+**Target Platforms:** LinkedIn, Twitter
+
+**Posting Frequency:** 4x weekly
+
+**Data Usage Preference:** Heavy - we have great stats on time savings and ROI
+
+**Main CTA:** Book a 15-minute demo to see how we eliminate approval bottlenecks
+
+**Lead Magnets:**
+- "The 5 Approval Workflow Mistakes Costing You 20 Hours Per Week" guide
+- ROI calculator for approval automation
+
+## Stories & Examples
+
+**Personal Stories/Customer Wins:**
+1. One customer (200-person professional services firm) went from 3-day approval cycles to same-day approvals, saving 18 hours per week for their ops team
+2. Our founder built this after spending 2 years in operations watching approval requests die in email chains
+3. A manufacturing client eliminated their "approval hunting" Slack channel that had 500+ messages per week
+
+**Measurable Results:**
+- Average time savings: 15 hours per week per team
+- 90% reduction in approval cycle time
+- 95% of approvals completed within 24 hours (vs 3-5 days manually)
+
+**Industry Misconceptions to Address:**
+- "Automation is only for enterprises" - Actually, mid-size companies benefit most because they feel the pain but don't have enterprise resources
+- "We can just use email better" - Email fundamentally lacks workflow visibility and routing logic
+- "Implementation takes 6 months" - We're live in 2 weeks for most customers
+
+## Additional Context
+
+**Delivery Date:** ASAP for testing purposes
+
+**Special Requests:** Focus on practical benefits and real ROI data. Our audience is skeptical of "productivity tools" that don't deliver - they want proof.
