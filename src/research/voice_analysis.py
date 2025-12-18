@@ -761,7 +761,7 @@ Focus on objective patterns in the writing, not what the content is about."""
 {chr(10).join([f"{i+1}. **{p.cta_type.title()}** ({p.frequency}x): {p.example}" for i, p in enumerate(profile.cta_patterns)])}
 
 ### Signature Phrases
-{chr(10).join([f"- \"{p.phrase}\" ({p.count}x)" for p in profile.signature_phrases]) if profile.signature_phrases else "- No recurring phrases detected"}
+{chr(10).join([f"- '{p.phrase}' ({p.count}x)" for p in profile.signature_phrases]) if profile.signature_phrases else "- No recurring phrases detected"}
 
 ### Data Usage
 - **Frequency:** {profile.data_frequency.title()}
