@@ -123,6 +123,23 @@ class Settings(BaseSettings):
     OUTPUTS_DIR: str = str(DATA_DIR / "outputs")
     LOGS_DIR: str = str(BACKEND_DIR / "logs")
 
+    # Cache Configuration
+    # Tuned for production load: 10 concurrent projects, 300 total posts
+    # Week 3 optimization: Increased from initial values (100/50/20)
+
+    # Cache TTLs (Time To Live) in seconds
+    CACHE_TTL_SHORT: int = 300   # 5 minutes - frequently changing data
+    CACHE_TTL_MEDIUM: int = 600  # 10 minutes - semi-static data
+    CACHE_TTL_LONG: int = 3600   # 1 hour - static data
+
+    # Cache size limits (max entries per tier)
+    # Short: Projects list, posts list, runs (high volume, frequent changes)
+    CACHE_MAX_SIZE_SHORT: int = 500
+    # Medium: Individual projects, clients (moderate volume, occasional changes)
+    CACHE_MAX_SIZE_MEDIUM: int = 200
+    # Long: Templates, system data (low volume, rare changes)
+    CACHE_MAX_SIZE_LONG: int = 100
+
     class Config:
         env_file = ENV_FILE
         case_sensitive = True

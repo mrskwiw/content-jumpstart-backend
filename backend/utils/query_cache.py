@@ -3,6 +3,11 @@ Server-side query result caching using cachetools.
 
 Provides in-memory caching for expensive database queries to reduce
 database load and improve response times.
+
+Week 3 Optimization: Cache sizes tuned for production load
+- Increased from initial (100/50/20) to (500/200/100)
+- Configurable via environment variables
+- Based on expected load: 10 concurrent projects, 300 posts
 """
 import functools
 import hashlib
@@ -12,16 +17,42 @@ from typing import Any, Callable, Dict, Optional
 
 from cachetools import TTLCache
 
+# Import settings for cache configuration
+from config import settings
+
+
+def _initialize_caches() -> Dict[str, TTLCache]:
+    """
+    Initialize cache instances with settings from environment.
+
+    Uses configurable cache sizes and TTLs for production tuning.
+    Sizes increased 5x from initial development values for production load.
+
+    Returns:
+        Dictionary of TTLCache instances by tier name
+    """
+    return {
+        # Short TTL for frequently changing data
+        # Projects list, posts list, runs - high volume, frequent access
+        "short": TTLCache(
+            maxsize=settings.CACHE_MAX_SIZE_SHORT, ttl=settings.CACHE_TTL_SHORT
+        ),
+        # Medium TTL for semi-static data
+        # Individual projects, clients - moderate volume, occasional changes
+        "medium": TTLCache(
+            maxsize=settings.CACHE_MAX_SIZE_MEDIUM, ttl=settings.CACHE_TTL_MEDIUM
+        ),
+        # Long TTL for static data
+        # Templates, system data - low volume, rare changes
+        "long": TTLCache(
+            maxsize=settings.CACHE_MAX_SIZE_LONG, ttl=settings.CACHE_TTL_LONG
+        ),
+    }
+
+
 # Global cache instances
 # Using TTLCache for automatic expiration
-_caches: Dict[str, TTLCache] = {
-    # Short TTL for frequently changing data (5 minutes)
-    "short": TTLCache(maxsize=100, ttl=300),
-    # Medium TTL for semi-static data (10 minutes)
-    "medium": TTLCache(maxsize=50, ttl=600),
-    # Long TTL for static data (1 hour)
-    "long": TTLCache(maxsize=20, ttl=3600),
-}
+_caches: Dict[str, TTLCache] = _initialize_caches()
 
 # Cache statistics
 _cache_stats: Dict[str, Dict[str, int]] = {
