@@ -8,6 +8,8 @@ This is the **agent implementation** for the 30-Day Content Jumpstart system - a
 
 **Key Constraint:** All paths to business templates (01_CLIENT_BRIEF_TEMPLATE.md, 02_POST_TEMPLATE_LIBRARY.md) are relative to parent directory (`../`). These files must never be moved into this directory.
 
+**New:** Strategic service packaging and pricing reference lives in `../STRATEGY_SERVICE.md`.
+
 ## Development Commands
 
 ### Environment Setup

@@ -5,6 +5,8 @@
 
 This guide covers the enhanced internal CLI agent for the 30-Day Content Jumpstart service, including all Week 2 intelligence features and Week 3 polish enhancements.
 
+**New Reference:** Strategic service packaging and pricing lives in `../STRATEGY_SERVICE.md`.
+
 ## Table of Contents
 
 1. [Getting Started](#getting-started)

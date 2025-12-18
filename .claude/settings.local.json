@@ -55,7 +55,13 @@
       "Bash(dir:*)",
       "Bash(ls:*)",
       "Bash(taskkill:*)",
-      "Bash(python seed_demo_data.py:*)"
+      "Bash(python seed_demo_data.py:*)",
+      "Bash(python -m py_compile:*)",
+      "Bash(for f in *.py)",
+      "Bash(do echo \"=== Checking $f ===\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
