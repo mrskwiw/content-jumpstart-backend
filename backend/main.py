@@ -34,6 +34,8 @@ async def lifespan(app: FastAPI):
     print(
         f">> Rate Limits: {settings.RATE_LIMIT_REQUESTS_PER_MINUTE} req/min, {settings.RATE_LIMIT_TOKENS_PER_MINUTE} tokens/min"
     )
+    print(f">> CORS Origins: {settings.cors_origins_list}")
+    print(f">> DEBUG: CORS_ORIGINS env var = '{settings.CORS_ORIGINS}'")
 
     # Initialize database
     init_db()
