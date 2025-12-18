@@ -19,7 +19,7 @@ class Deliverable(Base):
     run_id = Column(String, ForeignKey("runs.id"), index=True)
     format = Column(String, nullable=False)  # txt, docx, pdf
     path = Column(String, nullable=False)  # File path
-    status = Column(String, nullable=False, default="draft")  # draft, ready, delivered
+    status = Column(String, nullable=False, default="draft", index=True)  # draft, ready, delivered - indexed for filtering
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     delivered_at = Column(DateTime(timezone=True))
     proof_url = Column(String)  # URL to delivery proof

@@ -17,8 +17,8 @@ class Project(Base):
     client_id = Column(String, ForeignKey("clients.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     status = Column(
-        String, nullable=False, default="draft"
-    )  # draft, processing, qa_review, ready, delivered
+        String, nullable=False, default="draft", index=True
+    )  # draft, processing, qa_review, ready, delivered - indexed for filtering
     templates = Column(JSON)  # Array of template IDs
     platforms = Column(JSON)  # Array of platform names
     tone = Column(String)  # professional, casual, etc.
