@@ -31,3 +31,8 @@ requests==2.31.0
 # Existing project dependencies (for agent integration)
 anthropic==0.18.1
 cachetools==5.3.2  # In-memory caching for query results
+
+# Background Job Queue (Phase 2 optimization)
+celery==5.3.6  # Distributed task queue
+redis==5.0.1   # Message broker and result backend
+flower==2.0.1  # Celery monitoring UI (optional)

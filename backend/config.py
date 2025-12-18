@@ -140,6 +140,23 @@ class Settings(BaseSettings):
     # Long: Templates, system data (low volume, rare changes)
     CACHE_MAX_SIZE_LONG: int = 100
 
+    # Celery Configuration (Phase 2 optimization)
+    # Background job queue for long-running content generation tasks
+    # Default: Redis on localhost for development
+    # Production: Use Redis cluster with persistence enabled
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+
+    # Celery task configuration
+    CELERY_TASK_TRACK_STARTED: bool = True     # Track task start time
+    CELERY_TASK_SEND_SENT_EVENT: bool = True   # Send task-sent events
+    CELERY_TASK_TIME_LIMIT: int = 600          # 10 minutes max per task
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 540     # 9 minutes soft limit (allows cleanup)
+
+    # Redis connection settings
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_MAX_CONNECTIONS: int = 50
+
     class Config:
         env_file = ENV_FILE
         case_sensitive = True
