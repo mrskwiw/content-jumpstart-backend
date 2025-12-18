@@ -31,7 +31,7 @@ RESEARCH_TOOLS_AVAILABLE = False
 RESEARCH_TOOL_MAP = {}
 
 try:
-    from src.research.voice_analysis import VoiceAnalysisTool
+    from src.research.voice_analysis import VoiceAnalyzer
     from src.research.brand_archetype import BrandArchetypeAnalyzer
     from src.research.seo_keyword_research import SEOKeywordResearcher
     from src.research.competitive_analysis import CompetitiveAnalyzer
@@ -40,7 +40,7 @@ try:
 
     RESEARCH_TOOLS_AVAILABLE = True
     RESEARCH_TOOL_MAP = {
-        "voice_analysis": VoiceAnalysisTool,
+        "voice_analysis": VoiceAnalyzer,
         "brand_archetype": BrandArchetypeAnalyzer,
         "seo_keyword": SEOKeywordResearcher,
         "competitive_analysis": CompetitiveAnalyzer,
