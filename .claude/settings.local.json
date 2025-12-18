@@ -61,7 +61,12 @@
       "Bash(do echo \"=== Checking $f ===\")",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git remote add:*)",
+      "Bash(cd:*)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(python main.py:*)"
     ]
   }
 }

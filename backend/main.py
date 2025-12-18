@@ -7,13 +7,16 @@ This is the backend API for the Operator Dashboard, providing:
 - JWT authentication
 - Rate limiting (70% of Anthropic API limits)
 - Server-Sent Events for progress updates
+- Static file serving for React frontend (eliminates CORS)
 """
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from routers import auth, briefs, clients, deliverables, generator, health, posts, projects, research, runs
 
 # Import models so SQLAlchemy can create tables
@@ -109,16 +112,17 @@ async def health_check():
     }
 
 
-# Root endpoint
-@app.get("/", tags=["Root"])
-async def root():
-    """Root endpoint with API information"""
-    return {
-        "message": "Content Jumpstart API",
-        "version": settings.API_VERSION,
-        "docs": "/docs",
-        "health": "/health",
-    }
+# Root endpoint - COMMENTED OUT to allow frontend serving at /
+# API information available at /health and /docs
+# @app.get("/", tags=["Root"])
+# async def root():
+#     """Root endpoint with API information"""
+#     return {
+#         "message": "Content Jumpstart API",
+#         "version": settings.API_VERSION,
+#         "docs": "/docs",
+#         "health": "/health",
+#     }
 
 
 # Global exception handler
@@ -163,6 +167,45 @@ app.include_router(deliverables.router, prefix="/api/deliverables", tags=["Deliv
 app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
+
+
+# Static file serving for React frontend
+# This eliminates CORS issues by serving frontend from same origin as API
+FRONTEND_BUILD_DIR = Path(__file__).parent.parent / "operator-dashboard" / "dist"
+
+if FRONTEND_BUILD_DIR.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
+
+    # Root route: serve React app
+    @app.get("/")
+    async def serve_root():
+        """Serve React app at root URL"""
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+
+    # Catch-all route: serve index.html for all non-API routes
+    # This enables React Router to handle client-side routing
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """
+        Serve React frontend for all non-API routes.
+
+        This allows React Router to handle client-side navigation.
+        API routes are protected by the /api prefix and handled first.
+        """
+        # If path looks like a file (has extension), try to serve it
+        if "." in full_path.split("/")[-1]:
+            file_path = FRONTEND_BUILD_DIR / full_path
+            if file_path.is_file():
+                return FileResponse(file_path)
+
+        # Otherwise, serve index.html (React app entry point)
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+
+    print(f">> Frontend static files enabled: {FRONTEND_BUILD_DIR}")
+else:
+    print(f">> WARNING: Frontend build directory not found: {FRONTEND_BUILD_DIR}")
+    print(">> Run 'cd operator-dashboard && npm run build' to build frontend")
 
 
 if __name__ == "__main__":
