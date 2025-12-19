@@ -13,7 +13,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -78,6 +78,29 @@ async def add_process_time_header(request: Request, call_next):
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(round(process_time, 3))
+    return response
+
+
+# SPA routing middleware (handles frontend routes without breaking API)
+@app.middleware("http")
+async def spa_routing_middleware(request: Request, call_next):
+    """
+    Serve index.html for 404s on non-API routes (enables React Router deep-links).
+
+    This allows:
+    - API routes to return JSON 404s properly
+    - Frontend routes (/login, /dashboard, etc.) to load the React app
+    - No interference with API routing
+    """
+    response = await call_next(request)
+
+    # If 404 and not an API/docs/health route, serve index.html
+    if response.status_code == 404 and not request.url.path.startswith("/api"):
+        if request.url.path not in ["/docs", "/redoc", "/openapi.json", "/health"]:
+            frontend_build_dir = Path(__file__).parent.parent / "operator-dashboard" / "dist"
+            if frontend_build_dir.exists():
+                return FileResponse(frontend_build_dir / "index.html")
+
     return response
 
 
@@ -156,20 +179,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         )
 
 
-# Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(health.router, prefix="/api", tags=["Health & Monitoring"])
-app.include_router(clients.router, prefix="/api/clients", tags=["Clients"])
-app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
-app.include_router(briefs.router, prefix="/api/briefs", tags=["Briefs"])
-app.include_router(runs.router, prefix="/api/runs", tags=["Runs"])
-app.include_router(deliverables.router, prefix="/api/deliverables", tags=["Deliverables"])
-app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
-app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
-app.include_router(research.router, prefix="/api/research", tags=["Research"])
-
-
-# Static file serving for React frontend
+# Static file serving for React frontend (defined BEFORE including routers)
 # This eliminates CORS issues by serving frontend from same origin as API
 FRONTEND_BUILD_DIR = Path(__file__).parent.parent / "operator-dashboard" / "dist"
 
@@ -183,29 +193,27 @@ if FRONTEND_BUILD_DIR.exists():
         """Serve React app at root URL"""
         return FileResponse(FRONTEND_BUILD_DIR / "index.html")
 
-    # Catch-all route: serve index.html for all non-API routes
-    # This enables React Router to handle client-side routing
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
-        """
-        Serve React frontend for all non-API routes.
-
-        This allows React Router to handle client-side navigation.
-        API routes are protected by the /api prefix and handled first.
-        """
-        # If path looks like a file (has extension), try to serve it
-        if "." in full_path.split("/")[-1]:
-            file_path = FRONTEND_BUILD_DIR / full_path
-            if file_path.is_file():
-                return FileResponse(file_path)
-
-        # Otherwise, serve index.html (React app entry point)
-        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+    # Catch-all route removed - causes issues with API routing
+    # Instead, we'll mount frontend as static files and handle SPA routing differently
 
     print(f">> Frontend static files enabled: {FRONTEND_BUILD_DIR}")
 else:
     print(f">> WARNING: Frontend build directory not found: {FRONTEND_BUILD_DIR}")
     print(">> Run 'cd operator-dashboard && npm run build' to build frontend")
+
+
+# Include API routers
+# These MUST be registered before any catch-all routes
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(health.router, prefix="/api", tags=["Health & Monitoring"])
+app.include_router(clients.router, prefix="/api/clients", tags=["Clients"])
+app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
+app.include_router(briefs.router, prefix="/api/briefs", tags=["Briefs"])
+app.include_router(runs.router, prefix="/api/runs", tags=["Runs"])
+app.include_router(deliverables.router, prefix="/api/deliverables", tags=["Deliverables"])
+app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
+app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
+app.include_router(research.router, prefix="/api/research", tags=["Research"])
 
 
 if __name__ == "__main__":

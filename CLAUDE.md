@@ -114,8 +114,10 @@ black src/ tests/ && ruff check src/ tests/ && mypy src/
 ```
 
 ### Backend API (FastAPI)
+
+**Development (Standalone):**
 ```bash
-# Start API server
+# Start API server only (for backend-only development)
 uvicorn backend.main:app --reload --port 8000
 
 # With specific host
@@ -125,7 +127,22 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000
 # Navigate to http://localhost:8000/docs (Swagger UI)
 ```
 
+**Production (Docker - Recommended):**
+```bash
+# Run full stack (frontend + backend in one container)
+docker-compose up -d api
+
+# Access at http://localhost:8000
+# - Frontend: http://localhost:8000
+# - API: http://localhost:8000/api/*
+# - Docs: http://localhost:8000/docs
+```
+
+**Note:** In production, FastAPI serves both API and frontend static files. See [Docker Deployment](#docker-deployment-single-service) section above.
+
 ### Operator Dashboard (React)
+
+**Development (Standalone):**
 ```bash
 # Navigate to dashboard directory
 cd operator-dashboard
@@ -133,19 +150,32 @@ cd operator-dashboard
 # Install dependencies
 npm install
 
-# Start dev server
+# Start dev server (separate from backend)
 npm run dev
 # Available at http://localhost:5173
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
 
 # Run tests
 npm run test
 ```
+
+**Production (Docker - Recommended):**
+```bash
+# Build is automated in Dockerfile (multi-stage build)
+# Dashboard served by FastAPI at http://localhost:8000
+docker-compose up -d api
+```
+
+**Build for Production:**
+```bash
+cd operator-dashboard
+npm run build
+# Output: dist/ directory (served by FastAPI in production)
+
+# Preview production build locally
+npm run preview
+```
+
+**Note:** In production, the dashboard is built during Docker image creation (Node.js build stage) and served by FastAPI from `/operator-dashboard/dist`. See [Docker Deployment](#docker-deployment-single-service) section above.
 
 ### Interactive Agent
 ```bash
@@ -168,6 +198,57 @@ python agent_cli_enhanced.py export -s <session_id>
 python agent_cli_enhanced.py search -s <session_id> "query"
 
 # See AGENT_USER_GUIDE.md for complete documentation
+```
+
+### Docker Deployment (Single-Service)
+
+**PRODUCTION: Single Container with Frontend + Backend**
+
+```bash
+# Build and start
+docker-compose up -d api
+
+# View logs
+docker logs content-jumpstart-api -f
+
+# Rebuild after changes
+docker-compose build api && docker-compose up -d api
+
+# Access application
+# Frontend: http://localhost:8000
+# API: http://localhost:8000/api/*
+# Docs: http://localhost:8000/docs
+```
+
+**Architecture:**
+- One Docker container runs both frontend (React) and backend (FastAPI)
+- FastAPI serves frontend static files from `/operator-dashboard/dist`
+- Eliminates CORS issues (same origin)
+- Port 8000 exposed for all traffic
+
+**Files:**
+- `Dockerfile` - Multi-stage build (Node.js for frontend + Python for backend)
+- `docker-compose.yml` - Service configuration
+- See `QUICK_START.md` for quick reference
+- See `SINGLE_SERVICE_DEPLOYMENT.md` for complete guide
+
+**Development vs Production:**
+```yaml
+# Development: Volume mount for hot-reload
+volumes:
+  - .:/app
+
+# Production: Comment out volume mount
+# volumes:
+#   - .:/app
+```
+
+**Login Credentials:**
+```
+Email: mrskwiw@gmail.com
+Password: Random!1Pass
+
+See LOGIN_CREDENTIALS.md for user management
 ```
 
 ## Architecture Overview
@@ -933,6 +1014,38 @@ data/outputs/
 5. **Token optimization** - Filter context, cache prompts, limit list items
 6. **Type safety** - Full type hints with mypy checking
 7. **Business template separation** - Templates live in parent directory, code never modifies them
+
+## Known Issues & Limitations
+
+### Deep-Link Routing (Dashboard)
+
+**Issue:** Refreshing on deep routes (e.g., `/dashboard/projects`) returns 404.
+
+**Cause:** The catch-all route that served `index.html` for all paths was interfering with API routing. When frontend made API requests, the catch-all route was matching `/api/*` paths BEFORE the API routers could handle them, causing the API to return HTML instead of JSON. This caused errors like "x.filter is not a function" in the React dashboard.
+
+**Solution:** Removed the catch-all route entirely. This fixed API routing but broke deep-link support as a trade-off.
+
+**Workaround:** Use the navigation menu instead of browser refresh when on deep routes.
+
+**Future Fix:** Implement middleware-based SPA routing (does not interfere with API routes):
+```python
+@app.middleware("http")
+async def spa_middleware(request: Request, call_next):
+    response = await call_next(request)
+
+    # If 404 and not an API route, serve index.html
+    if response.status_code == 404 and not request.url.path.startswith("/api"):
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+
+    return response
+```
+
+This approach:
+- Lets API routes handle their 404s properly (returns JSON)
+- Serves `index.html` for non-API 404s (enables React Router deep-links)
+- Doesn't interfere with API routing
+
+**Documentation:** See `DASHBOARD_FIX_SUMMARY.md` for complete fix history and technical details.
 
 ---
 

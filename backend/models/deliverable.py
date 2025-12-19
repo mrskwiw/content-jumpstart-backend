@@ -28,6 +28,7 @@ class Deliverable(Base):
 
     # Relationships
     project = relationship("Project", back_populates="deliverables")
+    client = relationship("Client", back_populates="deliverables")
 
     def __repr__(self):
         return f"<Deliverable {self.id} ({self.status})>"

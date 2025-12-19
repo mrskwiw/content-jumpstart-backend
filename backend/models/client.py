@@ -20,6 +20,7 @@ class Client(Base):
 
     # Relationships
     projects = relationship("Project", back_populates="client", cascade="all, delete-orphan")
+    deliverables = relationship("Deliverable", back_populates="client")
 
     def __repr__(self):
         return f"<Client {self.name}>"
