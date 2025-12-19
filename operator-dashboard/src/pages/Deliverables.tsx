@@ -124,6 +124,7 @@ export default function Deliverables() {
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
   const [selected, setSelected] = useState<Deliverable | null>(null);
   const [selectedForEmail, setSelectedForEmail] = useState<Deliverable | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -200,6 +201,30 @@ export default function Deliverables() {
       await qc.invalidateQueries({ queryKey: ['deliverables'] });
     },
   });
+
+  // Download handler
+  const handleDownload = async (deliverable: Deliverable) => {
+    try {
+      setDownloadingId(deliverable.id);
+      const { blob, filename } = await deliverablesApi.download(deliverable.id);
+
+      // Create download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Could add toast notification here
+      alert('Failed to download file. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   // Mock file sizes (would come from backend)
   const getFileSize = (deliverable: Deliverable) => {
@@ -446,10 +471,12 @@ export default function Deliverables() {
                           View
                         </button>
                         <button
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          onClick={() => handleDownload(d)}
+                          disabled={downloadingId === d.id}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <Download className="h-3 w-3" />
-                          Download
+                          <Download className={`h-3 w-3 ${downloadingId === d.id ? 'animate-bounce' : ''}`} />
+                          {downloadingId === d.id ? 'Downloading...' : 'Download'}
                         </button>
                         {d.status !== 'delivered' && (
                           <button
@@ -539,10 +566,12 @@ export default function Deliverables() {
                           <Eye className="h-4 w-4" />
                         </button>
                         <button
-                          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                          title="Download"
+                          onClick={() => handleDownload(d)}
+                          disabled={downloadingId === d.id}
+                          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={downloadingId === d.id ? 'Downloading...' : 'Download'}
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className={`h-4 w-4 ${downloadingId === d.id ? 'animate-bounce' : ''}`} />
                         </button>
                         {d.status !== 'delivered' && (
                           <button
