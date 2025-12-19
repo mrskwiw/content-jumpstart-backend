@@ -1,7 +1,7 @@
 """
 Deliverable model for exported content packages.
 """
-from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -25,6 +25,7 @@ class Deliverable(Base):
     proof_url = Column(String)  # URL to delivery proof
     proof_notes = Column(String)  # Notes about delivery
     checksum = Column(String)  # File checksum for verification
+    file_size_bytes = Column(Integer)  # Actual file size in bytes
 
     # Relationships
     project = relationship("Project", back_populates="deliverables")

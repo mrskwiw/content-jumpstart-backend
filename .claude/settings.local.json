@@ -70,7 +70,16 @@
       "Bash(git check-ignore:*)",
       "Bash(docker-compose build:*)",
       "Bash(docker-compose up:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "WebFetch(domain:render.com)",
+      "Bash(git rm:*)",
+      "Bash(for module in auth briefs clients deliverables generator health posts projects research runs)",
+      "Bash(do)",
+      "Bash(if [ -f \"backend/routers/$module.py\" ])",
+      "Bash(then)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(python add_file_size_bytes.py:*)"
     ]
   }
 }

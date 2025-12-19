@@ -85,6 +85,7 @@ export const DeliverableSchema = z.object({
   proofNotes: z.string().optional(),
   runId: z.string().optional(),
   checksum: z.string().optional(),
+  fileSizeBytes: z.number().optional(),
 });
 export type Deliverable = z.infer<typeof DeliverableSchema>;
 

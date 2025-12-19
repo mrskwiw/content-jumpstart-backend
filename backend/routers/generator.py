@@ -222,9 +222,13 @@ async def export_package(
         from models import Deliverable
         import uuid
         from datetime import datetime
+        from utils.file_utils import calculate_file_size
 
         # Generate deliverable path based on project name and format
         deliverable_path = f"data/outputs/{project.name}/deliverable_{input.format}"
+
+        # Calculate file size if file exists
+        file_size = calculate_file_size(deliverable_path)
 
         # Create deliverable record
         db_deliverable = Deliverable(
@@ -234,7 +238,8 @@ async def export_package(
             format=input.format,
             path=deliverable_path,
             status="ready",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            file_size_bytes=file_size
         )
 
         db.add(db_deliverable)

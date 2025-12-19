@@ -27,6 +27,7 @@ class DeliverableResponse(DeliverableBase):
     proof_url: Optional[str] = None
     proof_notes: Optional[str] = None
     checksum: Optional[str] = None
+    file_size_bytes: Optional[int] = None
 
     model_config = ConfigDict(
         from_attributes=True,

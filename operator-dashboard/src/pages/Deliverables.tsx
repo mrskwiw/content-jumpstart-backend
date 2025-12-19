@@ -22,6 +22,7 @@ import {
 import { format, isAfter, isBefore, parseISO } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { formatFileSize } from '@/utils/formatters';
 
 function StatusChip({ status }: { status: DeliverableStatus }) {
   const map: Record<DeliverableStatus, string> = {
@@ -226,16 +227,6 @@ export default function Deliverables() {
     }
   };
 
-  // Mock file sizes (would come from backend)
-  const getFileSize = (deliverable: Deliverable) => {
-    const sizes: Record<string, string> = {
-      'txt': '24 KB',
-      'docx': '156 KB',
-      'pdf': '432 KB',
-      'md': '18 KB',
-    };
-    return sizes[deliverable.format] || '0 KB';
-  };
 
   return (
     <div className="space-y-6">
@@ -445,7 +436,7 @@ export default function Deliverables() {
                             {d.format.toUpperCase()}
                           </span>
                           <StatusChip status={d.status} />
-                          <span className="text-xs text-slate-500">{getFileSize(d)}</span>
+                          <span className="text-xs text-slate-500">{formatFileSize(d.fileSizeBytes)}</span>
                         </div>
                         <p className="text-sm text-slate-600">{d.path}</p>
                         <div className="flex items-center gap-4 text-xs text-slate-500">
@@ -529,7 +520,7 @@ export default function Deliverables() {
                         <FileText className="h-4 w-4 text-slate-400" />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{d.path}</p>
-                          <p className="text-xs text-slate-500">{getFileSize(d)}</p>
+                          <p className="text-xs text-slate-500">{formatFileSize(d.fileSizeBytes)}</p>
                         </div>
                       </div>
                     </td>
