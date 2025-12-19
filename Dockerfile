@@ -1,8 +1,29 @@
-# Multi-stage build for optimized full-system deployment
-# Includes: Agent system, CLI tools, Backend API, Template library
-FROM python:3.11-slim as builder
+# ============================================================
+# STAGE 1: Build React Frontend
+# ============================================================
+FROM node:20-alpine AS frontend-builder
 
-# Set working directory
+WORKDIR /frontend
+
+# Copy frontend package files
+COPY operator-dashboard/package.json operator-dashboard/package-lock.json ./
+
+# Install dependencies
+RUN npm ci --production=false
+
+# Copy frontend source code
+COPY operator-dashboard/ ./
+
+# Build frontend for production
+# Output will be in /frontend/dist
+RUN npm run build
+
+
+# ============================================================
+# STAGE 2: Build Python Backend Dependencies
+# ============================================================
+FROM python:3.11-slim AS backend-builder
+
 WORKDIR /app
 
 # Install build dependencies
@@ -19,7 +40,10 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir --user -r requirements.txt && \
     pip install --no-cache-dir --user -r backend/requirements.txt
 
-# Production stage
+
+# ============================================================
+# STAGE 3: Production Image
+# ============================================================
 FROM python:3.11-slim
 
 # Install runtime dependencies
@@ -34,14 +58,14 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 # Copy Python dependencies from builder
-COPY --from=builder /root/.local /home/appuser/.local
+COPY --from=backend-builder /root/.local /home/appuser/.local
 
 # Copy ENTIRE project (agents, backend, CLI, templates)
 COPY --chown=appuser:appuser . .
 
-# Copy template library from parent directory
-# Note: This will be handled by docker-compose build context
-# COPY --chown=appuser:appuser ../02_POST_TEMPLATE_LIBRARY.md ./02_POST_TEMPLATE_LIBRARY.md
+# Copy built frontend from frontend-builder stage
+# This is the key step that was missing!
+COPY --from=frontend-builder --chown=appuser:appuser /frontend/dist /app/operator-dashboard/dist
 
 # Create directories for data, logs, and outputs
 RUN mkdir -p /app/data /app/logs /app/data/outputs /app/data/briefs && \
@@ -56,12 +80,16 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
 # Switch to non-root user
 USER appuser
 
-# Expose backend API port
+# Expose backend API port (serves both API and frontend)
 EXPOSE 8000
 
 # Health check (backend API)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run backend API (which can call run_jumpstart.py and agents)
+# Run backend API (which serves frontend static files)
+# Single port 8000 serves:
+#   - Frontend at /
+#   - API at /api/*
+#   - Health at /health
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

@@ -63,5 +63,8 @@ Thumbs.db
 .pytest_cache/
 nul
 
-# Front end
-operator-dashboard/
+# Front end (ignore build artifacts and dependencies, not source)
+operator-dashboard/node_modules/
+operator-dashboard/dist/
+operator-dashboard/.env
+operator-dashboard/.env.local

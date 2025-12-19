@@ -50,7 +50,7 @@ services:
       - api-logs:/app/logs
 
       # Optional: Mount source for development (comment out for production)
-      # - .:/app
+      - .:/app
 
     depends_on:
       db:

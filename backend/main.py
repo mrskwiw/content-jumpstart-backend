@@ -193,6 +193,15 @@ if FRONTEND_BUILD_DIR.exists():
         """Serve React app at root URL"""
         return FileResponse(FRONTEND_BUILD_DIR / "index.html")
 
+    # Favicon route: serve vite.svg as favicon
+    @app.get("/favicon.ico")
+    async def serve_favicon():
+        """Serve favicon (uses vite.svg)"""
+        favicon_path = FRONTEND_BUILD_DIR / "vite.svg"
+        if favicon_path.exists():
+            return FileResponse(favicon_path, media_type="image/svg+xml")
+        return JSONResponse({"error": "Favicon not found"}, status_code=404)
+
     # Catch-all route removed - causes issues with API routing
     # Instead, we'll mount frontend as static files and handle SPA routing differently
 
