@@ -89,6 +89,37 @@ export const DeliverableSchema = z.object({
 });
 export type Deliverable = z.infer<typeof DeliverableSchema>;
 
+export const PostSummarySchema = z.object({
+  id: z.string(),
+  templateName: z.string().optional(),
+  wordCount: z.number().optional(),
+  readabilityScore: z.number().optional(),
+  status: z.string(),
+  flags: z.array(z.string()).optional(),
+  contentPreview: z.string(),
+});
+export type PostSummary = z.infer<typeof PostSummarySchema>;
+
+export const QASummarySchema = z.object({
+  avgReadability: z.number().optional(),
+  avgWordCount: z.number().optional(),
+  totalPosts: z.number(),
+  flaggedCount: z.number(),
+  approvedCount: z.number(),
+  ctaPercentage: z.number().optional(),
+  commonFlags: z.array(z.string()),
+});
+export type QASummary = z.infer<typeof QASummarySchema>;
+
+export const DeliverableDetailsSchema = DeliverableSchema.extend({
+  filePreview: z.string().optional(),
+  filePreviewTruncated: z.boolean(),
+  posts: z.array(PostSummarySchema),
+  qaSummary: QASummarySchema.optional(),
+  fileModifiedAt: z.string().datetime().optional(),
+});
+export type DeliverableDetails = z.infer<typeof DeliverableDetailsSchema>;
+
 export const AuditEntrySchema = z.object({
   id: z.string(),
   actor: z.string(),

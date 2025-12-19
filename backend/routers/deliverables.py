@@ -5,8 +5,13 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from middleware.auth_dependency import get_current_user
-from schemas.deliverable import DeliverableResponse, MarkDeliveredRequest
+from schemas.deliverable import (
+    DeliverableResponse,
+    DeliverableDetailResponse,
+    MarkDeliveredRequest,
+)
 from services import crud
+from services.deliverable_service import get_deliverable_details
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -128,3 +133,28 @@ async def download_deliverable(
             "Content-Disposition": f'attachment; filename="{file_path.name}"'
         }
     )
+
+
+@router.get("/{deliverable_id}/details", response_model=DeliverableDetailResponse)
+async def get_deliverable_details_endpoint(
+    deliverable_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get deliverable with extended details including:
+    - File preview (first 5000 characters)
+    - Related posts from the same run
+    - QA summary statistics
+    - File modification timestamp
+
+    This endpoint is used by the enhanced deliverable drawer
+    to display comprehensive information about a deliverable.
+    """
+    details = get_deliverable_details(db, deliverable_id)
+    if not details:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deliverable not found"
+        )
+    return details

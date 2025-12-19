@@ -1,6 +1,7 @@
 import apiClient from './client';
-import type { Deliverable, DeliverableStatus, MarkDeliveredInput } from '@/types/domain';
+import type { Deliverable, DeliverableDetails, DeliverableStatus, MarkDeliveredInput } from '@/types/domain';
 import { isSafeRelativePath } from '@/utils/guards';
+import { DeliverableDetailsSchema } from '@/types/domain';
 
 export interface DeliverableFilters {
   clientId?: string;
@@ -25,6 +26,11 @@ export const deliverablesApi = {
   async get(deliverableId: string) {
     const { data } = await apiClient.get<Deliverable>(`/api/deliverables/${deliverableId}`);
     return data;
+  },
+
+  async getDetails(deliverableId: string): Promise<DeliverableDetails> {
+    const { data } = await apiClient.get(`/api/deliverables/${deliverableId}/details`);
+    return DeliverableDetailsSchema.parse(data);
   },
 
   async create(input: CreateDeliverableInput) {
