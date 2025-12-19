@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
     # Auto-seed users if database is empty
     from database import SessionLocal
     from models.user import User
-    from services.auth import get_password_hash
+    from utils.auth import get_password_hash
     import uuid
 
     db = SessionLocal()
