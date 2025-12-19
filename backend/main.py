@@ -44,6 +44,46 @@ async def lifespan(app: FastAPI):
     init_db()
     print(">> Database initialized")
 
+    # Auto-seed users if database is empty
+    from database import SessionLocal
+    from models.user import User
+    from services.auth import get_password_hash
+    import uuid
+
+    db = SessionLocal()
+    try:
+        user_count = db.query(User).count()
+        if user_count == 0:
+            print(">> No users found - creating default users...")
+            users_to_create = [
+                {
+                    "email": "mrskwiw@gmail.com",
+                    "full_name": "Primary User",
+                },
+                {
+                    "email": "michele.vanhy@gmail.com",
+                    "full_name": "Secondary User",
+                }
+            ]
+
+            for user_data in users_to_create:
+                user = User(
+                    id=f"user-{uuid.uuid4().hex[:12]}",
+                    email=user_data["email"],
+                    hashed_password=get_password_hash("Random!1Pass"),
+                    full_name=user_data["full_name"],
+                    is_active=True
+                )
+                db.add(user)
+
+            db.commit()
+            print(f">> Created {len(users_to_create)} default users")
+            print(">> Default password: Random!1Pass")
+        else:
+            print(f">> Found {user_count} existing users")
+    finally:
+        db.close()
+
     yield  # Application runs here
 
     # Shutdown
