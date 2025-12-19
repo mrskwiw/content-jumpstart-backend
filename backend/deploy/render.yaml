@@ -4,8 +4,9 @@ services:
     env: docker
     plan: starter
     region: oregon
+    # Use root Dockerfile for single-service deployment (frontend + backend)
     dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerContext: ../..
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -20,8 +21,12 @@ services:
         value: claude-3-5-sonnet-20241022
       - key: DEBUG_MODE
         value: false
+      - key: ENVIRONMENT
+        value: production
+      # CORS_ORIGINS for single-service: frontend served from same domain
+      # Update after first deploy with your actual Render URL
       - key: CORS_ORIGINS
-        value: https://your-frontend.netlify.app
+        value: http://localhost:8000,https://content-jumpstart-api.onrender.com
       - key: PARALLEL_GENERATION
         value: true
       - key: MAX_CONCURRENT_API_CALLS
