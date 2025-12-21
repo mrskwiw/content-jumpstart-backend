@@ -69,8 +69,8 @@ export default function ClientDetail() {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-sm text-slate-600">Loading client...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 dark:border-primary-500 border-r-transparent"></div>
+          <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading client...</p>
         </div>
       </div>
     );
@@ -129,7 +129,7 @@ export default function ClientDetail() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate('/dashboard/clients')}
-            className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"
+            className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Clients
@@ -138,31 +138,31 @@ export default function ClientDetail() {
       </div>
 
       {/* Client Header Card */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
             {/* Avatar */}
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-2xl font-semibold text-white">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-600 dark:bg-primary-500 text-2xl font-semibold text-white">
               {client.name.charAt(0).toUpperCase()}
             </div>
 
             {/* Client Info */}
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">{client.name}</h1>
+              <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{client.name}</h1>
               <div className="mt-2 flex items-center gap-3">
                 <span
                   className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     client.status === 'active'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-800'
+                      ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300'
                   }`}
                 >
                   {client.status || 'active'}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2.5 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
                   {packageTier}
                 </span>
-                <span className="text-sm text-slate-600">
+                <span className="text-sm text-neutral-600 dark:text-neutral-400">
                   ${totalRevenue.toLocaleString()} total revenue
                 </span>
               </div>
@@ -171,22 +171,22 @@ export default function ClientDetail() {
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
               <Edit className="h-4 w-4" />
               Edit
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
               <Mail className="h-4 w-4" />
               Send Email
             </button>
             <button
               onClick={() => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } })}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
             >
               <Plus className="h-4 w-4" />
               New Project
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
               <Archive className="h-4 w-4" />
               Archive
             </button>
@@ -194,28 +194,28 @@ export default function ClientDetail() {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 grid grid-cols-4 gap-6 border-t border-slate-200 pt-6">
+        <div className="mt-6 grid grid-cols-4 gap-6 border-t border-neutral-200 dark:border-neutral-700 pt-6">
           <div>
-            <p className="text-sm text-slate-600">Total Projects</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{totalProjects}</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Projects</p>
+            <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{totalProjects}</p>
           </div>
           <div>
-            <p className="text-sm text-slate-600">Active Projects</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{activeProjects}</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Active Projects</p>
+            <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{activeProjects}</p>
           </div>
           <div>
-            <p className="text-sm text-slate-600">Posts Generated</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{clientPosts.length}</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Posts Generated</p>
+            <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{clientPosts.length}</p>
           </div>
           <div>
-            <p className="text-sm text-slate-600">Deliverables</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{clientDeliverables.length}</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Deliverables</p>
+            <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{clientDeliverables.length}</p>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-neutral-200 dark:border-neutral-700">
         <nav className="flex gap-8">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -225,8 +225,8 @@ export default function ClientDetail() {
                 onClick={() => setActiveTab(tab.id as TabType)}
                 className={`flex items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                    ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                    : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-900 dark:hover:text-neutral-100'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -235,8 +235,8 @@ export default function ClientDetail() {
                   <span
                     className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
                       activeTab === tab.id
-                        ? 'bg-blue-100 text-blue-600'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-300'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
                     }`}
                   >
                     {tab.count}
@@ -255,51 +255,51 @@ export default function ClientDetail() {
           <div className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               {/* Contact Information */}
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <User className="h-5 w-5 text-slate-600" />
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                  <User className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   Contact Information
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-slate-600">Company Name</p>
-                    <p className="mt-1 font-medium text-slate-900">{client.name}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Company Name</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">{client.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Email</p>
-                    <p className="mt-1 font-medium text-slate-900">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Email</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">
                       {client.tags?.find(t => t.includes('@')) || 'contact@example.com'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Phone</p>
-                    <p className="mt-1 font-medium text-slate-900">+1 (555) 123-4567</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Phone</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">+1 (555) 123-4567</p>
                   </div>
                 </div>
               </div>
 
               {/* Business Details */}
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <Building2 className="h-5 w-5 text-slate-600" />
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                  <Building2 className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   Business Details
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-slate-600">Industry</p>
-                    <p className="mt-1 font-medium text-slate-900">Technology / SaaS</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Industry</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">Technology / SaaS</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Company Size</p>
-                    <p className="mt-1 font-medium text-slate-900">50-100 employees</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Company Size</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">50-100 employees</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Website</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Website</p>
                     <a
                       href={`https://${client.name.toLowerCase().replace(/\s+/g, '')}.com`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
+                      className="mt-1 inline-flex items-center gap-1 font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
                       <Globe className="h-4 w-4" />
                       Visit website
@@ -310,40 +310,40 @@ export default function ClientDetail() {
               </div>
 
               {/* Package Details */}
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <FileText className="h-5 w-5 text-slate-600" />
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                  <FileText className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   Package Details
                 </h3>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm text-slate-600">Current Tier</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Current Tier</p>
                     <p className="mt-1">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+                      <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-3 py-1 text-sm font-medium text-primary-800 dark:text-primary-300">
                         {packageTier}
                       </span>
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Pricing</p>
-                    <p className="mt-1 font-medium text-slate-900">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Pricing</p>
+                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">
                       ${packageTier === 'Premium' ? '2,500' : packageTier === 'Professional' ? '1,800' : '1,200'} per project
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-600">Features</p>
-                    <ul className="mt-1 space-y-1 text-sm text-slate-700">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Features</p>
+                    <ul className="mt-1 space-y-1 text-sm text-neutral-700 dark:text-neutral-300">
                       <li className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         30 posts per project
                       </li>
                       <li className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                         Multi-platform support
                       </li>
                       {packageTier !== 'Starter' && (
                         <li className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                           Priority support
                         </li>
                       )}
@@ -353,38 +353,38 @@ export default function ClientDetail() {
               </div>
 
               {/* Account Manager */}
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
-                  <User className="h-5 w-5 text-slate-600" />
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                  <User className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   Account Manager
                 </h3>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 text-sm font-semibold text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 dark:bg-purple-500 text-sm font-semibold text-white">
                     SM
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900">Sarah Martinez</p>
-                    <p className="text-sm text-slate-600">sarah@company.com</p>
+                    <p className="font-medium text-neutral-900 dark:text-neutral-100">Sarah Martinez</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">sarah@company.com</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Custom Notes */}
-            <div className="rounded-lg border border-slate-200 bg-white p-6">
-              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
-                <MessageSquare className="h-5 w-5 text-slate-600" />
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                <MessageSquare className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                 Custom Notes
               </h3>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add notes about this client..."
-                className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 p-3 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
                 rows={6}
               />
               <div className="mt-3 flex justify-end">
-                <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <button className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600">
                   Save Notes
                 </button>
               </div>
@@ -394,39 +394,39 @@ export default function ClientDetail() {
 
         {/* Tab 2: Projects */}
         {activeTab === 'projects' && (
-          <div className="rounded-lg border border-slate-200 bg-white">
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                <thead className="bg-neutral-50 dark:bg-neutral-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Project Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Posts
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Created
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Quality
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
                   {clientProjects.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-12 text-center">
-                        <p className="text-sm text-slate-600">No projects yet</p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">No projects yet</p>
                         <button
                           onClick={() => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } })}
-                          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
                         >
                           <Plus className="h-4 w-4" />
                           Create First Project
@@ -441,13 +441,13 @@ export default function ClientDetail() {
                       )
                       .map((project) => {
                         const statusColors: Record<Project['status'], string> = {
-                          draft: 'bg-slate-100 text-slate-800',
-                          generating: 'bg-blue-100 text-blue-800',
-                          qa: 'bg-amber-100 text-amber-800',
-                          ready: 'bg-emerald-100 text-emerald-800',
-                          exported: 'bg-purple-100 text-purple-800',
-                          delivered: 'bg-emerald-100 text-emerald-800',
-                          error: 'bg-rose-100 text-rose-800',
+                          draft: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300',
+                          generating: 'bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300',
+                          qa: 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300',
+                          ready: 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300',
+                          exported: 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300',
+                          delivered: 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300',
+                          error: 'bg-rose-100 dark:bg-rose-900/20 text-rose-800 dark:text-rose-300',
                         };
 
                         const projectPostCount = clientPosts.filter(
@@ -455,11 +455,11 @@ export default function ClientDetail() {
                         ).length;
 
                         return (
-                          <tr key={project.id} className="hover:bg-slate-50">
+                          <tr key={project.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
                             <td className="whitespace-nowrap px-6 py-4">
                               <button
                                 onClick={() => navigate(`/dashboard/projects/${project.id}`)}
-                                className="font-medium text-blue-600 hover:text-blue-700"
+                                className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                               >
                                 {project.name}
                               </button>
@@ -467,25 +467,25 @@ export default function ClientDetail() {
                             <td className="whitespace-nowrap px-6 py-4">
                               <span
                                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                  statusColors[project.status] || 'bg-slate-100 text-slate-800'
+                                  statusColors[project.status] || 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300'
                                 }`}
                               >
                                 {project.status}
                               </span>
                             </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-neutral-100">
                               {projectPostCount}
                             </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-600 dark:text-neutral-400">
                               {project.createdAt ? format(new Date(project.createdAt), 'MMM d, yyyy') : 'N/A'}
                             </td>
-                            <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
-                              <span className="font-medium text-emerald-600">92%</span>
+                            <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-neutral-100">
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">92%</span>
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                               <button
                                 onClick={() => navigate(`/dashboard/projects/${project.id}`)}
-                                className="text-blue-600 hover:text-blue-700"
+                                className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                               >
                                 View
                               </button>
@@ -504,19 +504,19 @@ export default function ClientDetail() {
         {activeTab === 'content' && (
           <div className="space-y-4">
             {/* Filters */}
-            <div className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
               <input
                 type="search"
                 placeholder="Search posts..."
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               />
-              <select className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <select className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400">
                 <option value="">All Projects</option>
                 {clientProjects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-              <select className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <select className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400">
                 <option value="">All Platforms</option>
                 <option value="linkedin">LinkedIn</option>
                 <option value="twitter">Twitter</option>
@@ -527,27 +527,27 @@ export default function ClientDetail() {
             {/* Posts Grid */}
             <div className="grid gap-4 md:grid-cols-2">
               {clientPosts.length === 0 ? (
-                <div className="col-span-2 rounded-lg border border-slate-200 bg-white p-12 text-center">
-                  <MessageSquare className="mx-auto h-12 w-12 text-slate-400" />
-                  <p className="mt-4 text-sm text-slate-600">No content generated yet</p>
+                <div className="col-span-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+                  <MessageSquare className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                  <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No content generated yet</p>
                 </div>
               ) : (
                 clientPosts.slice(0, 20).map((post) => (
-                  <div key={post.id} className="rounded-lg border border-slate-200 bg-white p-4 hover:shadow-md">
+                  <div key={post.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 hover:shadow-md">
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs text-slate-600">
+                      <span className="text-xs text-neutral-600 dark:text-neutral-400">
                         {projects.find((p) => p.id === post.projectId)?.name}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
                         {(post as { wordCount?: number }).wordCount ?? (post.content?.split(' ').length ?? 0)} words
                       </span>
                     </div>
-                    <p className="line-clamp-4 text-sm text-slate-900">{post.content}</p>
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                    <p className="line-clamp-4 text-sm text-neutral-900 dark:text-neutral-100">{post.content}</p>
+                    <div className="mt-3 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                      <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
                         LinkedIn
                       </span>
-                      <button className="text-xs text-blue-600 hover:text-blue-700">View Full</button>
+                      <button className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">View Full</button>
                     </div>
                   </div>
                 ))
@@ -556,7 +556,7 @@ export default function ClientDetail() {
 
             {clientPosts.length > 20 && (
               <div className="text-center">
-                <button className="text-sm text-blue-600 hover:text-blue-700">
+                <button className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
                   Load More ({clientPosts.length - 20} more posts)
                 </button>
               </div>
@@ -566,44 +566,44 @@ export default function ClientDetail() {
 
         {/* Tab 4: Deliverables */}
         {activeTab === 'deliverables' && (
-          <div className="rounded-lg border border-slate-200 bg-white">
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                <thead className="bg-neutral-50 dark:bg-neutral-800">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Project
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Format
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Delivered
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
+                <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
                   {clientDeliverables.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center">
-                        <Download className="mx-auto h-12 w-12 text-slate-400" />
-                        <p className="mt-4 text-sm text-slate-600">No deliverables yet</p>
+                        <Download className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                        <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No deliverables yet</p>
                       </td>
                     </tr>
                   ) : (
                     clientDeliverables.map((deliverable) => (
-                      <tr key={deliverable.id} className="hover:bg-slate-50">
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
+                      <tr key={deliverable.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">
                           {projects.find((p) => p.id === deliverable.projectId)?.name}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4">
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
+                          <span className="inline-flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 text-xs font-medium text-neutral-800 dark:text-neutral-300">
                             {deliverable.format?.toUpperCase() || 'TXT'}
                           </span>
                         </td>
@@ -611,22 +611,22 @@ export default function ClientDetail() {
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                               deliverable.status === 'delivered'
-                                ? 'bg-emerald-100 text-emerald-800'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
                                 : deliverable.status === 'ready'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-slate-100 text-slate-800'
+                                ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300'
+                                : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300'
                             }`}
                           >
                             {deliverable.status}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-600 dark:text-neutral-400">
                           {deliverable.deliveredAt
                             ? format(new Date(deliverable.deliveredAt), 'MMM d, yyyy')
                             : '-'}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                          <button className="text-blue-600 hover:text-blue-700">
+                          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
                             <Download className="inline h-4 w-4" />
                           </button>
                         </td>
@@ -644,88 +644,88 @@ export default function ClientDetail() {
           <div className="space-y-6">
             {/* Summary Cards */}
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <p className="text-sm text-slate-600">Total Revenue</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Revenue</p>
+                <p className="mt-2 text-3xl font-semibold text-neutral-900 dark:text-neutral-100">
                   ${totalRevenue.toLocaleString()}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <p className="text-sm text-slate-600">Outstanding</p>
-                <p className="mt-2 text-3xl font-semibold text-amber-600">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Outstanding</p>
+                <p className="mt-2 text-3xl font-semibold text-amber-600 dark:text-amber-400">
                   ${mockInvoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.amount, 0).toLocaleString()}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-200 bg-white p-6">
-                <p className="text-sm text-slate-600">Paid This Month</p>
-                <p className="mt-2 text-3xl font-semibold text-emerald-600">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">Paid This Month</p>
+                <p className="mt-2 text-3xl font-semibold text-emerald-600 dark:text-emerald-400">
                   ${mockInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0).toLocaleString()}
                 </p>
               </div>
             </div>
 
             {/* Invoices Table */}
-            <div className="rounded-lg border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-6 py-4">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+              <div className="border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-slate-900">Invoices</h3>
-                  <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Invoices</h3>
+                  <button className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600">
                     Generate Invoice
                   </button>
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead className="bg-slate-50">
+                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Invoice #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Project
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Amount
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 bg-white">
+                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
                     {mockInvoices.map((invoice) => (
-                      <tr key={invoice.id} className="hover:bg-slate-50">
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
+                      <tr key={invoice.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">
                           INV-{invoice.id.padStart(4, '0')}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-neutral-100">
                           {invoice.project}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-600 dark:text-neutral-400">
                           {format(new Date(invoice.date), 'MMM d, yyyy')}
                         </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">
                           ${invoice.amount.toLocaleString()}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                               invoice.status === 'paid'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
+                                : 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
                             }`}
                           >
                             {invoice.status}
                           </span>
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                          <button className="text-blue-600 hover:text-blue-700">View PDF</button>
+                          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">View PDF</button>
                         </td>
                       </tr>
                     ))}
@@ -740,8 +740,8 @@ export default function ClientDetail() {
         {activeTab === 'communication' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">Communication Log</h3>
-              <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Communication Log</h3>
+              <button className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600">
                 New Communication
               </button>
             </div>
@@ -749,34 +749,34 @@ export default function ClientDetail() {
             {/* Communication Timeline */}
             <div className="space-y-4">
               {mockCommunications.map((comm, index) => (
-                <div key={comm.id} className="rounded-lg border border-slate-200 bg-white p-6">
+                <div key={comm.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
                   <div className="flex items-start gap-4">
                     <div
                       className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                        comm.type === 'email' ? 'bg-blue-100' : 'bg-emerald-100'
+                        comm.type === 'email' ? 'bg-primary-100 dark:bg-primary-900/20' : 'bg-emerald-100 dark:bg-emerald-900/20'
                       }`}
                     >
                       {comm.type === 'email' ? (
-                        <Mail className="h-5 w-5 text-blue-600" />
+                        <Mail className="h-5 w-5 text-primary-600 dark:text-primary-400" />
                       ) : (
-                        <Phone className="h-5 w-5 text-emerald-600" />
+                        <Phone className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       )}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium text-slate-900">{comm.subject}</p>
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="font-medium text-neutral-900 dark:text-neutral-100">{comm.subject}</p>
+                          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
                             {comm.type === 'email' ? `From: ${comm.from}` : `Duration: ${comm.duration}`}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
                           <Calendar className="h-4 w-4" />
                           {format(new Date(comm.date), 'MMM d, yyyy')}
                         </div>
                       </div>
                       {comm.type === 'email' && (
-                        <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
+                        <button className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
                           View Email Thread →
                         </button>
                       )}
@@ -787,9 +787,9 @@ export default function ClientDetail() {
             </div>
 
             {mockCommunications.length === 0 && (
-              <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
-                <MessageSquare className="mx-auto h-12 w-12 text-slate-400" />
-                <p className="mt-4 text-sm text-slate-600">No communication history</p>
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+                <MessageSquare className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No communication history</p>
               </div>
             )}
           </div>

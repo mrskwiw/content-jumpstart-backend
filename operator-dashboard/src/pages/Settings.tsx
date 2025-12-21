@@ -206,11 +206,11 @@ export default function Settings() {
   const getIntegrationBadge = (status: Integration['status']) => {
     switch (status) {
       case 'connected':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700';
       case 'disconnected':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700';
       case 'error':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700';
     }
   };
 
@@ -247,14 +247,14 @@ export default function Settings() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Advanced Settings</h1>
-        <p className="text-sm text-slate-600 mt-1">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Advanced Settings</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
           Manage integrations, API keys, workflows, and system preferences
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-neutral-200 dark:border-neutral-700">
         <div className="flex gap-4 overflow-x-auto">
           {[
             { id: 'integrations', label: 'Integrations', icon: Server },
@@ -271,8 +271,8 @@ export default function Settings() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                    ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                    : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -289,15 +289,15 @@ export default function Settings() {
           {integrations.map(integration => {
             const Icon = getIntegrationIcon(integration.type);
             return (
-              <div key={integration.id} className="rounded-lg border border-slate-200 bg-white p-6">
+              <div key={integration.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-lg bg-slate-100 p-3">
-                      <Icon className="h-6 w-6 text-slate-600" />
+                    <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800 p-3">
+                      <Icon className="h-6 w-6 text-neutral-600 dark:text-neutral-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900">{integration.name}</h3>
-                      <p className="text-sm text-slate-600 mt-1">
+                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{integration.name}</h3>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                         {integration.configured
                           ? `Last synced ${formatTimeAgo(integration.lastSync)}`
                           : 'Not configured'}
@@ -314,7 +314,7 @@ export default function Settings() {
                       {integration.status === 'error' && <AlertCircle className="h-3 w-3" />}
                       {integration.status.charAt(0).toUpperCase() + integration.status.slice(1)}
                     </span>
-                    <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                    <button className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
                       {integration.configured ? 'Configure' : 'Connect'}
                     </button>
                   </div>
@@ -331,7 +331,7 @@ export default function Settings() {
           <div className="flex justify-end">
             <button
               onClick={() => setShowNewApiKeyModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
             >
               <Plus className="h-4 w-4" />
               Create API Key
@@ -339,11 +339,11 @@ export default function Settings() {
           </div>
 
           {apiKeys.map(apiKey => (
-            <div key={apiKey.id} className="rounded-lg border border-slate-200 bg-white p-6">
+            <div key={apiKey.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{apiKey.name}</h3>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{apiKey.name}</h3>
+                  <div className="flex items-center gap-4 mt-2 text-sm text-neutral-600 dark:text-neutral-400">
                     <span>Created {new Date(apiKey.created).toLocaleDateString()}</span>
                     <span>•</span>
                     <span>Last used {formatTimeAgo(apiKey.lastUsed)}</span>
@@ -354,8 +354,8 @@ export default function Settings() {
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium ${
                     apiKey.status === 'active'
-                      ? 'bg-green-100 text-green-700 border-green-200'
-                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                      ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'
                   }`}
                 >
                   {apiKey.status === 'active' && <CheckCircle className="h-3 w-3" />}
@@ -364,25 +364,25 @@ export default function Settings() {
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 font-mono text-sm">
+                <div className="flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-4 py-2 font-mono text-sm">
                   {showKeyValue === apiKey.id ? apiKey.key : apiKey.key.replace(/\*/g, '•')}
                 </div>
                 <button
                   onClick={() => setShowKeyValue(showKeyValue === apiKey.id ? null : apiKey.id)}
-                  className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700"
                 >
                   {showKeyValue === apiKey.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
                 <button
                   onClick={() => copyToClipboard(apiKey.key, apiKey.id)}
-                  className="rounded-lg border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700"
                 >
-                  {copiedKey === apiKey.id ? <CheckCircle className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                  {copiedKey === apiKey.id ? <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Copy className="h-4 w-4" />}
                 </button>
                 {apiKey.status === 'active' && (
                   <button
                     onClick={() => revokeApiKeyMutation.mutate(apiKey.id)}
-                    className="rounded-lg border border-red-300 bg-white p-2 text-red-600 hover:bg-red-50"
+                    className="rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-neutral-800 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -396,12 +396,12 @@ export default function Settings() {
       {/* Workflows Tab */}
       {activeTab === 'workflows' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="rounded-lg border border-primary-200 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 p-4">
             <div className="flex gap-2">
-              <AlertCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-4 w-4 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-900">Workflow Automation</p>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="text-sm font-medium text-primary-900 dark:text-primary-100">Workflow Automation</p>
+                <p className="text-sm text-primary-700 dark:text-primary-300 mt-1">
                   Automate repetitive tasks with custom workflow rules. Rules are evaluated in real-time.
                 </p>
               </div>
@@ -409,11 +409,11 @@ export default function Settings() {
           </div>
 
           {workflowRules.map(rule => (
-            <div key={rule.id} className="rounded-lg border border-slate-200 bg-white p-6">
+            <div key={rule.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-slate-900">{rule.name}</h3>
+                    <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{rule.name}</h3>
                     <label className="relative inline-flex cursor-pointer items-center">
                       <input
                         type="checkbox"
@@ -423,17 +423,17 @@ export default function Settings() {
                         }
                         className="peer sr-only"
                       />
-                      <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                      <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                     </label>
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-700">Trigger:</span>
-                      <span className="text-slate-600">{rule.trigger}</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">Trigger:</span>
+                      <span className="text-neutral-600 dark:text-neutral-400">{rule.trigger}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-700">Action:</span>
-                      <span className="text-slate-600">{rule.action}</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">Action:</span>
+                      <span className="text-neutral-600 dark:text-neutral-400">{rule.action}</span>
                     </div>
                   </div>
                 </div>
@@ -441,7 +441,7 @@ export default function Settings() {
             </div>
           ))}
 
-          <button className="w-full rounded-lg border-2 border-dashed border-slate-300 bg-white p-6 text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+          <button className="w-full rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 text-neutral-600 dark:text-neutral-400 hover:border-primary-400 dark:hover:border-primary-600 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
             <Plus className="h-5 w-5 mx-auto mb-2" />
             <span className="text-sm font-medium">Create New Workflow Rule</span>
           </button>
@@ -451,8 +451,8 @@ export default function Settings() {
       {/* Notifications Tab */}
       {activeTab === 'notifications' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Email Notifications</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Email Notifications</h3>
             <div className="space-y-4">
               {[
                 { id: 'deliverable_ready', label: 'Deliverable ready for client', default: true },
@@ -462,22 +462,22 @@ export default function Settings() {
                 { id: 'deadline_approaching', label: 'Deadline approaching (24h)', default: true },
               ].map(notification => (
                 <div key={notification.id} className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">{notification.label}</span>
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">{notification.label}</span>
                   <label className="relative inline-flex cursor-pointer items-center">
                     <input
                       type="checkbox"
                       defaultChecked={notification.default}
                       className="peer sr-only"
                     />
-                    <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                   </label>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">In-App Notifications</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">In-App Notifications</h3>
             <div className="space-y-4">
               {[
                 { id: 'desktop_notifications', label: 'Desktop notifications', default: false },
@@ -485,14 +485,14 @@ export default function Settings() {
                 { id: 'daily_summary', label: 'Daily activity summary (9:00 AM)', default: true },
               ].map(notification => (
                 <div key={notification.id} className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">{notification.label}</span>
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">{notification.label}</span>
                   <label className="relative inline-flex cursor-pointer items-center">
                     <input
                       type="checkbox"
                       defaultChecked={notification.default}
                       className="peer sr-only"
                     />
-                    <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                    <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                   </label>
                 </div>
               ))}
@@ -504,12 +504,12 @@ export default function Settings() {
       {/* Preferences Tab */}
       {activeTab === 'preferences' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">UI Preferences</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">UI Preferences</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Theme</label>
-                <select className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Theme</label>
+                <select className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500">
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
                   <option value="system">System</option>
@@ -517,8 +517,8 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Language</label>
-                <select className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Language</label>
+                <select className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500">
                   <option value="en">English</option>
                   <option value="es">Spanish</option>
                   <option value="fr">French</option>
@@ -526,8 +526,8 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Timezone</label>
-                <select className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Timezone</label>
+                <select className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500">
                   <option value="utc">UTC</option>
                   <option value="est">Eastern Time (EST)</option>
                   <option value="pst">Pacific Time (PST)</option>
@@ -536,18 +536,18 @@ export default function Settings() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Compact view mode</span>
+                <span className="text-sm text-neutral-700 dark:text-neutral-300">Compact view mode</span>
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input type="checkbox" className="peer sr-only" />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                 </label>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Auto-refresh data</span>
+                <span className="text-sm text-neutral-700 dark:text-neutral-300">Auto-refresh data</span>
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input type="checkbox" defaultChecked className="peer sr-only" />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                 </label>
               </div>
             </div>
@@ -558,12 +558,12 @@ export default function Settings() {
       {/* Security Tab */}
       {activeTab === 'security' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Session Management</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Session Management</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-700">Active Session</span>
-                <span className="font-mono text-xs text-slate-500">
+                <span className="text-neutral-700 dark:text-neutral-300">Active Session</span>
+                <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
                   {localStorage.getItem('token') ? 'Authenticated' : 'Not authenticated'}
                 </span>
               </div>
@@ -572,36 +572,36 @@ export default function Settings() {
                   localStorage.clear();
                   window.location.href = '/login';
                 }}
-                className="w-full rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
               >
                 Sign Out & Clear Session
               </button>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Password & Authentication</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Password & Authentication</h3>
             <div className="space-y-3">
-              <button className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
                 Change Password
               </button>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Two-factor authentication</span>
+                <span className="text-sm text-neutral-700 dark:text-neutral-300">Two-factor authentication</span>
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input type="checkbox" className="peer sr-only" />
-                  <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                  <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                 </label>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Data & Privacy</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Data & Privacy</h3>
             <div className="space-y-3">
-              <button className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 text-left">
+              <button className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-left">
                 Export My Data
               </button>
-              <button className="w-full rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 text-left">
+              <button className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-left">
                 Delete My Account
               </button>
             </div>
@@ -611,10 +611,10 @@ export default function Settings() {
 
       {/* Save Actions */}
       <div className="flex justify-end gap-3">
-        <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <button className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
           Reset to Defaults
         </button>
-        <button className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+        <button className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600">
           <Save className="h-4 w-4" />
           Save Changes
         </button>
@@ -645,16 +645,16 @@ function NewApiKeyModal({
   const [name, setName] = useState('');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
+      <div className="w-full max-w-md rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Create API Key</h3>
-            <p className="text-sm text-slate-600 mt-1">Generate a new API key for integrations</p>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Create API Key</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Generate a new API key for integrations</p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
           >
             <X className="h-5 w-5" />
           </button>
@@ -662,20 +662,20 @@ function NewApiKeyModal({
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Key Name</label>
+            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Key Name</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g., Production API Key"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
             <div className="flex gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700 dark:text-amber-300">
                 Make sure to copy your API key now. You won't be able to see it again!
               </p>
             </div>
@@ -685,14 +685,14 @@ function NewApiKeyModal({
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
           >
             Cancel
           </button>
           <button
             disabled={!name || isSubmitting}
             onClick={() => onSubmit(name)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
           >
             <Key className="h-4 w-4" />
             {isSubmitting ? 'Creating...' : 'Create Key'}

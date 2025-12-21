@@ -175,7 +175,7 @@ export default function Analytics() {
       change: metrics.posts.change,
       trend: metrics.posts.change > 0 ? 'up' : metrics.posts.change < 0 ? 'down' : 'neutral',
       icon: FileText,
-      color: 'blue',
+      color: 'primary',
     },
     {
       label: 'Avg Quality Score',
@@ -212,20 +212,20 @@ export default function Analytics() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Analytics</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Analytics</h1>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Performance metrics, quality trends, and revenue reporting
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Time Range Selector */}
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-1">
             <button
               onClick={() => setTimeRange('month')}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 timeRange === 'month'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-600 dark:bg-primary-500 text-white'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               This Month
@@ -234,8 +234,8 @@ export default function Analytics() {
               onClick={() => setTimeRange('quarter')}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 timeRange === 'quarter'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-600 dark:bg-primary-500 text-white'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               Last 3 Months
@@ -244,8 +244,8 @@ export default function Analytics() {
               onClick={() => setTimeRange('year')}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 timeRange === 'year'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-600 dark:bg-primary-500 text-white'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               This Year
@@ -254,14 +254,14 @@ export default function Analytics() {
               onClick={() => setTimeRange('all')}
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 timeRange === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-600 dark:bg-primary-500 text-white'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               All Time
             </button>
           </div>
-          <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
             <Calendar className="h-4 w-4" />
             Export Report
           </button>
@@ -271,15 +271,27 @@ export default function Analytics() {
       {/* Key Metrics Cards */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {metricCards.map((metric) => (
-          <div key={metric.label} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={metric.label} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className={`rounded-lg bg-${metric.color}-100 p-3`}>
-                <metric.icon className={`h-6 w-6 text-${metric.color}-600`} />
+              <div className={`rounded-lg p-3 ${
+                metric.color === 'primary' ? 'bg-primary-100 dark:bg-primary-900/20' :
+                metric.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/20' :
+                metric.color === 'amber' ? 'bg-amber-100 dark:bg-amber-900/20' :
+                metric.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
+                'bg-neutral-100 dark:bg-neutral-800'
+              }`}>
+                <metric.icon className={`h-6 w-6 ${
+                  metric.color === 'primary' ? 'text-primary-600 dark:text-primary-400' :
+                  metric.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
+                  metric.color === 'amber' ? 'text-amber-600 dark:text-amber-400' :
+                  metric.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                  'text-neutral-600 dark:text-neutral-400'
+                }`} />
               </div>
               <div className={`flex items-center gap-1 text-sm font-medium ${
-                metric.trend === 'up' ? 'text-emerald-600' :
-                metric.trend === 'down' ? 'text-red-600' :
-                'text-slate-500'
+                metric.trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
+                metric.trend === 'down' ? 'text-red-600 dark:text-red-400' :
+                'text-neutral-500 dark:text-neutral-400'
               }`}>
                 {metric.trend === 'up' && <TrendingUp className="h-4 w-4" />}
                 {metric.trend === 'down' && <TrendingUp className="h-4 w-4 rotate-180" />}
@@ -287,8 +299,8 @@ export default function Analytics() {
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-sm text-slate-600">{metric.label}</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{metric.value}</p>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">{metric.label}</p>
+              <p className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{metric.value}</p>
             </div>
           </div>
         ))}
@@ -297,13 +309,13 @@ export default function Analytics() {
       {/* Charts Row 1: Performance Trends */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Projects Over Time */}
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Projects Over Time</h3>
-              <p className="text-sm text-slate-600">Monthly project completion trend</p>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Projects Over Time</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Monthly project completion trend</p>
             </div>
-            <BarChart3 className="h-5 w-5 text-slate-400" />
+            <BarChart3 className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
           <div className="space-y-3">
             {filteredData.map((data, index) => {
@@ -312,14 +324,14 @@ export default function Analytics() {
               return (
                 <div key={data.month}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
                       {format(new Date(data.month), 'MMM yyyy')}
                     </span>
-                    <span className="text-slate-900">{data.projects} projects</span>
+                    <span className="text-neutral-900 dark:text-neutral-100">{data.projects} projects</span>
                   </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-slate-200">
+                  <div className="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
                     <div
-                      className="h-2 rounded-full bg-blue-600 transition-all"
+                      className="h-2 rounded-full bg-primary-600 dark:bg-primary-500 transition-all"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -330,13 +342,13 @@ export default function Analytics() {
         </div>
 
         {/* Revenue Over Time */}
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Revenue Trends</h3>
-              <p className="text-sm text-slate-600">Monthly revenue breakdown</p>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Revenue Trends</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Monthly revenue breakdown</p>
             </div>
-            <DollarSign className="h-5 w-5 text-slate-400" />
+            <DollarSign className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
           <div className="space-y-3">
             {filteredData.map((data) => {
@@ -345,14 +357,14 @@ export default function Analytics() {
               return (
                 <div key={data.month}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
                       {format(new Date(data.month), 'MMM yyyy')}
                     </span>
-                    <span className="text-slate-900">${data.revenue.toLocaleString()}</span>
+                    <span className="text-neutral-900 dark:text-neutral-100">${data.revenue.toLocaleString()}</span>
                   </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-slate-200">
+                  <div className="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
                     <div
-                      className="h-2 rounded-full bg-emerald-600 transition-all"
+                      className="h-2 rounded-full bg-emerald-600 dark:bg-emerald-500 transition-all"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
@@ -366,30 +378,30 @@ export default function Analytics() {
       {/* Charts Row 2: Quality & Time */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Quality Metrics Breakdown */}
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Quality Metrics</h3>
-              <p className="text-sm text-slate-600">Average validation scores</p>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Quality Metrics</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Average validation scores</p>
             </div>
-            <Award className="h-5 w-5 text-slate-400" />
+            <Award className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
           <div className="space-y-4">
             {Object.entries(qualityBreakdown).map(([key, value]) => {
               const label = key
                 .replace(/([A-Z])/g, ' $1')
                 .replace(/^./, str => str.toUpperCase());
-              const colorClass = value >= 90 ? 'bg-emerald-600' :
-                               value >= 80 ? 'bg-blue-600' :
-                               value >= 70 ? 'bg-amber-600' :
-                               'bg-red-600';
+              const colorClass = value >= 90 ? 'bg-emerald-600 dark:bg-emerald-500' :
+                               value >= 80 ? 'bg-primary-600 dark:bg-primary-500' :
+                               value >= 70 ? 'bg-amber-600 dark:bg-amber-500' :
+                               'bg-red-600 dark:bg-red-500';
               return (
                 <div key={key}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-700">{label}</span>
-                    <span className="text-slate-900">{value}%</span>
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">{label}</span>
+                    <span className="text-neutral-900 dark:text-neutral-100">{value}%</span>
                   </div>
-                  <div className="mt-1 h-2 w-full rounded-full bg-slate-200">
+                  <div className="mt-1 h-2 w-full rounded-full bg-neutral-200 dark:bg-neutral-700">
                     <div
                       className={`h-2 rounded-full transition-all ${colorClass}`}
                       style={{ width: `${value}%` }}
@@ -402,45 +414,45 @@ export default function Analytics() {
         </div>
 
         {/* Time Efficiency Metrics */}
-        <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Time Efficiency</h3>
-              <p className="text-sm text-slate-600">Productivity and speed metrics</p>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Time Efficiency</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Productivity and speed metrics</p>
             </div>
-            <Clock className="h-5 w-5 text-slate-400" />
+            <Clock className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
           <div className="space-y-6">
-            <div className="rounded-lg bg-blue-50 p-4">
+            <div className="rounded-lg bg-primary-50 dark:bg-primary-900/20 p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-blue-600 p-2">
+                <div className="rounded-lg bg-primary-600 dark:bg-primary-500 p-2">
                   <Clock className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-blue-600">Total Hours</p>
-                  <p className="text-2xl font-semibold text-blue-900">{timeMetrics.totalHours}h</p>
+                  <p className="text-sm text-primary-600 dark:text-primary-400">Total Hours</p>
+                  <p className="text-2xl font-semibold text-primary-900 dark:text-primary-300">{timeMetrics.totalHours}h</p>
                 </div>
               </div>
             </div>
-            <div className="rounded-lg bg-purple-50 p-4">
+            <div className="rounded-lg bg-purple-50 dark:bg-purple-900/20 p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-purple-600 p-2">
+                <div className="rounded-lg bg-purple-600 dark:bg-purple-500 p-2">
                   <Activity className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-purple-600">Avg Time Per Post</p>
-                  <p className="text-2xl font-semibold text-purple-900">{timeMetrics.avgMinutesPerPost} min</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Avg Time Per Post</p>
+                  <p className="text-2xl font-semibold text-purple-900 dark:text-purple-300">{timeMetrics.avgMinutesPerPost} min</p>
                 </div>
               </div>
             </div>
-            <div className="rounded-lg bg-emerald-50 p-4">
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-emerald-600 p-2">
+                <div className="rounded-lg bg-emerald-600 dark:bg-emerald-500 p-2">
                   <DollarSign className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-emerald-600">Revenue Per Hour</p>
-                  <p className="text-2xl font-semibold text-emerald-900">${timeMetrics.revenuePerHour}/h</p>
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">Revenue Per Hour</p>
+                  <p className="text-2xl font-semibold text-emerald-900 dark:text-emerald-300">${timeMetrics.revenuePerHour}/h</p>
                 </div>
               </div>
             </div>
@@ -449,45 +461,45 @@ export default function Analytics() {
       </div>
 
       {/* Template Performance */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Template Performance</h3>
-            <p className="text-sm text-slate-600">Most used templates with quality and time metrics</p>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Template Performance</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Most used templates with quality and time metrics</p>
           </div>
-          <Target className="h-5 w-5 text-slate-400" />
+          <Target className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="pb-3 text-left text-sm font-medium text-slate-600">Template</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Usage Count</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Avg Quality</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Avg Time</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Performance</th>
+              <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                <th className="pb-3 text-left text-sm font-medium text-neutral-600 dark:text-neutral-400">Template</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Usage Count</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Quality</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Time</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Performance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
               {mockTemplatePerformance.map((template) => (
-                <tr key={template.templateName} className="hover:bg-slate-50">
-                  <td className="py-3 text-sm font-medium text-slate-900">{template.templateName}</td>
-                  <td className="py-3 text-right text-sm text-slate-700">{template.usageCount}</td>
+                <tr key={template.templateName} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
+                  <td className="py-3 text-sm font-medium text-neutral-900 dark:text-neutral-100">{template.templateName}</td>
+                  <td className="py-3 text-right text-sm text-neutral-700 dark:text-neutral-300">{template.usageCount}</td>
                   <td className="py-3 text-right">
                     <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                      template.avgQualityScore >= 90 ? 'bg-emerald-100 text-emerald-700' :
-                      template.avgQualityScore >= 85 ? 'bg-blue-100 text-blue-700' :
-                      'bg-amber-100 text-amber-700'
+                      template.avgQualityScore >= 90 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' :
+                      template.avgQualityScore >= 85 ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' :
+                      'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
                     }`}>
                       {template.avgQualityScore}%
                     </span>
                   </td>
-                  <td className="py-3 text-right text-sm text-slate-700">{template.avgTimeMinutes} min</td>
+                  <td className="py-3 text-right text-sm text-neutral-700 dark:text-neutral-300">{template.avgTimeMinutes} min</td>
                   <td className="py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <div className="h-2 w-24 rounded-full bg-slate-200">
+                      <div className="h-2 w-24 rounded-full bg-neutral-200 dark:bg-neutral-700">
                         <div
-                          className="h-2 rounded-full bg-blue-600"
+                          className="h-2 rounded-full bg-primary-600 dark:bg-primary-500"
                           style={{ width: `${(template.avgQualityScore / 100) * 100}%` }}
                         />
                       </div>
@@ -501,53 +513,53 @@ export default function Analytics() {
       </div>
 
       {/* Client Performance Comparison */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900">Top Clients</h3>
-            <p className="text-sm text-slate-600">Client performance ranked by projects and revenue</p>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Top Clients</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Client performance ranked by projects and revenue</p>
           </div>
-          <Users className="h-5 w-5 text-slate-400" />
+          <Users className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="pb-3 text-left text-sm font-medium text-slate-600">Client</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Projects</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Total Posts</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Avg Quality</th>
-                <th className="pb-3 text-right text-sm font-medium text-slate-600">Total Revenue</th>
+              <tr className="border-b border-neutral-200 dark:border-neutral-700">
+                <th className="pb-3 text-left text-sm font-medium text-neutral-600 dark:text-neutral-400">Client</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Projects</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Posts</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Quality</th>
+                <th className="pb-3 text-right text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Revenue</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
               {mockClientPerformance.map((client, index) => (
-                <tr key={client.clientName} className="hover:bg-slate-50">
+                <tr key={client.clientName} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
                   <td className="py-3">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                        index === 0 ? 'bg-amber-100 text-amber-700' :
-                        index === 1 ? 'bg-slate-100 text-slate-700' :
-                        index === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-blue-100 text-blue-700'
+                        index === 0 ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' :
+                        index === 1 ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300' :
+                        index === 2 ? 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400' :
+                        'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
                       } text-sm font-semibold`}>
                         {index + 1}
                       </div>
-                      <span className="text-sm font-medium text-slate-900">{client.clientName}</span>
+                      <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{client.clientName}</span>
                     </div>
                   </td>
-                  <td className="py-3 text-right text-sm text-slate-700">{client.projectsCount}</td>
-                  <td className="py-3 text-right text-sm text-slate-700">{client.totalPosts}</td>
+                  <td className="py-3 text-right text-sm text-neutral-700 dark:text-neutral-300">{client.projectsCount}</td>
+                  <td className="py-3 text-right text-sm text-neutral-700 dark:text-neutral-300">{client.totalPosts}</td>
                   <td className="py-3 text-right">
                     <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                      client.avgQualityScore >= 90 ? 'bg-emerald-100 text-emerald-700' :
-                      client.avgQualityScore >= 85 ? 'bg-blue-100 text-blue-700' :
-                      'bg-amber-100 text-amber-700'
+                      client.avgQualityScore >= 90 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' :
+                      client.avgQualityScore >= 85 ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' :
+                      'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
                     }`}>
                       {client.avgQualityScore}%
                     </span>
                   </td>
-                  <td className="py-3 text-right text-sm font-semibold text-slate-900">
+                  <td className="py-3 text-right text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                     ${client.totalRevenue.toLocaleString()}
                   </td>
                 </tr>

@@ -114,11 +114,11 @@ export default function Calendar() {
   const getEventTypeBadge = (type: EventType) => {
     switch (type) {
       case 'post':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-700';
       case 'deadline':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700';
       case 'team':
-        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+        return 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700';
     }
   };
 
@@ -138,17 +138,17 @@ export default function Calendar() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Calendar</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Calendar</h1>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Posting schedules, delivery deadlines, and team availability
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
             <Plus className="h-4 w-4" />
             Add Event
           </button>
-          <button className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          <button className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600">
             <Download className="h-4 w-4" />
             Export ICS
           </button>
@@ -156,18 +156,18 @@ export default function Calendar() {
       </header>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-center gap-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
         <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-700">Filter by:</span>
+          <Filter className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Filter by:</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => toggleEventType('post')}
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               selectedEventTypes.includes('post')
-                ? 'border-blue-600 bg-blue-50 text-blue-700'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-primary-600 dark:border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
             }`}
           >
             <FileText className="h-3 w-3" />
@@ -178,8 +178,8 @@ export default function Calendar() {
             onClick={() => toggleEventType('deadline')}
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               selectedEventTypes.includes('deadline')
-                ? 'border-red-600 bg-red-50 text-red-700'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-red-600 dark:border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
             }`}
           >
             <Clock className="h-3 w-3" />
@@ -190,8 +190,8 @@ export default function Calendar() {
             onClick={() => toggleEventType('team')}
             className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               selectedEventTypes.includes('team')
-                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-emerald-600 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800'
             }`}
           >
             <Users className="h-3 w-3" />
@@ -205,40 +205,40 @@ export default function Calendar() {
         {/* Main Calendar */}
         <div className="space-y-4">
           {/* Calendar Navigation */}
-          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
             <div className="flex items-center gap-2">
               <button
                 onClick={goToPreviousMonth}
-                className="inline-flex items-center justify-center rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 p-2 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 onClick={goToNextMonth}
-                className="inline-flex items-center justify-center rounded-lg border border-slate-300 p-2 text-slate-700 hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 p-2 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
               {format(currentDate, 'MMMM yyyy')}
             </h2>
             <button
               onClick={goToToday}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
               Today
             </button>
           </div>
 
           {/* View Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-200">
+          <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-700">
             <button
               onClick={() => setViewMode('month')}
               className={`border-b-2 px-4 py-2 text-sm font-medium ${
                 viewMode === 'month'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
               }`}
             >
               Month View
@@ -247,8 +247,8 @@ export default function Calendar() {
               onClick={() => setViewMode('week')}
               className={`border-b-2 px-4 py-2 text-sm font-medium ${
                 viewMode === 'week'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
               }`}
             >
               Week View
@@ -257,8 +257,8 @@ export default function Calendar() {
               onClick={() => setViewMode('list')}
               className={`border-b-2 px-4 py-2 text-sm font-medium ${
                 viewMode === 'list'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
+                  ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
               }`}
             >
               List View
@@ -267,11 +267,11 @@ export default function Calendar() {
 
           {/* Calendar Grid (Month View) */}
           {viewMode === 'month' && (
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
               {/* Day headers */}
               <div className="grid grid-cols-7 gap-2 mb-2">
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center text-sm font-semibold text-slate-600 py-2">
+                  <div key={day} className="text-center text-sm font-semibold text-neutral-600 dark:text-neutral-400 py-2">
                     {day}
                   </div>
                 ))}
@@ -290,20 +290,20 @@ export default function Calendar() {
                       onClick={() => setSelectedDate(day)}
                       className={`min-h-[100px] rounded-lg border p-2 cursor-pointer transition-colors ${
                         isTodayDate
-                          ? 'border-blue-600 bg-blue-50'
+                          ? 'border-primary-600 dark:border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                           : selectedDate && isSameDay(day, selectedDate)
-                          ? 'border-blue-400 bg-blue-50'
+                          ? 'border-primary-400 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/20'
                           : isCurrentMonth
-                          ? 'border-slate-200 bg-white hover:bg-slate-50'
-                          : 'border-slate-100 bg-slate-50'
+                          ? 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                          : 'border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800'
                       }`}
                     >
                       <div className={`text-sm font-medium mb-1 ${
                         isTodayDate
-                          ? 'text-blue-700'
+                          ? 'text-primary-700 dark:text-primary-300'
                           : isCurrentMonth
-                          ? 'text-slate-900'
-                          : 'text-slate-400'
+                          ? 'text-neutral-900 dark:text-neutral-100'
+                          : 'text-neutral-400 dark:text-neutral-600'
                       }`}>
                         {format(day, 'd')}
                       </div>
@@ -323,7 +323,7 @@ export default function Calendar() {
                           );
                         })}
                         {dayEvents.length > 3 && (
-                          <div className="text-xs text-slate-500 px-1.5">
+                          <div className="text-xs text-neutral-500 dark:text-neutral-400 px-1.5">
                             +{dayEvents.length - 3} more
                           </div>
                         )}
@@ -337,15 +337,15 @@ export default function Calendar() {
 
           {/* Week View */}
           {viewMode === 'week' && (
-            <div className="rounded-lg border border-slate-200 bg-white p-8">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-8">
               <div className="flex flex-col items-center justify-center text-center">
-                <div className="rounded-full bg-blue-100 p-4 mb-4">
-                  <CalendarIcon className="h-12 w-12 text-blue-600" />
+                <div className="rounded-full bg-primary-100 dark:bg-primary-900/20 p-4 mb-4">
+                  <CalendarIcon className="h-12 w-12 text-primary-600 dark:text-primary-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
                   Week View
                 </h3>
-                <p className="text-sm text-slate-600 max-w-md">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 max-w-md">
                   Detailed week view with hourly time slots and drag-and-drop scheduling.
                 </p>
               </div>
@@ -354,45 +354,45 @@ export default function Calendar() {
 
           {/* List View */}
           {viewMode === 'list' && (
-            <div className="rounded-lg border border-slate-200 bg-white">
-              <div className="divide-y divide-slate-200">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+              <div className="divide-y divide-neutral-200 dark:divide-neutral-700">
                 {filteredEvents
                   .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
                   .map(event => {
                     const Icon = getEventTypeIcon(event.type);
                     return (
-                      <div key={event.id} className="p-4 hover:bg-slate-50">
+                      <div key={event.id} className="p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800">
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
                             <div className={`rounded-lg p-2 ${
-                              event.type === 'post' ? 'bg-blue-100' :
-                              event.type === 'deadline' ? 'bg-red-100' :
-                              'bg-emerald-100'
+                              event.type === 'post' ? 'bg-primary-100 dark:bg-primary-900/20' :
+                              event.type === 'deadline' ? 'bg-red-100 dark:bg-red-900/20' :
+                              'bg-emerald-100 dark:bg-emerald-900/20'
                             }`}>
                               <Icon className={`h-4 w-4 ${
-                                event.type === 'post' ? 'text-blue-600' :
-                                event.type === 'deadline' ? 'text-red-600' :
-                                'text-emerald-600'
+                                event.type === 'post' ? 'text-primary-600 dark:text-primary-400' :
+                                event.type === 'deadline' ? 'text-red-600 dark:text-red-400' :
+                                'text-emerald-600 dark:text-emerald-400'
                               }`} />
                             </div>
                             <div>
-                              <h4 className="font-medium text-slate-900">{event.title}</h4>
+                              <h4 className="font-medium text-neutral-900 dark:text-neutral-100">{event.title}</h4>
                               {event.client && (
-                                <p className="text-sm text-slate-600 mt-1">
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                                   Client: {event.client} • Project: {event.project}
                                 </p>
                               )}
                               {event.description && (
-                                <p className="text-sm text-slate-600 mt-1">{event.description}</p>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{event.description}</p>
                               )}
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-medium text-slate-900">
+                            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                               {format(parseISO(event.date), 'MMM d, yyyy')}
                             </p>
                             {event.time && (
-                              <p className="text-sm text-slate-600 mt-1">{event.time}</p>
+                              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{event.time}</p>
                             )}
                           </div>
                         </div>
@@ -406,36 +406,36 @@ export default function Calendar() {
 
         {/* Sidebar - Upcoming Events */}
         <div className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Upcoming Events</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Upcoming Events</h3>
             <div className="space-y-3">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.map(event => {
                   const Icon = getEventTypeIcon(event.type);
                   const eventDate = parseISO(event.date);
                   return (
-                    <div key={event.id} className="rounded-lg border border-slate-200 p-3 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer">
+                    <div key={event.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors cursor-pointer">
                       <div className="flex items-start gap-2 mb-2">
                         <div className={`rounded p-1 ${
-                          event.type === 'post' ? 'bg-blue-100' :
-                          event.type === 'deadline' ? 'bg-red-100' :
-                          'bg-emerald-100'
+                          event.type === 'post' ? 'bg-primary-100 dark:bg-primary-900/20' :
+                          event.type === 'deadline' ? 'bg-red-100 dark:bg-red-900/20' :
+                          'bg-emerald-100 dark:bg-emerald-900/20'
                         }`}>
                           <Icon className={`h-3 w-3 ${
-                            event.type === 'post' ? 'text-blue-600' :
-                            event.type === 'deadline' ? 'text-red-600' :
-                            'text-emerald-600'
+                            event.type === 'post' ? 'text-primary-600 dark:text-primary-400' :
+                            event.type === 'deadline' ? 'text-red-600 dark:text-red-400' :
+                            'text-emerald-600 dark:text-emerald-400'
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">{event.title}</p>
-                          <p className="text-xs text-slate-600 mt-1">
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">{event.title}</p>
+                          <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                             {format(eventDate, 'MMM d')} {event.time && `• ${event.time}`}
                           </p>
                         </div>
                       </div>
                       {event.client && (
-                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <div className="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
                           <span className="truncate">{event.client}</span>
                         </div>
                       )}
@@ -444,41 +444,41 @@ export default function Calendar() {
                 })
               ) : (
                 <div className="text-center py-8">
-                  <CalendarIcon className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No upcoming events</p>
+                  <CalendarIcon className="h-8 w-8 text-neutral-300 dark:text-neutral-700 mx-auto mb-2" />
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400">No upcoming events</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Quick Stats */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">This Week</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">This Week</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-slate-700">Scheduled Posts</span>
+                  <FileText className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">Scheduled Posts</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-900">
+                <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   {filteredEvents.filter(e => e.type === 'post').length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-red-600" />
-                  <span className="text-sm text-slate-700">Deadlines</span>
+                  <Clock className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">Deadlines</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-900">
+                <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   {filteredEvents.filter(e => e.type === 'deadline').length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm text-slate-700">Team Events</span>
+                  <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-sm text-neutral-700 dark:text-neutral-300">Team Events</span>
                 </div>
-                <span className="text-sm font-semibold text-slate-900">
+                <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   {filteredEvents.filter(e => e.type === 'team').length}
                 </span>
               </div>

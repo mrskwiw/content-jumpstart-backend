@@ -66,7 +66,7 @@ export const router = createBrowserRouter([
       { path: 'projects/:projectId', element: withSuspense(ProjectDetail) },
       { path: 'clients', element: withSuspense(Clients) },
       { path: 'clients/:clientId', element: withSuspense(ClientDetail) },
-      { path: 'content', element: withSuspense(ContentReview) },
+      { path: 'content-review', element: withSuspense(ContentReview) },
       { path: 'deliverables', element: withSuspense(Deliverables) },
       { path: 'analytics', element: withSuspense(Analytics) },
       { path: 'calendar', element: withSuspense(Calendar) },

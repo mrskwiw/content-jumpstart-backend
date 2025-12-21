@@ -229,7 +229,7 @@ export default function ContentReview() {
 
     if (score > 85) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/20 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
           <CheckCircle2 className="h-3 w-3" />
           {score}%
         </span>
@@ -237,14 +237,14 @@ export default function ContentReview() {
     }
     if (score >= 70) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300">
           <AlertCircle className="h-3 w-3" />
           {score}%
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 dark:bg-red-900/20 px-2 py-0.5 text-xs font-medium text-red-800 dark:text-red-300">
         <XCircle className="h-3 w-3" />
         {score}%
       </span>
@@ -255,26 +255,26 @@ export default function ContentReview() {
     <div className="space-y-6">
       {/* Header */}
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Content Review</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Content Review</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Review and approve content across all projects
         </p>
       </header>
 
       {/* Filters Bar */}
-      <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
         {/* Search and View Toggle */}
         <div className="flex items-center justify-between">
           <div className="flex flex-1 items-center gap-4">
             {/* Search */}
             <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" />
               <input
                 type="search"
                 placeholder="Search posts, clients, projects..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 py-2 pl-10 pr-4 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               />
             </div>
 
@@ -286,8 +286,8 @@ export default function ContentReview() {
                   onClick={() => setStatusFilter(status)}
                   className={`rounded-lg px-3 py-2 text-sm font-medium ${
                     statusFilter === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? 'bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                   }`}
                 >
                   {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -302,8 +302,8 @@ export default function ContentReview() {
               onClick={() => setViewMode('grid')}
               className={`rounded-lg p-2 ${
                 viewMode === 'grid'
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -312,8 +312,8 @@ export default function ContentReview() {
               onClick={() => setViewMode('list')}
               className={`rounded-lg p-2 ${
                 viewMode === 'list'
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               <List className="h-4 w-4" />
@@ -322,8 +322,8 @@ export default function ContentReview() {
               onClick={() => setViewMode('full')}
               className={`rounded-lg p-2 ${
                 viewMode === 'full'
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                  : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
               <Maximize2 className="h-4 w-4" />
@@ -333,7 +333,7 @@ export default function ContentReview() {
 
         {/* Advanced Filters */}
         <div className="flex items-center gap-3">
-          <Filter className="h-4 w-4 text-slate-600" />
+          <Filter className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
 
           {/* Client Filter */}
           <select
@@ -342,7 +342,7 @@ export default function ContentReview() {
               setClientFilter(e.target.value);
               setProjectFilter('all'); // Reset project filter when client changes
             }}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
           >
             <option value="all">All Clients</option>
             {uniqueClients.map(client => (
@@ -354,7 +354,7 @@ export default function ContentReview() {
           <select
             value={projectFilter}
             onChange={(e) => setProjectFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 disabled:opacity-50"
             disabled={clientFilter === 'all' && uniqueProjects.length === 0}
           >
             <option value="all">All Projects</option>
@@ -367,7 +367,7 @@ export default function ContentReview() {
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
           >
             <option value="all">All Platforms</option>
             <option value="linkedin">LinkedIn</option>
@@ -380,7 +380,7 @@ export default function ContentReview() {
           <select
             value={qualityFilter}
             onChange={(e) => setQualityFilter(e.target.value as QualityFilter)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
           >
             <option value="all">All Quality</option>
             <option value="high">High (&gt;85%)</option>
@@ -392,37 +392,37 @@ export default function ContentReview() {
 
       {/* Bulk Actions Bar */}
       {selectedPosts.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="flex items-center justify-between rounded-lg border border-primary-200 dark:border-primary-700 bg-primary-50 dark:bg-primary-900/20 p-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-blue-900">
+            <span className="text-sm font-medium text-primary-900 dark:text-primary-100">
               {selectedPosts.length} post{selectedPosts.length !== 1 ? 's' : ''} selected
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleBulkApprove}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 dark:bg-emerald-500 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-600"
             >
               <CheckCircle2 className="h-4 w-4" />
               Approve
             </button>
             <button
               onClick={handleBulkFlag}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
               <AlertCircle className="h-4 w-4" />
               Flag
             </button>
             <button
               onClick={handleBulkRegenerate}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
               <RefreshCw className="h-4 w-4" />
               Regenerate
             </button>
             <button
               onClick={handleBulkExport}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
               <Download className="h-4 w-4" />
               Export
@@ -432,14 +432,14 @@ export default function ContentReview() {
       )}
 
       {/* Results Count */}
-      <div className="flex items-center justify-between text-sm text-slate-600">
+      <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
         <span>
           Showing {filteredPosts.length} of {postsWithContext.length} posts
         </span>
         {viewMode === 'list' && (
           <button
             onClick={handleSelectAll}
-            className="text-blue-600 hover:text-blue-700"
+            className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
           >
             {selectedPosts.length === filteredPosts.length ? 'Deselect All' : 'Select All'}
           </button>
@@ -452,8 +452,8 @@ export default function ContentReview() {
           {filteredPosts.map((post) => (
             <div
               key={post.id}
-              className={`rounded-lg border bg-white p-4 transition-shadow hover:shadow-md ${
-                selectedPosts.includes(post.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200'
+              className={`rounded-lg border bg-white dark:bg-neutral-900 p-4 transition-shadow hover:shadow-md ${
+                selectedPosts.includes(post.id) ? 'border-primary-500 dark:border-primary-400 ring-2 ring-primary-200 dark:ring-primary-800' : 'border-neutral-200 dark:border-neutral-700'
               }`}
             >
               {/* Header */}
@@ -463,14 +463,14 @@ export default function ContentReview() {
                     type="checkbox"
                     checked={selectedPosts.includes(post.id)}
                     onChange={() => handleSelectPost(post.id)}
-                    className="rounded"
+                    className="rounded text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400"
                   />
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                    <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
                       {post.platform || 'LinkedIn'}
                     </span>
                     {post.templateId && (
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs font-medium text-neutral-800 dark:text-neutral-300">
                         T{post.templateId}
                       </span>
                     )}
@@ -485,14 +485,14 @@ export default function ContentReview() {
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 p-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 p-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
                     rows={8}
                   />
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSaveEdit}
                       disabled={updatePostMutation.isPending}
-                      className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary-600 dark:bg-primary-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
                     >
                       <Save className="h-3 w-3" />
                       {updatePostMutation.isPending ? 'Saving...' : 'Save'}
@@ -500,7 +500,7 @@ export default function ContentReview() {
                     <button
                       onClick={handleCancelEdit}
                       disabled={updatePostMutation.isPending}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
                     >
                       <X className="h-3 w-3" />
                       Cancel
@@ -508,42 +508,42 @@ export default function ContentReview() {
                   </div>
                 </div>
               ) : (
-                <p className="line-clamp-6 text-sm text-slate-900">{post.content}</p>
+                <p className="line-clamp-6 text-sm text-neutral-900 dark:text-neutral-100">{post.content}</p>
               )}
 
               {/* Metadata */}
-              <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
-                <div className="flex items-center justify-between text-xs text-slate-600">
+              <div className="mt-3 space-y-2 border-t border-neutral-200 dark:border-neutral-700 pt-3">
+                <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
                   <span>{post.clientName}</span>
                   <span>{post.wordCount}w</span>
                 </div>
-                <div className="text-xs text-slate-500">{post.projectName}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">{post.projectName}</div>
               </div>
 
               {/* Actions */}
               {editingPostId !== post.id && (
-                <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+                <div className="mt-3 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 pt-3">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleStartEdit(post)}
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                      className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
                       <Edit2 className="h-3 w-3" />
                       Edit
                     </button>
-                    <button className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900">
+                    <button className="inline-flex items-center gap-1 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">
                       <Eye className="h-3 w-3" />
                       View Full
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
                     {post.status === 'pending' && (
-                      <button className="text-xs text-emerald-600 hover:text-emerald-700">
+                      <button className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300">
                         Approve
                       </button>
                     )}
                     {post.status === 'flagged' && (
-                      <button className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700">
+                      <button className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300">
                         <RefreshCw className="h-3 w-3" />
                         Regen
                       </button>
@@ -555,58 +555,58 @@ export default function ContentReview() {
           ))}
 
           {filteredPosts.length === 0 && (
-            <div className="col-span-full rounded-lg border border-slate-200 bg-white p-12 text-center">
-              <Search className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm text-slate-600">No posts found</p>
-              <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
+            <div className="col-span-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+              <Search className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" />
+              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No posts found</p>
+              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Try adjusting your filters</p>
             </div>
           )}
         </div>
       )}
 
       {viewMode === 'list' && (
-        <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+              <thead className="bg-neutral-50 dark:bg-neutral-800">
                 <tr>
                   <th className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
                       checked={selectedPosts.length === filteredPosts.length && filteredPosts.length > 0}
                       onChange={handleSelectAll}
-                      className="rounded"
+                      className="rounded text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Post Excerpt
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Client / Project
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Platform
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Words
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Quality
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-600">
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
+              <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
                 {filteredPosts.map((post) => (
                   <tr
                     key={post.id}
-                    className={`hover:bg-slate-50 ${
-                      selectedPosts.includes(post.id) ? 'bg-blue-50' : ''
+                    className={`hover:bg-neutral-50 dark:hover:bg-neutral-800 ${
+                      selectedPosts.includes(post.id) ? 'bg-primary-50 dark:bg-primary-900/20' : ''
                     }`}
                   >
                     <td className="whitespace-nowrap px-6 py-4">
@@ -614,26 +614,26 @@ export default function ContentReview() {
                         type="checkbox"
                         checked={selectedPosts.includes(post.id)}
                         onChange={() => handleSelectPost(post.id)}
-                        className="rounded"
+                        className="rounded text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400"
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <p className="line-clamp-2 max-w-md text-sm text-slate-900">
+                      <p className="line-clamp-2 max-w-md text-sm text-neutral-900 dark:text-neutral-100">
                         {post.content.substring(0, 150)}...
                       </p>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="text-sm">
-                        <p className="font-medium text-slate-900">{post.clientName}</p>
-                        <p className="text-slate-600">{post.projectName}</p>
+                        <p className="font-medium text-neutral-900 dark:text-neutral-100">{post.clientName}</p>
+                        <p className="text-neutral-600 dark:text-neutral-400">{post.projectName}</p>
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                      <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2.5 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
                         {post.platform || 'LinkedIn'}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-900">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-neutral-100">
                       {post.wordCount}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
@@ -643,10 +643,10 @@ export default function ContentReview() {
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           post.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-800'
+                            ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
                             : post.status === 'flagged'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
+                            ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+                            : 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
                         }`}
                       >
                         {post.status}
@@ -656,11 +656,11 @@ export default function ContentReview() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleStartEdit(post)}
-                          className="text-sm text-blue-600 hover:text-blue-700"
+                          className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                         >
                           Edit
                         </button>
-                        <button className="text-sm text-slate-600 hover:text-slate-900">
+                        <button className="text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">
                           View
                         </button>
                       </div>
@@ -673,8 +673,8 @@ export default function ContentReview() {
 
           {filteredPosts.length === 0 && (
             <div className="p-12 text-center">
-              <Search className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm text-slate-600">No posts found</p>
+              <Search className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" />
+              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No posts found</p>
             </div>
           )}
         </div>
@@ -685,8 +685,8 @@ export default function ContentReview() {
           {filteredPosts.map((post) => (
             <div
               key={post.id}
-              className={`rounded-lg border bg-white p-6 ${
-                selectedPosts.includes(post.id) ? 'border-blue-500 ring-2 ring-blue-200' : 'border-slate-200'
+              className={`rounded-lg border bg-white dark:bg-neutral-900 p-6 ${
+                selectedPosts.includes(post.id) ? 'border-primary-500 dark:border-primary-400 ring-2 ring-primary-200 dark:ring-primary-800' : 'border-neutral-200 dark:border-neutral-700'
               }`}
             >
               {/* Header */}
@@ -696,24 +696,24 @@ export default function ContentReview() {
                     type="checkbox"
                     checked={selectedPosts.includes(post.id)}
                     onChange={() => handleSelectPost(post.id)}
-                    className="mt-1 rounded"
+                    className="mt-1 rounded text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400"
                   />
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-slate-900">{post.clientName}</h3>
-                      <span className="text-sm text-slate-600">→</span>
-                      <span className="text-sm text-slate-600">{post.projectName}</span>
+                      <h3 className="font-semibold text-neutral-900 dark:text-neutral-100">{post.clientName}</h3>
+                      <span className="text-sm text-neutral-600 dark:text-neutral-400">→</span>
+                      <span className="text-sm text-neutral-600 dark:text-neutral-400">{post.projectName}</span>
                     </div>
                     <div className="mt-2 flex items-center gap-2">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                      <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2.5 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
                         {post.platform || 'LinkedIn'}
                       </span>
                       {post.templateId && (
-                        <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
+                        <span className="inline-flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 text-xs font-medium text-neutral-800 dark:text-neutral-300">
                           Template {post.templateId}
                         </span>
                       )}
-                      <span className="text-xs text-slate-600">{post.wordCount} words</span>
+                      <span className="text-xs text-neutral-600 dark:text-neutral-400">{post.wordCount} words</span>
                     </div>
                   </div>
                 </div>
@@ -722,10 +722,10 @@ export default function ContentReview() {
                   <span
                     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       post.status === 'approved'
-                        ? 'bg-emerald-100 text-emerald-800'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
                         : post.status === 'flagged'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-amber-100 text-amber-800'
+                        ? 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
+                        : 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
                     }`}
                   >
                     {post.status}
@@ -739,14 +739,14 @@ export default function ContentReview() {
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 p-3 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
                     rows={12}
                   />
                   <div className="flex items-center gap-2">
                     <button
                       onClick={handleSaveEdit}
                       disabled={updatePostMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
                     >
                       <Save className="h-4 w-4" />
                       {updatePostMutation.isPending ? 'Saving...' : 'Save Changes'}
@@ -754,7 +754,7 @@ export default function ContentReview() {
                     <button
                       onClick={handleCancelEdit}
                       disabled={updatePostMutation.isPending}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50"
                     >
                       <X className="h-4 w-4" />
                       Cancel
@@ -762,24 +762,24 @@ export default function ContentReview() {
                   </div>
                 </div>
               ) : (
-                <div className="prose prose-sm max-w-none">
-                  <p className="whitespace-pre-wrap text-slate-900">{post.content}</p>
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <p className="whitespace-pre-wrap text-neutral-900 dark:text-neutral-100">{post.content}</p>
                 </div>
               )}
 
               {/* Actions */}
               {editingPostId !== post.id && (
-                <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                <div className="mt-4 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 pt-4">
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleStartEdit(post)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                     >
                       <Edit2 className="h-4 w-4" />
                       Edit Post
                     </button>
                     {post.status === 'flagged' && (
-                      <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                      <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
                         <RefreshCw className="h-4 w-4" />
                         Regenerate
                       </button>
@@ -787,13 +787,13 @@ export default function ContentReview() {
                   </div>
                   <div className="flex items-center gap-2">
                     {post.status !== 'approved' && (
-                      <button className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+                      <button className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 dark:bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 dark:hover:bg-emerald-600">
                         <CheckCircle2 className="h-4 w-4" />
                         Approve
                       </button>
                     )}
                     {post.status !== 'flagged' && (
-                      <button className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+                      <button className="inline-flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
                         <AlertCircle className="h-4 w-4" />
                         Flag
                       </button>
@@ -805,10 +805,10 @@ export default function ContentReview() {
           ))}
 
           {filteredPosts.length === 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
-              <Search className="mx-auto h-12 w-12 text-slate-400" />
-              <p className="mt-4 text-sm text-slate-600">No posts found</p>
-              <p className="mt-1 text-xs text-slate-500">Try adjusting your filters</p>
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+              <Search className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" />
+              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No posts found</p>
+              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Try adjusting your filters</p>
             </div>
           )}
         </div>

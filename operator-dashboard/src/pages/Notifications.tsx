@@ -68,7 +68,7 @@ const mockNotifications: Notification[] = [
     title: 'Review content for Acme Corp',
     message: 'Quality assurance check needed for 30 posts',
     timestamp: '2025-12-17T14:30:00',
-    actionUrl: '/dashboard/content',
+    actionUrl: '/dashboard/content-review',
     actionLabel: 'Review Now',
     assignedTo: 'You',
     dueDate: '2025-12-18',
@@ -328,13 +328,13 @@ export default function Notifications() {
   const getPriorityBadge = (priority: NotificationPriority) => {
     switch (priority) {
       case 'urgent':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700';
       case 'high':
-        return 'bg-orange-100 text-orange-700 border-orange-200';
+        return 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        return 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700';
       case 'low':
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700';
     }
   };
 
@@ -373,12 +373,12 @@ export default function Notifications() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications & Tasks</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage alerts, reminders, and tasks</p>
+          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Notifications & Tasks</h1>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Manage alerts, reminders, and tasks</p>
         </div>
         <button
           onClick={() => setShowNewTaskModal(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
         >
           <Plus className="h-4 w-4" />
           New Task
@@ -387,64 +387,64 @@ export default function Notifications() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Unread</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{notificationStats.unread}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Unread</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{notificationStats.unread}</p>
             </div>
-            <div className="rounded-lg bg-blue-100 p-3">
-              <Bell className="h-6 w-6 text-blue-600" />
+            <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-3">
+              <Bell className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Urgent</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{notificationStats.urgent}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Urgent</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{notificationStats.urgent}</p>
             </div>
-            <div className="rounded-lg bg-red-100 p-3">
-              <AlertCircle className="h-6 w-6 text-red-600" />
+            <div className="rounded-lg bg-red-100 dark:bg-red-900/20 p-3">
+              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Pending Tasks</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{taskStats.pending}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Pending Tasks</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{taskStats.pending}</p>
             </div>
-            <div className="rounded-lg bg-orange-100 p-3">
-              <Clock className="h-6 w-6 text-orange-600" />
+            <div className="rounded-lg bg-orange-100 dark:bg-orange-900/20 p-3">
+              <Clock className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">In Progress</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{taskStats.inProgress}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">In Progress</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{taskStats.inProgress}</p>
             </div>
-            <div className="rounded-lg bg-purple-100 p-3">
-              <FileText className="h-6 w-6 text-purple-600" />
+            <div className="rounded-lg bg-purple-100 dark:bg-purple-900/20 p-3">
+              <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="border-b border-neutral-200 dark:border-neutral-700">
         <div className="flex gap-4">
           <button
             onClick={() => setActiveTab('notifications')}
             className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'notifications'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
             }`}
           >
             Notifications ({notificationStats.total})
@@ -453,8 +453,8 @@ export default function Notifications() {
             onClick={() => setActiveTab('tasks')}
             className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'tasks'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
             }`}
           >
             Tasks ({taskStats.total})
@@ -463,18 +463,18 @@ export default function Notifications() {
       </div>
 
       {/* Filters */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
               <input
                 type="text"
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 pl-10 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 pl-10 pr-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               />
             </div>
           </div>
@@ -483,11 +483,11 @@ export default function Notifications() {
           {activeTab === 'notifications' && (
             <div className="sm:w-40">
               <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                 <select
                   value={typeFilter}
                   onChange={e => setTypeFilter(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 pl-10 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+                  className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 pl-10 pr-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 appearance-none"
                 >
                   <option value="">All Types</option>
                   <option value="task">Tasks</option>
@@ -505,7 +505,7 @@ export default function Notifications() {
             <select
               value={priorityFilter}
               onChange={e => setPriorityFilter(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+              className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 appearance-none"
             >
               <option value="">All Priorities</option>
               <option value="urgent">Urgent</option>
@@ -520,7 +520,7 @@ export default function Notifications() {
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+              className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 appearance-none"
             >
               <option value="">All Statuses</option>
               {activeTab === 'notifications' ? (
@@ -548,7 +548,7 @@ export default function Notifications() {
                 setPriorityFilter('');
                 setStatusFilter('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+              className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium whitespace-nowrap"
             >
               Clear
             </button>
@@ -564,10 +564,10 @@ export default function Notifications() {
             return (
               <div
                 key={notification.id}
-                className={`rounded-lg border bg-white p-4 transition-all ${
+                className={`rounded-lg border bg-white dark:bg-neutral-900 p-4 transition-all ${
                   notification.status === 'unread'
-                    ? 'border-blue-200 bg-blue-50/30'
-                    : 'border-slate-200'
+                    ? 'border-primary-200 dark:border-primary-700 bg-primary-50/30 dark:bg-primary-900/10'
+                    : 'border-neutral-200 dark:border-neutral-700'
                 }`}
               >
                 <div className="flex items-start gap-4">
@@ -575,19 +575,19 @@ export default function Notifications() {
                   <div
                     className={`rounded-lg p-2 flex-shrink-0 ${
                       notification.priority === 'urgent'
-                        ? 'bg-red-100'
+                        ? 'bg-red-100 dark:bg-red-900/20'
                         : notification.priority === 'high'
-                        ? 'bg-orange-100'
-                        : 'bg-slate-100'
+                        ? 'bg-orange-100 dark:bg-orange-900/20'
+                        : 'bg-neutral-100 dark:bg-neutral-800'
                     }`}
                   >
                     <TypeIcon
                       className={`h-5 w-5 ${
                         notification.priority === 'urgent'
-                          ? 'text-red-600'
+                          ? 'text-red-600 dark:text-red-400'
                           : notification.priority === 'high'
-                          ? 'text-orange-600'
-                          : 'text-slate-600'
+                          ? 'text-orange-600 dark:text-orange-400'
+                          : 'text-neutral-600 dark:text-neutral-400'
                       }`}
                     />
                   </div>
@@ -596,24 +596,24 @@ export default function Notifications() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4 mb-2">
                       <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-slate-900">{notification.title}</h3>
+                        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{notification.title}</h3>
                         {notification.status === 'unread' && (
-                          <span className="inline-block h-2 w-2 rounded-full bg-blue-600 ml-2"></span>
+                          <span className="inline-block h-2 w-2 rounded-full bg-primary-600 dark:bg-primary-500 ml-2"></span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${getPriorityBadge(notification.priority)}`}>
                           {notification.priority}
                         </span>
-                        <span className="text-xs text-slate-500">{formatTimeAgo(notification.timestamp)}</span>
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatTimeAgo(notification.timestamp)}</span>
                       </div>
                     </div>
 
-                    <p className="text-sm text-slate-600 mb-3">{notification.message}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-3">{notification.message}</p>
 
                     {/* Metadata */}
                     {(notification.relatedClient || notification.dueDate) && (
-                      <div className="flex flex-wrap gap-3 text-xs text-slate-600 mb-3">
+                      <div className="flex flex-wrap gap-3 text-xs text-neutral-600 dark:text-neutral-400 mb-3">
                         {notification.relatedClient && (
                           <span className="flex items-center gap-1">
                             <User className="h-3 w-3" />
@@ -632,7 +632,7 @@ export default function Notifications() {
                     {/* Actions */}
                     <div className="flex items-center gap-2">
                       {notification.actionUrl && (
-                        <button className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+                        <button className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
                           {notification.actionLabel || 'View'}
                           →
                         </button>
@@ -640,7 +640,7 @@ export default function Notifications() {
                       {notification.status === 'unread' && (
                         <button
                           onClick={() => markAsReadMutation.mutate(notification.id)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
                         >
                           <Eye className="h-3 w-3" />
                           Mark Read
@@ -649,7 +649,7 @@ export default function Notifications() {
                       {notification.status !== 'archived' && (
                         <button
                           onClick={() => archiveMutation.mutate(notification.id)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
                         >
                           <Archive className="h-3 w-3" />
                           Archive
@@ -663,10 +663,10 @@ export default function Notifications() {
           })}
 
           {filteredNotifications.length === 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
-              <Bell className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No notifications</h3>
-              <p className="text-sm text-slate-600">You're all caught up!</p>
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+              <Bell className="h-12 w-12 text-neutral-400 dark:text-neutral-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">No notifications</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">You're all caught up!</p>
             </div>
           )}
         </div>
@@ -676,7 +676,7 @@ export default function Notifications() {
       {activeTab === 'tasks' && (
         <div className="space-y-2">
           {filteredTasks.map(task => (
-            <div key={task.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div key={task.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
               <div className="flex items-start gap-4">
                 {/* Checkbox */}
                 <div className="pt-1">
@@ -689,7 +689,7 @@ export default function Notifications() {
                         status: task.status === 'completed' ? 'pending' : 'completed',
                       })
                     }
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-primary-600 dark:text-primary-500 focus:ring-primary-500 dark:focus:ring-primary-400"
                   />
                 </div>
 
@@ -699,12 +699,12 @@ export default function Notifications() {
                     <div>
                       <h3
                         className={`text-sm font-semibold ${
-                          task.status === 'completed' ? 'text-slate-500 line-through' : 'text-slate-900'
+                          task.status === 'completed' ? 'text-neutral-500 dark:text-neutral-400 line-through' : 'text-neutral-900 dark:text-neutral-100'
                         }`}
                       >
                         {task.title}
                       </h3>
-                      <p className="text-sm text-slate-600 mt-1">{task.description}</p>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{task.description}</p>
                     </div>
                     <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${getPriorityBadge(task.priority)}`}>
                       {task.priority}
@@ -712,7 +712,7 @@ export default function Notifications() {
                   </div>
 
                   {/* Metadata */}
-                  <div className="flex flex-wrap gap-4 text-xs text-slate-600 mb-3">
+                  <div className="flex flex-wrap gap-4 text-xs text-neutral-600 dark:text-neutral-400 mb-3">
                     <span className="flex items-center gap-1">
                       <User className="h-3 w-3" />
                       {task.assignedTo}
@@ -733,12 +733,12 @@ export default function Notifications() {
                   <span
                     className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${
                       task.status === 'completed'
-                        ? 'bg-green-100 text-green-700 border-green-200'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
                         : task.status === 'in_progress'
-                        ? 'bg-blue-100 text-blue-700 border-blue-200'
+                        ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border-primary-200 dark:border-primary-700'
                         : task.status === 'cancelled'
-                        ? 'bg-slate-100 text-slate-700 border-slate-200'
-                        : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                        ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'
+                        : 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700'
                     }`}
                   >
                     {task.status.replace('_', ' ').charAt(0).toUpperCase() + task.status.slice(1).replace('_', ' ')}
@@ -749,10 +749,10 @@ export default function Notifications() {
           ))}
 
           {filteredTasks.length === 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
-              <CheckCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No tasks found</h3>
-              <p className="text-sm text-slate-600">Try adjusting your filters</p>
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+              <CheckCircle className="h-12 w-12 text-neutral-400 dark:text-neutral-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">No tasks found</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">Try adjusting your filters</p>
             </div>
           )}
         </div>
@@ -760,28 +760,28 @@ export default function Notifications() {
 
       {/* New Task Modal (Placeholder) */}
       {showNewTaskModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-neutral-950/60 px-4">
+          <div className="w-full max-w-lg rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-slate-900">Create New Task</h3>
+              <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Create New Task</h3>
               <button
                 onClick={() => setShowNewTaskModal(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="text-sm text-slate-600">Task creation form would go here</p>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">Task creation form would go here</p>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowNewTaskModal(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setShowNewTaskModal(false)}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+                className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
               >
                 Create Task
               </button>

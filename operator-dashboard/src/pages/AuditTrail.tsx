@@ -343,21 +343,21 @@ const getActionTypeIcon = (type: string) => {
 const getActionTypeColor = (type: string) => {
   switch (type) {
     case 'create':
-      return 'text-green-600 bg-green-100';
+      return 'text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/20';
     case 'read':
-      return 'text-blue-600 bg-blue-100';
+      return 'text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/20';
     case 'update':
-      return 'text-orange-600 bg-orange-100';
+      return 'text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/20';
     case 'delete':
-      return 'text-red-600 bg-red-100';
+      return 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/20';
     case 'export':
-      return 'text-purple-600 bg-purple-100';
+      return 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20';
     case 'system':
-      return 'text-slate-600 bg-slate-100';
+      return 'text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800';
     case 'security':
-      return 'text-yellow-600 bg-yellow-100';
+      return 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/20';
     default:
-      return 'text-slate-600 bg-slate-100';
+      return 'text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800';
   }
 };
 
@@ -377,13 +377,13 @@ const getStatusIcon = (status: string) => {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'success':
-      return 'text-green-600';
+      return 'text-emerald-600 dark:text-emerald-400';
     case 'failed':
-      return 'text-red-600';
+      return 'text-red-600 dark:text-red-400';
     case 'warning':
-      return 'text-yellow-600';
+      return 'text-amber-600 dark:text-amber-400';
     default:
-      return 'text-slate-600';
+      return 'text-neutral-600 dark:text-neutral-400';
   }
 };
 
@@ -518,8 +518,8 @@ export default function AuditTrail() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-sm text-slate-600">Loading audit trail...</p>
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary-600 dark:border-primary-500 border-r-transparent"></div>
+          <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">Loading audit trail...</p>
         </div>
       </div>
     );
@@ -529,80 +529,80 @@ export default function AuditTrail() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Audit Trail</h1>
-        <p className="text-sm text-slate-600 mt-1">Compliance logging and activity monitoring</p>
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Audit Trail</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Compliance logging and activity monitoring</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-6">
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Total Events</p>
-            <FileText className="h-5 w-5 text-slate-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Events</p>
+            <FileText className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{complianceStats.totalEvents.toLocaleString()}</p>
-          <p className="mt-1 text-xs text-slate-500">All time</p>
+          <p className="mt-2 text-3xl font-bold text-neutral-900 dark:text-neutral-100">{complianceStats.totalEvents.toLocaleString()}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">All time</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Today</p>
-            <Calendar className="h-5 w-5 text-blue-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Today</p>
+            <Calendar className="h-5 w-5 text-primary-400 dark:text-primary-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-blue-600">{complianceStats.todayEvents}</p>
-          <p className="mt-1 text-xs text-slate-500">+{Math.round((complianceStats.todayEvents / complianceStats.avgEventsPerDay - 1) * 100)}% vs avg</p>
+          <p className="mt-2 text-3xl font-bold text-primary-600 dark:text-primary-400">{complianceStats.todayEvents}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">+{Math.round((complianceStats.todayEvents / complianceStats.avgEventsPerDay - 1) * 100)}% vs avg</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Failed Actions</p>
-            <XCircle className="h-5 w-5 text-red-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Failed Actions</p>
+            <XCircle className="h-5 w-5 text-red-400 dark:text-red-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-red-600">{complianceStats.failedActions}</p>
-          <p className="mt-1 text-xs text-slate-500">Last 30 days</p>
+          <p className="mt-2 text-3xl font-bold text-red-600 dark:text-red-400">{complianceStats.failedActions}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Last 30 days</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Security Events</p>
-            <Shield className="h-5 w-5 text-yellow-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Security Events</p>
+            <Shield className="h-5 w-5 text-amber-400 dark:text-amber-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-yellow-600">{complianceStats.securityEvents}</p>
-          <p className="mt-1 text-xs text-slate-500">Last 30 days</p>
+          <p className="mt-2 text-3xl font-bold text-amber-600 dark:text-amber-400">{complianceStats.securityEvents}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Last 30 days</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Avg Per Day</p>
-            <Clock className="h-5 w-5 text-slate-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Per Day</p>
+            <Clock className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{complianceStats.avgEventsPerDay}</p>
-          <p className="mt-1 text-xs text-slate-500">30-day average</p>
+          <p className="mt-2 text-3xl font-bold text-neutral-900 dark:text-neutral-100">{complianceStats.avgEventsPerDay}</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">30-day average</p>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-600">Retention</p>
-            <Info className="h-5 w-5 text-slate-400" />
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Retention</p>
+            <Info className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{complianceStats.retentionDays}d</p>
-          <p className="mt-1 text-xs text-slate-500">Then archived</p>
+          <p className="mt-2 text-3xl font-bold text-neutral-900 dark:text-neutral-100">{complianceStats.retentionDays}d</p>
+          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Then archived</p>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
         <div className="space-y-4">
           {/* Search */}
           <div>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" />
               <input
                 type="text"
                 placeholder="Search by action, resource, user, or details..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 py-2 pl-10 pr-4 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               />
             </div>
           </div>
@@ -610,11 +610,11 @@ export default function AuditTrail() {
           {/* Filter Row */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Action Type</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Action Type</label>
               <select
                 value={selectedActionType}
                 onChange={e => setSelectedActionType(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               >
                 <option value="all">All Actions</option>
                 <option value="create">Create</option>
@@ -628,11 +628,11 @@ export default function AuditTrail() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Resource Type</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Resource Type</label>
               <select
                 value={selectedResourceType}
                 onChange={e => setSelectedResourceType(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               >
                 <option value="all">All Resources</option>
                 <option value="project">Projects</option>
@@ -645,11 +645,11 @@ export default function AuditTrail() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Status</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Status</label>
               <select
                 value={selectedStatus}
                 onChange={e => setSelectedStatus(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               >
                 <option value="all">All Statuses</option>
                 <option value="success">Success</option>
@@ -659,11 +659,11 @@ export default function AuditTrail() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">User</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">User</label>
               <select
                 value={selectedUser}
                 onChange={e => setSelectedUser(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               >
                 <option value="all">All Users</option>
                 {uniqueUsers.map(user => (
@@ -675,11 +675,11 @@ export default function AuditTrail() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-700">Date Range</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700 dark:text-neutral-300">Date Range</label>
               <select
                 value={dateRange}
                 onChange={e => setDateRange(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -691,14 +691,14 @@ export default function AuditTrail() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between border-t border-slate-200 pt-4">
-            <p className="text-sm text-slate-600">
-              Showing <span className="font-semibold text-slate-900">{filteredLogs.length}</span> of{' '}
-              <span className="font-semibold text-slate-900">{auditLogs.length}</span> events
+          <div className="flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 pt-4">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Showing <span className="font-semibold text-neutral-900 dark:text-neutral-100">{filteredLogs.length}</span> of{' '}
+              <span className="font-semibold text-neutral-900 dark:text-neutral-100">{auditLogs.length}</span> events
             </p>
             <button
               onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
               <Download className="h-4 w-4" />
               Export
@@ -708,41 +708,41 @@ export default function AuditTrail() {
       </div>
 
       {/* Audit Logs Table */}
-      <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+              <tr className="border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   Timestamp
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   Action
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   Resource
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   IP Address
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-700">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                   Details
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
+            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
               {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center">
-                    <Filter className="mx-auto h-12 w-12 text-slate-400" />
-                    <h3 className="mt-4 text-sm font-medium text-slate-900">No events found</h3>
-                    <p className="mt-1 text-sm text-slate-600">Try adjusting your filters</p>
+                    <Filter className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-600" />
+                    <h3 className="mt-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">No events found</h3>
+                    <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">Try adjusting your filters</p>
                   </td>
                 </tr>
               ) : (
@@ -754,22 +754,22 @@ export default function AuditTrail() {
                     <tr
                       key={log.id}
                       onClick={() => setSelectedLog(log)}
-                      className="cursor-pointer hover:bg-slate-50"
+                      className="cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800"
                     >
                       <td className="whitespace-nowrap px-6 py-4">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{formatTimeAgo(log.timestamp)}</p>
-                          <p className="text-xs text-slate-500">{formatDateTime(log.timestamp)}</p>
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{formatTimeAgo(log.timestamp)}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">{formatDateTime(log.timestamp)}</p>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                            <User className="h-4 w-4 text-slate-600" />
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+                            <User className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-slate-900">{log.user.name}</p>
-                            <p className="text-xs text-slate-500">{log.user.role}</p>
+                            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{log.user.name}</p>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">{log.user.role}</p>
                           </div>
                         </div>
                       </td>
@@ -778,17 +778,17 @@ export default function AuditTrail() {
                           <div className={`rounded-lg p-2 ${getActionTypeColor(log.actionType)}`}>
                             <ActionIcon className="h-4 w-4" />
                           </div>
-                          <span className="text-sm font-medium text-slate-900">{log.action}</span>
+                          <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{log.action}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{log.resource}</p>
-                          <p className="text-xs text-slate-500 capitalize">{log.resourceType}</p>
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{log.resource}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">{log.resourceType}</p>
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
-                        <p className="font-mono text-xs text-slate-600">{log.ipAddress}</p>
+                        <p className="font-mono text-xs text-neutral-600 dark:text-neutral-400">{log.ipAddress}</p>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="flex items-center gap-1.5">
@@ -799,7 +799,7 @@ export default function AuditTrail() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-sm text-slate-600 line-clamp-2">{log.details}</p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 line-clamp-2">{log.details}</p>
                       </td>
                     </tr>
                   );
@@ -812,41 +812,41 @@ export default function AuditTrail() {
 
       {/* Export Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-slate-900">Export Audit Logs</h2>
-            <p className="mt-1 text-sm text-slate-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-neutral-950/60">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 p-6 shadow-xl">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Export Audit Logs</h2>
+            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
               Export {filteredLogs.length} filtered events for compliance reporting
             </p>
 
             <div className="mt-6 space-y-3">
               <button
                 onClick={() => handleExport('csv')}
-                className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white p-4 text-left hover:bg-slate-50"
+                className="flex w-full items-center justify-between rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 p-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">CSV Format</p>
-                  <p className="text-xs text-slate-600">Excel-compatible spreadsheet format</p>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">CSV Format</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">Excel-compatible spreadsheet format</p>
                 </div>
-                <FileText className="h-5 w-5 text-slate-400" />
+                <FileText className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
               </button>
 
               <button
                 onClick={() => handleExport('json')}
-                className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white p-4 text-left hover:bg-slate-50"
+                className="flex w-full items-center justify-between rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 p-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">JSON Format</p>
-                  <p className="text-xs text-slate-600">Machine-readable structured data</p>
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">JSON Format</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">Machine-readable structured data</p>
                 </div>
-                <FileText className="h-5 w-5 text-slate-400" />
+                <FileText className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
               </button>
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
               >
                 Cancel
               </button>
@@ -858,21 +858,21 @@ export default function AuditTrail() {
       {/* Log Detail Modal */}
       {selectedLog && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-neutral-950/60"
           onClick={() => setSelectedLog(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl"
+            className="w-full max-w-2xl rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 p-6 shadow-xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Event Details</h2>
-                <p className="text-sm text-slate-600">ID: {selectedLog.id}</p>
+                <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">Event Details</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">ID: {selectedLog.id}</p>
               </div>
               <button
                 onClick={() => setSelectedLog(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
               >
                 <XCircle className="h-6 w-6" />
               </button>
@@ -881,51 +881,51 @@ export default function AuditTrail() {
             <div className="mt-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Timestamp</p>
-                  <p className="mt-1 text-sm text-slate-900">{formatDateTime(selectedLog.timestamp)}</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Timestamp</p>
+                  <p className="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{formatDateTime(selectedLog.timestamp)}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Time Ago</p>
-                  <p className="mt-1 text-sm text-slate-900">{formatTimeAgo(selectedLog.timestamp)}</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Time Ago</p>
+                  <p className="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{formatTimeAgo(selectedLog.timestamp)}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-medium text-slate-600">User</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{selectedLog.user.name}</p>
-                  <p className="text-xs text-slate-600">{selectedLog.user.email}</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">User</p>
+                  <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{selectedLog.user.name}</p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">{selectedLog.user.email}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Role</p>
-                  <p className="mt-1 text-sm text-slate-900">{selectedLog.user.role}</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Role</p>
+                  <p className="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{selectedLog.user.role}</p>
                 </div>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-slate-600">Action</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedLog.action}</p>
-                <p className="text-xs text-slate-600 capitalize">Type: {selectedLog.actionType}</p>
+                <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Action</p>
+                <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{selectedLog.action}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 capitalize">Type: {selectedLog.actionType}</p>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-slate-600">Resource</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{selectedLog.resource}</p>
-                <p className="text-xs text-slate-600 capitalize">Type: {selectedLog.resourceType}</p>
+                <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Resource</p>
+                <p className="mt-1 text-sm font-semibold text-neutral-900 dark:text-neutral-100">{selectedLog.resource}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 capitalize">Type: {selectedLog.resourceType}</p>
               </div>
 
               <div>
-                <p className="text-xs font-medium text-slate-600">Details</p>
-                <p className="mt-1 text-sm text-slate-900">{selectedLog.details}</p>
+                <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Details</p>
+                <p className="mt-1 text-sm text-neutral-900 dark:text-neutral-100">{selectedLog.details}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-medium text-slate-600">IP Address</p>
-                  <p className="mt-1 font-mono text-sm text-slate-900">{selectedLog.ipAddress}</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">IP Address</p>
+                  <p className="mt-1 font-mono text-sm text-neutral-900 dark:text-neutral-100">{selectedLog.ipAddress}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Status</p>
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Status</p>
                   <div className="mt-1 flex items-center gap-1.5">
                     {(() => {
                       const StatusIcon = getStatusIcon(selectedLog.status);
@@ -944,9 +944,9 @@ export default function AuditTrail() {
 
               {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Additional Metadata</p>
-                  <div className="mt-2 rounded-lg bg-slate-50 p-4">
-                    <pre className="text-xs text-slate-900 overflow-x-auto">
+                  <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">Additional Metadata</p>
+                  <div className="mt-2 rounded-lg bg-neutral-50 dark:bg-neutral-800 p-4">
+                    <pre className="text-xs text-neutral-900 dark:text-neutral-100 overflow-x-auto">
                       {JSON.stringify(selectedLog.metadata, null, 2)}
                     </pre>
                   </div>
@@ -957,7 +957,7 @@ export default function AuditTrail() {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedLog(null)}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
               >
                 Close
               </button>

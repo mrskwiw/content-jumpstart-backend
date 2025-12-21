@@ -137,8 +137,8 @@ export default function Wizard() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">Project Wizard</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Project Wizard</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">
           Multi-step flow for client profile → templates → generation → quality gate → export.
         </p>
       </header>
@@ -148,8 +148,8 @@ export default function Wizard() {
       {activeStep === 'profile' && (
         <div className="space-y-4">
           {/* Client Selection */}
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold text-slate-900">Select Client</h3>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">Select Client</h3>
 
             {/* Toggle between new and existing */}
             <div className="mb-4 flex gap-2">
@@ -157,8 +157,8 @@ export default function Wizard() {
                 onClick={() => setIsCreatingNewClient(true)}
                 className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   isCreatingNewClient
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
                 Create New Client
@@ -167,8 +167,8 @@ export default function Wizard() {
                 onClick={() => setIsCreatingNewClient(false)}
                 className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   !isCreatingNewClient
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
                 Use Existing Client
@@ -178,13 +178,13 @@ export default function Wizard() {
             {/* Existing client selector */}
             {!isCreatingNewClient && (
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-800">
+                <label className="mb-2 block text-sm font-medium text-neutral-800 dark:text-neutral-200">
                   Select Existing Client
                 </label>
                 <select
                   value={clientId || ''}
                   onChange={(e) => setClientId(e.target.value || null)}
-                  className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm"
                 >
                   <option value="">-- Select a client --</option>
                   {(existingClients || []).map((client) => (
@@ -194,7 +194,7 @@ export default function Wizard() {
                   ))}
                 </select>
                 {!clientId && (
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
                     Select an existing client to continue
                   </p>
                 )}
@@ -203,7 +203,7 @@ export default function Wizard() {
 
             {/* New client info */}
             {isCreatingNewClient && (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
                 A new client will be created from the company name in the profile below.
               </p>
             )}
@@ -270,7 +270,7 @@ export default function Wizard() {
             <button
               onClick={() => setActiveStep('export')}
               disabled={flagged.length > 0}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="rounded-md bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {flagged.length > 0 ? `${flagged.length} posts flagged - fix before exporting` : 'Continue to Export'}
             </button>
@@ -288,25 +288,25 @@ export default function Wizard() {
         />
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-900">Wizard Status</h3>
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Wizard Status</h3>
         <div className="mt-2 space-y-1">
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Project:</strong> {project?.name || projectId || 'Not created'}
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Client Brief:</strong> {clientBrief ? '✓ Saved' : 'Not set'}
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Templates:</strong> {selectedTemplates.length > 0 ? `${selectedTemplates.length} selected` : 'None selected'}
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Posts:</strong> {posts?.length ?? 0} generated
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Flagged:</strong> {flagged.length}
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Runs:</strong> {runs?.length ?? 0}
           </p>
         </div>

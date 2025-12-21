@@ -258,98 +258,98 @@ export default function TemplateLibrary() {
   const getDifficultyBadge = (difficulty: string) => {
     switch (difficulty) {
       case 'Fast':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700';
       case 'Medium':
-        return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+        return 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700';
       case 'Slow':
-        return 'bg-orange-100 text-orange-700 border-orange-200';
+        return 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-700';
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200';
+        return 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700';
     }
   };
 
   // Get quality score color
   const getQualityColor = (score: number) => {
-    if (score >= 90) return 'text-green-600';
-    if (score >= 80) return 'text-blue-600';
-    if (score >= 70) return 'text-yellow-600';
-    return 'text-orange-600';
+    if (score >= 90) return 'text-emerald-600 dark:text-emerald-400';
+    if (score >= 80) return 'text-primary-600 dark:text-primary-400';
+    if (score >= 70) return 'text-amber-600 dark:text-amber-400';
+    return 'text-orange-600 dark:text-orange-400';
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Template Library</h1>
-        <p className="text-sm text-slate-600 mt-1">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Template Library</h1>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
           Manage and analyze your content templates
         </p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Total Templates</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{stats.totalTemplates}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Templates</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{stats.totalTemplates}</p>
             </div>
-            <div className="rounded-lg bg-blue-100 p-3">
-              <FileText className="h-6 w-6 text-blue-600" />
+            <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-3">
+              <FileText className="h-6 w-6 text-primary-600 dark:text-primary-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Avg Fill Time</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{stats.avgFillTime}m</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Fill Time</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{stats.avgFillTime}m</p>
             </div>
-            <div className="rounded-lg bg-purple-100 p-3">
-              <Clock className="h-6 w-6 text-purple-600" />
+            <div className="rounded-lg bg-purple-100 dark:bg-purple-900/20 p-3">
+              <Clock className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Avg Quality</p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">{stats.avgQualityScore}%</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Quality</p>
+              <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{stats.avgQualityScore}%</p>
             </div>
-            <div className="rounded-lg bg-green-100 p-3">
-              <Award className="h-6 w-6 text-green-600" />
+            <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/20 p-3">
+              <Award className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
             </div>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-slate-600">Most Used</p>
-              <p className="text-lg font-bold text-slate-900 mt-1">{stats.mostUsed}</p>
+              <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Most Used</p>
+              <p className="text-lg font-bold text-neutral-900 dark:text-neutral-100 mt-1">{stats.mostUsed}</p>
             </div>
-            <div className="rounded-lg bg-orange-100 p-3">
-              <TrendingUp className="h-6 w-6 text-orange-600" />
+            <div className="rounded-lg bg-orange-100 dark:bg-orange-900/20 p-3">
+              <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
               <input
                 type="text"
                 placeholder="Search templates..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 pl-10 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 pl-10 pr-4 py-2 text-sm placeholder-neutral-400 dark:placeholder-neutral-500 focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400"
               />
             </div>
           </div>
@@ -357,11 +357,11 @@ export default function TemplateLibrary() {
           {/* Difficulty Filter */}
           <div className="sm:w-48">
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
               <select
                 value={difficultyFilter}
                 onChange={e => setDifficultyFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 pl-10 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 pl-10 pr-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 appearance-none"
               >
                 <option value="">All Difficulties</option>
                 <option value="Fast">Fast (3-5 min)</option>
@@ -376,7 +376,7 @@ export default function TemplateLibrary() {
             <select
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-4 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400 appearance-none"
             >
               <option value="">All Categories</option>
               <option value="B2B SaaS">B2B SaaS</option>
@@ -396,7 +396,7 @@ export default function TemplateLibrary() {
                 setDifficultyFilter('');
                 setCategoryFilter('');
               }}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+              className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium whitespace-nowrap"
             >
               Clear Filters
             </button>
@@ -405,19 +405,19 @@ export default function TemplateLibrary() {
 
         {/* Active Filters Summary */}
         {aggregateMetrics && (
-          <div className="mt-4 pt-4 border-t border-slate-200">
-            <div className="flex items-center gap-6 text-sm text-slate-600">
+          <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+            <div className="flex items-center gap-6 text-sm text-neutral-600 dark:text-neutral-400">
               <span>
-                <strong className="text-slate-900">{filteredTemplates.length}</strong> templates
+                <strong className="text-neutral-900 dark:text-neutral-100">{filteredTemplates.length}</strong> templates
               </span>
               <span>
-                <strong className="text-slate-900">{aggregateMetrics.totalUsage}</strong> total uses
+                <strong className="text-neutral-900 dark:text-neutral-100">{aggregateMetrics.totalUsage}</strong> total uses
               </span>
               <span>
-                Avg quality: <strong className="text-slate-900">{aggregateMetrics.avgQuality}%</strong>
+                Avg quality: <strong className="text-neutral-900 dark:text-neutral-100">{aggregateMetrics.avgQuality}%</strong>
               </span>
               <span>
-                Avg time: <strong className="text-slate-900">{aggregateMetrics.avgTime}m</strong>
+                Avg time: <strong className="text-neutral-900 dark:text-neutral-100">{aggregateMetrics.avgTime}m</strong>
               </span>
             </div>
           </div>
@@ -429,20 +429,20 @@ export default function TemplateLibrary() {
         {filteredTemplates.map(template => (
           <div
             key={template.id}
-            className="rounded-lg border border-slate-200 bg-white p-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+            className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-5 hover:border-primary-300 dark:hover:border-primary-600 hover:shadow-md transition-all cursor-pointer"
             onClick={() => setSelectedTemplate(template)}
           >
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-slate-900">{template.name}</h3>
-                <p className="text-sm text-slate-600 mt-1">{template.description}</p>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{template.name}</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{template.description}</p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                <button className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300">
                   <Eye className="h-4 w-4" />
                 </button>
-                <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                <button className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300">
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
@@ -459,13 +459,13 @@ export default function TemplateLibrary() {
                 {template.difficulty} ({template.fillTime}m)
               </span>
               {template.requiresStory && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
+                <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 dark:border-purple-700 bg-purple-100 dark:bg-purple-900/20 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-300">
                   <FileText className="h-3 w-3" />
                   Needs Story
                 </span>
               )}
               {template.requiresData && (
-                <span className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+                <span className="inline-flex items-center gap-1 rounded-md border border-primary-200 dark:border-primary-700 bg-primary-100 dark:bg-primary-900/20 px-2 py-1 text-xs font-medium text-primary-700 dark:text-primary-300">
                   <BarChart3 className="h-3 w-3" />
                   Needs Data
                 </span>
@@ -473,38 +473,38 @@ export default function TemplateLibrary() {
             </div>
 
             {/* Metrics */}
-            <div className="grid grid-cols-4 gap-4 pt-4 border-t border-slate-200">
+            <div className="grid grid-cols-4 gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
               <div>
-                <p className="text-xs text-slate-600">Usage</p>
-                <p className="text-lg font-semibold text-slate-900 mt-0.5">{template.usageCount}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Usage</p>
+                <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5">{template.usageCount}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-600">Quality</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Quality</p>
                 <p className={`text-lg font-semibold mt-0.5 ${getQualityColor(template.avgQualityScore)}`}>
                   {template.avgQualityScore}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-600">Readability</p>
-                <p className="text-lg font-semibold text-slate-900 mt-0.5">{template.avgReadability}</p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Readability</p>
+                <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5">{template.avgReadability}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-600">Engagement</p>
-                <p className="text-lg font-semibold text-slate-900 mt-0.5 flex items-center gap-0.5">
-                  <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                <p className="text-xs text-neutral-600 dark:text-neutral-400">Engagement</p>
+                <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 flex items-center gap-0.5">
+                  <Star className="h-3 w-3 text-amber-500 dark:text-amber-400 fill-amber-500 dark:fill-amber-400" />
                   {template.avgEngagement.toFixed(1)}
                 </p>
               </div>
             </div>
 
             {/* Best For */}
-            <div className="mt-4 pt-4 border-t border-slate-200">
-              <p className="text-xs font-medium text-slate-600 mb-2">Best for:</p>
+            <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+              <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">Best for:</p>
               <div className="flex flex-wrap gap-1">
                 {template.bestFor.map(category => (
                   <span
                     key={category}
-                    className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                    className="rounded-md bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs text-neutral-700 dark:text-neutral-300"
                   >
                     {category}
                   </span>
@@ -517,10 +517,10 @@ export default function TemplateLibrary() {
 
       {/* Empty State */}
       {filteredTemplates.length === 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center">
-          <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">No templates found</h3>
-          <p className="text-sm text-slate-600 mb-6">
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+          <FileText className="h-12 w-12 text-neutral-400 dark:text-neutral-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">No templates found</h3>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
             Try adjusting your filters or search query
           </p>
           <button
@@ -529,7 +529,7 @@ export default function TemplateLibrary() {
               setDifficultyFilter('');
               setCategoryFilter('');
             }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
           >
             Clear All Filters
           </button>
@@ -539,22 +539,22 @@ export default function TemplateLibrary() {
       {/* Template Detail Modal */}
       {selectedTemplate && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-neutral-950/60 px-4"
           onClick={() => setSelectedTemplate(null)}
         >
           <div
-            className="w-full max-w-3xl rounded-lg border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-3xl rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl max-h-[90vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
-                <h2 className="text-2xl font-bold text-slate-900">{selectedTemplate.name}</h2>
-                <p className="text-sm text-slate-600 mt-2">{selectedTemplate.description}</p>
+                <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{selectedTemplate.name}</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">{selectedTemplate.description}</p>
               </div>
               <button
                 onClick={() => setSelectedTemplate(null)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -566,24 +566,24 @@ export default function TemplateLibrary() {
             <div className="space-y-6">
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600">Usage Count</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{selectedTemplate.usageCount}</p>
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Usage Count</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{selectedTemplate.usageCount}</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600">Quality Score</p>
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Quality Score</p>
                   <p className={`text-2xl font-bold mt-1 ${getQualityColor(selectedTemplate.avgQualityScore)}`}>
                     {selectedTemplate.avgQualityScore}%
                   </p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600">Fill Time</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{selectedTemplate.fillTime}m</p>
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Fill Time</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">{selectedTemplate.fillTime}m</p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-600">Engagement</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1 flex items-center gap-1">
-                    <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">Engagement</p>
+                  <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1 flex items-center gap-1">
+                    <Star className="h-5 w-5 text-amber-500 dark:text-amber-400 fill-amber-500 dark:fill-amber-400" />
                     {selectedTemplate.avgEngagement.toFixed(1)}
                   </p>
                 </div>
@@ -591,33 +591,33 @@ export default function TemplateLibrary() {
 
               {/* Structure */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-2">Template Structure</h3>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <code className="text-sm text-slate-700 font-mono">{selectedTemplate.structure}</code>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">Template Structure</h3>
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <code className="text-sm text-neutral-700 dark:text-neutral-300 font-mono">{selectedTemplate.structure}</code>
                 </div>
               </div>
 
               {/* Requirements */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-2">Requirements</h3>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">Requirements</h3>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     {selectedTemplate.requiresStory ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-slate-400" />
+                      <AlertCircle className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                     )}
-                    <span className="text-sm text-slate-700">
+                    <span className="text-sm text-neutral-700 dark:text-neutral-300">
                       {selectedTemplate.requiresStory ? 'Requires' : 'Does not require'} personal story
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     {selectedTemplate.requiresData ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-slate-400" />
+                      <AlertCircle className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                     )}
-                    <span className="text-sm text-slate-700">
+                    <span className="text-sm text-neutral-700 dark:text-neutral-300">
                       {selectedTemplate.requiresData ? 'Requires' : 'Does not require'} data/statistics
                     </span>
                   </div>
@@ -626,12 +626,12 @@ export default function TemplateLibrary() {
 
               {/* Best For */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-2">Best For</h3>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">Best For</h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedTemplate.bestFor.map(category => (
                     <span
                       key={category}
-                      className="rounded-md bg-blue-100 border border-blue-200 px-3 py-1 text-sm font-medium text-blue-700"
+                      className="rounded-md bg-primary-100 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-700 px-3 py-1 text-sm font-medium text-primary-700 dark:text-primary-300"
                     >
                       {category}
                     </span>
@@ -640,18 +640,18 @@ export default function TemplateLibrary() {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <div className="flex justify-end gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-700">
                 <button
                   onClick={() => setSelectedTemplate(null)}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
                   Close
                 </button>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800">
+                <button className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 dark:bg-neutral-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-neutral-800 dark:hover:bg-neutral-600">
                   <Edit className="h-4 w-4" />
                   Edit Template
                 </button>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700">
+                <button className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600">
                   <Copy className="h-4 w-4" />
                   Use Template
                 </button>
