@@ -68,13 +68,13 @@ async def list_projects(
         order_direction="desc"
     )
 
-    # Convert items to response schema
-    projects_data = [ProjectResponse.model_validate(p).model_dump() for p in paginated["items"]]
+    # Convert items to response schema (use by_alias=True for camelCase output, mode='json' for datetime serialization)
+    projects_data = [ProjectResponse.model_validate(p).model_dump(by_alias=True, mode='json') for p in paginated["items"]]
 
     # Prepare response with pagination metadata
     response_data = {
         "items": projects_data,
-        "metadata": paginated["metadata"].model_dump()
+        "metadata": paginated["metadata"].model_dump(mode='json')
     }
 
     # Return cacheable response
@@ -108,7 +108,7 @@ async def create_project(
 
     # Create response with cache invalidation headers
     from fastapi.responses import JSONResponse
-    project_data = ProjectResponse.model_validate(db_project).model_dump()
+    project_data = ProjectResponse.model_validate(db_project).model_dump(by_alias=True, mode='json')
     response = JSONResponse(content=project_data, status_code=status.HTTP_201_CREATED)
 
     # Add cache invalidation headers
@@ -140,8 +140,8 @@ async def get_project(
             detail=f"Project {project_id} not found",
         )
 
-    # Convert to dict for caching
-    project_data = ProjectResponse.model_validate(project).model_dump()
+    # Convert to dict for caching (use by_alias=True for camelCase output)
+    project_data = ProjectResponse.model_validate(project).model_dump(by_alias=True, mode='json')
 
     # Return cacheable response
     return create_cacheable_response(
@@ -172,7 +172,7 @@ async def update_project(
 
     # Create response with cache invalidation headers
     from fastapi.responses import JSONResponse
-    project_data = ProjectResponse.model_validate(updated_project).model_dump()
+    project_data = ProjectResponse.model_validate(updated_project).model_dump(by_alias=True, mode='json')
     response = JSONResponse(content=project_data, status_code=200)
 
     # Add cache invalidation headers

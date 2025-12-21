@@ -23,15 +23,7 @@ import { format, isAfter, isBefore, parseISO } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatFileSize } from '@/utils/formatters';
-
-function StatusChip({ status }: { status: DeliverableStatus }) {
-  const map: Record<DeliverableStatus, string> = {
-    draft: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300',
-    ready: 'bg-indigo-100 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400',
-    delivered: 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400',
-  };
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>{status}</span>;
-}
+import { Button, Badge, Card, CardContent, Input, Textarea } from '@/components/ui';
 
 interface MarkDialogProps {
   deliverable: Deliverable | null;
@@ -52,48 +44,33 @@ function MarkDeliveredDialog({ deliverable, onClose, onSubmit, isSubmitting }: M
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Mark Delivered</h3>
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Deliverable ID: {deliverable.id}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
-          >
+          <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-              Proof URL <span className="text-neutral-400 dark:text-neutral-500">(optional)</span>
-            </label>
-            <input
-              type="url"
-              value={proofUrl}
-              onChange={(e) => setProofUrl(e.target.value)}
-              placeholder="https://example.com/proof"
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            />
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Link to email confirmation, screenshot, or other proof</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-              Delivery Notes <span className="text-neutral-400 dark:text-neutral-500">(optional)</span>
-            </label>
-            <textarea
-              value={proofNotes}
-              onChange={(e) => setProofNotes(e.target.value)}
-              rows={3}
-              placeholder="Add any relevant notes about the delivery..."
-              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-            />
-          </div>
+          <Input
+            type="url"
+            label="Proof URL (optional)"
+            value={proofUrl}
+            onChange={(e) => setProofUrl(e.target.value)}
+            placeholder="https://example.com/proof"
+            helperText="Link to email confirmation, screenshot, or other proof"
+          />
+          <Textarea
+            label="Delivery Notes (optional)"
+            value={proofNotes}
+            onChange={(e) => setProofNotes(e.target.value)}
+            rows={3}
+            placeholder="Add any relevant notes about the delivery..."
+          />
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-          >
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="success"
             disabled={isSubmitting}
             onClick={() =>
               onSubmit({
@@ -102,11 +79,10 @@ function MarkDeliveredDialog({ deliverable, onClose, onSubmit, isSubmitting }: M
                 proofNotes: proofNotes || undefined,
               })
             }
-            className="inline-flex items-center gap-2 rounded-lg bg-green-600 dark:bg-green-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50"
           >
             <CheckCircle className="h-4 w-4" />
             {isSubmitting ? 'Marking Delivered...' : 'Mark Delivered'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -242,62 +218,64 @@ export default function Deliverables() {
         </div>
         <div className="flex items-center gap-2">
           {(projectId || clientId || status || searchQuery || formatFilter) && (
-            <button
-              onClick={clearFilters}
-              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-            >
+            <Button variant="secondary" onClick={clearFilters}>
               <X className="h-4 w-4" />
               Clear Filters
-            </button>
+            </Button>
           )}
-          <button
-            onClick={() => refetch()}
-            className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-          >
+          <Button variant="secondary" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
             Refresh
-          </button>
+          </Button>
         </div>
       </header>
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-2">
-              <Package className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-2">
+                <Package className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+              </div>
+              <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.total}</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.total}</span>
-          </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Total Deliverables</p>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800 p-2">
-              <FileText className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Total Deliverables</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800 p-2">
+                <FileText className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+              </div>
+              <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.draft}</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.draft}</span>
-          </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Draft</p>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/20 p-2">
-              <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Draft</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/20 p-2">
+                <Clock className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.ready}</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.ready}</span>
-          </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Ready to Send</p>
-        </div>
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="rounded-lg bg-green-100 dark:bg-green-900/20 p-2">
-              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Ready to Send</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="rounded-lg bg-green-100 dark:bg-green-900/20 p-2">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.delivered}</span>
             </div>
-            <span className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{stats.delivered}</span>
-          </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Delivered</p>
-        </div>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2">Delivered</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -435,7 +413,7 @@ export default function Deliverables() {
                           <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                             {d.format.toUpperCase()}
                           </span>
-                          <StatusChip status={d.status} />
+                          <Badge variant={d.status === 'draft' ? 'default' : d.status === 'ready' ? 'info' : 'success'}>{d.status}</Badge>
                           <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatFileSize(d.fileSizeBytes)}</span>
                         </div>
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">{d.path}</p>
@@ -539,7 +517,7 @@ export default function Deliverables() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusChip status={d.status} />
+                      <Badge variant={d.status === 'draft' ? 'default' : d.status === 'ready' ? 'info' : 'success'}>{d.status}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-neutral-900 dark:text-neutral-100">{format(new Date(d.createdAt), 'MMM d, yyyy')}</p>

@@ -50,7 +50,8 @@ services:
       - api-logs:/app/logs
 
       # Optional: Mount source for development (comment out for production)
-      - .:/app
+      # COMMENTED OUT: This overwrites the built frontend with local files
+      # - .:/app
 
     depends_on:
       db:

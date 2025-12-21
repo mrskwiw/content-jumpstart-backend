@@ -8,23 +8,7 @@ import { RefreshCw, Filter, Play, Sparkles, FileText, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import { Pagination } from '@/components/ui/Pagination';
-
-function StatusBadge({ status }: { status: Project['status'] }) {
-  const styles: Record<Project['status'], string> = {
-    draft: 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300',
-    ready: 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400',
-    generating: 'bg-primary-100 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300',
-    qa: 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400',
-    exported: 'bg-indigo-100 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400',
-    delivered: 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400',
-    error: 'bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400',
-  };
-  return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status]}`}>
-      {status}
-    </span>
-  );
-}
+import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
 
 export default function Projects() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -102,168 +86,164 @@ export default function Projects() {
         </div>
         <div className="flex items-center gap-2">
           {clientId && (
-            <button
-              onClick={clearClientFilter}
-              className="inline-flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 shadow-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
-            >
+            <Button variant="secondary" size="sm" onClick={clearClientFilter}>
               <X className="h-4 w-4" />
               Clear Client Filter
-            </button>
+            </Button>
           )}
-          <button
-            onClick={() => refetch()}
-            className="inline-flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 shadow-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
-          >
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4" />
             Refresh
-          </button>
+          </Button>
         </div>
       </header>
 
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-            <div className="flex flex-1 items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search projects or ids"
-                className="w-full bg-transparent text-sm text-neutral-800 dark:text-neutral-200 outline-none placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
-              />
+      <Card>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+              <div className="flex flex-1 items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 py-2">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search projects or ids"
+                  className="w-full bg-transparent text-sm text-neutral-800 dark:text-neutral-200 outline-none placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
+                />
+              </div>
+              <div className="flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2">
+                <Filter className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                <select
+                  className="bg-transparent text-sm text-neutral-800 dark:text-neutral-200 outline-none"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Project['status'] | '')}
+                >
+                  <option value="">All statuses</option>
+                  {['draft', 'ready', 'generating', 'qa', 'exported', 'delivered', 'error'].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2">
-              <Filter className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
-              <select
-                className="bg-transparent text-sm text-neutral-800 dark:text-neutral-200 outline-none"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Project['status'] | '')}
-              >
-                <option value="">All statuses</option>
-                {['draft', 'ready', 'generating', 'qa', 'exported', 'delivered', 'error'].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-2">
+              <Button variant="primary" size="sm" onClick={() => setNewProjectOpen(true)}>
+                New Project
+              </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setNewProjectOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-primary-600 dark:bg-primary-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
-            >
-              New Project
-            </button>
-          </div>
-        </div>
 
-        <div className="mt-4 overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
-          <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700 text-sm">
-            <thead className="bg-neutral-50 dark:bg-neutral-800">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Project</th>
-                <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Client</th>
-                <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Templates</th>
-                <th className="px-4 py-3 text-left font-semibold text-neutral-700 dark:text-neutral-300">Last Run</th>
-                <th className="px-4 py-3 text-right font-semibold text-neutral-700 dark:text-neutral-300">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Project</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Templates</TableHead>
+                <TableHead>Last Run</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-500 dark:text-neutral-400">
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-neutral-500 dark:text-neutral-400 py-6">
                     Loading projects...
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
               {isError && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-rose-600 dark:text-rose-400">
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-rose-600 dark:text-rose-400 py-6">
                     Failed to load projects.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
               {!isLoading && !isError && projects.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-500 dark:text-neutral-400">
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-neutral-500 dark:text-neutral-400 py-6">
                     No projects found.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
               {projects.map((project) => (
-                <tr key={project.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
-                  <td className="px-4 py-3">
+                <TableRow key={project.id}>
+                  <TableCell>
                     <div className="font-semibold text-neutral-900 dark:text-neutral-100">{project.name}</div>
                     <div className="text-xs text-neutral-500 dark:text-neutral-400">ID: {project.id}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="link"
+                      size="sm"
                       onClick={() => navigate(`/dashboard/projects?clientId=${project.clientId}`)}
-                      className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline"
                       title={`View all projects for client ${project.clientId}`}
+                      className="p-0 h-auto"
                     >
                       {project.clientId}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={project.status} />
-                  </td>
-                  <td className="px-4 py-3">
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={project.status}>{project.status}</Badge>
+                  </TableCell>
+                  <TableCell>
                     <div className="text-xs text-neutral-600 dark:text-neutral-400">
                       {project.templates.slice(0, 2).join(', ')}
                       {project.templates.length > 2 ? ` +${project.templates.length - 2}` : ''}
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <div className="text-sm text-neutral-700 dark:text-neutral-300">
                       {project.lastRunAt ? format(new Date(project.lastRunAt), 'PP p') : '—'}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <button
-                        className="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 px-2.5 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 shadow-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      <Button
+                        variant="secondary"
+                        size="xs"
                         onClick={() => navigate(`/dashboard/deliverables?projectId=${project.id}`)}
                         title="View deliverables for this project"
                       >
                         <FileText className="h-4 w-4" />
                         Deliverables
-                      </button>
-                      <button
-                        className="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 px-2.5 py-1.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300 shadow-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="xs"
                         onClick={() => navigate('/dashboard/wizard', { state: { projectId: project.id } })}
                       >
                         <Sparkles className="h-4 w-4" />
                         Wizard
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="xs"
                         onClick={() => generateMutation.mutate(project)}
                         disabled={generateMutation.isPending}
-                        className="inline-flex items-center gap-1 rounded-md bg-primary-600 dark:bg-primary-500 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
                       >
                         <Play className="h-4 w-4" />
                         {generateMutation.isPending ? 'Generating...' : 'Generate'}
-                      </button>
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
 
-        {/* Pagination controls (Week 3 optimization) */}
-        <Pagination
-          metadata={paginationMeta}
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-          onCursorChange={handleCursorChange}
-          showPageSize
-          pageSize={pageSize}
-          onPageSizeChange={handlePageSizeChange}
-        />
-      </div>
+          {/* Pagination controls (Week 3 optimization) */}
+          <Pagination
+            metadata={paginationMeta}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+            onCursorChange={handleCursorChange}
+            showPageSize
+            pageSize={pageSize}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        </CardContent>
+      </Card>
 
       <NewProjectDialog
         open={newProjectOpen}

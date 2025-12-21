@@ -6,10 +6,11 @@ DO NOT run this in production. All data created by this script
 must be purged before production deployment.
 
 Usage:
-    python seed_demo_data.py [--clear-only]
+    python seed_demo_data.py [--clear-only] [--force]
 
 Options:
     --clear-only    Only clear existing demo data without seeding
+    --force         Force run even in production environment (use with caution!)
 """
 import io
 import os
@@ -33,13 +34,19 @@ from models.post import Post
 from models.deliverable import Deliverable
 
 
-def check_environment():
-    """Ensure we're not running in production."""
+def check_environment(force=False):
+    """Ensure we're not running in production (unless forced)."""
     env = os.getenv("ENVIRONMENT", "development").lower()
     if env == "production":
-        print("❌ ERROR: Cannot run seed script in PRODUCTION environment!")
-        print("   Set ENVIRONMENT=development to proceed.")
-        sys.exit(1)
+        if force:
+            print("⚠️  WARNING: Running seed script in PRODUCTION environment!")
+            print("   This should only be done for testing purposes.")
+            print("   All seeded data should be purged before real production use.")
+        else:
+            print("❌ ERROR: Cannot run seed script in PRODUCTION environment!")
+            print("   Set ENVIRONMENT=development to proceed.")
+            print("   Or use --force flag to override (not recommended).")
+            sys.exit(1)
     print(f"✓ Running in {env.upper()} environment")
 
 
@@ -740,7 +747,7 @@ def seed_deliverables(db):
             client_id="client-1",
             run_id="run-1",
             format="docx",
-            path="outputs/acme-corp/linkedin-q1-2025-12-14.docx",
+            path="acme-corp/linkedin-q1-2025-12-14.docx",
             status="delivered",
             created_at=base_time - timedelta(days=2),
             delivered_at=base_time - timedelta(days=1),
@@ -754,7 +761,7 @@ def seed_deliverables(db):
             client_id="client-2",
             run_id="run-2",
             format="txt",
-            path="outputs/techvision/ai-launch-2024-12-05.txt",
+            path="techvision/ai-launch-2024-12-05.txt",
             status="delivered",
             created_at=base_time - timedelta(days=11),
             delivered_at=base_time - timedelta(days=10),
@@ -768,7 +775,7 @@ def seed_deliverables(db):
             client_id="client-4",
             run_id="run-3",
             format="docx",
-            path="outputs/financeflow/fintech-trends-2024-11-27.docx",
+            path="financeflow/fintech-trends-2024-11-27.docx",
             status="delivered",
             created_at=base_time - timedelta(days=19),
             delivered_at=base_time - timedelta(days=18),
@@ -782,7 +789,7 @@ def seed_deliverables(db):
             client_id="client-6",
             run_id="run-4",
             format="txt",
-            path="outputs/edupro/learning-tips-2024-12-05.txt",
+            path="edupro/learning-tips-2024-12-05.txt",
             status="delivered",
             created_at=base_time - timedelta(days=11),
             delivered_at=base_time - timedelta(days=11),
@@ -796,7 +803,7 @@ def seed_deliverables(db):
             client_id="client-7",
             run_id="run-5",
             format="docx",
-            path="outputs/securenet/cybersecurity-2024-12-01.docx",
+            path="securenet/cybersecurity-2024-12-01.docx",
             status="delivered",
             created_at=base_time - timedelta(days=15),
             delivered_at=base_time - timedelta(days=15),
@@ -810,7 +817,7 @@ def seed_deliverables(db):
             client_id="client-9",
             run_id="run-6",
             format="docx",
-            path="outputs/cloudscale/cloud-migration-2024-12-08.docx",
+            path="cloudscale/cloud-migration-2024-12-08.docx",
             status="delivered",
             created_at=base_time - timedelta(days=8),
             delivered_at=base_time - timedelta(days=7),
@@ -824,7 +831,7 @@ def seed_deliverables(db):
             client_id="client-11",
             run_id="run-7",
             format="txt",
-            path="outputs/contentcraft/workshop-2024-11-29.txt",
+            path="contentcraft/workshop-2024-11-29.txt",
             status="delivered",
             created_at=base_time - timedelta(days=17),
             delivered_at=base_time - timedelta(days=17),
@@ -840,7 +847,7 @@ def seed_deliverables(db):
             client_id="client-1",
             run_id=None,
             format="txt",
-            path="outputs/acme-corp/twitter-leadership-2024-12-12.txt",
+            path="acme-corp/twitter-leadership-2024-12-12.txt",
             status="ready",
             created_at=base_time - timedelta(days=3),
             delivered_at=None,
@@ -854,7 +861,7 @@ def seed_deliverables(db):
             client_id="client-3",
             run_id=None,
             format="docx",
-            path="outputs/growthlab/social-strategy-2024-12-11.docx",
+            path="growthlab/social-strategy-2024-12-11.docx",
             status="ready",
             created_at=base_time - timedelta(days=4),
             delivered_at=None,
@@ -868,7 +875,7 @@ def seed_deliverables(db):
             client_id="client-8",
             run_id=None,
             format="txt",
-            path="outputs/wanderlust/destination-guides-2024-12-09.txt",
+            path="wanderlust/destination-guides-2024-12-09.txt",
             status="ready",
             created_at=base_time - timedelta(days=6),
             delivered_at=None,
@@ -882,7 +889,7 @@ def seed_deliverables(db):
             client_id="client-10",
             run_id=None,
             format="docx",
-            path="outputs/retailboost/retail-trends-2024-12-10.docx",
+            path="retailboost/retail-trends-2024-12-10.docx",
             status="ready",
             created_at=base_time - timedelta(days=5),
             delivered_at=None,
@@ -896,7 +903,7 @@ def seed_deliverables(db):
             client_id="client-12",
             run_id=None,
             format="txt",
-            path="outputs/fitwell/wellness-tips-2024-12-11.txt",
+            path="fitwell/wellness-tips-2024-12-11.txt",
             status="ready",
             created_at=base_time - timedelta(days=4),
             delivered_at=None,
@@ -910,7 +917,7 @@ def seed_deliverables(db):
             client_id="client-14",
             run_id=None,
             format="docx",
-            path="outputs/urbanspace/market-insights-2024-12-06.docx",
+            path="urbanspace/market-insights-2024-12-06.docx",
             status="ready",
             created_at=base_time - timedelta(days=9),
             delivered_at=None,
@@ -924,7 +931,7 @@ def seed_deliverables(db):
             client_id="client-4",
             run_id=None,
             format="txt",
-            path="outputs/financeflow/investment-tips-2024-12-13.txt",
+            path="financeflow/investment-tips-2024-12-13.txt",
             status="ready",
             created_at=base_time - timedelta(days=2),
             delivered_at=None,
@@ -940,7 +947,7 @@ def seed_deliverables(db):
             client_id="client-1",
             run_id=None,
             format="docx",
-            path="outputs/acme-corp/blog-series-draft.docx",
+            path="acme-corp/blog-series-draft.docx",
             status="draft",
             created_at=base_time - timedelta(hours=18),
             delivered_at=None,
@@ -961,6 +968,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Seed database with demo data")
     parser.add_argument("--clear-only", action="store_true", help="Only clear existing data")
+    parser.add_argument("--force", action="store_true", help="Force run in production environment")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -968,7 +976,7 @@ def main():
     print("=" * 60)
 
     # Environment check
-    check_environment()
+    check_environment(force=args.force)
 
     # Initialize database (create tables if they don't exist)
     print("\n🔧 Initializing database...")
@@ -992,6 +1000,11 @@ def main():
         seed_runs(db)
         seed_posts(db)
         seed_deliverables(db)
+
+        # Create demo deliverable files
+        print("\n📁 Creating demo deliverable files...")
+        from create_demo_files import create_demo_files
+        create_demo_files()
 
         print("\n" + "=" * 60)
         print("✅ SEEDING COMPLETED SUCCESSFULLY")

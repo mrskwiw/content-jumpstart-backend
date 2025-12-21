@@ -67,6 +67,36 @@ mypy src/
 black src/ tests/ && ruff check src/ tests/ && mypy src/
 ```
 
+### Bug Tracking
+
+**IMPORTANT:** When you encounter a bug that is not immediately resolved:
+
+1. **Document it in BUGS.md** - Add the bug to `BUGS.md` in the project root
+2. **Include key details:**
+   - Description of the bug
+   - Steps to reproduce
+   - Expected vs. actual behavior
+   - Affected component/file
+   - Potential causes
+   - Workarounds (if any)
+3. **Track status** - Mark bugs as "Open" or "Resolved"
+4. **Reference in commits** - When fixing a bug, reference it in the commit message
+
+**Example:**
+```markdown
+### 1. Wizard fails to create project after creating client
+
+**Status:** Open
+**Severity:** High
+**Component:** Wizard (operator-dashboard)
+**Location:** `operator-dashboard/src/pages/Wizard.tsx`
+
+**Description:**
+Client is created successfully but project creation fails with "Failed to create project" error.
+```
+
+See `BUGS.md` for the bug tracking template and active bugs list.
+
 ### Backend API (FastAPI)
 
 **Dev:** `uvicorn backend.main:app --reload --port 8000` (docs at http://localhost:8000/docs)

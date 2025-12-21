@@ -15,6 +15,7 @@ import { clientsApi } from '@/api/clients';
 import type { ClientBrief, PostDraft } from '@/types/domain';
 import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
+import { Button, Card, CardContent, Select } from '@/components/ui';
 
 type StepKey = 'profile' | 'research' | 'templates' | 'generate' | 'quality' | 'export';
 
@@ -148,43 +149,33 @@ export default function Wizard() {
       {activeStep === 'profile' && (
         <div className="space-y-4">
           {/* Client Selection */}
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">Select Client</h3>
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="mb-4 text-lg font-semibold text-neutral-900 dark:text-neutral-100">Select Client</h3>
 
-            {/* Toggle between new and existing */}
-            <div className="mb-4 flex gap-2">
-              <button
-                onClick={() => setIsCreatingNewClient(true)}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  isCreatingNewClient
-                    ? 'bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                }`}
-              >
-                Create New Client
-              </button>
-              <button
-                onClick={() => setIsCreatingNewClient(false)}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  !isCreatingNewClient
-                    ? 'bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-                }`}
-              >
-                Use Existing Client
-              </button>
-            </div>
+              {/* Toggle between new and existing */}
+              <div className="mb-4 flex gap-2">
+                <Button
+                  variant={isCreatingNewClient ? 'primary' : 'secondary'}
+                  onClick={() => setIsCreatingNewClient(true)}
+                >
+                  Create New Client
+                </Button>
+                <Button
+                  variant={!isCreatingNewClient ? 'primary' : 'secondary'}
+                  onClick={() => setIsCreatingNewClient(false)}
+                >
+                  Use Existing Client
+                </Button>
+              </div>
 
-            {/* Existing client selector */}
-            {!isCreatingNewClient && (
-              <div>
-                <label className="mb-2 block text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                  Select Existing Client
-                </label>
-                <select
+              {/* Existing client selector */}
+              {!isCreatingNewClient && (
+                <Select
+                  label="Select Existing Client"
                   value={clientId || ''}
                   onChange={(e) => setClientId(e.target.value || null)}
-                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm"
+                  helperText={!clientId ? "Select an existing client to continue" : undefined}
                 >
                   <option value="">-- Select a client --</option>
                   {(existingClients || []).map((client) => (
@@ -192,22 +183,17 @@ export default function Wizard() {
                       {client.name}
                     </option>
                   ))}
-                </select>
-                {!clientId && (
-                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
-                    Select an existing client to continue
-                  </p>
-                )}
-              </div>
-            )}
+                </Select>
+              )}
 
-            {/* New client info */}
-            {isCreatingNewClient && (
-              <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                A new client will be created from the company name in the profile below.
-              </p>
-            )}
-          </div>
+              {/* New client info */}
+              {isCreatingNewClient && (
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  A new client will be created from the company name in the profile below.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Client Profile Form */}
           <ClientProfilePanel

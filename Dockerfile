@@ -14,7 +14,13 @@ RUN npm ci --production=false
 # Copy frontend source code
 COPY operator-dashboard/ ./
 
-# Build frontend for production
+# Build frontend for production with environment variables
+# VITE_API_URL="" uses relative URLs (same origin as backend)
+# This eliminates CORS issues in single-service deployment
+ENV VITE_API_URL="" \
+    VITE_USE_MOCKS=false \
+    VITE_DEBUG_MODE=false
+
 # Output will be in /frontend/dist
 RUN npm run build
 

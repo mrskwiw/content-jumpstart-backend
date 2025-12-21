@@ -225,10 +225,12 @@ async def export_package(
         from utils.file_utils import calculate_file_size
 
         # Generate deliverable path based on project name and format
-        deliverable_path = f"data/outputs/{project.name}/deliverable_{input.format}"
+        # Path is relative to data/ directory (download endpoint will prepend data/outputs/)
+        deliverable_path = f"{project.name}/deliverable_{input.format}"
 
-        # Calculate file size if file exists
-        file_size = calculate_file_size(deliverable_path)
+        # Calculate file size if file exists (use full path for file size calculation)
+        full_path = f"data/outputs/{deliverable_path}"
+        file_size = calculate_file_size(full_path)
 
         # Create deliverable record
         db_deliverable = Deliverable(

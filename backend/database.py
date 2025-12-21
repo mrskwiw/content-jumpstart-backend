@@ -69,4 +69,27 @@ def init_db():
     Initialize database by creating all tables.
     Call this on application startup.
     """
+    from sqlalchemy import text, inspect
+
+    # Create all tables
     Base.metadata.create_all(bind=engine)
+
+    # Run migrations (add missing columns)
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+
+        # Check if deliverables table exists
+        if 'deliverables' in inspector.get_table_names():
+            # Check if file_size_bytes column exists
+            columns = [col['name'] for col in inspector.get_columns('deliverables')]
+
+            if 'file_size_bytes' not in columns:
+                print(">> Running migration: Adding file_size_bytes column to deliverables table")
+                try:
+                    conn.execute(text("ALTER TABLE deliverables ADD COLUMN file_size_bytes INTEGER"))
+                    conn.commit()
+                    print(">> Migration completed successfully")
+                except Exception as e:
+                    print(f">> Migration failed: {e}")
+                    # Non-critical - continue startup
+                    pass

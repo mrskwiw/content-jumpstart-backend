@@ -14,6 +14,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval } from 'date-fns';
+import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 
 type TimeRange = 'month' | 'quarter' | 'year' | 'all';
 

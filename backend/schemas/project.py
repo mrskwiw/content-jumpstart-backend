@@ -16,6 +16,10 @@ class ProjectBase(BaseModel):
     platforms: Optional[List[str]] = []
     tone: Optional[str] = "professional"
 
+    model_config = ConfigDict(
+        populate_by_name=True,  # Allow both snake_case and camelCase
+    )
+
 
 class ProjectCreate(ProjectBase):
     """Schema for creating a project"""

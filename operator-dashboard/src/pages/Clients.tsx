@@ -18,6 +18,7 @@ import {
   Clock
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell, Input, Select } from '@/components/ui';
 
 interface ClientWithMetrics {
   id: string;
@@ -177,68 +178,73 @@ export default function Clients() {
             Manage client relationships and project history
           </p>
         </div>
-        <button
-          onClick={() => {/* TODO: Open add client modal */}}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
-        >
+        <Button variant="primary" onClick={() => {/* TODO: Open add client modal */}}>
           <Plus className="h-4 w-4" />
           Add Client
-        </button>
+        </Button>
       </header>
 
       {/* Summary Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-2">
-              <Users className="h-5 w-5 text-primary-600 dark:text-primary-400" />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Clients</div>
-              <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{totalClients}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/20 p-2">
-              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Active Clients</div>
-              <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{activeClients}</div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">with ongoing work</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-purple-100 dark:bg-purple-900/20 p-2">
-              <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Revenue</div>
-              <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-                ${totalRevenue.toLocaleString()}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary-100 dark:bg-primary-900/20 p-2">
+                <Users className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Clients</div>
+                <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{totalClients}</div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/20 p-2">
-              <Briefcase className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-100 dark:bg-emerald-900/20 p-2">
+                <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Active Clients</div>
+                <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{activeClients}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">with ongoing work</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Projects</div>
-              <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{avgProjectsPerClient}</div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">per client</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-purple-100 dark:bg-purple-900/20 p-2">
+                <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Total Revenue</div>
+                <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+                  ${totalRevenue.toLocaleString()}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/20 p-2">
+                <Briefcase className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Avg Projects</div>
+                <div className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{avgProjectsPerClient}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">per client</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search and Filters */}
@@ -277,164 +283,158 @@ export default function Clients() {
       </div>
 
       {/* Clients Table */}
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">
-        <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-          <thead className="bg-neutral-50 dark:bg-neutral-800">
-            <tr>
-              <th
-                onClick={() => toggleSort('name')}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
-              >
-                <div className="flex items-center gap-2">
-                  Client Name
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Contact
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Package
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Status
-              </th>
-              <th
-                onClick={() => toggleSort('projects')}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
-              >
-                <div className="flex items-center gap-2">
-                  Projects
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </th>
-              <th
-                onClick={() => toggleSort('revenue')}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
-              >
-                <div className="flex items-center gap-2">
-                  Revenue
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </th>
-              <th
-                onClick={() => toggleSort('activity')}
-                className="px-6 py-3 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
-              >
-                <div className="flex items-center gap-2">
-                  Last Activity
-                  <ArrowUpDown className="h-3 w-3" />
-                </div>
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-neutral-700 dark:text-neutral-300 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-neutral-900 divide-y divide-neutral-200 dark:divide-neutral-700">
-            {filteredClients.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center">
-                  <div className="flex flex-col items-center">
-                    <Users className="h-12 w-12 text-neutral-300 dark:text-neutral-600 mb-2" />
-                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">No clients found</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {searchQuery || statusFilter !== 'all' || packageFilter !== 'all'
-                        ? 'Try adjusting your filters'
-                        : 'Add your first client to get started'}
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              filteredClients.map((client) => (
-                <tr
-                  key={client.id}
-                  onClick={() => navigate(`/dashboard/clients/${client.id}`)}
-                  className="hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead
+                  onClick={() => toggleSort('name')}
+                  className="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
                 >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/20 flex items-center justify-center">
-                        <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">
-                          {client.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400">
-                          {client.name}
+                  <div className="flex items-center gap-2">
+                    Client Name
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Package</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead
+                  onClick={() => toggleSort('projects')}
+                  className="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                >
+                  <div className="flex items-center gap-2">
+                    Projects
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  onClick={() => toggleSort('revenue')}
+                  className="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                >
+                  <div className="flex items-center gap-2">
+                    Revenue
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  onClick={() => toggleSort('activity')}
+                  className="cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
+                >
+                  <div className="flex items-center gap-2">
+                    Last Activity
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredClients.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <div className="flex flex-col items-center">
+                      <Users className="h-12 w-12 text-neutral-300 dark:text-neutral-600 mb-2" />
+                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">No clients found</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        {searchQuery || statusFilter !== 'all' || packageFilter !== 'all'
+                          ? 'Try adjusting your filters'
+                          : 'Add your first client to get started'}
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredClients.map((client) => (
+                  <TableRow
+                    key={client.id}
+                    onClick={() => navigate(`/dashboard/clients/${client.id}`)}
+                    className="cursor-pointer"
+                  >
+                    <TableCell>
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/20 flex items-center justify-center">
+                          <span className="text-sm font-semibold text-primary-600 dark:text-primary-400">
+                            {client.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 hover:text-primary-600 dark:hover:text-primary-400">
+                            {client.name}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {client.email ? (
-                      <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
-                        <Mail className="h-4 w-4" />
-                        {client.email}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-neutral-400 dark:text-neutral-500">No email</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      ${client.packageTier === 'Premium' ? 'bg-purple-100 dark:bg-purple-900/20 text-purple-800 dark:text-purple-300' : ''}
-                      ${client.packageTier === 'Professional' ? 'bg-primary-100 dark:bg-primary-900/20 text-primary-800 dark:text-primary-300' : ''}
-                      ${client.packageTier === 'Starter' ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-300' : ''}
-                    `}>
-                      {client.packageTier}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold
-                      ${client.status === 'active' ? 'text-emerald-700 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'}
-                    `}>
-                      {client.status === 'active' ? (
-                        <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                    </TableCell>
+                    <TableCell>
+                      {client.email ? (
+                        <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                          <Mail className="h-4 w-4" />
+                          {client.email}
+                        </div>
                       ) : (
-                        <span className="h-2 w-2 rounded-full bg-neutral-400"></span>
+                        <span className="text-sm text-neutral-400 dark:text-neutral-500">No email</span>
                       )}
-                      {client.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-neutral-900 dark:text-neutral-100">
-                      <span className="font-semibold">{client.totalProjects}</span> total
-                    </div>
-                    {client.activeProjects > 0 && (
-                      <div className="text-xs text-amber-600 dark:text-amber-400">
-                        {client.activeProjects} active
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          client.packageTier === 'Premium' ? 'purple' :
+                          client.packageTier === 'Professional' ? 'primary' :
+                          'default'
+                        }
+                      >
+                        {client.packageTier}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className={`inline-flex items-center gap-1 text-xs font-semibold
+                        ${client.status === 'active' ? 'text-emerald-700 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400'}
+                      `}>
+                        <span className={`h-2 w-2 rounded-full ${client.status === 'active' ? 'bg-emerald-500' : 'bg-neutral-400'}`}></span>
+                        {client.status}
                       </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    ${client.totalRevenue.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-neutral-500 dark:text-neutral-400">
-                    {client.lastActivity ? (
-                      formatDistanceToNow(client.lastActivity, { addSuffix: true })
-                    ) : (
-                      <span className="text-neutral-400 dark:text-neutral-500">No activity</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/dashboard/clients/${client.id}`);
-                      }}
-                      className="text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-neutral-900 dark:text-neutral-100">
+                        <span className="font-semibold">{client.totalProjects}</span> total
+                      </div>
+                      {client.activeProjects > 0 && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                          {client.activeProjects} active
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-semibold">
+                      ${client.totalRevenue.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-neutral-500 dark:text-neutral-400">
+                      {client.lastActivity ? (
+                        formatDistanceToNow(client.lastActivity, { addSuffix: true })
+                      ) : (
+                        <span className="text-neutral-400 dark:text-neutral-500">No activity</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/dashboard/clients/${client.id}`);
+                        }}
+                        className="p-0 h-auto"
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* Results Count */}
       {filteredClients.length > 0 && (
