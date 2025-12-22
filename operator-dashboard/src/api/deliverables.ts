@@ -37,14 +37,28 @@ export const deliverablesApi = {
     if (!isSafeRelativePath(input.path)) {
       throw new Error('Deliverable path must be relative and safe.');
     }
-    const { data } = await apiClient.post<Deliverable>('/api/deliverables', input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput = {
+      project_id: input.projectId,
+      client_id: input.clientId,
+      format: input.format,
+      path: input.path,
+      run_id: input.runId,
+    };
+    const { data } = await apiClient.post<Deliverable>('/api/deliverables', backendInput);
     return data;
   },
 
   async markDelivered(deliverableId: string, input: MarkDeliveredInput) {
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput = {
+      delivered_at: input.deliveredAt,
+      proof_url: input.proofUrl,
+      proof_notes: input.proofNotes,
+    };
     const { data } = await apiClient.post<Deliverable>(
       `/api/deliverables/${deliverableId}/deliver`,
-      input
+      backendInput
     );
     return data;
   },

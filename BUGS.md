@@ -4,62 +4,63 @@ This file tracks known bugs and issues in the application.
 
 ## Active Bugs
 
-### 1. System-wide camelCase/snake_case misalignment investigation needed
-
-**Status:** Open - Investigation Required
-**Severity:** Medium
-**Component:** Backend API schemas
-**Location:** `backend/schemas/*.py`
-
-**Description:**
-The Wizard bug (#1 in Resolved) revealed a field naming mismatch between frontend (camelCase) and backend (snake_case). This issue likely exists in other schemas across the system.
-
-**Issue:**
-- Frontend TypeScript uses camelCase conventions (`clientId`, `createdAt`, etc.)
-- Backend Python/Pydantic uses snake_case conventions (`client_id`, `created_at`, etc.)
-- Some schemas have `populate_by_name=True` configuration, but others don't
-- This creates inconsistent API behavior and potential validation failures
-
-**Required Action:**
-Systematic audit of all backend schemas to ensure consistent field name handling:
-
-1. **Audit all schema files:**
-   - `backend/schemas/project.py` ✅ (fixed)
-   - `backend/schemas/client.py`
-   - `backend/schemas/brief.py`
-   - `backend/schemas/deliverable.py`
-   - `backend/schemas/post.py`
-   - `backend/schemas/run.py`
-   - `backend/schemas/auth.py`
-   - Any other schema files
-
-2. **Check each schema for:**
-   - Input schemas (Create/Update) that need `populate_by_name=True`
-   - Response schemas that need `alias_generator` for camelCase output
-   - Consistency in configuration across all schemas
-
-3. **Test each API endpoint:**
-   - Verify frontend can send camelCase
-   - Verify backend returns camelCase
-   - Check for any validation errors
-
-**Impact:**
-- Potential hidden bugs in other API endpoints
-- Inconsistent API behavior across endpoints
-- Future developer confusion about field naming conventions
-
-**Priority:**
-Medium - Should be investigated soon to prevent future bugs, but not blocking current functionality
-
-**Related Files:**
-- All files in `backend/schemas/`
-- `operator-dashboard/src/api/*.ts` (frontend API interfaces)
-
-**Date Reported:** December 21, 2025
+(None)
 
 ---
 
 ## Resolved Bugs
+
+### 2. System-wide camelCase/snake_case misalignment
+
+**Status:** ✅ RESOLVED (Frontend Workaround)
+**Severity:** Medium - Preventive Fix
+**Component:** Frontend API Layer
+**Location:** Multiple API files in `operator-dashboard/src/api/`
+
+**Description:**
+System-wide field naming mismatch between frontend (camelCase) and backend (snake_case) affecting multiple API endpoints.
+
+**Investigation Results:**
+Audited all backend schemas and frontend API files:
+
+**Backend Schemas (snake_case):**
+- ✅ `project.py` - `client_id` (already fixed)
+- ✅ `client.py` - No snake_case fields in Create schema
+- ✅ `brief.py` - `project_id`
+- ✅ `deliverable.py` - `delivered_at`, `proof_url`, `proof_notes`, `project_id`, `client_id`, `run_id`
+- ✅ `post.py` - No Create schema (posts created by generator service)
+- ✅ `run.py` - `project_id`, `is_batch`, `completed_at`, `error_message`
+- ✅ `auth.py` - `full_name`, `access_token`, `refresh_token` (response only, already handled correctly)
+
+**Solution:**
+Added field name conversion in all relevant frontend API files:
+
+1. ✅ **projects.ts** - `clientId` → `client_id` (create)
+2. ✅ **generator.ts** - `projectId`, `clientId`, `isBatch`, `postIds` → snake_case
+3. ✅ **deliverables.ts** - `projectId`, `clientId`, `runId`, `deliveredAt`, `proofUrl`, `proofNotes` → snake_case
+4. ✅ **research.ts** - `projectId`, `clientId` → snake_case
+5. ✅ **auth.ts** - Already correct (handles snake_case responses properly)
+6. ✅ **posts.ts** - No create/update methods (read-only)
+7. ✅ **runs.ts** - No create/update methods (created by generator)
+8. ✅ **clients.ts** - No snake_case fields
+
+**Files Changed:**
+- `operator-dashboard/src/api/projects.ts` - Added conversion in create()
+- `operator-dashboard/src/api/generator.ts` - Added conversion in all 3 methods
+- `operator-dashboard/src/api/deliverables.ts` - Added conversion in create() and markDelivered()
+- `operator-dashboard/src/api/research.ts` - Added conversion in run()
+
+**Trade-offs:**
+- ✅ Prevents 422 validation errors across all endpoints
+- ✅ Maintains TypeScript camelCase conventions
+- ✅ Centralizes conversion logic in API layer
+- ⚠️ Requires manual field mapping (not automatic)
+- ⚠️ Developers must remember to add conversion for new endpoints
+
+**Resolution Date:** December 21, 2025
+**Date Reported:** December 21, 2025
+
+---
 
 ### 1. Wizard fails to create project - 422 validation error
 

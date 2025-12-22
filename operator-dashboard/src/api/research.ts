@@ -29,7 +29,14 @@ export const researchApi = {
   },
 
   async run(input: RunResearchInput) {
-    const { data } = await apiClient.post<ResearchRunResult>('/api/research/run', input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput = {
+      project_id: input.projectId,
+      client_id: input.clientId,
+      tool: input.tool,
+      params: input.params,
+    };
+    const { data } = await apiClient.post<ResearchRunResult>('/api/research/run', backendInput);
     return data;
   },
 };
