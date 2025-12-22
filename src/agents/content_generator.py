@@ -542,7 +542,7 @@ class ContentGeneratorAgent:
                 template_name=template.name,
                 variant=variant,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
             )
 
             # Check if post needs review
@@ -562,7 +562,7 @@ class ContentGeneratorAgent:
                 template_name=template.name,
                 variant=variant,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
             )
             post.flag_for_review(f"Generation failed: {str(e)}")
             return post
@@ -619,7 +619,7 @@ class ContentGeneratorAgent:
                 template_name=template.name,
                 variant=variant,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
             )
 
             # Check if post needs review
@@ -642,7 +642,7 @@ class ContentGeneratorAgent:
                 template_name=template.name,
                 variant=variant,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
             )
             post.flag_for_review(f"Generation failed: {str(e)}")
             return post
@@ -702,23 +702,62 @@ class ContentGeneratorAgent:
         # Start with base prompt
         prompt = self.SYSTEM_PROMPT
 
-        # Add platform-specific guidance
+        # Add platform-specific guidance with enhanced emphasis
         platform_guidance = get_platform_prompt_guidance(platform)
         target_length = get_platform_target_length(platform)
         from ..config.platform_specs import PLATFORM_LENGTH_SPECS
 
         specs = PLATFORM_LENGTH_SPECS.get(platform, {})
 
-        prompt += f"\n\nPLATFORM: {platform.value.upper()}"
-        prompt += f"\nTARGET LENGTH: {target_length}"
+        # Add prominent platform header
+        prompt += f"\n\n{'=' * 60}"
+        prompt += f"\nPLATFORM-SPECIFIC REQUIREMENTS FOR {platform.value.upper()}"
+        prompt += f"\n{'=' * 60}"
+        prompt += f"\n\nTARGET LENGTH: **{target_length}** (STRICTLY ENFORCE THIS)"
 
-        # Add strict length enforcement for platforms with tight limits
+        # Add critical length enforcement for platforms with tight limits
         if platform in [Platform.TWITTER, Platform.FACEBOOK]:
             optimal_min = specs.get("optimal_min_words", 10)
             optimal_max = specs.get("optimal_max_words", 20)
-            prompt += f"\n\n⚠️ CRITICAL LENGTH REQUIREMENT: Your post MUST be between {optimal_min}-{optimal_max} words. This is a hard limit. Posts longer than {optimal_max} words will be rejected."
+            prompt += f"\n\n🚨 CRITICAL: Your post MUST be {optimal_min}-{optimal_max} words."
+            prompt += f"\n   Posts longer than {optimal_max} words will FAIL validation."
+            prompt += f"\n   Every single word must earn its place."
 
-        prompt += f"\n{platform_guidance}"
+        # Add full platform-specific writing guidelines
+        prompt += f"\n\n{platform_guidance}"
+
+        # Add blog-specific structure requirements
+        if platform == Platform.BLOG:
+            prompt += """
+
+BLOG POST STRUCTURE REQUIREMENTS:
+1. **Introduction** (150-200 words)
+   - Hook with compelling question or statistic
+   - Preview the value readers will get
+   - Set context and relevance
+
+2. **Body** (1200-1600 words)
+   - Use H2 headers for main sections (## Header)
+   - Use H3 headers for subsections (### Subheader)
+   - Keep paragraphs 2-3 sentences maximum
+   - Include bullet points and concrete examples
+   - Add data/statistics where relevant
+
+3. **Conclusion** (150-200 words)
+   - Summarize key takeaways (3-5 bullets)
+   - Clear call-to-action (subscribe, comment, share)
+   - Final thought or question for engagement
+
+CRITICAL BLOG REQUIREMENTS:
+- Include 3-5 H2 headers (## format)
+- Use concrete examples, not generic advice
+- Write for search intent, not just engagement
+- Include internal/external link placeholders: [LINK: description]
+- Front-load key message in first 2 paragraphs for SEO
+"""
+
+        # Repeat length reminder at end for emphasis
+        prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
 
         # Add client-specific voice guidance
         if client_brief.brand_personality:
@@ -1144,7 +1183,7 @@ Generate the {platform.value} teaser now:"""
                 template_name="Blog Teaser",
                 variant=1,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
                 related_blog_post_id=blog_meta["id"],
                 blog_link_placeholder=blog_meta["link_placeholder"],
                 blog_title=blog_meta["title"],
@@ -1162,7 +1201,7 @@ Generate the {platform.value} teaser now:"""
                 template_name="Blog Teaser",
                 variant=1,
                 client_name=client_brief.company_name,
-                target_platform=platform.value,
+                target_platform=platform,
                 related_blog_post_id=blog_meta["id"],
                 blog_link_placeholder=blog_meta["link_placeholder"],
                 blog_title=blog_meta["title"],

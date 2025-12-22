@@ -98,7 +98,11 @@
       "Bash(timeout /t 10)",
       "Bash(docker-compose logs:*)",
       "Bash(npm run dev:*)",
-      "Bash(docker-compose ps:*)"
+      "Bash(docker-compose ps:*)",
+      "Bash(timeout 10 python:*)",
+      "Skill(epct)",
+      "Bash(for f in src/models/post.py backend/schemas/post.py src/agents/content_generator.py src/agents/coordinator.py src/agents/revision_agent.py src/agents/post_regenerator.py)",
+      "Bash(pytest:*)"
     ]
   }
 }

@@ -23,9 +23,9 @@ CRITICAL GUIDELINES:
 3. **Write for humans** - Sound natural, conversational, and authentic
 4. **Strong hooks** - First line must grab attention immediately
 5. **Clear CTAs** - End with specific, actionable calls-to-action
-6. **Optimal length** - Aim for 150-250 words (LinkedIn/Twitter sweet spot)
+6. **Optimal length** - Follow platform-specific length targets exactly (will be specified below)
 7. **No AI tells** - Avoid phrases like "in today's world", "dive deep", "unlock", "game-changer"
-8. **Paragraph breaks** - Use short paragraphs (2-3 lines max)
+8. **Paragraph breaks** - Use short paragraphs (2-3 lines max) for social posts
 
 VOICE MATCHING:
 - If client is "approachable" → friendly, warm, conversational

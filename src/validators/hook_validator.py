@@ -8,6 +8,8 @@ import difflib
 from typing import Any, Dict, List, Optional
 
 from ..config.constants import HOOK_SIMILARITY_THRESHOLD
+from ..config.platform_specs import PLATFORM_HOOK_SPECS
+from ..models.client_brief import Platform
 from ..models.post import Post
 
 # Optional: MinHash/LSH for performance optimization
@@ -47,18 +49,25 @@ class HookValidator:
 
     def validate(self, posts: List[Post]) -> Dict[str, Any]:
         """
-        Validate hook uniqueness across all posts
+        Validate hook uniqueness and platform-specific hook length requirements
 
         Args:
             posts: List of Post objects to validate
 
         Returns:
             Dictionary with validation results:
-            - passed: bool
+            - passed: bool (True if both uniqueness AND length requirements pass)
             - duplicates: List of duplicate pairs
             - uniqueness_score: float (0.0-1.0)
-            - issues: List of issue descriptions
+            - hook_length_issues: List of platform-specific length violations
+            - issues: List of all issue descriptions (uniqueness + length)
+            - metric: Combined metric string
+            - platform: Detected platform (or None)
         """
+        # Detect platform for platform-specific validation
+        platform = self._detect_platform(posts)
+
+        # Validate hook uniqueness (existing logic)
         hooks = self._extract_hooks(posts)
         duplicates = self._find_duplicates(hooks, posts)
 
@@ -67,20 +76,72 @@ class HookValidator:
         duplicate_pairs = len(duplicates)
         uniqueness_score = 1.0 - (duplicate_pairs / total_pairs if total_pairs > 0 else 0)
 
+        # Validate platform-specific hook lengths (new logic)
+        hook_length_violations = self._validate_hook_lengths(posts, platform)
+
+        # Build combined issues list
         issues = []
+
+        # Add uniqueness issues
         for dup in duplicates:
             issues.append(
                 f"Posts {dup['post1_idx']+1} and {dup['post2_idx']+1} have similar hooks "
                 f"({dup['similarity']:.0%} similar)"
             )
 
+        # Add hook length issues
+        for violation in hook_length_violations:
+            issues.append(
+                f"Post {violation['post_idx']+1}: {violation['violation']}"
+            )
+
+        # Build metric string
+        unique_count = len(posts) - len(duplicates)
+        length_pass_count = len(posts) - len(hook_length_violations)
+
+        if platform:
+            metric = (
+                f"{unique_count}/{len(posts)} unique hooks, "
+                f"{length_pass_count}/{len(posts)} meet {platform.value} hook length requirements"
+            )
+        else:
+            metric = f"{unique_count}/{len(posts)} unique hooks"
+
         return {
-            "passed": len(duplicates) == 0,
+            "passed": len(duplicates) == 0 and len(hook_length_violations) == 0,
             "duplicates": duplicates,
             "uniqueness_score": uniqueness_score,
+            "hook_length_issues": hook_length_violations,
             "issues": issues,
-            "metric": f"{len(posts) - len(duplicates)}/{len(posts)} unique hooks",
+            "metric": metric,
+            "platform": platform.value if platform else None,
         }
+
+    def _detect_platform(self, posts: List[Post]) -> Optional[Platform]:
+        """
+        Detect platform from posts
+
+        Args:
+            posts: List of Post objects
+
+        Returns:
+            Platform enum if detected, None otherwise
+        """
+        if not posts:
+            return None
+
+        # Check first post's target_platform field
+        first_post = posts[0]
+        if hasattr(first_post, "target_platform") and first_post.target_platform:
+            # Handle both Platform enum (new) and string (backward compatibility)
+            if isinstance(first_post.target_platform, Platform):
+                return first_post.target_platform  # Already an enum
+            try:
+                return Platform(first_post.target_platform)  # Convert string to enum
+            except ValueError:
+                return None
+
+        return None
 
     def _extract_hooks(self, posts: List[Post]) -> List[str]:
         """
@@ -100,6 +161,75 @@ class HookValidator:
             hooks.append(hook)
 
         return hooks
+
+    def _validate_hook_lengths(
+        self, posts: List[Post], platform: Optional[Platform]
+    ) -> List[Dict[str, Any]]:
+        """
+        Validate hook lengths against platform-specific requirements
+
+        Args:
+            posts: List of Post objects
+            platform: Platform enum (LinkedIn, Twitter, Facebook, Blog, Email)
+
+        Returns:
+            List of hook length violations with details
+        """
+        if not platform or platform not in PLATFORM_HOOK_SPECS:
+            # Skip validation if platform not detected or not in specs
+            return []
+
+        hook_spec = PLATFORM_HOOK_SPECS[platform]
+        violations = []
+
+        for i, post in enumerate(posts):
+            # Extract hook based on platform type
+            if platform == Platform.BLOG:
+                # Blog: First paragraph (up to double newline or 50 words)
+                content = post.content.strip()
+                paragraphs = content.split("\n\n")
+                hook = paragraphs[0] if paragraphs else content
+                hook_word_count = len(hook.split())
+                max_words = hook_spec.get("hook_max_words", 50)
+
+                if hook_word_count > max_words:
+                    violations.append(
+                        {
+                            "post_idx": i,
+                            "hook_length": hook_word_count,
+                            "max_allowed": max_words,
+                            "unit": "words",
+                            "violation": f"Hook too long for {platform.value} ({hook_word_count} > {max_words} words)",
+                        }
+                    )
+            else:
+                # Social platforms: First line or entire post (whichever is shorter)
+                lines = post.content.strip().split("\n")
+                first_line = lines[0].strip() if lines else ""
+
+                # For Twitter/Facebook, entire post might be shorter than first line
+                # (if post is single line with no breaks)
+                if platform in [Platform.TWITTER, Platform.FACEBOOK]:
+                    # Use entire post if it's shorter than arbitrary "first line" split
+                    hook = post.content.strip() if len(post.content.strip()) < len(first_line) + 50 else first_line
+                else:
+                    hook = first_line
+
+                hook_char_count = len(hook)
+                max_chars = hook_spec.get("hook_max_chars", 140)
+
+                if hook_char_count > max_chars:
+                    violations.append(
+                        {
+                            "post_idx": i,
+                            "hook_length": hook_char_count,
+                            "max_allowed": max_chars,
+                            "unit": "characters",
+                            "violation": f"Hook too long for {platform.value} ({hook_char_count} > {max_chars} chars)",
+                        }
+                    )
+
+        return violations
 
     def _find_duplicates(self, hooks: List[str], posts: List[Post]) -> List[Dict[str, Any]]:
         """

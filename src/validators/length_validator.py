@@ -101,8 +101,8 @@ class LengthValidator:
         in_optimal = sum(1 for wc in word_counts if optimal_min <= wc <= optimal_max)
         optimal_ratio = in_optimal / len(posts) if posts else 0
 
-        # Distribution by range
-        distribution = self._calculate_distribution(word_counts)
+        # Distribution by range (platform-aware)
+        distribution = self._calculate_distribution(word_counts, platform)
 
         return {
             "passed": len(issues) == 0,
@@ -140,38 +140,83 @@ class LengthValidator:
 
         return max_bucket_count / len(word_counts)
 
-    def _calculate_distribution(self, word_counts: List[int]) -> Dict[str, int]:
+    def _get_platform_buckets(self, platform: Optional[Platform]) -> List[str]:
         """
-        Calculate distribution of posts by length range
+        Get platform-specific distribution buckets
+
+        Args:
+            platform: Platform enum (Twitter, Facebook, LinkedIn, Blog, Email)
+
+        Returns:
+            List of bucket labels (e.g., ["0-10", "10-15", "15-20", ...])
+        """
+        if platform == Platform.TWITTER:
+            return ["0-10", "10-15", "15-20", "20-30", "30+"]
+        elif platform == Platform.FACEBOOK:
+            return ["0-8", "8-12", "12-18", "18-25", "25+"]
+        elif platform == Platform.LINKEDIN:
+            return ["0-150", "150-200", "200-250", "250-300", "300+"]
+        elif platform == Platform.BLOG:
+            return ["0-1000", "1000-1500", "1500-2000", "2000-2500", "2500+"]
+        elif platform == Platform.EMAIL:
+            return ["0-100", "100-150", "150-200", "200-250", "250+"]
+        else:
+            # Default to LinkedIn buckets for unknown/multi platforms
+            return ["0-100", "100-150", "150-200", "200-250", "250-300", "300+"]
+
+    def _assign_to_bucket(self, word_count: int, buckets: List[str]) -> str:
+        """
+        Assign word count to appropriate bucket
+
+        Args:
+            word_count: Word count to assign
+            buckets: List of bucket labels
+
+        Returns:
+            Bucket label (e.g., "150-200")
+        """
+        for bucket in buckets:
+            if bucket.endswith("+"):
+                # Last bucket is open-ended (e.g., "300+")
+                threshold = int(bucket.replace("+", ""))
+                if word_count >= threshold:
+                    return bucket
+            else:
+                # Range bucket (e.g., "150-200")
+                parts = bucket.split("-")
+                if len(parts) == 2:
+                    min_val = int(parts[0])
+                    max_val = int(parts[1])
+                    if min_val <= word_count < max_val:
+                        return bucket
+
+        # Fallback to first bucket if no match
+        return buckets[0] if buckets else "unknown"
+
+    def _calculate_distribution(
+        self, word_counts: List[int], platform: Optional[Platform] = None
+    ) -> Dict[str, int]:
+        """
+        Calculate distribution of posts by length range (platform-aware)
 
         Args:
             word_counts: List of word counts
+            platform: Platform enum for platform-specific buckets
 
         Returns:
             Dictionary of length ranges and counts
         """
-        distribution = {
-            "0-100": 0,
-            "100-150": 0,
-            "150-200": 0,
-            "200-250": 0,
-            "250-300": 0,
-            "300+": 0,
-        }
+        # Get platform-specific buckets
+        buckets = self._get_platform_buckets(platform)
 
+        # Initialize distribution with 0 counts
+        distribution = {bucket: 0 for bucket in buckets}
+
+        # Assign each word count to its bucket
         for wc in word_counts:
-            if wc < 100:
-                distribution["0-100"] += 1
-            elif wc < 150:
-                distribution["100-150"] += 1
-            elif wc < 200:
-                distribution["150-200"] += 1
-            elif wc < 250:
-                distribution["200-250"] += 1
-            elif wc < 300:
-                distribution["250-300"] += 1
-            else:
-                distribution["300+"] += 1
+            bucket = self._assign_to_bucket(wc, buckets)
+            if bucket in distribution:
+                distribution[bucket] += 1
 
         return distribution
 
@@ -191,8 +236,11 @@ class LengthValidator:
         # Check first post's target_platform field
         first_post = posts[0]
         if hasattr(first_post, "target_platform") and first_post.target_platform:
+            # Handle both Platform enum (new) and string (backward compatibility)
+            if isinstance(first_post.target_platform, Platform):
+                return first_post.target_platform  # Already an enum
             try:
-                return Platform(first_post.target_platform)
+                return Platform(first_post.target_platform)  # Convert string to enum
             except ValueError:
                 return None
 

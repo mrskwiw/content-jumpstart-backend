@@ -6,6 +6,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from src.models.client_brief import Platform
+
 
 class PostBase(BaseModel):
     """Base post schema"""
@@ -14,7 +16,7 @@ class PostBase(BaseModel):
     template_id: Optional[str] = None
     template_name: Optional[str] = None
     variant: Optional[int] = None
-    target_platform: Optional[str] = "linkedin"
+    target_platform: Optional[Platform] = Platform.LINKEDIN
 
 
 class PostResponse(PostBase):

@@ -8,11 +8,21 @@ import re
 from typing import Any, Dict, List, Optional
 
 from ..config.constants import MIN_HEADLINE_ELEMENTS
+from ..models.client_brief import Platform
 from ..models.post import Post
 
 
 class HeadlineValidator:
     """Validates headline engagement elements across posts"""
+
+    # Platform-specific minimum engagement elements
+    PLATFORM_MIN_ELEMENTS = {
+        Platform.LINKEDIN: 2,  # Professional but engaging hooks
+        Platform.TWITTER: 1,   # Brevity prioritized
+        Platform.FACEBOOK: 1,  # Ultra-concise, emotion/visual focus
+        Platform.BLOG: 3,      # SEO-focused, click-through optimization
+        Platform.EMAIL: 2,     # Subject-line style, curiosity triggers
+    }
 
     # Power words that trigger engagement
     POWER_WORDS = {
@@ -108,7 +118,7 @@ class HeadlineValidator:
 
     def validate(self, posts: List[Post]) -> Dict[str, Any]:
         """
-        Validate headline engagement across all posts
+        Validate headline engagement across all posts (platform-aware)
 
         Args:
             posts: List of Post objects to validate
@@ -120,7 +130,17 @@ class HeadlineValidator:
             - average_elements: float
             - below_threshold: List of post indices with weak headlines
             - issues: List of issue descriptions
+            - platform: Detected platform (or None)
         """
+        # Detect platform for platform-specific threshold
+        platform = self._detect_platform(posts)
+
+        # Use platform-specific threshold if available
+        if platform and platform in self.PLATFORM_MIN_ELEMENTS:
+            min_elements = self.PLATFORM_MIN_ELEMENTS[platform]
+        else:
+            min_elements = self.min_elements
+
         headline_scores = []
         below_threshold = []
         issues = []
@@ -142,10 +162,10 @@ class HeadlineValidator:
             )
 
             # Flag if below threshold
-            if element_count < self.min_elements:
+            if element_count < min_elements:
                 below_threshold.append(idx)
                 issues.append(
-                    f"Post {idx+1} headline has only {element_count}/{self.min_elements} "
+                    f"Post {idx+1} headline has only {element_count}/{min_elements} "
                     f"engagement elements: '{headline[:60]}...'"
                 )
 
@@ -161,7 +181,23 @@ class HeadlineValidator:
             "headline_scores": headline_scores,
             "issues": issues,
             "metric": f"{len(posts) - len(below_threshold)}/{len(posts)} headlines meet threshold",
+            "platform": platform.value if platform else None,
+            "min_elements": min_elements,
         }
+
+    def _detect_platform(self, posts: List[Post]) -> Optional[Platform]:
+        """Detect platform from posts"""
+        if not posts:
+            return None
+        first_post = posts[0]
+        if hasattr(first_post, "target_platform") and first_post.target_platform:
+            if isinstance(first_post.target_platform, Platform):
+                return first_post.target_platform
+            try:
+                return Platform(first_post.target_platform)
+            except ValueError:
+                return None
+        return None
 
     def _count_engagement_elements(self, headline: str) -> int:
         """

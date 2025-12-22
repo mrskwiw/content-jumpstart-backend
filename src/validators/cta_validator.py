@@ -8,11 +8,21 @@ from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from ..config.constants import CTA_VARIETY_THRESHOLD
+from ..models.client_brief import Platform
 from ..models.post import Post
 
 
 class CTAValidator:
     """Validates CTA variety across a set of posts"""
+
+    # Platform-specific variety thresholds
+    PLATFORM_VARIETY_THRESHOLDS = {
+        Platform.LINKEDIN: 0.40,  # 40% max - more variety needed
+        Platform.TWITTER: 0.50,   # 50% max - fewer CTA types available
+        Platform.FACEBOOK: 0.50,  # 50% max - ultra-concise
+        Platform.BLOG: 0.60,      # 60% max - can repeat subscribe/download
+        Platform.EMAIL: 0.70,     # 70% max - campaign-focused, single CTA type
+    }
 
     # Common CTA patterns to detect
     CTA_PATTERNS = [
@@ -43,7 +53,7 @@ class CTAValidator:
 
     def validate(self, posts: List[Post]) -> Dict[str, Any]:
         """
-        Validate CTA variety across all posts
+        Validate CTA variety across all posts (platform-aware)
 
         Args:
             posts: List of Post objects to validate
@@ -54,7 +64,17 @@ class CTAValidator:
             - cta_distribution: Dict of CTA types and counts
             - variety_score: float (0.0-1.0)
             - issues: List of issue descriptions
+            - platform: Detected platform (or None)
         """
+        # Detect platform for platform-specific threshold
+        platform = self._detect_platform(posts)
+
+        # Use platform-specific threshold if available
+        if platform and platform in self.PLATFORM_VARIETY_THRESHOLDS:
+            variety_threshold = self.PLATFORM_VARIETY_THRESHOLDS[platform]
+        else:
+            variety_threshold = self.variety_threshold
+
         cta_types = self._extract_cta_types(posts)
         cta_counts = Counter(cta_types)
 
@@ -63,7 +83,7 @@ class CTAValidator:
 
         # Check for overused CTAs
         issues = []
-        max_allowed = int(len(posts) * self.variety_threshold)
+        max_allowed = int(len(posts) * variety_threshold)
 
         for cta_type, count in cta_counts.most_common():
             if count > max_allowed:
@@ -83,7 +103,23 @@ class CTAValidator:
             "variety_score": variety_score,
             "issues": issues,
             "metric": f"{len(cta_counts)} unique CTA types across {len(posts)} posts",
+            "platform": platform.value if platform else None,
+            "variety_threshold": variety_threshold,
         }
+
+    def _detect_platform(self, posts: List[Post]) -> Optional[Platform]:
+        """Detect platform from posts"""
+        if not posts:
+            return None
+        first_post = posts[0]
+        if hasattr(first_post, "target_platform") and first_post.target_platform:
+            if isinstance(first_post.target_platform, Platform):
+                return first_post.target_platform
+            try:
+                return Platform(first_post.target_platform)
+            except ValueError:
+                return None
+        return None
 
     def _extract_cta_types(self, posts: List[Post]) -> List[str]:
         """

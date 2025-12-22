@@ -321,9 +321,9 @@ class CoordinatorAgent:
                 variant=i,
                 client_name=client_brief.company_name,
                 target_platform=(
-                    client_brief.target_platforms[0].value
+                    client_brief.target_platforms[0]
                     if client_brief.target_platforms
-                    else "linkedin"
+                    else Platform.LINKEDIN
                 ),
             )
             sample_posts.append(post)

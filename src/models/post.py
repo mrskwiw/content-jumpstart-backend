@@ -4,6 +4,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from .client_brief import Platform
+
 
 class Post(BaseModel):
     """A generated social media post"""
@@ -20,8 +22,8 @@ class Post(BaseModel):
     has_cta: bool = Field(False, description="Whether post has a CTA")
 
     # Platform targeting (optional - defaults to LinkedIn)
-    target_platform: Optional[str] = Field(
-        None, description="Target platform (linkedin, twitter, facebook, blog)"
+    target_platform: Optional[Platform] = Field(
+        None, description="Target platform (linkedin, twitter, facebook, blog, email)"
     )
 
     # Blog linking (for cross-platform content)
@@ -92,7 +94,7 @@ class Post(BaseModel):
             )
             output += f"Words: {self.word_count} | Characters: {self.character_count}\n"
             if self.target_platform:
-                output += f"Platform: {self.target_platform}\n"
+                output += f"Platform: {self.target_platform.value}\n"
             output += f"Has CTA: {self.has_cta}\n"
             if self.needs_review:
                 output += f"[!] NEEDS REVIEW: {self.review_reason}\n"
