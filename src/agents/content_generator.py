@@ -600,10 +600,25 @@ class ContentGeneratorAgent:
             client_brief, Platform.LINKEDIN
         )
 
+        # For blog posts, use a minimal template structure to allow full-length content
+        # LinkedIn templates constrain length to 200-300 words, which kills blogs
+        if platform == Platform.BLOG:
+            blog_template_structure = """Write a comprehensive, in-depth blog post that thoroughly explores the topic.
+Your blog post should include:
+- A compelling introduction that hooks readers
+- Multiple detailed sections (H2 headers) exploring different aspects
+- Concrete examples, data, and actionable insights throughout
+- A strong conclusion with clear next steps
+
+Focus on providing deep value and comprehensive coverage of the topic. This is a blog post, not a social media post - depth and thoroughness matter more than brevity."""
+            template_structure_to_use = blog_template_structure
+        else:
+            template_structure_to_use = template.structure
+
         # Generate post content via API (async)
         try:
             content = await self.client.generate_post_content_async(
-                template_structure=template.structure,
+                template_structure=template_structure_to_use,
                 context=context,
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
@@ -716,48 +731,177 @@ class ContentGeneratorAgent:
         prompt += f"\n\nTARGET LENGTH: **{target_length}** (STRICTLY ENFORCE THIS)"
 
         # Add critical length enforcement for platforms with tight limits
-        if platform in [Platform.TWITTER, Platform.FACEBOOK]:
-            optimal_min = specs.get("optimal_min_words", 10)
-            optimal_max = specs.get("optimal_max_words", 20)
-            prompt += f"\n\n🚨 CRITICAL: Your post MUST be {optimal_min}-{optimal_max} words."
-            prompt += f"\n   Posts longer than {optimal_max} words will FAIL validation."
-            prompt += f"\n   Every single word must earn its place."
+        if platform == Platform.TWITTER:
+            prompt += """
+
+🚨 TWITTER ULTRA-CONCISE REQUIREMENTS (STRICTLY ENFORCE):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. MAXIMUM 18 words total (HARD LIMIT - will FAIL if exceeded)
+2. Single sentence OR two very short sentences maximum
+3. NO paragraph breaks, NO line breaks
+4. NO explanations, NO backstory, NO context
+5. Make EVERY word count - be ruthless in cutting
+
+EXAMPLES OF CORRECT LENGTH (12-18 words):
+✓ "73% of teams miss deadlines. The reason? Tool chaos costs 12 hours weekly." (13 words)
+✓ "Your team wastes 12 hours weekly switching tools. Solution: consolidate to three max." (14 words)
+✗ "I've been tracking this across 200+ engineering teams. The data's clear..." (WRONG - too long, too wordy)
+
+CRITICAL: If your first draft exceeds 18 words, CUT IT IN HALF, then cut again.
+Think: billboard, not paragraph. Punchy, not explanatory.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        elif platform == Platform.FACEBOOK:
+            prompt += """
+
+🚨 FACEBOOK ULTRA-BRIEF REQUIREMENTS (STRICTLY ENFORCE):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. MAXIMUM 15 words total (HARD LIMIT - will FAIL if exceeded)
+2. Single punchy sentence only
+3. Assume a strong visual/image accompanies this text
+4. Focus on emotion/intrigue, NOT explanation
+5. NO details, NO context, NO multi-sentence explanations
+
+EXAMPLES OF CORRECT LENGTH (10-15 words):
+✓ "Tool chaos kills productivity. Here's what top teams do differently." (11 words)
+✓ "Most engineering teams waste 12 hours weekly on this mistake." (10 words)
+✗ "Engineering teams lose productivity when they have too many tools..." (WRONG - too long)
+
+CRITICAL: 10-15 words MAXIMUM. Period. No exceptions.
+Think: Facebook caption with image, not standalone post.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
         # Add full platform-specific writing guidelines
         prompt += f"\n\n{platform_guidance}"
 
-        # Add blog-specific structure requirements
-        if platform == Platform.BLOG:
+        # Add LinkedIn-specific length requirements
+        if platform == Platform.LINKEDIN:
             prompt += """
 
-BLOG POST STRUCTURE REQUIREMENTS:
-1. **Introduction** (150-200 words)
-   - Hook with compelling question or statistic
-   - Preview the value readers will get
-   - Set context and relevance
+📏 LINKEDIN LENGTH REQUIREMENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MINIMUM: 200 words (posts under 200 will FAIL validation)
+OPTIMAL: 220-280 words (best engagement range)
+MAXIMUM: 300 words (do not exceed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-2. **Body** (1200-1600 words)
-   - Use H2 headers for main sections (## Header)
-   - Use H3 headers for subsections (### Subheader)
-   - Keep paragraphs 2-3 sentences maximum
-   - Include bullet points and concrete examples
-   - Add data/statistics where relevant
+CRITICAL: First 140 characters must contain your key message (mobile cutoff)
 
-3. **Conclusion** (150-200 words)
-   - Summarize key takeaways (3-5 bullets)
-   - Clear call-to-action (subscribe, comment, share)
-   - Final thought or question for engagement
+If your first draft is 150-199 words, ADD:
+- One more supporting point or example
+- A relevant statistic or data point
+- A brief anecdote or scenario
+- Additional context or background
 
-CRITICAL BLOG REQUIREMENTS:
-- Include 3-5 H2 headers (## format)
-- Use concrete examples, not generic advice
-- Write for search intent, not just engagement
-- Include internal/external link placeholders: [LINK: description]
-- Front-load key message in first 2 paragraphs for SEO
+Aim for 220-250 words for optimal engagement.
 """
 
-        # Repeat length reminder at end for emphasis
-        prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
+        # Add blog-specific structure requirements
+        elif platform == Platform.BLOG:
+            prompt += """
+
+🚨 BLOG POST LENGTH REQUIREMENTS (CRITICAL - WILL FAIL VALIDATION IF NOT MET):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  ABSOLUTE MINIMUM: 1500 words (posts under 1500 will be REJECTED)
+🎯 TARGET RANGE: 1500-2000 words for optimal SEO performance
+💯 SWEET SPOT: 1700-1800 words (ideal engagement + SEO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  WARNING: Current blog posts are averaging 1089 words - this is INSUFFICIENT.
+You MUST write substantially more content to meet the 1500-word minimum.
+
+MANDATORY 6-SECTION STRUCTURE (each section MUST meet word minimums):
+
+## Introduction (250-300 words) [CHECKPOINT: ~275 words]
+- Powerful hook with compelling statistic, question, or story (2-3 sentences)
+- Clearly state the problem your audience faces (1 paragraph)
+- Preview the specific value/solutions readers will learn (1 paragraph)
+- Include a concrete example or real data point to build credibility
+- Set up why this topic matters NOW
+
+## Section 1: [Core Concept/Problem Deep-Dive] (350-450 words) [CHECKPOINT: ~650 words total]
+- H2 header clearly describing this section
+- 3-4 substantial paragraphs breaking down the problem
+- Include 2-3 specific examples with real numbers/names
+- Add bullet points or numbered lists to structure information
+- Cite relevant data/statistics (at least 1-2 data points)
+- Explain WHY this matters to your specific audience
+
+## Section 2: [Framework/Approach] (350-450 words) [CHECKPOINT: ~1050 words total]
+- H2 header describing your solution framework
+- Break down complex concepts with step-by-step explanations
+- Use real-world examples from recognizable companies/situations
+- Address common objections or questions preemptively
+- Include actionable insights, not just theory
+- Add specific metrics or outcomes to demonstrate effectiveness
+
+## Section 3: [Implementation/How-To] (350-450 words) [CHECKPOINT: ~1450 words total]
+- H2 header focused on practical application
+- Provide detailed "how-to" steps (numbered list of 3-5 steps)
+- Each step should have 2-3 sentences of explanation
+- Include specific tools, resources, or templates
+- Add "what to avoid" warnings or common mistakes
+- Make this immediately actionable for readers
+
+## Section 4: [Advanced Tactics/Case Study] (250-350 words) [CHECKPOINT: ~1700 words total]
+- H2 header describing advanced application or results
+- Share a brief case study or example of success
+- Include specific metrics (percentages, time saved, revenue impact)
+- Explain what made it work (2-3 key factors)
+- Connect back to your audience's situation
+
+## Section 5: [Common Mistakes/FAQs] (200-300 words) [OPTIONAL if over 1500, MANDATORY if under]
+- H2 header: "Common Mistakes to Avoid" or "Frequently Asked Questions"
+- List 3-5 mistakes/questions with explanations
+- Keep each item concise but valuable
+- Use this section to reach 1500+ words if needed
+
+## Conclusion (250-300 words) [FINAL CHECKPOINT: 1500-2000 words total]
+- Summarize key takeaways (3-5 bullet points, each with 1 sentence explanation)
+- Reinforce the main benefit and transformation available
+- Clear, specific call-to-action (subscribe, download, book call, etc.)
+- Final thought or question to drive engagement
+- End with forward-looking statement about what's possible
+
+🚨 CRITICAL WRITING REQUIREMENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ MINIMUM 1500 words total (count your words before submitting)
+✓ Include 5-6 H2 headers (## format) - use ALL sections above
+✓ Each H2 section MUST be 250-450 words (NO exceptions)
+✓ Use concrete examples with specific numbers/names/companies
+✓ Include data/statistics in at least 4 sections
+✓ Front-load key message in first 2 paragraphs for SEO
+✓ Write for search intent + readability (not just engagement)
+✓ Add subheadings (H3 ###) within longer sections for scannability
+✓ Use bullet points and numbered lists to break up text
+
+WORD COUNT CHECKPOINTS (verify as you write):
+- After Introduction: ~275 words
+- After Section 1: ~650 words
+- After Section 2: ~1050 words
+- After Section 3: ~1450 words
+- After Section 4: ~1700 words
+- After Conclusion: 1500-2000 words ✓
+
+If your draft is under 1500 words after Section 4, you MUST:
+1. Add Section 5 (Common Mistakes/FAQs) - 200-300 words
+2. Expand each section with more examples/data
+3. Add more step-by-step breakdowns with explanations
+4. Include more "what to avoid" warnings
+5. Add more tool/resource recommendations with descriptions
+6. Expand bullet points into mini-paragraphs
+
+⚠️  BEFORE SUBMITTING: Count your total words. If under 1500, add 400-500 more words.
+
+🎯 TARGET MINDSET: You're writing a comprehensive, authoritative blog post that could rank on Google page 1. More detail = better SEO = more value. Aim for 1700+ words.
+"""
+
+        # Repeat length reminder at end for emphasis (platform-specific)
+        if platform == Platform.BLOG:
+            prompt += f"\n\n📏 FINAL REMINDER: Your blog post MUST be at least 1500 words. Count your words before submitting. If under 1500, add more content. Target: 1700-1800 words for optimal SEO."
+        else:
+            prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
 
         # Add client-specific voice guidance
         if client_brief.brand_personality:

@@ -10,6 +10,33 @@ This is the **agent implementation** for the 30-Day Content Jumpstart system - a
 
 **New:** Strategic service packaging and pricing reference lives in `../STRATEGY_SERVICE.md`.
 
+## Development Workflow
+
+**IMPORTANT: Repository Structure and Usage**
+
+- **This is the only development machine** - All development work happens on this local machine
+- **Remote repository is deployment-only** - The remote repo exists solely for deployment to production servers
+- **Exclude non-application files** - Only files required to run the application should be committed to the remote repository
+
+**What to exclude from remote repo:**
+- Documentation files (*.md except README.md)
+- Test results and reports
+- Development notes and planning documents
+- Analysis files and completion reports
+- Local configuration and IDE files
+- Generated output files (data/outputs/*)
+- Development artifacts not needed in production
+
+**What to include in remote repo:**
+- Source code (src/, backend/, operator-dashboard/src/)
+- Configuration files (.env.example, requirements.txt, pyproject.toml, package.json)
+- Docker configuration (Dockerfile, docker-compose.yml)
+- Tests (tests/)
+- Essential documentation (README.md only)
+- Template files needed by the application
+
+**Use .gitignore to enforce this separation.** Development documentation should remain local or in a separate docs repository.
+
 ## Development Commands
 
 ### Environment Setup
