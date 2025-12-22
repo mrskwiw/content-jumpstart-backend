@@ -57,7 +57,15 @@ export const projectsApi = {
   },
 
   async create(input: CreateProjectInput) {
-    const { data } = await apiClient.post<Project>('/api/projects', input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput = {
+      name: input.name,
+      client_id: input.clientId,  // Convert clientId -> client_id
+      templates: input.templates,
+      platforms: input.platforms,
+      tone: input.tone,
+    };
+    const { data } = await apiClient.post<Project>('/api/projects', backendInput);
     return data;
   },
 

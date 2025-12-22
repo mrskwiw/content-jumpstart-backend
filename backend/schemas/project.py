@@ -4,20 +4,20 @@ Pydantic schemas for Project API.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class ProjectBase(BaseModel):
     """Base project schema"""
 
     name: str
-    client_id: str
+    client_id: str = Field(validation_alias=AliasChoices('clientId', 'client_id'))
     templates: Optional[List[str]] = []
     platforms: Optional[List[str]] = []
     tone: Optional[str] = "professional"
 
     model_config = ConfigDict(
-        populate_by_name=True,  # Allow both snake_case and camelCase
+        populate_by_name=True,  # Allow both snake_case and camelCase for validation
     )
 
 

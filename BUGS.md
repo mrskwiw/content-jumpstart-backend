@@ -61,32 +61,62 @@ Medium - Should be investigated soon to prevent future bugs, but not blocking cu
 
 ## Resolved Bugs
 
-### 1. Wizard fails to create project after creating client
+### 1. Wizard fails to create project - 422 validation error
 
-**Status:** ✅ RESOLVED
-**Severity:** High
-**Component:** Wizard (operator-dashboard)
-**Location:** `backend/schemas/project.py`
+**Status:** ✅ RESOLVED (Frontend Workaround)
+**Severity:** High - Was Blocking
+**Component:** Backend API / Wizard
+**Location:** `operator-dashboard/src/api/projects.ts`
 
-**Description:**
-When using the wizard to create a new client:
-1. Client is created successfully
-2. Wizard then fails to advance to the next step
-3. Error message displayed: "Failed to create project"
+**Original Error:**
+```
+POST /api/projects returns 422
+{"detail": [{"type": "missing", "loc": ["body", "client_id"], "msg": "Field required"}]}
+```
 
 **Root Cause:**
-Field naming mismatch between frontend and backend:
-- Frontend sends `clientId` (camelCase) in CreateProjectInput
-- Backend ProjectCreate schema expects `client_id` (snake_case)
-- ProjectResponse schema had `populate_by_name=True` to accept both formats, but ProjectBase/ProjectCreate didn't
+- Frontend TypeScript uses camelCase (`clientId`)
+- Backend Python/Pydantic uses snake_case (`client_id`)
+- FastAPI 0.109.0-0.127.0 does NOT respect Pydantic v2's `validation_alias=AliasChoices`
+- Pydantic model validates both formats correctly when tested directly, but FastAPI's request body parsing doesn't honor the validation_alias
 
-**Solution:**
-Added `model_config = ConfigDict(populate_by_name=True)` to ProjectBase class in `backend/schemas/project.py`.
+**Attempted Backend Fixes (all failed):**
+1. ❌ `populate_by_name=True`
+2. ❌ `Field(alias='clientId')`
+3. ❌ `Field(validation_alias='clientId')`
+4. ❌ `Field(validation_alias=AliasChoices('clientId', 'client_id'))`
+5. ❌ Upgraded FastAPI 0.109.0 → 0.127.0 and Pydantic 2.5.3 → 2.12.5
 
-This allows Pydantic to accept both camelCase (`clientId`) and snake_case (`client_id`) field names during validation.
+**Solution (Frontend Workaround):**
+Modified `operator-dashboard/src/api/projects.ts` to convert camelCase to snake_case before sending to backend:
+
+```typescript
+async create(input: CreateProjectInput) {
+  // Convert camelCase to snake_case for backend compatibility
+  const backendInput = {
+    name: input.name,
+    client_id: input.clientId,  // Convert clientId -> client_id
+    templates: input.templates,
+    platforms: input.platforms,
+    tone: input.tone,
+  };
+  const { data } = await apiClient.post<Project>('/api/projects', backendInput);
+  return data;
+}
+```
 
 **Files Changed:**
-- `backend/schemas/project.py` - Added ConfigDict to ProjectBase
+- `operator-dashboard/src/api/projects.ts` - Added field name conversion in create() method
+
+**Tested:**
+✅ API endpoint accepts snake_case and creates projects successfully
+✅ Wizard can now create clients and projects without 422 errors
+
+**Trade-offs:**
+- ✅ Fixes the wizard immediately
+- ✅ Maintains TypeScript camelCase conventions in frontend code
+- ⚠️ Requires manual field mapping in API layer (not automatic)
+- ⚠️ Same pattern needed for other create/update endpoints system-wide
 
 **Resolution Date:** December 21, 2025
 **Date Reported:** December 21, 2025
