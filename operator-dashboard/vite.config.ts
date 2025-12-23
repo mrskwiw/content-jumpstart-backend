@@ -13,6 +13,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Add cache busting with hash to filenames
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+
         manualChunks: {
           // Core React libraries
           'react-vendor': ['react', 'react-dom', 'react/jsx-runtime'],
@@ -35,14 +40,17 @@ export default defineConfig({
     // Optimize chunk size warnings
     chunkSizeWarningLimit: 1000,
 
-    // Source maps for production debugging
-    sourcemap: false,
+    // Source maps for production debugging (enable for easier debugging)
+    sourcemap: true,
 
     // Minification
     minify: 'esbuild',
 
     // Target modern browsers for smaller bundles
     target: 'es2015',
+
+    // Clear output directory before build to remove stale files
+    emptyOutDir: true,
   },
 
   // Development server optimization

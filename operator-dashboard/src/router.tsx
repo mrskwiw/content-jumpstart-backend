@@ -1,31 +1,33 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import AppLayout from '@/components/layout/AppLayout';
+import { lazyWithRetry } from '@/utils/chunkRetry';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-// Lazy load page components for code splitting
-const Login = lazy(() => import('@/pages/Login'));
-const Overview = lazy(() => import('@/pages/Overview'));
-const Projects = lazy(() => import('@/pages/Projects'));
-const ProjectDetail = lazy(() => import('@/pages/ProjectDetail'));
-const Deliverables = lazy(() => import('@/pages/Deliverables'));
-const Wizard = lazy(() => import('@/pages/Wizard'));
-const Settings = lazy(() => import('@/pages/Settings'));
+// Lazy load page components with automatic retry on chunk load failures
+const Login = lazyWithRetry(() => import('@/pages/Login'));
+const Overview = lazyWithRetry(() => import('@/pages/Overview'));
+const Projects = lazyWithRetry(() => import('@/pages/Projects'));
+const ProjectDetail = lazyWithRetry(() => import('@/pages/ProjectDetail'));
+const Deliverables = lazyWithRetry(() => import('@/pages/Deliverables'));
+const Wizard = lazyWithRetry(() => import('@/pages/Wizard'));
+const Settings = lazyWithRetry(() => import('@/pages/Settings'));
 
 // NEW: Priority 1 pages
-const Clients = lazy(() => import('@/pages/Clients'));
-const ClientDetail = lazy(() => import('@/pages/ClientDetail'));
-const ContentReview = lazy(() => import('@/pages/ContentReview'));
+const Clients = lazyWithRetry(() => import('@/pages/Clients'));
+const ClientDetail = lazyWithRetry(() => import('@/pages/ClientDetail'));
+const ContentReview = lazyWithRetry(() => import('@/pages/ContentReview'));
 
 // NEW: Priority 2 pages
-const Analytics = lazy(() => import('@/pages/Analytics'));
-const Calendar = lazy(() => import('@/pages/Calendar'));
-const TemplateLibrary = lazy(() => import('@/pages/TemplateLibrary'));
+const Analytics = lazyWithRetry(() => import('@/pages/Analytics'));
+const Calendar = lazyWithRetry(() => import('@/pages/Calendar'));
+const TemplateLibrary = lazyWithRetry(() => import('@/pages/TemplateLibrary'));
 
 // NEW: Priority 3 pages
-const Team = lazy(() => import('@/pages/Team'));
-const Notifications = lazy(() => import('@/pages/Notifications'));
-const AuditTrail = lazy(() => import('@/pages/AuditTrail'));
+const Team = lazyWithRetry(() => import('@/pages/Team'));
+const Notifications = lazyWithRetry(() => import('@/pages/Notifications'));
+const AuditTrail = lazyWithRetry(() => import('@/pages/AuditTrail'));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -37,11 +39,13 @@ const PageLoader = () => (
   </div>
 );
 
-// Wrapper to add Suspense boundary to lazy loaded components
+// Wrapper to add Suspense and ErrorBoundary to lazy loaded components
 const withSuspense = (Component: React.LazyExoticComponent<any>) => (
-  <Suspense fallback={<PageLoader />}>
-    <Component />
-  </Suspense>
+  <ErrorBoundary>
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  </ErrorBoundary>
 );
 
 export const router = createBrowserRouter([

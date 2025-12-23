@@ -139,7 +139,12 @@ async def spa_routing_middleware(request: Request, call_next):
         if request.url.path not in ["/docs", "/redoc", "/openapi.json", "/health"]:
             frontend_build_dir = Path(__file__).parent.parent / "operator-dashboard" / "dist"
             if frontend_build_dir.exists():
-                return FileResponse(frontend_build_dir / "index.html")
+                spa_response = FileResponse(frontend_build_dir / "index.html")
+                # Prevent HTML caching to avoid chunk loading errors
+                spa_response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                spa_response.headers["Pragma"] = "no-cache"
+                spa_response.headers["Expires"] = "0"
+                return spa_response
 
     return response
 
@@ -224,14 +229,25 @@ async def global_exception_handler(request: Request, exc: Exception):
 FRONTEND_BUILD_DIR = Path(__file__).parent.parent / "operator-dashboard" / "dist"
 
 if FRONTEND_BUILD_DIR.exists():
-    # Serve static assets (JS, CSS, images)
+    # Serve static assets (JS, CSS, images) with long cache duration
+    # These files have content hashes, so they can be cached indefinitely
     app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
 
-    # Root route: serve React app
+    # Root route: serve React app with no-cache headers
     @app.get("/")
     async def serve_root():
-        """Serve React app at root URL"""
-        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
+        """
+        Serve React app at root URL with cache prevention.
+
+        Critical: HTML file must not be cached to ensure users get
+        the latest version and correct chunk references after deployments.
+        """
+        response = FileResponse(FRONTEND_BUILD_DIR / "index.html")
+        # Prevent HTML caching to avoid chunk loading errors
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     # Favicon route: serve vite.svg as favicon
     @app.get("/favicon.ico")
