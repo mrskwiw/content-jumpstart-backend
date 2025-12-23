@@ -124,6 +124,30 @@ Client is created successfully but project creation fails with "Failed to create
 
 See `BUGS.md` for the bug tracking template and active bugs list.
 
+### UI/UX Revisions Tracking
+
+**Location:** `../docs/todo.md` (parent directory)
+
+This file tracks operator dashboard UI/UX improvements and bug fixes organized by page:
+- Wizard page improvements
+- Review Content page fixes
+- Projects page enhancements
+- Settings page issues
+- Global/cross-page issues (theme, client ID display, etc.)
+
+**When completing a revision:**
+1. Mark the item as ✅ **COMPLETE** with completion date
+2. Add brief description of the fix
+3. Reference the commit or PR if applicable
+
+**Example:**
+```markdown
+## Review content
+- ✅ **COMPLETE** - Fixed QA status filter (December 22, 2025)
+```
+
+See `../docs/todo.md` for the current revision list.
+
 ### Backend API (FastAPI)
 
 **Dev:** `uvicorn backend.main:app --reload --port 8000` (docs at http://localhost:8000/docs)

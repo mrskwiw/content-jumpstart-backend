@@ -114,6 +114,12 @@ export default function ContentReview() {
   const filteredPosts = useMemo(() => {
     let filtered = postsWithContext;
 
+    // FIRST: Only show posts from projects in QA status (needs review)
+    filtered = filtered.filter(post => {
+      const project = projects.find(p => p.id === post.projectId);
+      return project?.status === 'qa';
+    });
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -156,7 +162,7 @@ export default function ContentReview() {
     }
 
     return filtered;
-  }, [postsWithContext, searchQuery, statusFilter, clientFilter, projectFilter, platformFilter, qualityFilter]);
+  }, [postsWithContext, projects, searchQuery, statusFilter, clientFilter, projectFilter, platformFilter, qualityFilter]);
 
   // Get unique values for filters
   const uniqueClients = useMemo(() =>
@@ -257,7 +263,7 @@ export default function ContentReview() {
       <header>
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Content Review</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Review and approve content across all projects
+          Review and approve content from projects in QA status
         </p>
       </header>
 
@@ -434,7 +440,7 @@ export default function ContentReview() {
       {/* Results Count */}
       <div className="flex items-center justify-between text-sm text-neutral-600 dark:text-neutral-400">
         <span>
-          Showing {filteredPosts.length} of {postsWithContext.length} posts
+          Showing {filteredPosts.length} post{filteredPosts.length !== 1 ? 's' : ''} needing review
         </span>
         {viewMode === 'list' && (
           <button
