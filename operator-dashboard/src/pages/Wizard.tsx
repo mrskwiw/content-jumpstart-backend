@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { WizardStepper } from '@/components/wizard/WizardStepper';
@@ -41,6 +41,7 @@ export default function Wizard() {
   );
 
   const [activeStep, setActiveStep] = useState<StepKey>('profile');
+  const [maxReachedStep, setMaxReachedStep] = useState<StepKey>('profile');
   const [clientBrief, setClientBrief] = useState<ClientBrief | null>(null);
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>([]);
   const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
@@ -49,6 +50,13 @@ export default function Wizard() {
   const { data: existingClients } = useQuery({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
+  });
+
+  // Query to fetch selected client's data
+  const { data: selectedClient } = useQuery({
+    queryKey: ['client', clientId],
+    queryFn: () => clientsApi.get(clientId!),
+    enabled: !!clientId && !isCreatingNewClient,
   });
 
   // Mutation to create client
@@ -91,6 +99,48 @@ export default function Wizard() {
   const posts = postsResponse?.items ?? [];
   const flagged = posts.filter((p) => p.status === 'flagged' || (p.flags && p.flags.length > 0));
 
+  // Populate form with selected client's data when loading existing client
+  useEffect(() => {
+    if (selectedClient && !isCreatingNewClient) {
+      setClientBrief({
+        companyName: selectedClient.name,
+        businessDescription: '',
+        idealCustomer: '',
+        mainProblemSolved: '',
+        tonePreference: 'professional',
+        platforms: [],
+        customerPainPoints: [],
+        customerQuestions: [],
+      });
+    }
+  }, [selectedClient, isCreatingNewClient]);
+
+  // Helper to advance to a step (updates maxReachedStep if moving forward)
+  const advanceToStep = (targetStep: StepKey) => {
+    const stepIndex = (key: StepKey) => steps.findIndex(s => s.key === key);
+    const targetIndex = stepIndex(targetStep);
+    const maxIndex = stepIndex(maxReachedStep);
+
+    // Update maxReachedStep if we're advancing to a new step
+    if (targetIndex > maxIndex) {
+      setMaxReachedStep(targetStep);
+    }
+
+    setActiveStep(targetStep);
+  };
+
+  // Handler for stepper clicks - only allow navigation to reached steps
+  const handleStepperClick = (targetStep: StepKey) => {
+    const stepIndex = (key: StepKey) => steps.findIndex(s => s.key === key);
+    const targetIndex = stepIndex(targetStep);
+    const maxIndex = stepIndex(maxReachedStep);
+
+    // Only allow clicking on steps we've already reached
+    if (targetIndex <= maxIndex) {
+      setActiveStep(targetStep);
+    }
+  };
+
   // Handler for saving client profile
   const handleSaveProfile = async (brief: ClientBrief) => {
     try {
@@ -128,7 +178,7 @@ export default function Wizard() {
       setClientBrief(brief);
 
       // Move to next step
-      setActiveStep('research');
+      advanceToStep('research');
     } catch (error) {
       console.error('Failed to create project:', error);
       alert('Failed to create project. Please try again.');
@@ -144,7 +194,12 @@ export default function Wizard() {
         </p>
       </header>
 
-      <WizardStepper steps={steps} active={activeStep} onChange={(k) => setActiveStep(k as StepKey)} />
+      <WizardStepper
+        steps={steps}
+        active={activeStep}
+        maxReached={maxReachedStep}
+        onChange={(k) => handleStepperClick(k as StepKey)}
+      />
 
       {activeStep === 'profile' && (
         <div className="space-y-4">
@@ -157,13 +212,20 @@ export default function Wizard() {
               <div className="mb-4 flex gap-2">
                 <Button
                   variant={isCreatingNewClient ? 'primary' : 'secondary'}
-                  onClick={() => setIsCreatingNewClient(true)}
+                  onClick={() => {
+                    setIsCreatingNewClient(true);
+                    setClientId(null);
+                    setClientBrief(null);
+                  }}
                 >
                   Create New Client
                 </Button>
                 <Button
                   variant={!isCreatingNewClient ? 'primary' : 'secondary'}
-                  onClick={() => setIsCreatingNewClient(false)}
+                  onClick={() => {
+                    setIsCreatingNewClient(false);
+                    setClientBrief(null);
+                  }}
                 >
                   Use Existing Client
                 </Button>
@@ -192,15 +254,43 @@ export default function Wizard() {
                   A new client will be created from the company name in the profile below.
                 </p>
               )}
+
+              {/* Continue button for existing client selection */}
+              {!isCreatingNewClient && clientId && (
+                <div className="mt-4 flex justify-end border-t border-neutral-200 dark:border-neutral-700 pt-4">
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      // Create project with minimal info for existing client
+                      const projectInput: CreateProjectInput = {
+                        name: `${selectedClient?.name || 'Client'} - Content Project`,
+                        clientId: clientId,
+                        platforms: [],
+                        templates: [],
+                        tone: 'professional',
+                      };
+                      createProjectMutation.mutate(projectInput, {
+                        onSuccess: () => {
+                          advanceToStep('research');
+                        },
+                      });
+                    }}
+                  >
+                    Continue to Research
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Client Profile Form */}
-          <ClientProfilePanel
-            projectId={projectId || undefined}
-            initialData={clientBrief || undefined}
-            onSave={handleSaveProfile}
-          />
+          {/* Client Profile Form - Only show when creating new OR existing client selected */}
+          {(isCreatingNewClient || (!isCreatingNewClient && clientId)) && (
+            <ClientProfilePanel
+              projectId={projectId || undefined}
+              initialData={clientBrief || undefined}
+              onSave={handleSaveProfile}
+            />
+          )}
         </div>
       )}
 
@@ -208,7 +298,7 @@ export default function Wizard() {
         <ResearchPanel
           projectId={projectId}
           clientId={clientId}
-          onContinue={() => setActiveStep('templates')}
+          onContinue={() => advanceToStep('templates')}
         />
       )}
 
@@ -217,7 +307,7 @@ export default function Wizard() {
           initialSelection={selectedTemplates}
           onContinue={(templateIds) => {
             setSelectedTemplates(templateIds);
-            setActiveStep('generate');
+            advanceToStep('generate');
           }}
         />
       )}
@@ -230,7 +320,7 @@ export default function Wizard() {
             onStarted={() => {
               qc.invalidateQueries({ queryKey: ['runs', { projectId }] });
               refetchPosts();
-              setActiveStep('quality');
+              advanceToStep('quality');
             }}
           />
           <QualityGatePanel
@@ -254,7 +344,7 @@ export default function Wizard() {
           />
           <div className="flex justify-end">
             <button
-              onClick={() => setActiveStep('export')}
+              onClick={() => advanceToStep('export')}
               disabled={flagged.length > 0}
               className="rounded-md bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >

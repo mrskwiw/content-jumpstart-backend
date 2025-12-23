@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projects';
 import { generatorApi } from '@/api/generator';
-import type { Project } from '@/types/domain';
+import { Project } from '@/types/domain';
 import { format } from 'date-fns';
-import { RefreshCw, Filter, Play, Sparkles, FileText, X } from 'lucide-react';
+import { RefreshCw, Filter, Play, Sparkles, FileText, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import { Pagination } from '@/components/ui/Pagination';
@@ -20,6 +20,8 @@ export default function Projects() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [sortField, setSortField] = useState<keyof Project | ''>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -38,6 +40,48 @@ export default function Projects() {
   // Extract projects from paginated response (Week 3 optimization)
   const projects = data?.items ?? [];
   const paginationMeta = data?.metadata;
+
+  // Sort projects based on current sort field and direction
+  const sortedProjects = useMemo(() => {
+    if (!sortField) return projects;
+
+    return [...projects].sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+
+      // Handle null/undefined values
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
+      if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
+
+      // Compare values
+      let comparison = 0;
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue);
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue;
+      } else if (aValue instanceof Date && bValue instanceof Date) {
+        comparison = aValue.getTime() - bValue.getTime();
+      } else {
+        // For arrays or other types, convert to string
+        comparison = String(aValue).localeCompare(String(bValue));
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [projects, sortField, sortDirection]);
+
+  // Handle sort toggling
+  const handleSort = (field: keyof Project) => {
+    if (sortField === field) {
+      // Toggle direction if clicking same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field with ascending direction
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   const clearClientFilter = () => {
     setSearchParams({});
@@ -136,11 +180,59 @@ export default function Projects() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Project</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>
+                  <button
+                    onClick={() => handleSort('name')}
+                    className="flex items-center gap-1 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                  >
+                    Project
+                    {sortField === 'name' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    onClick={() => handleSort('clientId')}
+                    className="flex items-center gap-1 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                  >
+                    Client
+                    {sortField === 'clientId' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    onClick={() => handleSort('status')}
+                    className="flex items-center gap-1 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                  >
+                    Status
+                    {sortField === 'status' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead>Templates</TableHead>
-                <TableHead>Last Run</TableHead>
+                <TableHead>
+                  <button
+                    onClick={() => handleSort('lastRunAt')}
+                    className="flex items-center gap-1 hover:text-neutral-900 dark:hover:text-neutral-100 transition-colors"
+                  >
+                    Last Run
+                    {sortField === 'lastRunAt' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -159,14 +251,14 @@ export default function Projects() {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !isError && projects.length === 0 && (
+              {!isLoading && !isError && sortedProjects.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-neutral-500 dark:text-neutral-400 py-6">
                     No projects found.
                   </TableCell>
                 </TableRow>
               )}
-              {projects.map((project) => (
+              {sortedProjects.map((project) => (
                 <TableRow key={project.id}>
                   <TableCell>
                     <div className="font-semibold text-neutral-900 dark:text-neutral-100">{project.name}</div>
