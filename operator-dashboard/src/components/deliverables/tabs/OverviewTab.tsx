@@ -1,12 +1,95 @@
-import type { DeliverableDetails } from '@/types/domain';
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { DeliverableDetails, MarkDeliveredInput } from '@/types/domain';
+import { deliverablesApi } from '@/api/deliverables';
 import { formatFileSize } from '@/utils/formatters';
 import { format } from 'date-fns';
+import { CheckCircle, X } from 'lucide-react';
+import { Button, Input, Textarea } from '@/components/ui';
 
 interface Props {
   deliverable: DeliverableDetails;
 }
 
+interface MarkDialogProps {
+  deliverable: DeliverableDetails | null;
+  onClose: () => void;
+  onSubmit: (input: MarkDeliveredInput) => void;
+  isSubmitting: boolean;
+}
+
+function MarkDeliveredDialog({ deliverable, onClose, onSubmit, isSubmitting }: MarkDialogProps) {
+  const [proofUrl, setProofUrl] = useState('');
+  const [proofNotes, setProofNotes] = useState('');
+
+  if (!deliverable) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
+      <div className="w-full max-w-lg rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Mark Delivered</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Deliverable ID: {deliverable.id}</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="space-y-4">
+          <Input
+            type="url"
+            label="Proof URL (optional)"
+            value={proofUrl}
+            onChange={(e) => setProofUrl(e.target.value)}
+            placeholder="https://example.com/proof"
+            helperText="Link to email confirmation, screenshot, or other proof"
+          />
+          <Textarea
+            label="Delivery Notes (optional)"
+            value={proofNotes}
+            onChange={(e) => setProofNotes(e.target.value)}
+            rows={3}
+            placeholder="Add any relevant notes about the delivery..."
+          />
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="success"
+            disabled={isSubmitting}
+            onClick={() =>
+              onSubmit({
+                deliveredAt: new Date().toISOString(),
+                proofUrl: proofUrl || undefined,
+                proofNotes: proofNotes || undefined,
+              })
+            }
+          >
+            <CheckCircle className="h-4 w-4" />
+            {isSubmitting ? 'Marking Delivered...' : 'Mark Delivered'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OverviewTab({ deliverable }: Props) {
+  const [showMarkDialog, setShowMarkDialog] = useState(false);
+  const queryClient = useQueryClient();
+
+  const markDelivered = useMutation({
+    mutationFn: (input: MarkDeliveredInput) => deliverablesApi.markDelivered(deliverable.id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliverables'] });
+      queryClient.invalidateQueries({ queryKey: ['deliverable-details', deliverable.id] });
+      setShowMarkDialog(false);
+    },
+  });
+
   return (
     <div className="space-y-4 p-6">
       {/* Format & Size */}
@@ -49,7 +132,7 @@ export function OverviewTab({ deliverable }: Props) {
       {/* Status */}
       <div>
         <div className="text-xs font-medium text-slate-500 uppercase">Status</div>
-        <div className="mt-1">
+        <div className="mt-1 flex items-center gap-3">
           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
             deliverable.status === 'delivered' ? 'bg-green-100 text-green-800' :
             deliverable.status === 'ready' ? 'bg-blue-100 text-blue-800' :
@@ -57,6 +140,16 @@ export function OverviewTab({ deliverable }: Props) {
           }`}>
             {deliverable.status}
           </span>
+          {deliverable.status !== 'delivered' && (
+            <Button
+              variant="success"
+              size="sm"
+              onClick={() => setShowMarkDialog(true)}
+            >
+              <CheckCircle className="h-4 w-4" />
+              Mark Delivered
+            </Button>
+          )}
         </div>
       </div>
 
@@ -127,6 +220,16 @@ export function OverviewTab({ deliverable }: Props) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Mark Delivered Dialog */}
+      {showMarkDialog && (
+        <MarkDeliveredDialog
+          deliverable={deliverable}
+          onClose={() => setShowMarkDialog(false)}
+          onSubmit={(input) => markDelivered.mutate(input)}
+          isSubmitting={markDelivered.isPending}
+        />
       )}
     </div>
   );

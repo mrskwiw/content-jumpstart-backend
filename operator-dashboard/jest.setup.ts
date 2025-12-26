@@ -12,3 +12,19 @@ global.TextDecoder = TextDecoder as typeof global.TextDecoder;
   VITE_DEBUG_MODE: 'false',
   MODE: 'test',
 };
+
+// Mock the env module to avoid import.meta parse errors
+jest.mock('@/utils/env');
+
+// Mock react-syntax-highlighter to avoid ESM import issues
+jest.mock('react-syntax-highlighter', () => {
+  const React = require('react');
+  return {
+    Prism: ({ children, ...props }: any) => React.createElement('pre', props, children),
+    Light: ({ children, ...props }: any) => React.createElement('pre', props, children),
+  };
+});
+
+jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
+  vscDarkPlus: {},
+}));

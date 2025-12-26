@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { CheckCircle2, Circle, FileText, ArrowRight } from 'lucide-react';
 
 interface Template {
@@ -122,7 +122,8 @@ interface Props {
   onContinue?: (selectedIds: number[]) => void;
 }
 
-export function TemplateSelectionPanel({ initialSelection = [], onContinue }: Props) {
+// Memoized to prevent re-renders when parent updates (Performance optimization - December 25, 2025)
+export const TemplateSelectionPanel = memo(function TemplateSelectionPanel({ initialSelection = [], onContinue }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set(initialSelection));
 
   const toggleTemplate = (id: number) => {
@@ -271,4 +272,4 @@ export function TemplateSelectionPanel({ initialSelection = [], onContinue }: Pr
       </div>
     </div>
   );
-}
+});

@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { ClientBriefSchema, type ClientBrief, type Platform } from '@/types/domain';
 import { User, Building2, Target, Lightbulb, MessageSquare, Save } from 'lucide-react';
 
 interface Props {
   projectId?: string;
   initialData?: Partial<ClientBrief>;
-  onSave?: (brief: ClientBrief) => void;
+  onSave?: (brief: ClientBrief) => void | Promise<void>;
 }
 
-export function ClientProfilePanel({ projectId: _projectId, initialData, onSave }: Props) {
+// Memoized to prevent re-renders when parent updates (Performance optimization - December 25, 2025)
+export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: _projectId, initialData, onSave }: Props) {
   const [formData, setFormData] = useState<Partial<ClientBrief>>({
     companyName: initialData?.companyName || '',
     businessDescription: initialData?.businessDescription || '',
@@ -21,9 +22,26 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [painPoint, setPainPoint] = useState('');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+
+  // Update form when initialData changes (e.g., when selecting existing client)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        companyName: initialData.companyName || '',
+        businessDescription: initialData.businessDescription || '',
+        idealCustomer: initialData.idealCustomer || '',
+        mainProblemSolved: initialData.mainProblemSolved || '',
+        tonePreference: initialData.tonePreference || 'professional',
+        platforms: initialData.platforms || [],
+        customerPainPoints: initialData.customerPainPoints || [],
+        customerQuestions: initialData.customerQuestions || [],
+      });
+    }
+  }, [initialData]);
 
   const platformOptions: { value: Platform; label: string }[] = [
     { value: 'linkedin', label: 'LinkedIn' },
@@ -91,18 +109,32 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     try {
       const validated = ClientBriefSchema.parse(formData);
       setErrors({});
-      onSave?.(validated);
+      setIsSubmitting(true);
+
+      // onSave might be async, so await it
+      await onSave?.(validated);
+
+      setIsSubmitting(false);
     } catch (error: any) {
-      const fieldErrors: Record<string, string> = {};
-      error.errors?.forEach((err: any) => {
-        const field = err.path[0];
-        fieldErrors[field] = err.message;
-      });
-      setErrors(fieldErrors);
+      setIsSubmitting(false);
+
+      // Handle validation errors
+      if (error.errors) {
+        const fieldErrors: Record<string, string> = {};
+        error.errors.forEach((err: any) => {
+          const field = err.path[0];
+          fieldErrors[field] = err.message;
+        });
+        setErrors(fieldErrors);
+      } else {
+        // Handle other errors (e.g., API errors)
+        console.error('Error saving profile:', error);
+        alert('Failed to save profile. Please try again.');
+      }
     }
   };
 
@@ -137,15 +169,26 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
 
         {/* Business Description */}
         <div>
-          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
-            <Building2 className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
-            Business Description
+          <label className="mb-1 flex items-center justify-between text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <span className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+              Business Description <span className="text-rose-500">*</span>
+            </span>
+            <span
+              className={`text-xs ${
+                (formData.businessDescription || '').length >= 70
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-500 dark:text-neutral-400'
+              }`}
+            >
+              {(formData.businessDescription || '').length}/70 characters
+            </span>
           </label>
           <textarea
             value={formData.businessDescription}
             onChange={(e) => setFormData({ ...formData, businessDescription: e.target.value })}
             placeholder="We provide cloud-based project management software for small teams..."
-            rows={3}
+            rows={4}
             className={`w-full rounded-md border px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 ${
               errors.businessDescription ? 'border-rose-500 dark:border-rose-400' : 'border-slate-200 dark:border-slate-700'
             }`}
@@ -153,13 +196,27 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
           {errors.businessDescription && (
             <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors.businessDescription}</p>
           )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
+            Required for research tools. Describe what your business does and what makes it unique.
+          </p>
         </div>
 
         {/* Ideal Customer */}
         <div>
-          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
-            <Target className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
-            Ideal Customer
+          <label className="mb-1 flex items-center justify-between text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <span className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+              Target Audience <span className="text-rose-500">*</span>
+            </span>
+            <span
+              className={`text-xs ${
+                (formData.idealCustomer || '').length >= 20
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-500 dark:text-neutral-400'
+              }`}
+            >
+              {(formData.idealCustomer || '').length}/20 characters
+            </span>
           </label>
           <textarea
             value={formData.idealCustomer}
@@ -171,6 +228,9 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
             }`}
           />
           {errors.idealCustomer && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors.idealCustomer}</p>}
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
+            Required for research tools. Who is your ideal customer or target audience?
+          </p>
         </div>
 
         {/* Main Problem Solved */}
@@ -334,13 +394,14 @@ export function ClientProfilePanel({ projectId: _projectId, initialData, onSave 
         <div className="flex justify-end border-t border-slate-200 dark:border-slate-700 pt-4">
           <button
             onClick={handleSubmit}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 dark:bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 dark:hover:bg-blue-600"
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 dark:bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="h-4 w-4" />
-            Save Profile
+            {isSubmitting ? 'Saving...' : 'Save Profile'}
           </button>
         </div>
       </div>
     </div>
   );
-}
+});

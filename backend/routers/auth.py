@@ -2,7 +2,7 @@
 Authentication router - login, refresh token, user creation.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse, UserCreate
+from schemas.auth import LoginRequest, RefreshTokenRequest, RefreshTokenResponse, TokenResponse, UserCreate
 from services import crud
 from sqlalchemy.orm import Session
 
@@ -66,10 +66,11 @@ async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=RefreshTokenResponse)
 async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends(get_db)):
     """
     Refresh access token using refresh token.
+    Returns new access and refresh tokens (without user data).
     """
     # Verify refresh token
     if not verify_token_type(refresh_data.refresh_token, "refresh"):
@@ -105,9 +106,9 @@ async def refresh_token(refresh_data: RefreshTokenRequest, db: Session = Depends
     access_token = create_access_token(data={"sub": user.id})
     new_refresh_token = create_refresh_token(data={"sub": user.id})
 
-    return TokenResponse(
+    return RefreshTokenResponse(
         access_token=access_token,
-        refresh_token=new_refresh_token,
+        refresh_token=new_refresh_token
     )
 
 

@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from src.models.client_brief import Platform
+from schemas.enums import Platform
 
 
 class PostBase(BaseModel):
@@ -17,6 +17,17 @@ class PostBase(BaseModel):
     template_name: Optional[str] = None
     variant: Optional[int] = None
     target_platform: Optional[Platform] = Platform.LINKEDIN
+
+
+class PostUpdate(BaseModel):
+    """Schema for updating a post"""
+
+    content: str
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
 
 
 class PostResponse(PostBase):

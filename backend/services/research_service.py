@@ -182,10 +182,11 @@ class ResearchService:
             Dict of inputs for the research tool
         """
         # Base inputs common to all tools
+        # Use Client model fields (business_description, ideal_customer) instead of non-existent Project fields
         inputs = {
             "company_name": client.name,
-            "business_description": project.description or "",
-            "target_audience": project.target_audience or "",
+            "business_description": client.business_description or "",
+            "target_audience": client.ideal_customer or "",
             "platforms": project.platforms or ["LinkedIn"],
             **params,  # Merge in additional parameters
         }

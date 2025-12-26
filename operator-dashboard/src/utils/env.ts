@@ -44,12 +44,25 @@ function readEnvVar<K extends keyof EnvSource>(key: K): string | undefined {
  *
  * In production (when served from same origin as backend), uses relative URLs
  * to eliminate CORS issues. In development, defaults to localhost:8000.
+ *
+ * Set VITE_API_URL to empty string to use relative URLs (goes through Vite proxy).
  */
 export function getApiBaseUrl(): string {
-  const value = readEnvVar('VITE_API_URL');
+  const envSource = resolveEnvSource();
   const mode = readEnvVar('MODE') || 'development';
 
-  if (!value) {
+  // Check if VITE_API_URL key exists (even if empty)
+  const hasApiUrl = 'VITE_API_URL' in envSource;
+  const value = envSource.VITE_API_URL;
+
+  // If explicitly set to empty string, use relative URLs (for Vite proxy)
+  if (hasApiUrl && value === '') {
+    console.log('VITE_API_URL set to empty string; using relative URLs (Vite proxy)');
+    return '';
+  }
+
+  // If not set at all, use mode-based fallback
+  if (!hasApiUrl || !value) {
     // Production: use relative URLs (same origin as backend)
     // Development: use localhost
     if (mode === 'production') {
@@ -61,6 +74,7 @@ export function getApiBaseUrl(): string {
     }
   }
 
+  // Value is set and non-empty, validate and normalize
   try {
     const normalized = new URL(value).toString();
     return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;

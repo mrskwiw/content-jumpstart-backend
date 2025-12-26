@@ -7,7 +7,7 @@ export interface RunFilters {
 
 export const runsApi = {
   async list(filters?: RunFilters) {
-    const { data } = await apiClient.get<Run[]>('/api/runs', { params: filters });
+    const { data } = await apiClient.get<Run[]>('/api/runs/', { params: filters });
     return data;
   },
 

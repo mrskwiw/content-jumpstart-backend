@@ -17,13 +17,16 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from routers import auth, briefs, clients, deliverables, generator, health, posts, projects, research, runs
+from routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Import models so SQLAlchemy can create tables
 import models  # noqa: F401
 from config import settings
 from database import init_db
 from utils.rate_limiter import rate_limiter
+from utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
 
 
 @asynccontextmanager
@@ -97,6 +100,10 @@ app = FastAPI(
     description="Backend API for 30-Day Content Jumpstart Operator Dashboard",
     lifespan=lifespan,
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
 app.add_middleware(
@@ -279,6 +286,7 @@ app.include_router(deliverables.router, prefix="/api/deliverables", tags=["Deliv
 app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
+app.include_router(pricing.router, prefix="/api/pricing", tags=["Pricing"])
 
 
 if __name__ == "__main__":

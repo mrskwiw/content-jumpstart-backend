@@ -1,0 +1,377 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.6, pytest-7.4.4, pluggy-1.5.0
+SuperClaude: 4.1.9
+rootdir: C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project
+configfile: pyproject.toml
+plugins: anyio-4.7.0, Faker-19.3.1, asyncio-0.23.3, cov-4.1.0, env-1.1.1, html-4.1.1, metadata-3.1.1, mock-3.12.0, timeout-2.2.0, xdist-3.5.0, superclaude-4.1.9
+asyncio: mode=Mode.STRICT
+collected 398 items
+
+tests\test_models.py ....F..                                             [  1%]
+tests\test_revision_db.py .EEEEEEE                                       [  3%]
+tests\test_validators.py ................FFF                             [  8%]
+tests\agent\test_agent_tools.py ..F.....                                 [ 10%]
+tests\agent\test_context.py .........F..                                 [ 13%]
+tests\agent\test_week2_features.py ........................              [ 19%]
+tests\agent\test_week3_features.py ................                      [ 23%]
+tests\integration\test_client_memory_db.py ............                  [ 26%]
+tests\integration\test_coordinator.py s                                  [ 26%]
+tests\integration\test_memory_aware_generation.py ......F                [ 28%]
+tests\integration\test_multi_platform_e2e.py F..F..                      [ 30%]
+tests\integration\test_phase_8c_voice_matching.py ..FF...F               [ 32%]
+tests\integration\test_phase_8d_feedback_analytics.py ...........        [ 34%]
+tests\integration\test_voice_analysis_integration.py ...........         [ 37%]
+tests\research\test_audience_research.py ..                              [ 38%]
+tests\research\test_brand_archetype.py F.                                [ 38%]
+tests\research\test_competitive_analysis.py ..                           [ 39%]
+tests\research\test_content_audit.py .F                                  [ 39%]
+tests\research\test_content_calendar_strategy.py ..                      [ 40%]
+tests\research\test_content_gap_analysis.py .F                           [ 40%]
+tests\research\test_market_trends_research.py .F                         [ 41%]
+tests\research\test_platform_strategy.py ..                              [ 41%]
+tests\research\test_seo_keyword_research.py ...                          [ 42%]
+tests\research\test_voice_analyzer.py F.                                 [ 42%]
+tests\unit\test_config_modules.py ............................           [ 50%]
+tests\unit\test_cost_tracker.py ......FFE..F..                           [ 53%]
+tests\unit\test_hook_validator_optimized.py ......ss.....s               [ 56%]
+tests\unit\test_hook_validator_platform.py ..................            [ 61%]
+tests\unit\test_length_validator_platform.py .................           [ 65%]
+tests\unit\test_memory_learning_agent.py ...............                 [ 69%]
+tests\unit\test_new_modules.py .......................                   [ 75%]
+tests\unit\test_platform_aware_prompts.py ..FFF.F...F..F                 [ 78%]
+tests\unit\test_post_platform_enum.py ............FFF                    [ 82%]
+tests\unit\test_quality_validators_platform.py .....                     [ 83%]
+tests\unit\test_response_cache.py ..............                         [ 87%]
+tests\unit\test_schedule_generator.py .............                      [ 90%]
+tests\unit\test_voice_analyzer.py .........                              [ 92%]
+tests\unit\test_voice_metrics.py .............................           [100%]
+
+=================================== ERRORS ====================================
+____________________ ERROR at setup of test_create_project ____________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 33
+  def test_create_project(db: ProjectDatabase):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:33
+____________________ ERROR at setup of test_revision_scope ____________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 71
+  def test_revision_scope(db: ProjectDatabase, project: Project):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:71
+___________________ ERROR at setup of test_create_revision ____________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 91
+  def test_create_revision(db: ProjectDatabase, project: Project):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:91
+________________ ERROR at setup of test_create_revision_posts _________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 125
+  def test_create_revision_posts(db: ProjectDatabase, revision: Revision):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:125
+_______________ ERROR at setup of test_scope_limit_enforcement ________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 175
+  def test_scope_limit_enforcement(db: ProjectDatabase, project: Project):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:175
+_____________________ ERROR at setup of test_client_stats _____________________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 227
+  def test_client_stats(db: ProjectDatabase, project: Project):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:227
+______________ ERROR at setup of test_get_all_projects_by_client ______________
+file C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py, line 241
+  def test_get_all_projects_by_client(db: ProjectDatabase, client_name: str):
+E       fixture 'db' not found
+>       available fixtures: _session_event_loop, _session_faker, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, class_mocker, confidence_checker, cov, doctest_namespace, event_loop, event_loop_policy, extra, extras, faker, include_metadata_in_junit_xml, metadata, mocker, module_mocker, monkeypatch, no_cover, package_mocker, pm_context, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, reflexion_pattern, self_check_protocol, session_mocker, testrun_uid, tests/test_revision_db.py::<event_loop>, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_budget, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory, worker_id
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_revision_db.py:241
+_________________ ERROR at teardown of test_get_all_projects __________________
+E   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\mrskw\\AppData\\Local\\Temp\\tmp7zcopnqh.db'
+================================== FAILURES ===================================
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_models.py:76: Failed: DID NOT RAISE <class 'ValueError'>
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_validators.py:456: pydantic_core._pydantic_core.ValidationError: 1 validation error for QAReport
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_validators.py:496: pydantic_core._pydantic_core.ValidationError: 1 validation error for QAReport
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\test_validators.py:541: pydantic_core._pydantic_core.ValidationError: 1 validation error for QAReport
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\agent\test_agent_tools.py:40: assert False is True
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\agent\test_context.py:159: assert 0 == 3
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\integration\test_memory_aware_generation.py:231: AssertionError: assert 'PLATFORM: LINKEDIN' in 'You are an expert social media content writer specializing in authentic, engaging posts.\n\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\n'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\integration\test_multi_platform_e2e.py:131: AssertionError: Hooks should be under 140 chars
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\integration\test_multi_platform_e2e.py:330: AssertionError: Blog should have H2 headers
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\database\project_db.py:802: sqlite3.OperationalError: no such column: has_voice_samples
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\database\project_db.py:802: sqlite3.OperationalError: no such column: has_voice_samples
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\integration\test_phase_8c_voice_matching.py:220: pydantic_core._pydantic_core.ValidationError: 3 validation errors for EnhancedVoiceGuide
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\research\test_brand_archetype.py:48: assert False
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\research\test_content_audit.py:125: AssertionError: Regex pattern did not match.
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\research\test_content_gap_analysis.py:88: AssertionError: Regex pattern did not match.
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\research\test_market_trends_research.py:74: AssertionError: Regex pattern did not match.
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\tests\research\test_voice_analyzer.py:54: assert False
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\unit\test_cost_tracker.py:166: AssertionError: assert 'call1' == 'call2'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\utils\cost_tracker.py:387: sqlite3.OperationalError: misuse of aggregate: MAX()
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\unit\test_cost_tracker.py:270: assert False
+C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project\\tests\\unit\\test_platform_aware_prompts.py:80: AssertionError: assert '\U0001f6a8 CRITICAL' in 'You are an expert social media content writer specializing in authentic, engaging posts.\\n\\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\\n'
+C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project\\tests\\unit\\test_platform_aware_prompts.py:103: AssertionError: assert '\U0001f6a8 CRITICAL' in 'You are an expert social media content writer specializing in authentic, engaging posts.\\n\\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\\n'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\unit\test_platform_aware_prompts.py:119: AssertionError: assert 'BLOG POST STRUCTURE REQUIREMENTS' in 'You are an expert social media content writer specializing in authentic, engaging posts.\n\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\n'
+C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project\\tests\\unit\\test_platform_aware_prompts.py:183: AssertionError: assert '\U0001f4cf REMINDER' in 'You are an expert social media content writer specializing in authentic, engaging posts.\\n\\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\\n'
+C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project\\tests\\unit\\test_platform_aware_prompts.py:242: AssertionError: assert '\U0001f6a8 CRITICAL' in 'You are an expert social media content writer specializing in authentic, engaging posts.\\n\\nYour task is to generate ...cle back, touch base, low-hanging fruit, move the needle, very, really, just, quite, fairly, pretty, somewhat, maybe\\n'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\Project\tests\unit\test_platform_aware_prompts.py:292: AssertionError: assert 7722 < 5000
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\backend\schemas\post.py:9: ModuleNotFoundError: No module named 'schemas'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\backend\schemas\post.py:9: ModuleNotFoundError: No module named 'schemas'
+C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\backend\schemas\post.py:9: ModuleNotFoundError: No module named 'schemas'
+============================== warnings summary ===============================
+src\config\settings.py:7
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\config\settings.py:7: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+src\models\quality_profile.py:66
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\quality_profile.py:66: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator("max_readability")
+
+src\models\quality_profile.py:75
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\quality_profile.py:75: PydanticDeprecatedSince20: Pydantic V1 style `@validator` validators are deprecated. You should migrate to Pydantic V2 style `@field_validator` validators, see the migration guide for more details. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    @validator("max_words")
+
+src\models\quality_profile.py:11
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\quality_profile.py:11: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class QualityProfile(BaseModel):
+
+src\models\audience_research_models.py:110
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\audience_research_models.py:110: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AudienceResearch(BaseModel):
+
+src\models\competitive_analysis_models.py:94
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\competitive_analysis_models.py:94: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CompetitiveAnalysis(BaseModel):
+
+src\models\content_audit_models.py:135
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\content_audit_models.py:135: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ContentAuditAnalysis(BaseModel):
+
+src\models\content_calendar_models.py:98
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\content_calendar_models.py:98: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CalendarStrategy(BaseModel):
+
+src\models\content_gap_models.py:93
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\content_gap_models.py:93: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ContentGapAnalysis(BaseModel):
+
+src\models\market_trends_models.py:79
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\market_trends_models.py:79: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TrendReport(BaseModel):
+
+src\models\platform_strategy_models.py:120
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\platform_strategy_models.py:120: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PlatformStrategyAnalysis(BaseModel):
+
+src\models\seo_models.py:66
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\src\models\seo_models.py:66: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class KeywordStrategy(BaseModel):
+
+tests/test_revision_db.py::test_database_initialization
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/test_revision_db.py::test_database_initialization returned <src.database.project_db.ProjectDatabase object at 0x000002996C50F8F0>, which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/integration/test_coordinator.py::test_coordinator
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:183: PytestUnhandledCoroutineWarning: async def functions are not natively supported and have been skipped.
+  You need to install a suitable plugin for your async framework, for example:
+    - anyio
+    - pytest-asyncio
+    - pytest-tornasync
+    - pytest-trio
+    - pytest-twisted
+    warnings.warn(PytestUnhandledCoroutineWarning(msg.format(nodeid)))
+
+tests/research/test_audience_research.py::test_audience_research_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_audience_research.py::test_audience_research_basic returned ResearchResult(tool_name='audience_research', project_id='test_saas_company', executed_at=datetime.datetime(2025, 12, 25, 20, 48, 56, 645154), success=True, outputs={'json': WindowsPath('data/research/audience_research/test_saas_company/audience_research.json'), 'markdown': WindowsPath('data/research/audience_research/test_saas_company/audience_research_report.md'), 'text': WindowsPath('data/research/audience_research/test_saas_company/audience_research_summary.txt')}, metadata={'duration_seconds': 131.529396, 'price': 500, 'inputs_summary': {'business_description': "\n    We're a B2B SaaS company that provides project management software for\n    remote teams. Our platform helps distributed teams coordinate work, track\n    progress, and communicate effectively across time zones.\n\n    We focus on fast-growing tech companies (50-500 employees) that have recently\n    gone remote-first or hybrid. Our main value prop is simplifying async\n    communication and reducing meeting fatigue while maintaining team alignment.\n    ", 'target_audience': '\n    - Engineering managers at tech companies\n    - Product managers leading remote teams\n    - VP of Engineering at growing startups\n    - Tech leads managing distributed developers\n    - Remote-first startup founders\n    ', 'business_name': 'AsyncTeam', 'industry': 'B2B SaaS - Project Management'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_competitive_analysis.py::test_competitive_analysis_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_competitive_analysis.py::test_competitive_analysis_basic returned ResearchResult(tool_name='competitive_analysis', project_id='test_acme_competitive', executed_at=datetime.datetime(2025, 12, 25, 20, 51, 11, 586282), success=True, outputs={'json': WindowsPath('data/research/competitive_analysis/test_acme_competitive/competitive_analysis.json'), 'markdown': WindowsPath('data/research/competitive_analysis/test_acme_competitive/competitive_analysis_report.md'), 'text': WindowsPath('data/research/competitive_analysis/test_acme_competitive/executive_summary.txt')}, metadata={'duration_seconds': 157.518946, 'price': 500, 'inputs_summary': {'business_description': '\n    We help B2B SaaS companies predict and prevent customer churn using advanced\n    analytics and machine learning. Our platform analyzes 47 different behavioral\n    signals to identify at-risk accounts 35 days before they cancel, giving customer\n    success teams time to intervene with targeted retention strategies.\n\n    We serve mid-market and enterprise SaaS companies who want to reduce churn rates\n    and increase customer lifetime value through proactive, data-driven customer success.\n    ', 'target_audience': 'Customer success teams, revenue operations leaders, SaaS executives', 'competitors': '3 items', 'business_name': 'Acme Analytics', 'industry': 'B2B SaaS - Customer Success'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_content_audit.py::test_content_audit_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_content_audit.py::test_content_audit_basic returned ResearchResult(tool_name='content_audit', project_id='test_acme_audit', executed_at=datetime.datetime(2025, 12, 25, 20, 53, 49, 124407), success=True, outputs={'json': WindowsPath('data/research/content_audit/test_acme_audit/content_audit.json'), 'markdown': WindowsPath('data/research/content_audit/test_acme_audit/content_audit_report.md'), 'text': WindowsPath('data/research/content_audit/test_acme_audit/audit_summary.txt')}, metadata={'duration_seconds': 81.440323, 'price': 400, 'inputs_summary': {'business_description': '\n    We help B2B SaaS companies predict and prevent customer churn using advanced\n    analytics and machine learning. Our platform analyzes 47 different behavioral\n    signals to identify at-risk accounts 35 days before they cancel, giving customer\n    success teams time to intervene with targeted retention strategies.\n\n    We serve mid-market and enterprise SaaS companies who want to reduce churn rates\n    and increase customer lifetime value through proactive, data-driven customer success.\n    ', 'target_audience': 'Customer success teams, revenue operations leaders, SaaS executives', 'content_inventory': '5 items', 'business_name': 'Acme Analytics', 'industry': 'B2B SaaS - Customer Success'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_content_calendar_strategy.py::test_content_calendar_strategy_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_content_calendar_strategy.py::test_content_calendar_strategy_basic returned ResearchResult(tool_name='content_calendar_strategy', project_id='test_marketing_agency', executed_at=datetime.datetime(2025, 12, 25, 20, 55, 10, 582373), success=True, outputs={'json': WindowsPath('data/research/content_calendar_strategy/test_marketing_agency/content_calendar_strategy.json'), 'markdown': WindowsPath('data/research/content_calendar_strategy/test_marketing_agency/content_calendar_report.md'), 'text': WindowsPath('data/research/content_calendar_strategy/test_marketing_agency/content_calendar_summary.txt')}, metadata={'duration_seconds': 222.432434, 'price': 300, 'inputs_summary': {'business_description': "\n    We're a B2B marketing agency that helps tech startups build and execute\n    content marketing programs. We provide strategy, content creation, and\n    distribution services focused on LinkedIn and thought leadership.\n\n    Our typical clients are Series A/B funded startups with 10-50 employees\n    who don't have dedicated marketing teams but need consistent, high-quality\n    content to build awareness and generate inbound leads.\n    ", 'target_audience': '\n    - Startup founders and CEOs\n    - VP/Director of Marketing at tech startups\n    - Product managers transitioning to PLG\n    - B2B SaaS companies in growth phase\n    ', 'business_name': 'ContentLab Agency', 'industry': 'B2B Marketing Services', 'primary_platforms': '3 items', 'content_goals': 'Build thought leadership, generate leads, and establish authority'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_content_gap_analysis.py::test_content_gap_analysis_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_content_gap_analysis.py::test_content_gap_analysis_basic returned ResearchResult(tool_name='content_gap_analysis', project_id='test_acme_gaps', executed_at=datetime.datetime(2025, 12, 25, 20, 58, 53, 34395), success=True, outputs={'json': WindowsPath('data/research/content_gap_analysis/test_acme_gaps/content_gaps.json'), 'markdown': WindowsPath('data/research/content_gap_analysis/test_acme_gaps/content_gap_analysis.md'), 'text': WindowsPath('data/research/content_gap_analysis/test_acme_gaps/gaps_summary.txt')}, metadata={'duration_seconds': 217.64262, 'price': 500, 'inputs_summary': {'business_description': '\n    We help B2B SaaS companies predict and prevent customer churn using advanced\n    analytics and machine learning. Our platform analyzes 47 different behavioral\n    signals to identify at-risk accounts 35 days before they cancel, giving customer\n    success teams time to intervene with targeted retention strategies.\n\n    We serve mid-market and enterprise SaaS companies who want to reduce churn rates\n    and increase customer lifetime value through proactive, data-driven customer success.\n    ', 'target_audience': 'Customer success teams, revenue operations leaders, SaaS executives', 'current_content_topics': '3 items', 'competitors': '3 items', 'business_name': 'Acme Analytics', 'industry': 'B2B SaaS - Customer Success'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_market_trends_research.py::test_market_trends_research_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_market_trends_research.py::test_market_trends_research_basic returned ResearchResult(tool_name='market_trends_research', project_id='test_acme_trends', executed_at=datetime.datetime(2025, 12, 25, 21, 2, 30, 697516), success=True, outputs={'json': WindowsPath('data/research/market_trends_research/test_acme_trends/market_trends.json'), 'markdown': WindowsPath('data/research/market_trends_research/test_acme_trends/market_trends_report.md'), 'text': WindowsPath('data/research/market_trends_research/test_acme_trends/trends_summary.txt')}, metadata={'duration_seconds': 123.217071, 'price': 400, 'inputs_summary': {'business_description': '\n    We help B2B SaaS companies predict and prevent customer churn using advanced\n    analytics and machine learning. Our platform analyzes 47 different behavioral\n    signals to identify at-risk accounts 35 days before they cancel, giving customer\n    success teams time to intervene with targeted retention strategies.\n\n    We serve mid-market and enterprise SaaS companies who want to reduce churn rates\n    and increase customer lifetime value through proactive, data-driven customer success.\n    ', 'target_audience': 'Customer success teams, revenue operations leaders, SaaS executives', 'business_name': 'Acme Analytics', 'industry': 'B2B SaaS - Customer Success'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_platform_strategy.py::test_platform_strategy_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_platform_strategy.py::test_platform_strategy_basic returned ResearchResult(tool_name='platform_strategy', project_id='test_sales_platform', executed_at=datetime.datetime(2025, 12, 25, 21, 4, 33, 934680), success=True, outputs={'json': WindowsPath('data/research/platform_strategy/test_sales_platform/platform_strategy.json'), 'markdown': WindowsPath('data/research/platform_strategy/test_sales_platform/platform_strategy_report.md'), 'text': WindowsPath('data/research/platform_strategy/test_sales_platform/platform_strategy_summary.txt')}, metadata={'duration_seconds': 342.843658, 'price': 300, 'inputs_summary': {'business_description': "\n    We're a B2B SaaS company that helps mid-market sales teams automate their\n    prospecting and outreach workflows. Our platform integrates with LinkedIn,\n    email, and CRM systems to identify high-value prospects, personalize outreach\n    at scale, and track engagement metrics.\n\n    We serve sales teams at companies with 50-500 employees who are struggling\n    with manual prospecting processes and want to increase their pipeline velocity\n    while maintaining personalization.\n    ", 'target_audience': '\n    - Sales Directors and VPs at B2B companies\n    - Sales Operations Managers\n    - Account Executives looking to scale their outreach\n    - RevOps teams focused on pipeline growth\n    ', 'business_name': 'SalesFlow Pro', 'industry': 'B2B SaaS - Sales Automation', 'current_platforms': '2 items', 'content_goals': 'Lead generation and thought leadership'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_seo_keyword_research.py::test_seo_keyword_research_basic
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_seo_keyword_research.py::test_seo_keyword_research_basic returned ResearchResult(tool_name='seo_keyword_research', project_id='test_acme_analytics_seo', executed_at=datetime.datetime(2025, 12, 25, 21, 10, 16, 796008), success=True, outputs={'json': WindowsPath('data/research/test_acme_analytics_seo/keyword_strategy.json'), 'markdown': WindowsPath('data/research/test_acme_analytics_seo/keyword_strategy_report.md'), 'text': WindowsPath('data/research/test_acme_analytics_seo/keyword_list.txt')}, metadata={'duration_seconds': 46.616757, 'price': 400, 'inputs_summary': {'business_description': '\n    We help B2B SaaS companies predict and prevent customer churn using advanced\n    analytics and machine learning. Our platform analyzes 47 different behavioral\n    signals to identify at-risk accounts 35 days before they cancel, giving customer\n    success teams time to intervene.\n\n    We serve customer success teams, revenue operations leaders, and executive teams\n    who want to reduce churn and increase customer lifetime value. Our approach combines\n    cutting-edge technology with proven customer success methodologies.\n    ', 'target_audience': 'Customer success teams, revenue operations leaders, SaaS executives', 'main_topics': '4 items', 'business_name': 'Acme Analytics', 'industry': 'B2B SaaS'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/research/test_seo_keyword_research.py::test_seo_keyword_research_with_competitors
+  C:\Users\mrskw\AppData\Roaming\Python\Python312\site-packages\_pytest\python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/research/test_seo_keyword_research.py::test_seo_keyword_research_with_competitors returned ResearchResult(tool_name='seo_keyword_research', project_id='test_with_competitors', executed_at=datetime.datetime(2025, 12, 25, 21, 11, 3, 427569), success=True, outputs={'json': WindowsPath('data/research/test_with_competitors/keyword_strategy.json'), 'markdown': WindowsPath('data/research/test_with_competitors/keyword_strategy_report.md'), 'text': WindowsPath('data/research/test_with_competitors/keyword_list.txt')}, metadata={'duration_seconds': 66.054772, 'price': 400, 'inputs_summary': {'business_description': '\n    AI-powered customer churn prediction platform for B2B SaaS companies.\n    We identify at-risk accounts 35 days before cancellation using behavioral analytics.\n    ', 'target_audience': 'Customer success teams', 'main_topics': '2 items', 'competitors': '2 items', 'business_name': 'Test Company', 'industry': 'B2B SaaS'}}, error=None), which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+tests/unit/test_post_platform_enum.py::TestPostPlatformEnum::test_backend_schema_default_platform
+  C:\git\project\CONTENT MARKETING\30 Day Content Jumpstart\project\backend\schemas\auth.py:15: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class UserResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+---------- coverage: platform win32, python 3.12.6-final-0 -----------
+Name                                           Stmts   Miss  Cover
+------------------------------------------------------------------
+src\__init__.py                                    2      0   100%
+src\agents\__init__.py                             0      0   100%
+src\agents\brief_enhancer.py                      95     95     0%
+src\agents\brief_parser.py                        75     30    60%
+src\agents\brief_quality_checker.py              122    122     0%
+src\agents\client_classifier.py                   44     13    70%
+src\agents\content_generator.py                  392    178    55%
+src\agents\coordinator.py                        217    153    29%
+src\agents\keyword_agent.py                       96     82    15%
+src\agents\keyword_refiner.py                     64     52    19%
+src\agents\memory_learning_agent.py              161     24    85%
+src\agents\post_regenerator.py                   123    101    18%
+src\agents\qa_agent.py                            52     33    37%
+src\agents\question_generator.py                  77     77     0%
+src\agents\revision_agent.py                     123    123     0%
+src\agents\voice_analyzer.py                     230     11    95%
+src\cli\__init__.py                                0      0   100%
+src\cli\interactive_mode.py                      278    278     0%
+src\config\__init__.py                             0      0   100%
+src\config\brand_frameworks.py                    34     10    71%
+src\config\constants.py                           42      0   100%
+src\config\platform_specs.py                      31     17    45%
+src\config\prompts.py                             13      0   100%
+src\config\settings.py                            44      0   100%
+src\config\template_rules.py                      23      0   100%
+src\config\template_rules_expanded.py             23     23     0%
+src\config\template_rules_original_backup.py      11     11     0%
+src\database\__init__.py                           2      0   100%
+src\database\migrate_phase8b.py                   80     80     0%
+src\database\project_db.py                       435    135    69%
+src\exceptions.py                                 26      0   100%
+src\models\__init__.py                             0      0   100%
+src\models\audience_research_models.py            72      0   100%
+src\models\brief_quality.py                       31     31     0%
+src\models\client_brief.py                        72     11    85%
+src\models\client_memory.py                      160     23    86%
+src\models\competitive_analysis_models.py         61      0   100%
+src\models\content_audit_models.py               100      0   100%
+src\models\content_calendar_models.py             75      0   100%
+src\models\content_gap_models.py                  64      0   100%
+src\models\market_trends_models.py                57      0   100%
+src\models\platform_strategy_models.py            84      0   100%
+src\models\post.py                                51      2    96%
+src\models\posting_schedule.py                    94      2    98%
+src\models\project.py                            116     34    71%
+src\models\qa_report.py                          123    105    15%
+src\models\quality_profile.py                     54     24    56%
+src\models\question.py                            23     23     0%
+src\models\research_models.py                     94      0   100%
+src\models\seo_keyword.py                         51      4    92%
+src\models\seo_models.py                          45      0   100%
+src\models\template.py                            52      9    83%
+src\models\voice_guide.py                        147      9    94%
+src\models\voice_sample.py                       145     72    50%
+src\research\__init__.py                          12      0   100%
+src\research\audience_research.py                136     16    88%
+src\research\base.py                             105     20    81%
+src\research\brand_archetype.py                  145     58    60%
+src\research\competitive_analysis.py             253     53    79%
+src\research\content_audit.py                    224     23    90%
+src\research\content_calendar_strategy.py        282     29    90%
+src\research\content_gap_analysis.py             234     27    88%
+src\research\market_trends_research.py           233     75    68%
+src\research\platform_strategy.py                220     17    92%
+src\research\seo_keyword_research.py             226     33    85%
+src\research\voice_analysis.py                   311     67    78%
+src\utils\__init__.py                              0      0   100%
+src\utils\analytics_tracker.py                   109      9    92%
+src\utils\anthropic_client.py                    184     67    64%
+src\utils\cost_dashboard.py                      146    146     0%
+src\utils\cost_tracker.py                        154     13    92%
+src\utils\docx_generator.py                      200     44    78%
+src\utils\enhanced_response_cache.py             167    167     0%
+src\utils\file_parser.py                         116     75    35%
+src\utils\logger.py                               40     11    72%
+src\utils\output_formatter.py                    238    108    55%
+src\utils\progress_stream.py                     121    121     0%
+src\utils\response_cache.py                       93     19    80%
+src\utils\schedule_generator.py                  112     15    87%
+src\utils\template_cache.py                       86     25    71%
+src\utils\template_loader.py                     155     15    90%
+src\utils\voice_matcher.py                       109     13    88%
+src\utils\voice_metrics.py                        91      3    97%
+src\validators\__init__.py                         5      0   100%
+src\validators\cta_validator.py                   60      6    90%
+src\validators\headline_validator.py              69      7    90%
+src\validators\hook_validator.py                 125     38    70%
+src\validators\keyword_validator.py               64     54    16%
+src\validators\length_validator.py                97      5    95%
+------------------------------------------------------------------
+TOTAL                                           9608   3376    65%
+Coverage HTML written to dir htmlcov
+
+=========================== short test summary info ===========================
+FAILED tests/test_models.py::TestPost::test_post_too_short - Failed: DID NOT ...
+FAILED tests/test_validators.py::TestQAReport::test_qa_report_creation - pyda...
+FAILED tests/test_validators.py::TestQAReport::test_qa_report_markdown_generation
+FAILED tests/test_validators.py::TestQAReport::test_qa_report_summary_string
+FAILED tests/agent/test_agent_tools.py::TestAgentTools::test_list_projects_with_filter
+FAILED tests/agent/test_context.py::TestContextManager::test_get_recent_sessions
+FAILED tests/integration/test_memory_aware_generation.py::TestMemoryAwareGeneration::test_07_system_prompt_without_memory
+FAILED tests/integration/test_multi_platform_e2e.py::TestMultiPlatformE2E::test_linkedin_generation_and_validation
+FAILED tests/integration/test_multi_platform_e2e.py::TestMultiPlatformE2E::test_blog_generation_and_validation
+FAILED tests/integration/test_phase_8c_voice_matching.py::TestVoiceSampleUpload::test_store_and_retrieve_voice_samples
+FAILED tests/integration/test_phase_8c_voice_matching.py::TestVoiceSampleUpload::test_delete_voice_samples
+FAILED tests/integration/test_phase_8c_voice_matching.py::TestVoiceMatcher::test_voice_match_components
+FAILED tests/research/test_brand_archetype.py::test_brand_archetype_basic - a...
+FAILED tests/research/test_content_audit.py::test_content_audit_validation - ...
+FAILED tests/research/test_content_gap_analysis.py::test_content_gap_analysis_validation
+FAILED tests/research/test_market_trends_research.py::test_market_trends_validation
+FAILED tests/research/test_voice_analyzer.py::test_voice_analyzer_basic - ass...
+FAILED tests/unit/test_cost_tracker.py::test_get_project_calls - AssertionErr...
+FAILED tests/unit/test_cost_tracker.py::test_get_all_projects - sqlite3.Opera...
+FAILED tests/unit/test_cost_tracker.py::test_budget_alert_warning - assert False
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_twitter_prompt_critical_warnings
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_facebook_prompt_critical_warnings
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_blog_prompt_structure_requirements
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_all_platforms_have_headers
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_short_platforms_get_strict_enforcement
+FAILED tests/unit/test_platform_aware_prompts.py::TestPlatformAwarePrompts::test_prompt_length_reasonable
+FAILED tests/unit/test_post_platform_enum.py::TestPostPlatformEnum::test_backend_schema_default_platform
+FAILED tests/unit/test_post_platform_enum.py::TestPostPlatformEnum::test_backend_schema_with_platform_enum
+FAILED tests/unit/test_post_platform_enum.py::TestPostPlatformEnum::test_backend_schema_with_platform_string
+ERROR tests/test_revision_db.py::test_create_project
+ERROR tests/test_revision_db.py::test_revision_scope
+ERROR tests/test_revision_db.py::test_create_revision
+ERROR tests/test_revision_db.py::test_create_revision_posts
+ERROR tests/test_revision_db.py::test_scope_limit_enforcement
+ERROR tests/test_revision_db.py::test_client_stats
+ERROR tests/test_revision_db.py::test_get_all_projects_by_client
+ERROR tests/unit/test_cost_tracker.py::test_get_all_projects - PermissionErro...
+= 29 failed, 358 passed, 4 skipped, 24 warnings, 8 errors in 2075.12s (0:34:35) =

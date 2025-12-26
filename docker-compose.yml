@@ -4,8 +4,8 @@ services:
   # Full Content Jumpstart System (Agents + Backend API)
   api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: Project/Dockerfile
     container_name: content-jumpstart-api
     ports:
       - "8000:8000"

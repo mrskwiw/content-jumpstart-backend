@@ -152,6 +152,7 @@ async def get_project(
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
+@router.patch("/{project_id}", response_model=ProjectResponse)
 async def update_project(
     project_id: str,
     project_update: ProjectUpdate,
@@ -159,7 +160,7 @@ async def update_project(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Update project.
+    Update project (supports both PUT and PATCH).
 
     Cache invalidation: Signals clients to invalidate projects cache.
     """

@@ -1,7 +1,7 @@
 """
 Project model.
 """
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -19,9 +19,22 @@ class Project(Base):
     status = Column(
         String, nullable=False, default="draft", index=True
     )  # draft, processing, qa_review, ready, delivered - indexed for filtering
-    templates = Column(JSON)  # Array of template IDs
+
+    # Template selection (NEW: template_quantities replaces equal distribution)
+    templates = Column(JSON)  # DEPRECATED: Legacy array of template IDs (kept for backward compatibility)
+    template_quantities = Column(JSON)  # NEW: Dict mapping template_id (str) -> quantity (int)
+    num_posts = Column(Integer)  # NEW: Total post count (auto-calculated from template_quantities)
+
+    # Pricing (NEW: flexible per-post pricing)
+    price_per_post = Column(Float, default=40.0)  # NEW: Base price per post
+    research_price_per_post = Column(Float, default=0.0)  # NEW: Research add-on per post
+    total_price = Column(Float)  # NEW: Total project price
+
+    # Configuration
     platforms = Column(JSON)  # Array of platform names
     tone = Column(String)  # professional, casual, etc.
+
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

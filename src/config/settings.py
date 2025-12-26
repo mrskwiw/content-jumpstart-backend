@@ -1,7 +1,11 @@
 """Application configuration and environment settings"""
 from typing import Optional
+import logging
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -10,6 +14,49 @@ class Settings(BaseSettings):
     # Anthropic API
     ANTHROPIC_API_KEY: Optional[str] = None
     ANTHROPIC_MODEL: str = "claude-3-5-sonnet-latest"  # Claude 3.5 Sonnet (latest)
+
+    @field_validator('ANTHROPIC_API_KEY')
+    @classmethod
+    def validate_api_key(cls, v: Optional[str]) -> Optional[str]:
+        """
+        Validate ANTHROPIC_API_KEY format and security
+
+        Security checks:
+        - Not empty
+        - Minimum length (API keys are typically 40+ chars)
+        - Not a placeholder value
+        """
+        if v is None:
+            logger.warning(
+                "ANTHROPIC_API_KEY not set. Set it in .env file or environment. "
+                "Application will fail when making API calls."
+            )
+            return v
+
+        # Check for placeholder values
+        placeholder_values = ['your_api_key_here', 'sk-ant-placeholder', 'xxx', '']
+        if v.lower() in placeholder_values or not v.strip():
+            raise ValueError(
+                f"ANTHROPIC_API_KEY appears to be a placeholder value: '{v}'. "
+                f"Replace it with your actual API key."
+            )
+
+        # Check minimum length (Anthropic keys start with 'sk-ant-' and are ~40-100 chars)
+        if len(v) < 20:
+            raise ValueError(
+                f"ANTHROPIC_API_KEY is too short ({len(v)} chars). "
+                f"Valid API keys are typically 40+ characters."
+            )
+
+        # Warn if key doesn't match expected format
+        if not v.startswith('sk-ant-'):
+            logger.warning(
+                f"ANTHROPIC_API_KEY does not start with expected prefix 'sk-ant-'. "
+                f"This may be an invalid key (current: {v[:10]}...)"
+            )
+
+        logger.info(f"ANTHROPIC_API_KEY validated (length: {len(v)}, prefix: {v[:7]}...)")
+        return v
     MAX_TOKENS: int = 4096
     TEMPERATURE: float = 0.7
     MAX_RETRIES: int = 3

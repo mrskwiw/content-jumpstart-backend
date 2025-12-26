@@ -2,9 +2,16 @@
 Pydantic schemas for Run API.
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class LogEntry(BaseModel):
+    """Schema for structured log entry"""
+
+    timestamp: str
+    message: str
 
 
 class RunCreate(BaseModel):
@@ -19,7 +26,7 @@ class RunUpdate(BaseModel):
 
     status: Optional[str] = None
     completed_at: Optional[datetime] = None
-    logs: Optional[List[str]] = None
+    logs: Optional[List[LogEntry]] = None
     error_message: Optional[str] = None
 
 
@@ -32,7 +39,7 @@ class RunResponse(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime] = None
     status: str  # pending, running, succeeded, failed
-    logs: Optional[List[str]] = None
+    logs: Optional[List[LogEntry]] = None
     error_message: Optional[str] = None
 
     model_config = ConfigDict(
@@ -43,3 +50,28 @@ class RunResponse(BaseModel):
             for i, word in enumerate(field_name.split('_'))
         ),  # Convert snake_case to camelCase
     )
+
+    @field_validator('logs', mode='before')
+    @classmethod
+    def convert_logs(cls, value: Any) -> Optional[List[LogEntry]]:
+        """Convert plain string logs to LogEntry objects"""
+        if value is None:
+            return None
+        if isinstance(value, list):
+            # Convert plain strings to LogEntry objects
+            converted = []
+            for item in value:
+                if isinstance(item, str):
+                    # Plain string - convert to LogEntry with current timestamp
+                    converted.append(LogEntry(
+                        timestamp=datetime.now().isoformat(),
+                        message=item
+                    ))
+                elif isinstance(item, dict):
+                    # Already a dict - convert to LogEntry
+                    converted.append(LogEntry(**item))
+                elif isinstance(item, LogEntry):
+                    # Already a LogEntry
+                    converted.append(item)
+            return converted
+        return value

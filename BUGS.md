@@ -10,6 +10,61 @@ This file tracks known bugs and issues in the application.
 
 ## Resolved Bugs
 
+### 7. Backend fails to start - import error in schemas/post.py
+
+**Status:** ✅ RESOLVED
+**Description:** Backend failed to start due to cross-directory import - schemas/post.py imported Platform from src.models.client_brief which doesn't exist in backend context.
+**Solution:** Created backend/schemas/enums.py with Platform enum (and other shared enums), updated post.py to import from there, and exported ClientUpdate from schemas/__init__.py.
+**Files Changed:** backend/schemas/enums.py (created), backend/schemas/post.py, backend/schemas/__init__.py
+**Date Reported:** December 23, 2025
+**Resolution Date:** December 23, 2025
+
+---
+
+### 6. Editing existing client creates duplicate instead of updating
+
+**Status:** ✅ RESOLVED
+**Description:** Wizard updateClientMutation called non-existent PATCH endpoint and only updated when name changed.
+**Solution:** Implemented PATCH endpoint, update_client() CRUD function, and refactored wizard to always update client with all fields.
+**Files Changed:** backend/models/client.py, backend/database.py, backend/schemas/client.py, backend/services/crud.py, backend/routers/clients.py, operator-dashboard/src/types/domain.ts, operator-dashboard/src/api/clients.ts, operator-dashboard/src/pages/Wizard.tsx
+**Date Reported:** December 23, 2025
+**Resolution Date:** December 23, 2025
+
+---
+
+### 5. Selecting existing client doesn't populate form fields
+
+**Status:** ✅ RESOLVED
+**Description:** ClientProfilePanel didn't update form when initialData prop changed after client selection.
+**Solution:** Added useEffect to sync formData with initialData changes.
+**Files Changed:** operator-dashboard/src/components/wizard/ClientProfilePanel.tsx
+**Date Reported:** December 23, 2025
+**Resolution Date:** December 23, 2025
+
+---
+
+### 4. Save Client button doesn't advance wizard to next page
+
+**Status:** ✅ RESOLVED
+**Description:** ClientProfilePanel's handleSubmit was not async and didn't await the onSave callback, causing the wizard to not advance when errors occurred.
+**Solution:** Made handleSubmit async with proper await, added loading state, and improved error handling.
+**Files Changed:** operator-dashboard/src/components/wizard/ClientProfilePanel.tsx
+**Date Reported:** December 23, 2025
+**Resolution Date:** December 23, 2025
+
+---
+
+### 3. Dark mode toggle doesn't work
+
+**Status:** ✅ RESOLVED
+**Description:** Theme dropdown in Settings page wasn't connected to ThemeContext (no value or onChange props).
+**Solution:** Connected dropdown to useTheme hook with value={theme} and onChange handler.
+**Files Changed:** operator-dashboard/src/pages/Settings.tsx
+**Date Reported:** December 23, 2025
+**Resolution Date:** December 23, 2025
+
+---
+
 ### 2. System-wide camelCase/snake_case misalignment
 
 **Status:** ✅ RESOLVED (Frontend Workaround)
@@ -134,3 +189,24 @@ When reporting a bug, include:
 5. **Workaround** - Any temporary solutions?
 6. **Related Files** - Where the bug might be located
 7. **Date Reported**
+
+## How to Document Resolved Bugs
+
+When resolving a bug, move it to the Resolved Bugs section with:
+1. **One-line description** - Succinct summary of the issue
+2. **One-line solution** - Brief description of the fix
+3. **Files Changed** - List of modified files
+4. **Date Reported** - When the bug was first reported
+5. **Resolution Date** - When the bug was fixed
+
+Example:
+```
+### X. Bug title
+
+**Status:** ✅ RESOLVED
+**Description:** Brief one-line description of the issue.
+**Solution:** Brief one-line description of the fix.
+**Files Changed:** file1.ts, file2.tsx
+**Date Reported:** YYYY-MM-DD
+**Resolution Date:** YYYY-MM-DD
+```

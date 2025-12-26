@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from middleware.auth_dependency import get_current_user
-from schemas.post import PostResponse
+from schemas.post import PostResponse, PostUpdate
 from services import crud
 from sqlalchemy.orm import Session
 from utils.caching import CacheConfig, create_cacheable_response
@@ -159,3 +159,60 @@ async def get_post(
         cache_config=CacheConfig.POSTS,
         request=request,
     )
+
+
+@router.patch("/{post_id}")
+async def update_post(
+    post_id: str,
+    post_update: PostUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PostResponse:
+    """
+    Update a post's content.
+
+    Updates the content field and recalculates:
+    - word_count
+    - readability_score
+    - has_cta
+
+    Returns the updated post.
+    """
+    # Get existing post
+    post = crud.get_post(db, post_id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+
+    # Update content
+    post.content = post_update.content
+
+    # Recalculate word count
+    post.word_count = len(post_update.content.split())
+
+    # Recalculate readability score (Flesch Reading Ease)
+    words = post.word_count
+    sentences = len([s for s in post_update.content.split('.') if s.strip()])
+    if sentences == 0:
+        sentences = 1
+
+    # Simple syllable estimation
+    syllables = sum(max(1, len(word) // 3) for word in post_update.content.split())
+
+    if words > 0:
+        avg_words_per_sentence = words / sentences
+        avg_syllables_per_word = syllables / words
+        readability = 206.835 - 1.015 * avg_words_per_sentence - 84.6 * avg_syllables_per_word
+        post.readability_score = max(0, min(100, round(readability, 1)))
+    else:
+        post.readability_score = 0
+
+    # Recalculate CTA presence
+    cta_keywords = ['learn more', 'click here', 'sign up', 'get started', 'contact us',
+                     'download', 'subscribe', 'join', 'register', 'buy now', 'shop now']
+    post.has_cta = any(keyword in post_update.content.lower() for keyword in cta_keywords)
+
+    # Commit changes
+    db.commit()
+    db.refresh(post)
+
+    return PostResponse.model_validate(post)

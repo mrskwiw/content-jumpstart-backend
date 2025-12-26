@@ -1,7 +1,15 @@
-# Environment
+# Environment & Secrets (CRITICAL: Never commit!)
 .env
 *.env
 !.env.example
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+.secrets.baseline
 
 # Python
 __pycache__/

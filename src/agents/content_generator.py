@@ -20,6 +20,11 @@ from ..models.template import Template
 from ..utils.anthropic_client import AnthropicClient
 from ..utils.logger import log_post_generated, logger
 from ..utils.template_loader import TemplateLoader
+from ..validators.prompt_injection_defense import (
+    sanitize_prompt_input,
+    detect_prompt_leakage,
+    SecurityError,
+)
 
 
 class ContentGeneratorAgent:
@@ -54,6 +59,7 @@ class ContentGeneratorAgent:
     def generate_posts(
         self,
         client_brief: ClientBrief,
+        template_quantities: Optional[Dict[int, int]] = None,
         num_posts: int = 30,
         template_count: int = 15,
         randomize: bool = True,
@@ -66,8 +72,10 @@ class ContentGeneratorAgent:
 
         Args:
             client_brief: Client brief with context
-            num_posts: Total number of posts to generate (default 30)
-            template_count: Number of unique templates to use (default 15)
+            template_quantities: NEW: Dict mapping template_id -> quantity (e.g., {1: 3, 2: 5, 9: 2})
+                                Takes priority over num_posts/template_count when provided
+            num_posts: Total number of posts to generate (default 30, ignored if template_quantities provided)
+            template_count: Number of unique templates to use (default 15, ignored if template_quantities provided)
             randomize: Whether to randomize post order
             template_ids: Optional list of specific template IDs to use (overrides intelligent selection)
             platform: Target platform for content generation (default LinkedIn)
@@ -76,9 +84,25 @@ class ContentGeneratorAgent:
         Returns:
             List of generated Post objects
         """
+        # NEW: Priority 1 - Use template quantities if provided
+        if template_quantities:
+            total_posts = sum(template_quantities.values())
+            logger.info(
+                f"Generating {total_posts} posts for {client_brief.company_name} "
+                f"using template quantities: {template_quantities}"
+            )
+            return self._generate_posts_from_quantities(
+                client_brief=client_brief,
+                template_quantities=template_quantities,
+                randomize=randomize,
+                platform=platform,
+                use_client_memory=use_client_memory,
+            )
+
+        # Legacy mode: equal distribution
         logger.info(
             f"Generating {num_posts} posts for {client_brief.company_name} "
-            f"using {template_count} templates"
+            f"using {template_count} templates (legacy equal distribution mode)"
         )
 
         # Load client memory if available and enabled
@@ -179,6 +203,7 @@ class ContentGeneratorAgent:
     async def generate_posts_async(
         self,
         client_brief: ClientBrief,
+        template_quantities: Optional[Dict[int, int]] = None,
         num_posts: int = 30,
         template_count: int = 15,
         randomize: bool = True,
@@ -192,8 +217,10 @@ class ContentGeneratorAgent:
 
         Args:
             client_brief: Client brief with context
-            num_posts: Total number of posts to generate (default 30)
-            template_count: Number of unique templates to use (default 15)
+            template_quantities: NEW: Dict mapping template_id -> quantity (e.g., {1: 3, 2: 5, 9: 2})
+                                Takes priority over num_posts/template_count when provided
+            num_posts: Total number of posts to generate (default 30, ignored if template_quantities provided)
+            template_count: Number of unique templates to use (default 15, ignored if template_quantities provided)
             randomize: Whether to randomize post order
             max_concurrent: Maximum concurrent API calls (default 5)
             template_ids: Optional list of specific template IDs to use (overrides intelligent selection)
@@ -204,9 +231,26 @@ class ContentGeneratorAgent:
             List of generated Post objects
         """
 
+        # NEW: Priority 1 - Use template quantities if provided
+        if template_quantities:
+            total_posts = sum(template_quantities.values())
+            logger.info(
+                f"Generating {total_posts} posts for {client_brief.company_name} "
+                f"using template quantities: {template_quantities} (async mode, max concurrent: {max_concurrent})"
+            )
+            return await self._generate_posts_from_quantities_async(
+                client_brief=client_brief,
+                template_quantities=template_quantities,
+                randomize=randomize,
+                max_concurrent=max_concurrent,
+                platform=platform,
+                use_client_memory=use_client_memory,
+            )
+
+        # Legacy mode: equal distribution
         logger.info(
             f"Generating {num_posts} posts for {client_brief.company_name} "
-            f"using {template_count} templates (async mode, max concurrent: {max_concurrent})"
+            f"using {template_count} templates (async mode, legacy equal distribution, max concurrent: {max_concurrent})"
         )
 
         # Load client memory if available and enabled
@@ -490,6 +534,183 @@ class ContentGeneratorAgent:
             logger.error(f"Failed to calculate voice match report: {e}")
             return posts, None
 
+    def _generate_posts_from_quantities(
+        self,
+        client_brief: ClientBrief,
+        template_quantities: Dict[int, int],
+        randomize: bool = True,
+        platform: Platform = Platform.LINKEDIN,
+        use_client_memory: bool = True,
+    ) -> List[Post]:
+        """
+        Generate posts using exact template quantities (sync version).
+
+        This method generates posts based on the exact quantities specified for each template,
+        rather than using equal distribution across all templates.
+
+        Args:
+            client_brief: Client brief with context
+            template_quantities: Dict mapping template_id -> quantity (e.g., {1: 3, 2: 5, 9: 2})
+            randomize: Whether to randomize post order
+            platform: Target platform for content generation
+            use_client_memory: Whether to use client memory for optimization
+
+        Returns:
+            List of generated Post objects
+
+        Example:
+            template_quantities = {1: 3, 2: 5, 9: 2}  # 10 total posts
+            # Generates: 3 posts from template 1, 5 from template 2, 2 from template 9
+        """
+        # SECURITY: Sanitize client brief before processing (TR-014)
+        try:
+            sanitized_brief = self._sanitize_client_brief(client_brief)
+        except ValueError as e:
+            logger.error(f"Prompt injection detected, aborting generation: {e}")
+            raise
+
+        # Load client memory if available and enabled
+        client_memory = None
+        if use_client_memory and self.db:
+            client_memory = self.db.get_client_memory(sanitized_brief.company_name)
+
+        # Cache system prompt and base context for reuse (using sanitized brief)
+        cached_system_prompt = self._build_system_prompt(sanitized_brief, platform, client_memory)
+        base_context = sanitized_brief.to_context_dict()
+
+        # Generate posts according to specified quantities
+        posts = []
+        post_number = 1
+
+        # Iterate through template quantities
+        for template_id, quantity in template_quantities.items():
+            # Get template by ID
+            template = self.template_loader.get_template_by_id(template_id)
+            if not template:
+                logger.warning(f"Template ID {template_id} not found, skipping {quantity} posts")
+                continue
+
+            # Generate specified quantity for this template
+            for variant in range(1, quantity + 1):
+                post = self._generate_single_post(
+                    template=template,
+                    client_brief=client_brief,
+                    variant=variant,
+                    post_number=post_number,
+                    cached_system_prompt=cached_system_prompt,
+                    base_context=base_context,
+                    platform=platform,
+                )
+                posts.append(post)
+                log_post_generated(post_number, template.name, post.word_count)
+                post_number += 1
+
+        # Randomize order for variety
+        if randomize:
+            random.shuffle(posts)
+            logger.info("Randomized post order for variety")
+
+        logger.info(f"Successfully generated {len(posts)} posts from template quantities")
+        return posts
+
+    async def _generate_posts_from_quantities_async(
+        self,
+        client_brief: ClientBrief,
+        template_quantities: Dict[int, int],
+        randomize: bool = True,
+        max_concurrent: int = 5,
+        platform: Platform = Platform.LINKEDIN,
+        use_client_memory: bool = True,
+    ) -> List[Post]:
+        """
+        Generate posts using exact template quantities (async version).
+
+        This method generates posts based on the exact quantities specified for each template,
+        using parallel API calls for improved performance.
+
+        Args:
+            client_brief: Client brief with context
+            template_quantities: Dict mapping template_id -> quantity (e.g., {1: 3, 2: 5, 9: 2})
+            randomize: Whether to randomize post order
+            max_concurrent: Maximum concurrent API calls (default 5)
+            platform: Target platform for content generation
+            use_client_memory: Whether to use client memory for optimization
+
+        Returns:
+            List of generated Post objects
+
+        Example:
+            template_quantities = {1: 3, 2: 5, 9: 2}  # 10 total posts
+            # Generates: 3 posts from template 1, 5 from template 2, 2 from template 9
+        """
+        # SECURITY: Sanitize client brief before processing (TR-014)
+        try:
+            sanitized_brief = self._sanitize_client_brief(client_brief)
+        except ValueError as e:
+            logger.error(f"Prompt injection detected, aborting generation: {e}")
+            raise
+
+        # Load client memory if available and enabled
+        client_memory = None
+        if use_client_memory and self.db:
+            client_memory = self.db.get_client_memory(sanitized_brief.company_name)
+
+        # Cache system prompt and base context for reuse (using sanitized brief)
+        cached_system_prompt = self._build_system_prompt(sanitized_brief, platform, client_memory)
+        base_context = sanitized_brief.to_context_dict()
+
+        # Build list of post generation tasks
+        tasks = []
+        post_number = 1
+
+        # Iterate through template quantities
+        for template_id, quantity in template_quantities.items():
+            # Get template by ID
+            template = self.template_loader.get_template_by_id(template_id)
+            if not template:
+                logger.warning(f"Template ID {template_id} not found, skipping {quantity} posts")
+                continue
+
+            # Create tasks for specified quantity
+            for variant in range(1, quantity + 1):
+                tasks.append(
+                    {
+                        "template": template,
+                        "variant": variant,
+                        "post_number": post_number,
+                        "cached_system_prompt": cached_system_prompt,
+                        "base_context": base_context,
+                    }
+                )
+                post_number += 1
+
+        # Generate posts in parallel with concurrency limit
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def generate_with_limit(task_params):
+            """Generate single post with concurrency limit via semaphore"""
+            async with semaphore:
+                return await self._generate_single_post_async(
+                    template=task_params["template"],
+                    client_brief=client_brief,
+                    variant=task_params["variant"],
+                    post_number=task_params["post_number"],
+                    cached_system_prompt=task_params["cached_system_prompt"],
+                    base_context=task_params["base_context"],
+                    platform=platform,
+                )
+
+        # Execute all tasks in parallel
+        posts = await asyncio.gather(*[generate_with_limit(task) for task in tasks])
+
+        # Randomize order for variety
+        if randomize:
+            random.shuffle(posts)
+            logger.info("Randomized post order for variety")
+
+        logger.info(f"Successfully generated {len(posts)} posts from template quantities (async)")
+        return posts
+
     def _generate_single_post(
         self,
         template: Template,
@@ -531,6 +752,15 @@ class ContentGeneratorAgent:
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
             )
+
+            # SECURITY: Validate output for prompt leakage (TR-014)
+            if detect_prompt_leakage(content):
+                logger.error(
+                    f"Prompt leakage detected in generated post {post_number}. "
+                    f"Flagging for manual review."
+                )
+                # Don't use the leaked content, create placeholder
+                content = "[SECURITY: Content flagged for possible prompt leakage]"
 
             # Clean up content
             content = self._clean_post_content(content)
@@ -624,6 +854,15 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
                 temperature=0.7,  # Balanced creativity
             )
 
+            # SECURITY: Validate output for prompt leakage (TR-014)
+            if detect_prompt_leakage(content):
+                logger.error(
+                    f"Prompt leakage detected in generated post {post_number}. "
+                    f"Flagging for manual review."
+                )
+                # Don't use the leaked content, create placeholder
+                content = "[SECURITY: Content flagged for possible prompt leakage]"
+
             # Clean up content
             content = self._clean_post_content(content)
 
@@ -662,6 +901,67 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             post.flag_for_review(f"Generation failed: {str(e)}")
             return post
 
+    def _sanitize_client_brief(self, client_brief: ClientBrief) -> ClientBrief:
+        """
+        Sanitize client brief to prevent prompt injection attacks (TR-014)
+
+        This method removes or escapes malicious patterns from all user-provided
+        fields before they are included in prompts sent to the LLM.
+
+        Security: Protects against OWASP LLM01 - Prompt Injection
+
+        Args:
+            client_brief: Original client brief with potentially unsafe input
+
+        Returns:
+            Sanitized client brief safe for use in prompts
+
+        Raises:
+            ValueError: If critical prompt injection detected
+        """
+        from copy import deepcopy
+
+        # Create a copy to avoid mutating original
+        sanitized = deepcopy(client_brief)
+
+        # Sanitize all user-provided text fields
+        try:
+            # Core business fields
+            sanitized.business_description = sanitize_prompt_input(
+                client_brief.business_description, strict=False
+            )
+            sanitized.ideal_customer = sanitize_prompt_input(
+                client_brief.ideal_customer, strict=False
+            )
+            sanitized.main_problem_solved = sanitize_prompt_input(
+                client_brief.main_problem_solved, strict=False
+            )
+
+            # Optional fields (only sanitize if present)
+            if client_brief.customer_pain_points:
+                sanitized.customer_pain_points = [
+                    sanitize_prompt_input(point, strict=False)
+                    for point in client_brief.customer_pain_points
+                ]
+
+            if client_brief.customer_questions:
+                sanitized.customer_questions = [
+                    sanitize_prompt_input(q, strict=False)
+                    for q in client_brief.customer_questions
+                ]
+
+            logger.debug(f"Sanitized client brief for {client_brief.company_name}")
+            return sanitized
+
+        except ValueError as e:
+            logger.error(
+                f"Critical prompt injection detected in client brief for {client_brief.company_name}: {e}"
+            )
+            raise ValueError(
+                f"Client brief contains unsafe content that could not be sanitized. "
+                f"Please review the input and remove any suspicious patterns: {str(e)}"
+            )
+
     def _build_context(
         self,
         client_brief: ClientBrief,
@@ -681,6 +981,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             Context dictionary
         """
         # Use cached base context if available, otherwise build it
+        # Note: Sanitization should happen before caching in the calling code
         context = base_context.copy() if base_context else client_brief.to_context_dict()
 
         # Add variant-specific guidance

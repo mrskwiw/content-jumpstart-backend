@@ -103,7 +103,13 @@
       "Skill(epct)",
       "Bash(for f in src/models/post.py backend/schemas/post.py src/agents/content_generator.py src/agents/coordinator.py src/agents/revision_agent.py src/agents/post_regenerator.py)",
       "Bash(pytest:*)",
-      "Bash(timeout 10 npm run dev:*)"
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(docker-compose exec api python:*)",
+      "Bash(timeout 10 npx playwright:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)"
     ]
   }
 }

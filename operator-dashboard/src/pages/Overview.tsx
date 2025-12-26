@@ -91,6 +91,12 @@ export default function Overview() {
     queryFn: () => clientsApi.list(),
   });
 
+  // Helper to get client name from client ID
+  const getClientName = (clientId: string): string => {
+    const client = clients.find(c => c.id === clientId);
+    return client?.name || clientId; // Fallback to ID if name not found
+  };
+
   // Calculate metrics
   const deliverables: Deliverable[] = deliverablesResponse ?? [];
   const runs: Run[] = runsResponse ?? [];
@@ -372,7 +378,7 @@ export default function Overview() {
                         {project.name}
                       </div>
                       <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                        Client: {project.clientId}
+                        Client: {getClientName(project.clientId)}
                       </div>
                     </div>
                     <div className="text-right">

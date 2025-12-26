@@ -14,6 +14,24 @@ interface Props {
   onClose: () => void;
 }
 
+// Extract readable name from deliverable path
+function getDeliverableName(path: string): string {
+  // Get filename from path (handles both / and \ separators)
+  const filename = path.split(/[/\\]/).pop() || path;
+
+  // Remove file extension
+  const nameWithoutExt = filename.replace(/\.(txt|docx|pdf|md)$/i, '');
+
+  // Remove timestamp pattern (e.g., _20231224_143022)
+  const nameWithoutTimestamp = nameWithoutExt.replace(/_\d{8}_\d{6}/, '');
+
+  // Replace underscores with spaces and capitalize words
+  return nameWithoutTimestamp
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export function DeliverableDrawer({ deliverable, onClose }: Props) {
   const { data: details, isLoading, error } = useQuery({
     queryKey: ['deliverable-details', deliverable?.id],
@@ -31,9 +49,9 @@ export function DeliverableDrawer({ deliverable, onClose }: Props) {
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-lg font-semibold text-slate-900">
-              Deliverable Details
+              {getDeliverableName(deliverable.path)}
             </p>
-            <p className="text-sm text-slate-500 font-mono mt-0.5">{deliverable.id}</p>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">{deliverable.id}</p>
           </div>
           <button
             onClick={onClose}

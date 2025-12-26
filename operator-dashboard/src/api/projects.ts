@@ -11,7 +11,11 @@ export interface ProjectFilters extends PaginationParams {
 export interface CreateProjectInput {
   clientId: string;
   name: string;
-  templates: string[];
+  templates: string[]; // Legacy field for backward compatibility
+  templateQuantities?: Record<number, number>; // New field: template_id -> quantity
+  pricePerPost?: number; // Price per post ($40 base, $55 with research)
+  researchPricePerPost?: number; // Research add-on price per post ($15)
+  totalPrice?: number; // Total project price
   platforms: string[];
   tone?: string;
 }
@@ -19,7 +23,11 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   status?: ProjectStatus;
-  templates?: string[];
+  templates?: string[]; // Legacy field
+  templateQuantities?: Record<number, number>; // New field: template_id -> quantity
+  pricePerPost?: number;
+  researchPricePerPost?: number;
+  totalPrice?: number;
   platforms?: string[];
   tone?: string;
 }
@@ -36,7 +44,7 @@ export const projectsApi = {
    * @returns Paginated response with projects and metadata
    */
   async list(params?: ProjectFilters): Promise<PaginatedResponse<Project>> {
-    const { data } = await apiClient.get<PaginatedResponse<Project>>('/api/projects', { params });
+    const { data } = await apiClient.get<PaginatedResponse<Project>>('/api/projects/', { params });
     return data;
   },
 
@@ -62,15 +70,38 @@ export const projectsApi = {
       name: input.name,
       client_id: input.clientId,  // Convert clientId -> client_id
       templates: input.templates,
+      template_quantities: input.templateQuantities ?
+        Object.fromEntries(
+          Object.entries(input.templateQuantities).map(([id, qty]) => [id.toString(), qty])
+        ) : undefined,  // Convert to string keys for JSON
+      price_per_post: input.pricePerPost,
+      research_price_per_post: input.researchPricePerPost,
+      total_price: input.totalPrice,
       platforms: input.platforms,
       tone: input.tone,
     };
-    const { data } = await apiClient.post<Project>('/api/projects', backendInput);
+    const { data } = await apiClient.post<Project>('/api/projects/', backendInput);
     return data;
   },
 
   async update(projectId: string, input: UpdateProjectInput) {
-    const { data } = await apiClient.patch<Project>(`/api/projects/${projectId}`, input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput: any = {};
+    if (input.name !== undefined) backendInput.name = input.name;
+    if (input.status !== undefined) backendInput.status = input.status;
+    if (input.templates !== undefined) backendInput.templates = input.templates;
+    if (input.templateQuantities !== undefined) {
+      backendInput.template_quantities = Object.fromEntries(
+        Object.entries(input.templateQuantities).map(([id, qty]) => [id.toString(), qty])
+      );
+    }
+    if (input.pricePerPost !== undefined) backendInput.price_per_post = input.pricePerPost;
+    if (input.researchPricePerPost !== undefined) backendInput.research_price_per_post = input.researchPricePerPost;
+    if (input.totalPrice !== undefined) backendInput.total_price = input.totalPrice;
+    if (input.platforms !== undefined) backendInput.platforms = input.platforms;
+    if (input.tone !== undefined) backendInput.tone = input.tone;
+
+    const { data } = await apiClient.patch<Project>(`/api/projects/${projectId}`, backendInput);
     return data;
   },
 };

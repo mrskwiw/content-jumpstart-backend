@@ -287,8 +287,8 @@ class BrandArchetypeAnalyzer(ResearchTool):
         if "business_description" not in inputs:
             raise ValueError("Missing required input: business_description")
 
-        if len(inputs["business_description"]) < 100:
-            raise ValueError("business_description too short (minimum 100 characters)")
+        if len(inputs["business_description"]) < 70:
+            raise ValueError("business_description too short (minimum 70 characters)")
 
         return True
 

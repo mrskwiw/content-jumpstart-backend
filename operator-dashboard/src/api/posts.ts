@@ -1,11 +1,15 @@
 import apiClient from './client';
-import type { PostDraft } from '@/types/domain';
+import type { PostDraft, Post } from '@/types/domain';
 import type { PaginatedResponse, PaginationParams } from '@/types/pagination';
 
 export interface PostFilters extends PaginationParams {
   projectId?: string;
   runId?: string;
   status?: string;
+}
+
+export interface UpdatePostInput {
+  content: string;
 }
 
 export const postsApi = {
@@ -20,7 +24,7 @@ export const postsApi = {
    * @returns Paginated response with posts and metadata
    */
   async list(filters?: PostFilters): Promise<PaginatedResponse<PostDraft>> {
-    const { data } = await apiClient.get<PaginatedResponse<PostDraft>>('/api/posts', { params: filters });
+    const { data } = await apiClient.get<PaginatedResponse<PostDraft>>('/api/posts/', { params: filters });
     return data;
   },
 
@@ -33,5 +37,28 @@ export const postsApi = {
   async listLegacy(filters?: Omit<PostFilters, keyof PaginationParams>): Promise<PostDraft[]> {
     const response = await this.list(filters);
     return response.items;
+  },
+
+  /**
+   * Get a single post by ID with full content
+   *
+   * @param postId - The post ID to fetch
+   * @returns Post with full content
+   */
+  async get(postId: string): Promise<Post> {
+    const { data } = await apiClient.get<Post>(`/api/posts/${postId}`);
+    return data;
+  },
+
+  /**
+   * Update a post's content
+   *
+   * @param postId - The post ID to update
+   * @param input - Update data (content)
+   * @returns Updated post
+   */
+  async update(postId: string, input: UpdatePostInput): Promise<Post> {
+    const { data } = await apiClient.patch<Post>(`/api/posts/${postId}`, input);
+    return data;
   },
 };

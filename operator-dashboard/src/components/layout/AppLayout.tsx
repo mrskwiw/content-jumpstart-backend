@@ -1,4 +1,4 @@
-import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket } from 'lucide-react';
+import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ThemeToggle from '@/components/ui/ThemeToggle';
@@ -6,6 +6,7 @@ import ThemeToggle from '@/components/ui/ThemeToggle';
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: PanelsTopLeft, end: true },
   { to: '/dashboard/projects', label: 'Projects', icon: ClipboardList },
+  { to: '/dashboard/clients', label: 'Clients', icon: Users },
   { to: '/dashboard/deliverables', label: 'Deliverables', icon: FileStack },
   { to: '/dashboard/wizard', label: 'Wizard / QA', icon: Rocket },
   { to: '/dashboard/settings', label: 'Settings', icon: Settings },

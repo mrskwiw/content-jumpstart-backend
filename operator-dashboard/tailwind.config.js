@@ -21,19 +21,19 @@ export default {
           800: '#2d2318',
           900: '#1a140e',
         },
-        // Neutrals - Cool Grays
+        // Neutrals - Warm Browns (optimized for dark theme)
         neutral: {
-          50: '#fafafa',
-          100: '#f5f5f5',
-          200: '#e5e5e5',
-          300: '#d4d4d4',
-          400: '#a3a3a3',
-          500: '#737373',
-          600: '#525252',
-          700: '#404040',
-          800: '#262626',
-          900: '#171717',
-          950: '#0a0a0a',
+          50: '#fafaf9',   // Light mode - warm off-white
+          100: '#f5f5f4',  // Light mode - warm light gray
+          200: '#e7e5e4',  // Light mode - warm gray
+          300: '#d6d3d1',  // Light mode - warm mid-gray
+          400: '#a8a29e',  // Warm gray
+          500: '#78716c',  // Warm gray
+          600: '#57534e',  // Warm dark gray
+          700: '#44403c',  // Warm darker gray
+          800: '#2c2825',  // Dark brown-gray (dark mode bg secondary)
+          900: '#1c1917',  // Dark brown (dark mode bg primary)
+          950: '#0f0e0d',  // Very dark brown (dark mode bg deepest)
         },
         // Semantic Colors
         success: {

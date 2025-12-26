@@ -37,9 +37,21 @@ export default function Projects() {
     }),
   });
 
+  // Fetch clients to map client IDs to names
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients'],
+    queryFn: () => import('@/api/clients').then(m => m.clientsApi.list()),
+  });
+
   // Extract projects from paginated response (Week 3 optimization)
   const projects = data?.items ?? [];
   const paginationMeta = data?.metadata;
+
+  // Helper to get client name from client ID
+  const getClientName = (clientId: string): string => {
+    const client = clientsData?.find(c => c.id === clientId);
+    return client?.name || clientId; // Fallback to ID if name not found
+  };
 
   // Sort projects based on current sort field and direction
   const sortedProjects = useMemo(() => {
@@ -112,9 +124,16 @@ export default function Projects() {
         clientId: project.clientId,
         isBatch: true,
       }),
-    onSuccess: () => {
+    onSuccess: (run) => {
+      console.log('Generation started:', run);
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['runs'] });
+      // Show success message
+      alert(`Content generation started! Run ID: ${run.id}`);
+    },
+    onError: (error) => {
+      console.error('Generation error:', error);
+      alert(`Failed to start generation: ${error instanceof Error ? error.message : 'Unknown error'}`);
     },
   });
 
@@ -124,7 +143,7 @@ export default function Projects() {
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
             Projects
-            {clientId && <span className="text-base font-normal text-neutral-600 dark:text-neutral-400"> • Client {clientId}</span>}
+            {clientId && <span className="text-base font-normal text-neutral-600 dark:text-neutral-400"> • {getClientName(clientId)}</span>}
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">Search, filter, and manage active content generation projects.</p>
         </div>
@@ -269,10 +288,10 @@ export default function Projects() {
                       variant="link"
                       size="sm"
                       onClick={() => navigate(`/dashboard/projects?clientId=${project.clientId}`)}
-                      title={`View all projects for client ${project.clientId}`}
+                      title={`View all projects for ${getClientName(project.clientId)}`}
                       className="p-0 h-auto"
                     >
-                      {project.clientId}
+                      {getClientName(project.clientId)}
                     </Button>
                   </TableCell>
                   <TableCell>

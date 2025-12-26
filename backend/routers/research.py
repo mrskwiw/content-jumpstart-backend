@@ -201,6 +201,61 @@ async def run_research(
             detail=f"Client {input.client_id} not found"
         )
 
+    # Validate client has sufficient data for research
+    # Research tools require minimum business context
+    business_desc = client.business_description or ""
+    ideal_customer = client.ideal_customer or ""
+
+    # Most research tools require at least 50 characters of business description
+    # All tools now use 70 character minimum for consistency with wizard validation
+    TOOL_REQUIREMENTS = {
+        "brand_archetype": {"business_description": 70},
+        "content_audit": {"business_description": 50},
+        "content_gap_analysis": {"business_description": 50},
+        "platform_strategy": {"business_description": 50, "target_audience": 20},
+        "audience_research": {"business_description": 50},
+        "competitive_analysis": {"business_description": 50},
+        "voice_analysis": {"content_samples": 5},  # Requires 5-30 writing samples
+    }
+
+    if input.tool in TOOL_REQUIREMENTS:
+        requirements = TOOL_REQUIREMENTS[input.tool]
+
+        # Check business_description
+        if "business_description" in requirements:
+            min_length = requirements["business_description"]
+            if len(business_desc) < min_length:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Client profile incomplete: {input.tool} requires a business description of at least {min_length} characters. Please complete the client profile in the wizard before running research."
+                )
+
+        # Check target_audience
+        if "target_audience" in requirements:
+            min_length = requirements["target_audience"]
+            if len(ideal_customer) < min_length:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Client profile incomplete: {input.tool} requires a target audience description of at least {min_length} characters. Please complete the client profile in the wizard before running research."
+                )
+
+        # Check content_samples (for voice_analysis)
+        if "content_samples" in requirements:
+            min_samples = requirements["content_samples"]
+            samples = input.params.get("content_samples", [])
+
+            if not isinstance(samples, list):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{input.tool} requires content_samples as a list. Please provide {min_samples}-30 writing samples."
+                )
+
+            if len(samples) < min_samples:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{input.tool} requires at least {min_samples} content samples. Please provide {min_samples}-30 samples of the client's existing writing (minimum 50 characters each)."
+                )
+
     # Find the tool
     tool = next((t for t in RESEARCH_TOOLS if t.name == input.tool), None)
     if not tool:

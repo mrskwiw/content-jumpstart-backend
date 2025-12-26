@@ -28,6 +28,13 @@ export const ClientSchema = z.object({
   name: z.string(),
   tags: z.array(z.string()).optional(),
   status: ClientStatusSchema.optional(),
+  businessDescription: z.string().optional(),
+  idealCustomer: z.string().optional(),
+  mainProblemSolved: z.string().optional(),
+  tonePreference: z.string().optional(),
+  platforms: z.array(PlatformSchema).optional(),
+  customerPainPoints: z.array(z.string()).optional(),
+  customerQuestions: z.array(z.string()).optional(),
 });
 export type Client = z.infer<typeof ClientSchema>;
 
@@ -80,12 +87,12 @@ export const DeliverableSchema = z.object({
   path: z.string(),
   createdAt: z.string().datetime(),
   status: DeliverableStatusSchema,
-  deliveredAt: z.string().datetime().optional(),
-  proofUrl: z.string().url().optional(),
-  proofNotes: z.string().optional(),
-  runId: z.string().optional(),
-  checksum: z.string().optional(),
-  fileSizeBytes: z.number().optional(),
+  deliveredAt: z.string().datetime().nullish(),
+  proofUrl: z.string().url().nullish(),
+  proofNotes: z.string().nullish(),
+  runId: z.string().nullish(),
+  checksum: z.string().nullish(),
+  fileSizeBytes: z.number().nullish(),
 });
 export type Deliverable = z.infer<typeof DeliverableSchema>;
 
@@ -99,6 +106,12 @@ export const PostSummarySchema = z.object({
   contentPreview: z.string(),
 });
 export type PostSummary = z.infer<typeof PostSummarySchema>;
+
+// Full post with complete content (used for editing)
+export const PostSchema = PostSummarySchema.extend({
+  content: z.string(),
+});
+export type Post = z.infer<typeof PostSchema>;
 
 export const QASummarySchema = z.object({
   avgReadability: z.number().optional(),
@@ -115,8 +128,8 @@ export const DeliverableDetailsSchema = DeliverableSchema.extend({
   filePreview: z.string().optional(),
   filePreviewTruncated: z.boolean(),
   posts: z.array(PostSummarySchema),
-  qaSummary: QASummarySchema.optional(),
-  fileModifiedAt: z.string().datetime().optional(),
+  qaSummary: QASummarySchema.nullish(),
+  fileModifiedAt: z.string().datetime().nullish(),
 });
 export type DeliverableDetails = z.infer<typeof DeliverableDetailsSchema>;
 
@@ -162,11 +175,15 @@ export type ExportInput = z.infer<typeof ExportSchema>;
 
 export const ClientBriefSchema = z.object({
   companyName: z.string().min(1, 'Company name is required'),
-  businessDescription: z.string().min(10, 'Please provide a brief business description'),
-  idealCustomer: z.string().min(10, 'Please describe your ideal customer'),
-  mainProblemSolved: z.string().min(10, 'Describe the main problem you solve'),
+  businessDescription: z
+    .string()
+    .min(70, 'Business description must be at least 70 characters (required for research tools)'),
+  idealCustomer: z
+    .string()
+    .min(20, 'Target audience description must be at least 20 characters (required for research tools)'),
+  mainProblemSolved: z.string().optional(),
   tonePreference: z.string().default('professional'),
-  platforms: z.array(PlatformSchema).min(1, 'Select at least one platform'),
+  platforms: z.array(PlatformSchema).optional(),
   customerPainPoints: z.array(z.string()).optional(),
   customerQuestions: z.array(z.string()).optional(),
 });

@@ -19,7 +19,7 @@ export interface CreateDeliverableInput {
 
 export const deliverablesApi = {
   async list(filters?: DeliverableFilters) {
-    const { data } = await apiClient.get<Deliverable[]>('/api/deliverables', { params: filters });
+    const { data } = await apiClient.get<Deliverable[]>('/api/deliverables/', { params: filters });
     return data;
   },
 
@@ -45,7 +45,7 @@ export const deliverablesApi = {
       path: input.path,
       run_id: input.runId,
     };
-    const { data } = await apiClient.post<Deliverable>('/api/deliverables', backendInput);
+    const { data } = await apiClient.post<Deliverable>('/api/deliverables/', backendInput);
     return data;
   },
 

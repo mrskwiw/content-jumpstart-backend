@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Circle, FlaskConical, ArrowRight, Loader2, DollarSign } from 'lucide-react';
 import { researchApi, ResearchTool } from '@/api/research';
+import { ResearchDataCollectionPanel } from './ResearchDataCollectionPanel';
 
 interface Props {
   projectId?: string;
@@ -9,8 +10,13 @@ interface Props {
   onContinue?: () => void;
 }
 
-export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
+type Step = 'selection' | 'data-collection' | 'executing';
+
+// Memoized to prevent re-renders when parent updates (Performance optimization - December 25, 2025)
+export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, onContinue }: Props) {
+  const [step, setStep] = useState<Step>('selection');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [collectedData, setCollectedData] = useState<Record<string, any>>({});
   const [results, setResults] = useState<Map<string, any>>(new Map());
 
   // Fetch available research tools
@@ -21,14 +27,20 @@ export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
 
   // Run research mutation
   const runResearchMutation = useMutation({
-    mutationFn: (tool: string) =>
+    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, any> }) =>
       researchApi.run({
         projectId: projectId!,
         clientId: clientId!,
         tool,
+        params: params || {},
       }),
-    onSuccess: (data, tool) => {
-      setResults(new Map(results).set(tool, data));
+    onSuccess: (data, variables) => {
+      setResults(new Map(results).set(variables.tool, data));
+      console.log(`Research tool "${variables.tool}" completed successfully`);
+    },
+    onError: (error, variables) => {
+      console.error(`Research tool "${variables.tool}" failed:`, error);
+      alert(`Failed to run research tool "${variables.tool}": ${error instanceof Error ? error.message : 'Unknown error'}`);
     },
   });
 
@@ -58,14 +70,39 @@ export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
     setSelected(new Set());
   };
 
-  const runSelectedResearch = async () => {
+  const handleContinueFromSelection = () => {
+    if (selected.size === 0) {
+      // Skip research entirely
+      if (onContinue) {
+        onContinue();
+      }
+    } else {
+      // Move to data collection step
+      setStep('data-collection');
+    }
+  };
+
+  const handleDataCollected = (data: Record<string, any>) => {
+    setCollectedData(data);
+    setStep('executing');
+    runSelectedResearch(data);
+  };
+
+  const runSelectedResearch = async (params: Record<string, any>) => {
     if (!projectId || !clientId) {
       alert('Project and client must be selected first');
       return;
     }
 
     for (const tool of selected) {
-      await runResearchMutation.mutateAsync(tool);
+      // Get tool-specific params if they exist
+      const toolParams = params[tool] || params;
+      await runResearchMutation.mutateAsync({ tool, params: toolParams });
+    }
+
+    // Automatically advance to next step after research completes
+    if (onContinue) {
+      onContinue();
     }
   };
 
@@ -110,6 +147,18 @@ export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
     );
   }
 
+  // Show data collection step
+  if (step === 'data-collection') {
+    return (
+      <ResearchDataCollectionPanel
+        selectedTools={Array.from(selected)}
+        onContinue={handleDataCollected}
+        onBack={() => setStep('selection')}
+      />
+    );
+  }
+
+  // Show tool selection step
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
@@ -226,33 +275,13 @@ export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
       <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
         <div className="text-sm text-slate-600">
           {selected.size === 0 && 'Research is optional - you can skip this step'}
-          {selected.size > 0 && results.size === 0 && 'Click "Run Research" to execute selected tools'}
-          {results.size > 0 && results.size < selected.size && `Running ${results.size}/${selected.size}...`}
-          {results.size > 0 && results.size === selected.size && '✓ All research completed'}
+          {selected.size > 0 && 'Click "Continue" to provide required data and run research'}
         </div>
         <div className="flex gap-2">
-          {selected.size > 0 && results.size === 0 && (
-            <button
-              onClick={runSelectedResearch}
-              disabled={runResearchMutation.isPending || !projectId || !clientId}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {runResearchMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Running Research...
-                </>
-              ) : (
-                <>
-                  <FlaskConical className="h-4 w-4" />
-                  Run Research
-                </>
-              )}
-            </button>
-          )}
           <button
-            onClick={onContinue}
-            className="inline-flex items-center gap-2 rounded-md bg-slate-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700"
+            onClick={handleContinueFromSelection}
+            disabled={!projectId || !clientId}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {selected.size === 0 ? 'Skip Research' : 'Continue'}
             <ArrowRight className="h-4 w-4" />
@@ -261,4 +290,4 @@ export function ResearchPanel({ projectId, clientId, onContinue }: Props) {
       </div>
     </div>
   );
-}
+});

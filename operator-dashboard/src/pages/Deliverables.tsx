@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deliverablesApi } from '@/api/deliverables';
-import type { Deliverable, DeliverableStatus, MarkDeliveredInput } from '@/types/domain';
+import { clientsApi } from '@/api/clients';
+import type { Deliverable, DeliverableStatus, Client } from '@/types/domain';
 import {
   Filter,
   Link as LinkIcon,
@@ -23,70 +24,24 @@ import { format, isAfter, isBefore, parseISO } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatFileSize } from '@/utils/formatters';
-import { Button, Badge, Card, CardContent, Input, Textarea } from '@/components/ui';
+import { Button, Badge, Card, CardContent } from '@/components/ui';
 
-interface MarkDialogProps {
-  deliverable: Deliverable | null;
-  onClose: () => void;
-  onSubmit: (input: MarkDeliveredInput) => void;
-  isSubmitting: boolean;
-}
+// Extract readable name from deliverable path
+function getDeliverableName(path: string): string {
+  // Get filename from path (handles both / and \ separators)
+  const filename = path.split(/[/\\]/).pop() || path;
 
-function MarkDeliveredDialog({ deliverable, onClose, onSubmit, isSubmitting }: MarkDialogProps) {
-  const [proofUrl, setProofUrl] = useState('');
-  const [proofNotes, setProofNotes] = useState('');
-  if (!deliverable) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
-      <div className="w-full max-w-lg rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Mark Delivered</h3>
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Deliverable ID: {deliverable.id}</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-        <div className="space-y-4">
-          <Input
-            type="url"
-            label="Proof URL (optional)"
-            value={proofUrl}
-            onChange={(e) => setProofUrl(e.target.value)}
-            placeholder="https://example.com/proof"
-            helperText="Link to email confirmation, screenshot, or other proof"
-          />
-          <Textarea
-            label="Delivery Notes (optional)"
-            value={proofNotes}
-            onChange={(e) => setProofNotes(e.target.value)}
-            rows={3}
-            placeholder="Add any relevant notes about the delivery..."
-          />
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="success"
-            disabled={isSubmitting}
-            onClick={() =>
-              onSubmit({
-                deliveredAt: new Date().toISOString(),
-                proofUrl: proofUrl || undefined,
-                proofNotes: proofNotes || undefined,
-              })
-            }
-          >
-            <CheckCircle className="h-4 w-4" />
-            {isSubmitting ? 'Marking Delivered...' : 'Mark Delivered'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+  // Remove file extension
+  const nameWithoutExt = filename.replace(/\.(txt|docx|pdf|md)$/i, '');
+
+  // Remove timestamp pattern (e.g., _20231224_143022)
+  const nameWithoutTimestamp = nameWithoutExt.replace(/_\d{8}_\d{6}/, '');
+
+  // Replace underscores with spaces and capitalize words
+  return nameWithoutTimestamp
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 export default function Deliverables() {
@@ -113,7 +68,19 @@ export default function Deliverables() {
     }),
   });
 
+  // Fetch clients to map client IDs to names
+  const { data: clientsData = [] } = useQuery<Client[]>({
+    queryKey: ['clients'],
+    queryFn: () => clientsApi.list(),
+  });
+
   const deliverables = data ?? [];
+
+  // Helper to get client name from client ID
+  const getClientName = (clientId: string): string => {
+    const client = clientsData.find(c => c.id === clientId);
+    return client?.name || clientId; // Fallback to ID if name not found
+  };
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -168,17 +135,6 @@ export default function Deliverables() {
     });
   }, [filteredDeliverables]);
 
-  const markDelivered = useMutation({
-    mutationFn: (input: MarkDeliveredInput) => {
-      if (!selected) throw new Error('No deliverable selected');
-      return deliverablesApi.markDelivered(selected.id, input);
-    },
-    onSuccess: async () => {
-      setSelected(null);
-      await qc.invalidateQueries({ queryKey: ['deliverables'] });
-    },
-  });
-
   // Download handler
   const handleDownload = async (deliverable: Deliverable) => {
     try {
@@ -212,7 +168,7 @@ export default function Deliverables() {
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
             Deliverables
             {projectId && <span className="text-base font-normal text-neutral-600 dark:text-neutral-400"> • Project {projectId}</span>}
-            {clientId && <span className="text-base font-normal text-neutral-600 dark:text-neutral-400"> • Client {clientId}</span>}
+            {clientId && <span className="text-base font-normal text-neutral-600 dark:text-neutral-400"> • {getClientName(clientId)}</span>}
           </h1>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">Track export outputs, delivery status, and proof documentation</p>
         </div>
@@ -391,9 +347,9 @@ export default function Deliverables() {
                     <button
                       onClick={() => navigate(`/dashboard/clients/${group.clientId}`)}
                       className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 hover:underline"
-                      title={`View client ${group.clientId}`}
+                      title={`View client ${getClientName(group.clientId)}`}
                     >
-                      Client: {group.clientId}
+                      Client: {getClientName(group.clientId)}
                     </button>
                     <button
                       onClick={() => navigate(`/dashboard/projects/${group.projectId}`)}
@@ -411,12 +367,12 @@ export default function Deliverables() {
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                            {d.format.toUpperCase()}
+                            {getDeliverableName(d.path)}
                           </span>
                           <Badge variant={d.status === 'draft' ? 'default' : d.status === 'ready' ? 'info' : 'success'}>{d.status}</Badge>
                           <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatFileSize(d.fileSizeBytes)}</span>
                         </div>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">{d.path}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">{d.path}</p>
                         <div className="flex items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
@@ -497,8 +453,8 @@ export default function Deliverables() {
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                         <div>
-                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{d.path}</p>
-                          <p className="text-xs text-neutral-500 dark:text-neutral-400">{formatFileSize(d.fileSizeBytes)}</p>
+                          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{getDeliverableName(d.path)}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">{d.path} • {formatFileSize(d.fileSizeBytes)}</p>
                         </div>
                       </div>
                     </td>
@@ -507,7 +463,7 @@ export default function Deliverables() {
                         onClick={() => navigate(`/dashboard/clients/${d.clientId}`)}
                         className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
                       >
-                        {d.clientId}
+                        {getClientName(d.clientId)}
                       </button>
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">{d.projectId}</p>
                     </td>
@@ -561,12 +517,6 @@ export default function Deliverables() {
         )}
       </div>
 
-      <MarkDeliveredDialog
-        deliverable={selected}
-        onClose={() => setSelected(null)}
-        onSubmit={(input) => markDelivered.mutate(input)}
-        isSubmitting={markDelivered.isPending}
-      />
       <DeliverableDrawer deliverable={selected} onClose={() => setSelected(null)} />
     </div>
   );

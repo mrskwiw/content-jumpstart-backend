@@ -566,28 +566,38 @@ export default function ClientDetail() {
 
         {/* Tab 4: Deliverables */}
         {activeTab === 'deliverables' && (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-                <thead className="bg-neutral-50 dark:bg-neutral-800">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                      Project
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                      Format
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                      Delivered
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                onClick={() => navigate(`/dashboard/deliverables?clientId=${client.id}`)}
+                className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View All Deliverables
+              </button>
+            </div>
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
+                  <thead className="bg-neutral-50 dark:bg-neutral-800">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                        Project
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                        Format
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                        Delivered
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
                   {clientDeliverables.length === 0 ? (
                     <tr>
@@ -637,6 +647,7 @@ export default function ClientDetail() {
               </table>
             </div>
           </div>
+        </div>
         )}
 
         {/* Tab 5: Billing & Payments */}

@@ -463,6 +463,137 @@ Components are optimized for performance:
 
 ---
 
+### TemplateQuantitySelector (NEW)
+
+Advanced template selection component for custom project builds with per-template quantity controls.
+
+**Features:**
+- Grid display of 15 content templates
+- +/- quantity controls per template
+- Real-time price calculation
+- Total posts counter
+- Optional research pricing (+$15/post)
+- Summary card with breakdown
+
+```tsx
+import { TemplateQuantitySelector } from '@/components/wizard';
+
+<TemplateQuantitySelector
+  quantities={templateQuantities}
+  onChange={setTemplateQuantities}
+  pricePerPost={40.0}
+  researchPricePerPost={0.0}
+/>
+```
+
+**Props:**
+- `quantities` - Dict of template IDs to quantities (e.g., `{"1": 3, "2": 5}`)
+- `onChange` - Callback when quantities change
+- `pricePerPost` - Base price per post (default: $40)
+- `researchPricePerPost` - Research add-on price (default: $0)
+
+**State Management:**
+- Maintains `templateQuantities` object
+- Auto-calculates `totalPosts` and `totalPrice`
+- Validates quantities (0-100 per template)
+- Updates parent component via onChange
+
+**UI Layout:**
+- Responsive grid (2-3 columns depending on screen size)
+- Each template card shows:
+  - Template name and icon
+  - Quantity controls (+/-)
+  - Current quantity display
+- Right-side summary panel:
+  - Total posts count
+  - Price breakdown (base + research)
+  - Total project price
+
+---
+
+### PresetPackageSelector (NEW)
+
+Quick selection component for preset content packages (Quick Start, Professional, Premium).
+
+**Features:**
+- Card-based package display
+- Visual comparison of packages
+- One-click selection
+- Price and feature highlighting
+- Recommended package indicator
+
+```tsx
+import { PresetPackageSelector } from '@/components/wizard';
+
+<PresetPackageSelector
+  selectedPackage={selectedPackage}
+  onSelectPackage={setSelectedPackage}
+/>
+```
+
+**Props:**
+- `selectedPackage` - Currently selected package ID (e.g., "professional")
+- `onSelectPackage` - Callback when package selected
+
+**Preset Packages:**
+
+| Package | Posts | Price | Template Mix |
+|---------|-------|-------|--------------|
+| **Quick Start** | 15 | $600 | Fast templates (Problem, Stat, Question, How-To, Comparison) |
+| **Professional** | 30 | $1,200 | Balanced variety (2 of each template) |
+| **Premium** | 50 | $2,750 | Full variety + research ($55/post total) |
+
+**UI Layout:**
+- 3-column grid of package cards
+- Each card shows:
+  - Package name and badge
+  - Post count
+  - Price (large, prominent)
+  - Included features (bulleted)
+  - "Select" button
+- Selected package highlighted with border/background
+- "Recommended" badge on Professional tier
+
+---
+
+### Wizard Integration (NEW)
+
+The Wizard component now uses a two-tab interface for template selection:
+
+**Tab 1: Preset Packages**
+- Uses `PresetPackageSelector`
+- Quick selection for common use cases
+- Recommended for most clients
+
+**Tab 2: Custom Build**
+- Uses `TemplateQuantitySelector`
+- Granular control over template mix
+- For clients with specific needs
+
+**State Flow:**
+```tsx
+// Wizard manages both selection modes
+const [selectionMode, setSelectionMode] = useState<'preset' | 'custom'>('preset');
+const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+const [templateQuantities, setTemplateQuantities] = useState<Record<string, number>>({});
+
+// On submit, convert to templateQuantities format
+const quantities = selectionMode === 'preset'
+  ? PRESET_PACKAGES[selectedPackage].quantities
+  : templateQuantities;
+
+// Pass to project creation API
+await createProject({
+  name,
+  clientId,
+  templateQuantities: quantities,
+  pricePerPost: 40.0,
+  // ... other fields
+});
+```
+
+---
+
 ## Contributing
 
 When adding new components:

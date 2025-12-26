@@ -5,6 +5,8 @@ import { WizardStepper } from '@/components/wizard/WizardStepper';
 import { ClientProfilePanel } from '@/components/wizard/ClientProfilePanel';
 import { ResearchPanel } from '@/components/wizard/ResearchPanel';
 import { TemplateSelectionPanel } from '@/components/wizard/TemplateSelectionPanel';
+import { PresetPackageSelector } from '@/components/wizard/PresetPackageSelector';
+import { TemplateQuantitySelector } from '@/components/wizard/TemplateQuantitySelector';
 import { GenerationPanel } from '@/components/wizard/GenerationPanel';
 import { QualityGatePanel } from '@/components/wizard/QualityGatePanel';
 import { ExportPanel } from '@/components/wizard/ExportPanel';
@@ -46,6 +48,12 @@ export default function Wizard() {
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>([]);
   const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
 
+  // Template quantities state (new pricing model)
+  const [templateMode, setTemplateMode] = useState<'preset' | 'custom'>('preset');
+  const [templateQuantities, setTemplateQuantities] = useState<Record<number, number>>({});
+  const [includeResearch, setIncludeResearch] = useState<boolean>(false);
+  const [totalPrice, setTotalPrice] = useState<number>(0);
+
   // Query to list existing clients
   const { data: existingClients } = useQuery({
     queryKey: ['clients'],
@@ -61,10 +69,22 @@ export default function Wizard() {
 
   // Mutation to create client
   const createClientMutation = useMutation({
-    mutationFn: (data: { name: string; email?: string }) => clientsApi.create(data),
+    mutationFn: (data: any) => clientsApi.create(data),
     onSuccess: (data) => {
       setClientId(data.id);
       qc.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+
+  // Mutation to update client
+  const updateClientMutation = useMutation({
+    mutationFn: (data: { id: string } & any) => {
+      const { id, ...updateData } = data;
+      return clientsApi.update(id, updateData);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      qc.invalidateQueries({ queryKey: ['client', clientId] });
     },
   });
 
@@ -104,13 +124,13 @@ export default function Wizard() {
     if (selectedClient && !isCreatingNewClient) {
       setClientBrief({
         companyName: selectedClient.name,
-        businessDescription: '',
-        idealCustomer: '',
-        mainProblemSolved: '',
-        tonePreference: 'professional',
-        platforms: [],
-        customerPainPoints: [],
-        customerQuestions: [],
+        businessDescription: selectedClient.businessDescription || '',
+        idealCustomer: selectedClient.idealCustomer || '',
+        mainProblemSolved: selectedClient.mainProblemSolved || '',
+        tonePreference: selectedClient.tonePreference || 'professional',
+        platforms: selectedClient.platforms || [],
+        customerPainPoints: selectedClient.customerPainPoints || [],
+        customerQuestions: selectedClient.customerQuestions || [],
       });
     }
   }, [selectedClient, isCreatingNewClient]);
@@ -151,11 +171,32 @@ export default function Wizard() {
         const client = await createClientMutation.mutateAsync({
           name: brief.companyName,
           email: undefined, // Can be added to form later
+          businessDescription: brief.businessDescription,
+          idealCustomer: brief.idealCustomer,
+          mainProblemSolved: brief.mainProblemSolved,
+          tonePreference: brief.tonePreference,
+          platforms: brief.platforms,
+          customerPainPoints: brief.customerPainPoints,
+          customerQuestions: brief.customerQuestions,
         });
         finalClientId = client.id;
       } else if (!clientId) {
         alert('Please select an existing client or create a new one.');
         return;
+      } else {
+        // Always update existing client with all fields from the form
+        await updateClientMutation.mutateAsync({
+          id: clientId,
+          name: brief.companyName,
+          businessDescription: brief.businessDescription,
+          idealCustomer: brief.idealCustomer,
+          mainProblemSolved: brief.mainProblemSolved,
+          tonePreference: brief.tonePreference,
+          platforms: brief.platforms,
+          customerPainPoints: brief.customerPainPoints,
+          customerQuestions: brief.customerQuestions,
+        });
+        finalClientId = clientId;
       }
 
       // Create project for this client
@@ -168,7 +209,11 @@ export default function Wizard() {
         name: `${brief.companyName} - Content Project`,
         clientId: finalClientId,
         platforms: brief.platforms ?? [],
-        templates: selectedTemplates.map(String),
+        templates: selectedTemplates.map(String), // Legacy field for backward compatibility
+        templateQuantities: templateQuantities, // New field for per-template quantities
+        pricePerPost: includeResearch ? 55.0 : 40.0, // $40 base + $15 research
+        researchPricePerPost: includeResearch ? 15.0 : 0.0,
+        totalPrice: totalPrice,
         tone: brief.tonePreference ?? undefined,
       };
 
@@ -261,12 +306,30 @@ export default function Wizard() {
                   <Button
                     variant="primary"
                     onClick={() => {
+                      // Validate client has required data before proceeding
+                      const businessDesc = selectedClient?.businessDescription || '';
+                      const targetAudience = selectedClient?.idealCustomer || '';
+
+                      if (businessDesc.length < 70) {
+                        alert('Client profile incomplete: Business description must be at least 70 characters (required for research tools). Please complete the client profile below before continuing.');
+                        return;
+                      }
+
+                      if (targetAudience.length < 20) {
+                        alert('Client profile incomplete: Target audience description must be at least 20 characters (required for research tools). Please complete the client profile below before continuing.');
+                        return;
+                      }
+
                       // Create project with minimal info for existing client
                       const projectInput: CreateProjectInput = {
                         name: `${selectedClient?.name || 'Client'} - Content Project`,
                         clientId: clientId,
                         platforms: [],
-                        templates: [],
+                        templates: [], // Legacy field
+                        templateQuantities: {}, // Will be set in template selection step
+                        pricePerPost: 40.0,
+                        researchPricePerPost: 0.0,
+                        totalPrice: 0.0,
                         tone: 'professional',
                       };
                       createProjectMutation.mutate(projectInput, {
@@ -303,13 +366,61 @@ export default function Wizard() {
       )}
 
       {activeStep === 'templates' && (
-        <TemplateSelectionPanel
-          initialSelection={selectedTemplates}
-          onContinue={(templateIds) => {
-            setSelectedTemplates(templateIds);
-            advanceToStep('generate');
-          }}
-        />
+        <div className="space-y-4">
+          {/* Tab Interface */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="mb-6 flex gap-2 border-b border-slate-200">
+                <button
+                  onClick={() => setTemplateMode('preset')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                    templateMode === 'preset'
+                      ? 'border-b-2 border-blue-600 text-blue-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Preset Packages
+                </button>
+                <button
+                  onClick={() => setTemplateMode('custom')}
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                    templateMode === 'custom'
+                      ? 'border-b-2 border-blue-600 text-blue-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Custom Builder
+                </button>
+              </div>
+
+              {/* Preset Package Selector */}
+              {templateMode === 'preset' && (
+                <PresetPackageSelector
+                  onContinue={(pkg) => {
+                    setTemplateQuantities(pkg.templateQuantities);
+                    setIncludeResearch(pkg.researchIncluded);
+                    setTotalPrice(pkg.price);
+                    advanceToStep('generate');
+                  }}
+                />
+              )}
+
+              {/* Custom Template Quantity Selector */}
+              {templateMode === 'custom' && (
+                <TemplateQuantitySelector
+                  initialQuantities={templateQuantities}
+                  initialIncludeResearch={includeResearch}
+                  onContinue={(quantities, research, price) => {
+                    setTemplateQuantities(quantities);
+                    setIncludeResearch(research);
+                    setTotalPrice(price);
+                    advanceToStep('generate');
+                  }}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {activeStep === 'generate' && projectId && clientId && (
@@ -374,10 +485,19 @@ export default function Wizard() {
             <strong>Client Brief:</strong> {clientBrief ? '✓ Saved' : 'Not set'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Templates:</strong> {selectedTemplates.length > 0 ? `${selectedTemplates.length} selected` : 'None selected'}
+            <strong>Template Mode:</strong> {Object.keys(templateQuantities).length > 0 ? (templateMode === 'preset' ? 'Preset Package' : 'Custom') : 'Not selected'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Posts:</strong> {posts?.length ?? 0} generated
+            <strong>Total Posts:</strong> {Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0) || 0}
+          </p>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+            <strong>Research:</strong> {includeResearch ? 'Yes (+$15/post)' : 'No'}
+          </p>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+            <strong>Total Price:</strong> {totalPrice > 0 ? `$${totalPrice.toLocaleString()}` : 'Not calculated'}
+          </p>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+            <strong>Generated:</strong> {posts?.length ?? 0} posts
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Flagged:</strong> {flagged.length}

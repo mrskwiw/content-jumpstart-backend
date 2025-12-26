@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from schemas.deliverable import DeliverableResponse
 from services import crud
 from services.generator_service import generator_service
 from utils.logger import logger
+from utils.http_rate_limiter import limiter
 
 router = APIRouter()
 
@@ -44,7 +45,9 @@ class ExportInput(BaseModel):
 
 
 @router.post("/generate-all", response_model=RunResponse)
+@limiter.limit("10/hour")  # TR-004: Rate limit expensive generation operations
 async def generate_all(
+    request: Request,
     input: GenerateAllInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -91,19 +94,23 @@ async def generate_all(
             num_posts=30,  # TODO: Make configurable via input
         )
 
-        # Update run status to succeeded
+        # Update run status to succeeded (use LogEntry format)
+        from datetime import datetime
+        from schemas.run import LogEntry
+
+        timestamp = datetime.now().isoformat()
         logs = [
-            "Generation started",
-            f"CLI execution completed",
-            f"Created {result['posts_created']} post records",
-            f"Output directory: {result['output_dir']}",
+            LogEntry(timestamp=timestamp, message="Generation started"),
+            LogEntry(timestamp=timestamp, message="CLI execution completed"),
+            LogEntry(timestamp=timestamp, message=f"Created {result['posts_created']} post records"),
+            LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
         ]
 
         crud.update_run(
             db,
             db_run.id,
             status="succeeded",
-            logs=logs
+            logs=[log.model_dump() for log in logs]  # Convert to dicts for JSON serialization
         )
 
         # Refresh to get updated data
@@ -127,7 +134,9 @@ async def generate_all(
 
 
 @router.post("/regenerate", response_model=RunResponse)
+@limiter.limit("20/hour")  # TR-004: Rate limit regeneration (less strict than full generation)
 async def regenerate(
+    request: Request,
     input: RegenerateInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -161,18 +170,19 @@ async def regenerate(
             post_ids=input.post_ids,
         )
 
-        # Update run status to succeeded
+        # Update run status to succeeded (use LogEntry format)
+        timestamp = datetime.now().isoformat()
         logs = [
-            "Regeneration started",
-            f"Regenerated {result.get('posts_regenerated', 0)} posts",
-            f"Status: {result.get('status', 'completed')}",
+            LogEntry(timestamp=timestamp, message="Regeneration started"),
+            LogEntry(timestamp=timestamp, message=f"Regenerated {result.get('posts_regenerated', 0)} posts"),
+            LogEntry(timestamp=timestamp, message=f"Status: {result.get('status', 'completed')}"),
         ]
 
         crud.update_run(
             db,
             db_run.id,
             status="succeeded",
-            logs=logs
+            logs=[log.model_dump() for log in logs]  # Convert to dicts for JSON serialization
         )
 
         db.refresh(db_run)
@@ -194,7 +204,9 @@ async def regenerate(
 
 
 @router.post("/export", response_model=DeliverableResponse)
+@limiter.limit("30/hour")  # TR-004: Rate limit export operations
 async def export_package(
+    request: Request,
     input: ExportInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

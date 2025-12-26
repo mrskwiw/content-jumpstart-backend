@@ -54,6 +54,7 @@ class CoordinatorAgent:
         brief_input: Union[str, Path, Dict, ClientBrief],
         voice_samples: Optional[List[str]] = None,
         num_posts: int = 30,
+        template_quantities: Optional[Dict[str, int]] = None,
         platform: Optional[Platform] = None,
         interactive: bool = False,
         include_analytics: bool = True,
@@ -68,6 +69,7 @@ class CoordinatorAgent:
             brief_input: Brief as file path, dict, or ClientBrief object
             voice_samples: Optional list of sample post texts for voice analysis
             num_posts: Number of posts to generate (default: 30)
+            template_quantities: Optional dict of template IDs to quantities (e.g., {"1": 3, "2": 5})
             platform: Target platform (default: LinkedIn)
             interactive: If True, prompt for missing information
             include_analytics: Generate analytics tracker
@@ -112,15 +114,24 @@ class CoordinatorAgent:
             client_brief.target_platforms[0] if client_brief.target_platforms else Platform.LINKEDIN
         )
 
+        # Convert template_quantities from Dict[str, int] to Dict[int, int]
+        # (JSON keys are always strings, but content_generator expects int keys)
+        template_quantities_int = None
+        if template_quantities:
+            template_quantities_int = {int(k): v for k, v in template_quantities.items()}
+            logger.info(f"   Template quantities: {template_quantities_int}")
+
         if settings.PARALLEL_GENERATION:
             posts = await self.content_generator.generate_posts_async(
                 client_brief=client_brief,
+                template_quantities=template_quantities_int,
                 num_posts=num_posts,
                 platform=target_platform,
             )
         else:
             posts = self.content_generator.generate_posts(
                 client_brief=client_brief,
+                template_quantities=template_quantities_int,
                 num_posts=num_posts,
                 platform=target_platform,
             )

@@ -2,7 +2,7 @@
 Pydantic schemas for Client API.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
@@ -12,11 +12,31 @@ class ClientBase(BaseModel):
 
     name: str
     email: Optional[EmailStr] = None
+    business_description: Optional[str] = None
+    ideal_customer: Optional[str] = None
+    main_problem_solved: Optional[str] = None
+    tone_preference: Optional[str] = 'professional'
+    platforms: Optional[List[str]] = None
+    customer_pain_points: Optional[List[str]] = None
+    customer_questions: Optional[List[str]] = None
 
 
 class ClientCreate(ClientBase):
     """Schema for creating a client"""
 
+
+class ClientUpdate(BaseModel):
+    """Schema for updating a client (all fields optional)"""
+
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    business_description: Optional[str] = None
+    ideal_customer: Optional[str] = None
+    main_problem_solved: Optional[str] = None
+    tone_preference: Optional[str] = None
+    platforms: Optional[List[str]] = None
+    customer_pain_points: Optional[List[str]] = None
+    customer_questions: Optional[List[str]] = None
 
 
 class ClientResponse(ClientBase):

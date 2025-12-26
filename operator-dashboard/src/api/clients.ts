@@ -1,14 +1,28 @@
 import apiClient from './client';
-import type { Client } from '@/types/domain';
+import type { Client, Platform } from '@/types/domain';
 
 export interface CreateClientInput {
   name: string;
   email?: string;
+  businessDescription?: string;
+  idealCustomer?: string;
+  mainProblemSolved?: string;
+  tonePreference?: string;
+  platforms?: Platform[];
+  customerPainPoints?: string[];
+  customerQuestions?: string[];
 }
 
 export interface UpdateClientInput {
   name?: string;
   email?: string;
+  businessDescription?: string;
+  idealCustomer?: string;
+  mainProblemSolved?: string;
+  tonePreference?: string;
+  platforms?: Platform[];
+  customerPainPoints?: string[];
+  customerQuestions?: string[];
 }
 
 export const clientsApi = {
@@ -23,12 +37,36 @@ export const clientsApi = {
   },
 
   async create(input: CreateClientInput) {
-    const { data } = await apiClient.post<Client>('/api/clients/', input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput = {
+      name: input.name,
+      email: input.email,
+      business_description: input.businessDescription,
+      ideal_customer: input.idealCustomer,
+      main_problem_solved: input.mainProblemSolved,
+      tone_preference: input.tonePreference,
+      platforms: input.platforms,
+      customer_pain_points: input.customerPainPoints,
+      customer_questions: input.customerQuestions,
+    };
+    const { data } = await apiClient.post<Client>('/api/clients/', backendInput);
     return data;
   },
 
   async update(clientId: string, input: UpdateClientInput) {
-    const { data } = await apiClient.patch<Client>(`/api/clients/${clientId}`, input);
+    // Convert camelCase to snake_case for backend compatibility
+    const backendInput: Record<string, any> = {};
+    if (input.name !== undefined) backendInput.name = input.name;
+    if (input.email !== undefined) backendInput.email = input.email;
+    if (input.businessDescription !== undefined) backendInput.business_description = input.businessDescription;
+    if (input.idealCustomer !== undefined) backendInput.ideal_customer = input.idealCustomer;
+    if (input.mainProblemSolved !== undefined) backendInput.main_problem_solved = input.mainProblemSolved;
+    if (input.tonePreference !== undefined) backendInput.tone_preference = input.tonePreference;
+    if (input.platforms !== undefined) backendInput.platforms = input.platforms;
+    if (input.customerPainPoints !== undefined) backendInput.customer_pain_points = input.customerPainPoints;
+    if (input.customerQuestions !== undefined) backendInput.customer_questions = input.customerQuestions;
+
+    const { data } = await apiClient.patch<Client>(`/api/clients/${clientId}`, backendInput);
     return data;
   },
 };

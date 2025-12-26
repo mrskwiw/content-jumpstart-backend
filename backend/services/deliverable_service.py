@@ -5,7 +5,7 @@ Provides functions for fetching deliverable details including
 file previews, related posts, and QA summaries.
 """
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -129,7 +129,7 @@ def get_deliverable_details(db: Session, deliverable_id: str) -> Optional[Delive
     file_modified_at = None
     if file_path.exists():
         try:
-            file_modified_at = datetime.fromtimestamp(file_path.stat().st_mtime)
+            file_modified_at = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
         except Exception as e:
             logger.error(f"Error getting file modified time for {file_path}: {e}")
 

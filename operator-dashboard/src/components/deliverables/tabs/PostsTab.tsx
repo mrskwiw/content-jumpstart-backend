@@ -1,11 +1,64 @@
-import type { DeliverableDetails } from '@/types/domain';
-import { FileText, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { DeliverableDetails, Post } from '@/types/domain';
+import { postsApi } from '@/api/posts';
+import { FileText, AlertCircle, Edit, Loader2 } from 'lucide-react';
+import { PostEditor } from '../PostEditor';
+import { Button } from '@/components/ui';
 
 interface Props {
   deliverable: DeliverableDetails;
 }
 
 export function PostsTab({ deliverable }: Props) {
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // Fetch the full post when editing (includes full content)
+  const { data: editingPost, isLoading: isLoadingPost } = useQuery({
+    queryKey: ['post', editingPostId],
+    queryFn: () => postsApi.get(editingPostId!),
+    enabled: !!editingPostId,
+  });
+
+  // Find the post index for navigation
+  const editingPostIndex = editingPostId
+    ? deliverable.posts.findIndex(p => p.id === editingPostId)
+    : -1;
+
+  // Mutation to update post
+  const updatePost = useMutation({
+    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
+      postsApi.update(postId, { content }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliverable-details', deliverable.id] });
+      queryClient.invalidateQueries({ queryKey: ['deliverables'] });
+      queryClient.invalidateQueries({ queryKey: ['post', editingPostId] });
+      setEditingPostId(null);
+    },
+  });
+
+  // If loading the post, show loading state
+  if (editingPostId && isLoadingPost) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  // If editing a post, show the editor
+  if (editingPost) {
+    return (
+      <PostEditor
+        post={editingPost}
+        currentIndex={editingPostIndex}
+        totalPosts={deliverable.posts.length}
+        onSave={(content) => updatePost.mutateAsync({ postId: editingPost.id, content })}
+        onCancel={() => setEditingPostId(null)}
+      />
+    );
+  }
   if (!deliverable.runId) {
     return (
       <div className="flex flex-col items-center justify-center h-64 p-6">
@@ -54,11 +107,11 @@ export function PostsTab({ deliverable }: Props) {
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
                 {post.templateName && (
-                  <div className="text-sm font-medium text-slate-900 mb-1">
+                  <div className="text-sm font-medium text-slate-900 dark:text-neutral-100 mb-1">
                     {post.templateName}
                   </div>
                 )}
-                <div className="flex items-center gap-3 text-xs text-slate-500">
+                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-neutral-400">
                   {post.wordCount && (
                     <span>{post.wordCount} words</span>
                   )}
@@ -67,14 +120,22 @@ export function PostsTab({ deliverable }: Props) {
                   )}
                 </div>
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  post.status === 'approved' ? 'bg-green-100 text-green-800' :
-                  post.status === 'flagged' ? 'bg-red-100 text-red-800' :
-                  'bg-slate-100 text-slate-800'
+                  post.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                  post.status === 'flagged' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                  'bg-slate-100 text-slate-800 dark:bg-neutral-800 dark:text-neutral-300'
                 }`}>
                   {post.status}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditingPostId(post.id)}
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
               </div>
             </div>
 

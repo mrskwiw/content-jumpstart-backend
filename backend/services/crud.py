@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from schemas import BriefCreate, ClientCreate, ProjectCreate, ProjectUpdate
+from schemas import BriefCreate, ClientCreate, ClientUpdate, ProjectCreate, ProjectUpdate
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from utils.query_cache import cache_short, cache_medium, invalidate_related_caches
@@ -289,6 +289,31 @@ def create_client(db: Session, client: ClientCreate) -> Client:
 
     # Invalidate caches
     invalidate_related_caches("client", "clients")
+
+    return db_client
+
+
+def update_client(
+    db: Session, client_id: str, client_update: ClientUpdate
+) -> Optional[Client]:
+    """
+    Update client.
+
+    Cache invalidation: Clears client and project caches
+    """
+    db_client = get_client(db, client_id)
+    if not db_client:
+        return None
+
+    update_data = client_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_client, key, value)
+
+    db.commit()
+    db.refresh(db_client)
+
+    # Invalidate caches
+    invalidate_related_caches("client", "clients", "project", "projects")
 
     return db_client
 

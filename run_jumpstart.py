@@ -8,6 +8,7 @@ Simplified interface using the CoordinatorAgent for complete workflow orchestrat
 import argparse
 import asyncio
 import io
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -38,7 +39,10 @@ Examples:
   # Include voice samples for analysis
   python run_jumpstart.py brief.txt --voice-samples sample1.txt sample2.txt
 
-  # Generate fewer posts
+  # Generate with specific template quantities
+  python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5, "9": 2}'
+
+  # Generate fewer posts (legacy)
   python run_jumpstart.py brief.txt --num-posts 10
 
   # Target specific platform
@@ -64,6 +68,13 @@ Examples:
 
     parser.add_argument(
         "-n", "--num-posts", type=int, default=30, help="Number of posts to generate (default: 30)"
+    )
+
+    parser.add_argument(
+        "--template-quantities",
+        type=str,
+        metavar="JSON",
+        help='Template quantities as JSON dict (e.g., \'{"1": 3, "2": 5, "9": 2}\')',
     )
 
     parser.add_argument(
@@ -156,11 +167,56 @@ async def main():
                 print("Use YYYY-MM-DD format (e.g., 2025-12-01)")
                 sys.exit(1)
 
+        # Parse template quantities
+        template_quantities = None
+        if args.template_quantities:
+            try:
+                template_quantities = json.loads(args.template_quantities)
+
+                # Validate format
+                if not isinstance(template_quantities, dict):
+                    raise ValueError("Template quantities must be a JSON object/dict")
+
+                # Validate each entry (template ID and quantity)
+                for template_id, quantity in template_quantities.items():
+                    # Ensure template_id is numeric string
+                    try:
+                        template_id_int = int(template_id)
+                        if template_id_int < 1 or template_id_int > 100:
+                            raise ValueError(f"Template ID must be between 1-100: {template_id}")
+                    except ValueError:
+                        raise ValueError(f"Template ID must be numeric: {template_id}")
+
+                    # Ensure quantity is valid integer
+                    if not isinstance(quantity, int) or quantity < 0 or quantity > 100:
+                        raise ValueError(
+                            f"Quantity for template {template_id} must be 0-100: {quantity}"
+                        )
+
+                # Calculate total posts from quantities
+                total_from_quantities = sum(template_quantities.values())
+                if total_from_quantities == 0:
+                    print("Warning: Template quantities sum to 0 posts")
+
+                # Override num_posts if quantities provided
+                if total_from_quantities > 0:
+                    print(f"Using template quantities: {total_from_quantities} total posts")
+                    args.num_posts = total_from_quantities
+
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON format for template quantities: {e}")
+                print("Example: --template-quantities '{\"1\": 3, \"2\": 5, \"9\": 2}'")
+                sys.exit(1)
+            except ValueError as e:
+                print(f"Error: {e}")
+                sys.exit(1)
+
         # Run complete workflow
         saved_files = await coordinator.run_complete_workflow(
             brief_input=brief_input,
             voice_samples=voice_samples,
             num_posts=args.num_posts,
+            template_quantities=template_quantities,  # NEW: Pass quantities
             platform=platform,
             interactive=args.fill_missing,
             include_analytics=not args.no_analytics,

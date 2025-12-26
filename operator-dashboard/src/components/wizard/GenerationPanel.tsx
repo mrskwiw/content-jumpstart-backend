@@ -12,7 +12,14 @@ interface Props {
 export function GenerationPanel({ projectId, clientId, onStarted }: Props) {
   const generate = useMutation({
     mutationFn: (input: GenerateAllInput) => generatorApi.generateAll(input),
-    onSuccess: (run) => onStarted?.(run),
+    onSuccess: (run) => {
+      console.log('Generation started successfully:', run);
+      onStarted?.(run);
+    },
+    onError: (error) => {
+      console.error('Generation failed:', error);
+      alert(`Failed to start generation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    },
   });
 
   return (

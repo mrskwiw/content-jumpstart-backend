@@ -39,6 +39,33 @@ This is the **agent implementation** for the 30-Day Content Jumpstart system - a
 
 ## Development Commands
 
+**IMPORTANT: Special Characters and Path Separators in Bash**
+
+When running commands with file paths or strings containing spaces, parentheses, or special characters, use double quotes to escape them properly.
+
+**Windows Path Separators:**
+On Windows, use backslashes (`\\`) in paths, NOT forward slashes (`/`). Forward slashes will cause "file not found" errors.
+
+```bash
+# ✅ Correct - Windows paths with backslashes and quotes
+cd "C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project"
+python "C:\\git\\project\\script.py"
+
+# ❌ Incorrect - forward slashes (Unix-style)
+cd "C:/git/project/CONTENT MARKETING/30 Day Content Jumpstart/Project"
+
+# ❌ Incorrect - no quotes with spaces
+cd C:\\git\\project\\CONTENT MARKETING\\30 Day Content Jumpstart\\Project
+
+# ✅ Correct - special characters in strings quoted
+git commit -m "Fixed bug #7 (import error)"
+
+# ❌ Incorrect - parentheses will be interpreted
+git commit -m Fixed bug #7 (import error)
+```
+
+**Note:** Git Bash on Windows accepts both `/` and `\\`, but most Windows programs require `\\` for file paths.
+
 ### Environment Setup
 ```bash
 # Create and activate virtual environment
@@ -67,12 +94,24 @@ python run_jumpstart.py --interactive
 # With voice samples for tone analysis
 python run_jumpstart.py brief.txt --voice-samples sample1.txt sample2.txt
 
+# Generate with specific template quantities (NEW - recommended)
+python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5, "9": 2}'
+
 # Platform-specific generation
 python run_jumpstart.py brief.txt --platform twitter --num-posts 20
 
 # Set posting schedule start date
 python run_jumpstart.py brief.txt --start-date 2025-12-01
 ```
+
+**Template Quantities System (NEW):**
+The system now supports flexible per-template quantity selection:
+- Use `--template-quantities` with JSON dict: `'{"1": 3, "2": 5, "9": 2}'`
+- Template IDs are numeric strings (1-15 for standard templates)
+- Quantities are integers (0-100 per template)
+- Total posts auto-calculated from quantities
+- Pricing: Flat $40/post (all templates same price)
+- See `python run_jumpstart.py --help` for examples
 
 **LEGACY: Direct CLI** - `python 03_post_generator.py generate brief.txt -c "ClientName"` with optional flags: `--platform`, `--templates`, `-n`, `--no-randomize`. See `python 03_post_generator.py --help` for full options.
 
@@ -287,6 +326,22 @@ See git history or ask Claude for: adding validators, template types, client typ
 **Templates:** `python 03_post_generator.py list-templates` should show 15. If not, verify `../02_POST_TEMPLATE_LIBRARY.md` path.
 
 **Output:** Check `data/outputs/{ClientName}/` for deliverable.md, brand_voice.md, qa_report.md, keyword_strategy.md.
+
+**UI/UX Testing Best Practices:**
+When testing or debugging multi-step UI flows (wizard, forms, navigation):
+1. **Walk through ALL steps one at a time** - Don't skip ahead
+2. **Take screenshots at each step** - Use Playwright's screenshot feature or browser devtools
+3. **Examine each page load carefully** - Verify the page loaded correctly before proceeding
+4. **Check for error messages** - Look for validation errors, network errors, console errors
+5. **Verify state changes** - Confirm data persisted, mutations succeeded, navigation occurred
+6. **Read error context snapshots** - Playwright generates `error-context.md` files with page structure
+7. **Check backend logs** - Look for API errors, validation failures, database issues
+
+**Common UI debugging patterns:**
+- Form won't submit → Check validation schema, required fields, mutation errors
+- Navigation fails silently → Check route configuration, authentication guards, error handling
+- Data not persisting → Check mutation functions, API endpoints, backend validation
+- Page shows wrong content → Check URL routing, component rendering conditions, data loading state
 
 ## Performance Considerations
 
