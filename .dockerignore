@@ -51,6 +51,7 @@ logs/
 # Documentation (not needed in container)
 *.md
 !README.md
+!02_POST_TEMPLATE_LIBRARY.md
 docs/
 
 # Data directories (will use volumes)

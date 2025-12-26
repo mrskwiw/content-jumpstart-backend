@@ -6,13 +6,13 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /frontend
 
 # Copy frontend package files
-COPY Project/operator-dashboard/package.json Project/operator-dashboard/package-lock.json ./
+COPY operator-dashboard/package.json operator-dashboard/package-lock.json ./
 
 # Install dependencies
 RUN npm ci --production=false
 
 # Copy frontend source code
-COPY Project/operator-dashboard/ ./
+COPY operator-dashboard/ ./
 
 # Build frontend for production with environment variables
 # VITE_API_URL="" uses relative URLs (same origin as backend)
@@ -39,8 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy all requirements files
-COPY Project/requirements.txt .
-COPY Project/backend/requirements.txt backend/requirements.txt
+COPY requirements.txt .
+COPY backend/requirements.txt backend/requirements.txt
 
 # Install Python dependencies (project root + backend)
 RUN pip install --no-cache-dir --user -r requirements.txt && \
@@ -67,7 +67,7 @@ WORKDIR /app
 COPY --from=backend-builder /root/.local /home/appuser/.local
 
 # Copy ENTIRE project (agents, backend, CLI)
-COPY --chown=appuser:appuser Project/ .
+COPY --chown=appuser:appuser . .
 
 # Copy template files from parent directory (business docs)
 COPY --chown=appuser:appuser 02_POST_TEMPLATE_LIBRARY.md /app/../02_POST_TEMPLATE_LIBRARY.md
