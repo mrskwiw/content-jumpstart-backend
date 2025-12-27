@@ -72,32 +72,45 @@ def validate_string_field(
     if value is None:
         if allow_empty:
             return ""
-        raise ValueError(f"{field_name} cannot be None")
+        raise ValueError(f"{field_name} is required. Please provide a value.")
 
     # Convert to string and strip whitespace
     value = str(value).strip()
 
     # Check empty
     if not value and not allow_empty:
-        raise ValueError(f"{field_name} cannot be empty")
+        raise ValueError(f"{field_name} is required. Please provide a value.")
 
     # Check length
     if len(value) < min_length:
-        raise ValueError(f"{field_name} must be at least {min_length} characters")
+        raise ValueError(
+            f"{field_name} is too short. "
+            f"Please enter at least {min_length} character{'s' if min_length > 1 else ''} "
+            f"(currently {len(value)} character{'s' if len(value) != 1 else ''})."
+        )
     if len(value) > max_length:
-        raise ValueError(f"{field_name} cannot exceed {max_length} characters")
+        raise ValueError(
+            f"{field_name} is too long. "
+            f"Maximum length is {max_length} characters "
+            f"(currently {len(value)} characters). "
+            f"Please shorten your input."
+        )
 
     # Check for dangerous patterns
     for regex in DANGEROUS_REGEX:
         if regex.search(value):
             raise ValueError(
-                f"{field_name} contains potentially dangerous content. "
-                f"Please remove special characters and try again."
+                f"{field_name} contains invalid characters or formatting. "
+                f"Please avoid using special symbols like <, >, $, backticks, or SQL keywords. "
+                f"Use only letters, numbers, and basic punctuation."
             )
 
     # Check custom pattern
     if pattern and not re.match(pattern, value):
-        raise ValueError(f"{field_name} format is invalid")
+        raise ValueError(
+            f"{field_name} format is invalid. "
+            f"Please check the format and try again."
+        )
 
     return value
 
@@ -121,10 +134,17 @@ def validate_email(email: str) -> str:
     email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 
     if not re.match(email_pattern, email):
-        raise ValueError("Invalid email format")
+        raise ValueError(
+            "Email address format is invalid. "
+            "Please enter a valid email address (e.g., name@example.com)."
+        )
 
     if len(email) > 255:
-        raise ValueError("Email cannot exceed 255 characters")
+        raise ValueError(
+            "Email address is too long. "
+            "Maximum length is 255 characters. "
+            "Please use a shorter email address."
+        )
 
     return email
 
@@ -153,23 +173,38 @@ def validate_id_field(
         ValueError: If validation fails
     """
     if not value:
-        raise ValueError(f"{field_name} cannot be empty")
+        raise ValueError(f"{field_name} is required. Please provide a valid ID.")
 
     value = str(value).strip()
 
     # Check length
     if len(value) < min_length:
-        raise ValueError(f"{field_name} is too short (min: {min_length})")
+        raise ValueError(
+            f"{field_name} is too short. "
+            f"Minimum length is {min_length} characters (currently {len(value)}). "
+            f"Please use a valid ID."
+        )
     if len(value) > max_length:
-        raise ValueError(f"{field_name} is too long (max: {max_length})")
+        raise ValueError(
+            f"{field_name} is too long. "
+            f"Maximum length is {max_length} characters (currently {len(value)}). "
+            f"Please use a valid ID."
+        )
 
     # Check prefix if required
     if prefix and not value.startswith(prefix):
-        raise ValueError(f"{field_name} must start with '{prefix}'")
+        raise ValueError(
+            f"{field_name} must start with '{prefix}'. "
+            f"Example: {prefix}12345. "
+            f"Current value: '{value}' does not match this format."
+        )
 
     # IDs should only contain safe characters
     if not re.match(r'^[a-zA-Z0-9_-]+$', value):
-        raise ValueError(f"{field_name} contains invalid characters")
+        raise ValueError(
+            f"{field_name} contains invalid characters. "
+            f"Please use only letters, numbers, hyphens (-), and underscores (_)."
+        )
 
     return value
 
@@ -199,13 +234,24 @@ def validate_integer_field(
         try:
             value = int(value)
         except (ValueError, TypeError):
-            raise ValueError(f"{field_name} must be an integer")
+            raise ValueError(
+                f"{field_name} must be a whole number. "
+                f"Please enter a valid integer (e.g., 1, 10, 100)."
+            )
 
     if min_value is not None and value < min_value:
-        raise ValueError(f"{field_name} must be at least {min_value}")
+        raise ValueError(
+            f"{field_name} is too small. "
+            f"Minimum value is {min_value} (currently {value}). "
+            f"Please enter a higher number."
+        )
 
     if max_value is not None and value > max_value:
-        raise ValueError(f"{field_name} cannot exceed {max_value}")
+        raise ValueError(
+            f"{field_name} is too large. "
+            f"Maximum value is {max_value} (currently {value}). "
+            f"Please enter a lower number."
+        )
 
     return value
 
@@ -235,13 +281,24 @@ def validate_float_field(
         try:
             value = float(value)
         except (ValueError, TypeError):
-            raise ValueError(f"{field_name} must be a number")
+            raise ValueError(
+                f"{field_name} must be a valid number. "
+                f"Please enter a numeric value (e.g., 1.50, 10, 99.99)."
+            )
 
     if min_value is not None and value < min_value:
-        raise ValueError(f"{field_name} must be at least {min_value}")
+        raise ValueError(
+            f"{field_name} is too small. "
+            f"Minimum value is {min_value} (currently {value}). "
+            f"Please enter a higher number."
+        )
 
     if max_value is not None and value > max_value:
-        raise ValueError(f"{field_name} cannot exceed {max_value}")
+        raise ValueError(
+            f"{field_name} is too large. "
+            f"Maximum value is {max_value} (currently {value}). "
+            f"Please enter a lower number."
+        )
 
     return value
 
@@ -268,7 +325,7 @@ def validate_enum_field(
         ValueError: If value not in allowed list
     """
     if not value:
-        raise ValueError(f"{field_name} cannot be empty")
+        raise ValueError(f"{field_name} is required. Please select a value.")
 
     value = str(value).strip()
 
@@ -277,16 +334,30 @@ def validate_enum_field(
         value_lower = value.lower()
         allowed_lower = [v.lower() for v in allowed_values]
         if value_lower not in allowed_lower:
+            # Format allowed values nicely
+            if len(allowed_values) <= 3:
+                options_str = ', '.join(f"'{v}'" for v in allowed_values)
+            else:
+                options_str = ', '.join(f"'{v}'" for v in allowed_values[:3]) + f", or {len(allowed_values) - 3} more"
+
             raise ValueError(
-                f"{field_name} must be one of: {', '.join(allowed_values)}"
+                f"{field_name} has an invalid value: '{value}'. "
+                f"Please choose one of: {options_str}."
             )
         # Return the original casing from allowed_values
         idx = allowed_lower.index(value_lower)
         return allowed_values[idx]
     else:
         if value not in allowed_values:
+            # Format allowed values nicely
+            if len(allowed_values) <= 3:
+                options_str = ', '.join(f"'{v}'" for v in allowed_values)
+            else:
+                options_str = ', '.join(f"'{v}'" for v in allowed_values[:3]) + f", or {len(allowed_values) - 3} more"
+
             raise ValueError(
-                f"{field_name} must be one of: {', '.join(allowed_values)}"
+                f"{field_name} has an invalid value: '{value}'. "
+                f"Please choose one of: {options_str}."
             )
         return value
 

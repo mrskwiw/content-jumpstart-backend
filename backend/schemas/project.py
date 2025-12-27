@@ -90,11 +90,20 @@ class ProjectBase(BaseModel):
     @field_validator('tone')
     @classmethod
     def validate_tone(cls, v: Optional[str]) -> Optional[str]:
-        """Validate tone is one of allowed values"""
+        """Validate tone field (free-form text for brand voice description)"""
         if v is None:
             return "professional"
-        allowed_tones = ["professional", "casual", "friendly", "formal", "conversational"]
-        return validate_enum_field(v, field_name="tone", allowed_values=allowed_tones, case_sensitive=False)
+
+        # Tone is free-form text to allow brand-specific descriptions
+        # Examples: professional, casual, friendly, innovative, technical, empathetic,
+        #          authoritative, educational, motivational, analytical, inspirational, etc.
+        return validate_string_field(
+            v,
+            field_name="tone",
+            min_length=3,
+            max_length=100,
+            allow_empty=False
+        )
 
     @field_validator('template_quantities')
     @classmethod
