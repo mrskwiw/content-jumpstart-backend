@@ -269,9 +269,11 @@ ARCHETYPES = {
 class BrandArchetypeAnalyzer(ResearchTool):
     """Analyzes brand positioning to determine primary and secondary archetypes"""
 
+    @property
     def tool_name(self) -> str:
         return "brand_archetype"
 
+    @property
     def price(self) -> int:
         return 300
 

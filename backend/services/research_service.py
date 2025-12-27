@@ -42,10 +42,10 @@ try:
     RESEARCH_TOOL_MAP = {
         "voice_analysis": VoiceAnalyzer,
         "brand_archetype": BrandArchetypeAnalyzer,
-        "seo_keyword": SEOKeywordResearcher,
+        "seo_keyword_research": SEOKeywordResearcher,  # Fixed: was "seo_keyword"
         "competitive_analysis": CompetitiveAnalyzer,
-        "content_gap": ContentGapAnalyzer,
-        "market_trends": MarketTrendsResearcher,
+        "content_gap_analysis": ContentGapAnalyzer,    # Fixed: was "content_gap"
+        "market_trends_research": MarketTrendsResearcher,  # Fixed: was "market_trends"
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses
@@ -54,9 +54,9 @@ except ImportError as e:
     logger = __import__("logging").getLogger(__name__)
     logger.warning(f"Research tools not available: {str(e)}")
 
-from models import Project, Client
-from services import crud
-from utils.logger import logger
+from backend.models import Project, Client
+from backend.services import crud
+from src.utils.logger import logger
 
 
 class ResearchService:
@@ -201,20 +201,21 @@ class ResearchService:
             inputs["tone_preference"] = project.tone or "professional"
             inputs["brand_values"] = params.get("brand_values", [])
 
-        elif tool_name == "seo_keyword":
+        elif tool_name == "seo_keyword_research":  # Fixed: was "seo_keyword"
             # SEO keyword research needs industry/niche
             inputs["industry"] = params.get("industry", "")
             inputs["target_keywords"] = params.get("target_keywords", [])
+            inputs["main_topics"] = params.get("main_topics", [])  # Required by tool
 
         elif tool_name == "competitive_analysis":
             # Competitive analysis needs competitor list
             inputs["competitors"] = params.get("competitors", [])
 
-        elif tool_name == "content_gap":
+        elif tool_name == "content_gap_analysis":  # Fixed: was "content_gap"
             # Content gap needs current topics
-            inputs["current_topics"] = params.get("current_topics", [])
+            inputs["current_content_topics"] = params.get("current_content_topics", [])
 
-        elif tool_name == "market_trends":
+        elif tool_name == "market_trends_research":  # Fixed: was "market_trends"
             # Market trends needs industry context
             inputs["industry"] = params.get("industry", "")
 

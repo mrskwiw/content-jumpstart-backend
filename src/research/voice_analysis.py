@@ -52,9 +52,11 @@ class VoiceAnalyzer(ResearchTool):
     - Voice consistency recommendations
     """
 
+    @property
     def tool_name(self) -> str:
         return "voice_analysis"
 
+    @property
     def price(self) -> int:
         return 400
 
