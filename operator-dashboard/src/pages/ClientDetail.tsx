@@ -19,6 +19,7 @@ import {
   Download,
   ExternalLink,
   Calendar,
+  Eye,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { clientsApi } from '@/api/clients';
@@ -636,9 +637,22 @@ export default function ClientDetail() {
                             : '-'}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
-                            <Download className="inline h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-3">
+                            <button
+                              onClick={() => navigate(`/dashboard/content-review?projectId=${deliverable.projectId}`)}
+                              className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                              title="Review in QA"
+                            >
+                              <Eye className="h-4 w-4" />
+                              <span className="text-xs">Review</span>
+                            </button>
+                            <button
+                              className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                              title="Download deliverable"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
