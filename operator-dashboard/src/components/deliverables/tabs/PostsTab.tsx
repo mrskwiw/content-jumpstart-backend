@@ -5,6 +5,7 @@ import { postsApi } from '@/api/posts';
 import { FileText, AlertCircle, Edit, Loader2 } from 'lucide-react';
 import { PostEditor } from '../PostEditor';
 import { Button } from '@/components/ui';
+import { CopyButton } from '@/components/ui/CopyButton';
 
 interface Props {
   deliverable: DeliverableDetails;
@@ -128,6 +129,12 @@ export function PostsTab({ deliverable }: Props) {
                 }`}>
                   {post.status}
                 </span>
+                <CopyButton
+                  text={post.contentPreview}
+                  variant="button"
+                  size="sm"
+                  label="Copy"
+                />
                 <Button
                   variant="ghost"
                   size="sm"

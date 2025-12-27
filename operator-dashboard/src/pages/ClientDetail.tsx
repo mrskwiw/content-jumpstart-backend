@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Mail,
@@ -20,22 +20,32 @@ import {
   ExternalLink,
   Calendar,
   Eye,
+  FlaskConical,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { clientsApi } from '@/api/clients';
 import { projectsApi } from '@/api/projects';
 import { postsApi } from '@/api/posts';
 import { deliverablesApi } from '@/api/deliverables';
+import { researchApi } from '@/api/research';
+import { CopyButton } from '@/components/ui/CopyButton';
 import type { Project, PostDraft, Deliverable } from '@/types/domain';
 import type { PaginatedResponse } from '@/types/pagination';
 
-type TabType = 'overview' | 'projects' | 'content' | 'deliverables' | 'billing' | 'communication';
+type TabType = 'overview' | 'projects' | 'research' | 'content' | 'deliverables' | 'billing' | 'communication';
 
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [notes, setNotes] = useState('');
+
+  // Research tool state
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [showDataDialog, setShowDataDialog] = useState(false);
+  const [researchResults, setResearchResults] = useState<Map<string, any>>(new Map());
 
   // Fetch client data
   const { data: client, isLoading: clientLoading } = useQuery({
@@ -65,6 +75,38 @@ export default function ClientDetail() {
   const projects: Project[] = projectsResponse?.items ?? [];
   const posts: PostDraft[] = postsResponse?.items ?? [];
   const deliverables: Deliverable[] = deliverablesResponse ?? [];
+
+  // Research tool mutation
+  const runResearchMutation = useMutation({
+    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, any> }) => {
+      // Create a dummy project for client research (research not tied to specific project)
+      const dummyProjectId = `client-research-${clientId}`;
+      return researchApi.run({
+        projectId: dummyProjectId,
+        clientId: clientId!,
+        tool,
+        params: params || {},
+      });
+    },
+    onSuccess: (data, variables) => {
+      setResearchResults(new Map(researchResults).set(variables.tool, data));
+      setSelectedTool(null);
+      setShowDataDialog(false);
+    },
+    onError: (error, variables) => {
+      console.error(`Research tool "${variables.tool}" failed:`, error);
+      alert(`Failed to run research tool "${variables.tool}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    },
+  });
+
+  // Handler for clicking a research tool button
+  const handleRunResearchTool = (toolName: string) => {
+    setSelectedTool(toolName);
+
+    // For now, run tools without additional data collection
+    // TODO: Add data collection dialog for tools that need it (voice_analysis, competitive_analysis, etc.)
+    runResearchMutation.mutate({ tool: toolName, params: {} });
+  };
 
   if (clientLoading || !client) {
     return (
@@ -117,6 +159,7 @@ export default function ClientDetail() {
   }[] = [
     { id: 'overview', label: 'Overview', icon: User },
     { id: 'projects', label: 'Projects', icon: FileText, count: totalProjects },
+    { id: 'research', label: 'Research', icon: FlaskConical },
     { id: 'content', label: 'Content', icon: MessageSquare, count: clientPosts.length },
     { id: 'deliverables', label: 'Deliverables', icon: Download, count: clientDeliverables.length },
     { id: 'billing', label: 'Billing', icon: DollarSign },
@@ -501,7 +544,186 @@ export default function ClientDetail() {
           </div>
         )}
 
-        {/* Tab 3: Content */}
+        {/* Tab 3: Research Tools */}
+        {activeTab === 'research' && (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Client Research Tools</h3>
+                <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                  Gather intelligence about this client before starting projects. Research results are stored with the client profile.
+                </p>
+              </div>
+
+              {/* Research Tools Grid */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Voice Analysis */}
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <h4 className="flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100">
+                    <MessageSquare className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                    Voice Analysis
+                  </h4>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    Analyze brand voice from existing content samples. Determines tone, readability, and voice dimensions.
+                  </p>
+                  <button
+                    onClick={() => handleRunResearchTool('voice_analysis')}
+                    disabled={runResearchMutation.isPending && selectedTool === 'voice_analysis'}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {runResearchMutation.isPending && selectedTool === 'voice_analysis' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      'Run Voice Analysis'
+                    )}
+                  </button>
+                </div>
+
+                {/* Brand Archetype */}
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <h4 className="flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100">
+                    <User className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                    Brand Archetype
+                  </h4>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    Identify brand personality type (Expert, Friend, Innovator, etc.) to guide content creation.
+                  </p>
+                  <button
+                    onClick={() => handleRunResearchTool('brand_archetype')}
+                    disabled={runResearchMutation.isPending && selectedTool === 'brand_archetype'}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {runResearchMutation.isPending && selectedTool === 'brand_archetype' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      'Identify Archetype'
+                    )}
+                  </button>
+                </div>
+
+                {/* Competitive Analysis */}
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <h4 className="flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100">
+                    <Building2 className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                    Competitive Analysis
+                  </h4>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    Analyze competitors' content strategies and positioning to find differentiation opportunities.
+                  </p>
+                  <button
+                    onClick={() => handleRunResearchTool('competitive_analysis')}
+                    disabled={runResearchMutation.isPending && selectedTool === 'competitive_analysis'}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {runResearchMutation.isPending && selectedTool === 'competitive_analysis' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      'Analyze Competitors'
+                    )}
+                  </button>
+                </div>
+
+                {/* Market Trends */}
+                <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4">
+                  <h4 className="flex items-center gap-2 font-medium text-neutral-900 dark:text-neutral-100">
+                    <Globe className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                    Market Trends
+                  </h4>
+                  <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    Research current industry trends and topics to inform content strategy.
+                  </p>
+                  <button
+                    onClick={() => handleRunResearchTool('market_trends_research')}
+                    disabled={runResearchMutation.isPending && selectedTool === 'market_trends_research'}
+                    className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {runResearchMutation.isPending && selectedTool === 'market_trends_research' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      'Research Trends'
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Research History */}
+              <div className="mt-6 border-t border-neutral-200 dark:border-neutral-700 pt-6">
+                <h4 className="mb-4 font-medium text-neutral-900 dark:text-neutral-100">Research History</h4>
+                {researchResults.size === 0 ? (
+                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-8 text-center">
+                    <FlaskConical className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+                    <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
+                      No research has been run for this client yet.
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                      Run a tool above to start gathering client intelligence.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Array.from(researchResults.entries()).map(([toolName, result]) => (
+                      <div
+                        key={toolName}
+                        className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <FlaskConical className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                              <h5 className="font-medium text-neutral-900 dark:text-neutral-100">
+                                {toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                              </h5>
+                              <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/20 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                Completed
+                              </span>
+                            </div>
+                            {result.metadata && (
+                              <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+                                {new Date(result.metadata.executed_at).toLocaleString()}
+                              </p>
+                            )}
+                            {result.outputs && Object.keys(result.outputs).length > 0 && (
+                              <div className="mt-3 space-y-1">
+                                <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">Outputs:</p>
+                                {Object.entries(result.outputs).map(([format, path]) => (
+                                  <div key={format} className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+                                    <span className="font-mono bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                                      {format.toUpperCase()}
+                                    </span>
+                                    <span className="flex-1 truncate">{path as string}</span>
+                                    <CopyButton
+                                      text={path as string}
+                                      size="sm"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Content */}
         {activeTab === 'content' && (
           <div className="space-y-4">
             {/* Filters */}

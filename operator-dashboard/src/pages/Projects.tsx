@@ -9,6 +9,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import { Pagination } from '@/components/ui/Pagination';
 import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
+import { StatusProgressBar } from '@/components/ui/StatusProgressBar';
+import { QuickActionsDropdown } from '@/components/ui/QuickActionsDropdown';
 
 export default function Projects() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -295,7 +297,7 @@ export default function Projects() {
                     </Button>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={project.status}>{project.status}</Badge>
+                    <StatusProgressBar status={project.status} size="sm" />
                   </TableCell>
                   <TableCell>
                     <div className="text-xs text-neutral-600 dark:text-neutral-400">
@@ -311,31 +313,65 @@ export default function Projects() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() => navigate(`/dashboard/deliverables?projectId=${project.id}`)}
-                        title="View deliverables for this project"
-                      >
-                        <FileText className="h-4 w-4" />
-                        Deliverables
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="xs"
-                        onClick={() => navigate('/dashboard/wizard', { state: { projectId: project.id } })}
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        Wizard
-                      </Button>
-                      <Button
                         variant="primary"
                         size="xs"
-                        onClick={() => generateMutation.mutate(project)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateMutation.mutate(project);
+                        }}
                         disabled={generateMutation.isPending}
                       >
                         <Play className="h-4 w-4" />
                         {generateMutation.isPending ? 'Generating...' : 'Generate'}
                       </Button>
+                      <QuickActionsDropdown
+                        size="sm"
+                        actions={[
+                          {
+                            label: 'View Details',
+                            icon: 'view',
+                            onClick: () => navigate(`/dashboard/projects/${project.id}`),
+                          },
+                          {
+                            label: 'Open Wizard',
+                            icon: 'edit',
+                            onClick: () => navigate('/dashboard/wizard', { state: { projectId: project.id } }),
+                          },
+                          {
+                            label: 'View Deliverables',
+                            icon: 'download',
+                            onClick: () => navigate(`/dashboard/deliverables?projectId=${project.id}`),
+                            dividerAfter: true,
+                          },
+                          {
+                            label: 'Duplicate Project',
+                            icon: 'copy',
+                            onClick: () => {
+                              // TODO: Implement duplicate functionality
+                              alert('Duplicate functionality coming soon');
+                            },
+                          },
+                          {
+                            label: 'Export Project',
+                            icon: 'external',
+                            onClick: () => {
+                              // TODO: Implement export functionality
+                              alert('Export functionality coming soon');
+                            },
+                            dividerAfter: true,
+                          },
+                          {
+                            label: 'Archive Project',
+                            icon: 'archive',
+                            onClick: () => {
+                              if (confirm(`Archive project "${project.name}"?`)) {
+                                // TODO: Implement archive functionality
+                                alert('Archive functionality coming soon');
+                              }
+                            },
+                          },
+                        ]}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

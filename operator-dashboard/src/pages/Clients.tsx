@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell, Input, Select } from '@/components/ui';
+import { QuickActionsDropdown } from '@/components/ui/QuickActionsDropdown';
 
 interface ClientWithMetrics {
   id: string;
@@ -416,17 +417,51 @@ export default function Clients() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="link"
+                      <QuickActionsDropdown
                         size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/dashboard/clients/${client.id}`);
-                        }}
-                        className="p-0 h-auto"
-                      >
-                        View
-                      </Button>
+                        actions={[
+                          {
+                            label: 'View Details',
+                            icon: 'view',
+                            onClick: () => navigate(`/dashboard/clients/${client.id}`),
+                          },
+                          {
+                            label: 'Create Project',
+                            icon: 'edit',
+                            onClick: () => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } }),
+                          },
+                          {
+                            label: 'Send Email',
+                            icon: 'external',
+                            onClick: () => {
+                              if (client.email) {
+                                window.location.href = `mailto:${client.email}`;
+                              } else {
+                                alert('No email address available for this client');
+                              }
+                            },
+                            dividerAfter: true,
+                          },
+                          {
+                            label: 'Export Profile',
+                            icon: 'download',
+                            onClick: () => {
+                              // TODO: Implement export functionality
+                              alert('Export functionality coming soon');
+                            },
+                          },
+                          {
+                            label: 'Archive Client',
+                            icon: 'archive',
+                            onClick: () => {
+                              if (confirm(`Archive client "${client.name}"?`)) {
+                                // TODO: Implement archive functionality
+                                alert('Archive functionality coming soon');
+                              }
+                            },
+                          },
+                        ]}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

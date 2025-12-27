@@ -29,6 +29,7 @@ import { projectsApi } from '@/api/projects';
 import { clientsApi } from '@/api/clients';
 import { postsApi } from '@/api/posts';
 import { deliverablesApi } from '@/api/deliverables';
+import { StatusProgressBar } from '@/components/ui/StatusProgressBar';
 import type { PostDraft, Project } from '@/types/domain';
 import type { PaginatedResponse } from '@/types/pagination';
 
@@ -237,6 +238,12 @@ export default function ProjectDetail() {
               Archive
             </button>
           </div>
+        </div>
+
+        {/* Project Progress */}
+        <div className="mt-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 p-4">
+          <h3 className="text-sm font-medium text-neutral-900 dark:text-neutral-100 mb-3">Project Progress</h3>
+          <StatusProgressBar status={project.status} size="lg" showLabels />
         </div>
 
         {/* Stats */}
