@@ -235,9 +235,20 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
 
         {/* Main Problem Solved */}
         <div>
-          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
-            <Lightbulb className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
-            Main Problem Solved
+          <label className="mb-1 flex items-center justify-between text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <span className="flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+              Main Problem Solved
+            </span>
+            <span
+              className={`text-xs ${
+                (formData.mainProblemSolved || '').length >= 30
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-500 dark:text-neutral-400'
+              }`}
+            >
+              {(formData.mainProblemSolved || '').length}/30 characters
+            </span>
           </label>
           <textarea
             value={formData.mainProblemSolved}
