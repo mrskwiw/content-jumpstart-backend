@@ -125,7 +125,7 @@ export const QASummarySchema = z.object({
 export type QASummary = z.infer<typeof QASummarySchema>;
 
 export const DeliverableDetailsSchema = DeliverableSchema.extend({
-  filePreview: z.string().optional(),
+  filePreview: z.string().nullish(),
   filePreviewTruncated: z.boolean(),
   posts: z.array(PostSummarySchema),
   qaSummary: QASummarySchema.nullish(),
