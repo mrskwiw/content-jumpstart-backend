@@ -158,6 +158,33 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     );
   }
 
+  // Show executing step
+  if (step === 'executing') {
+    return (
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 p-8 shadow-sm">
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-600 dark:text-blue-400" />
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+              Running Research Tools
+            </h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Executing {selected.size} research {selected.size === 1 ? 'tool' : 'tools'}...
+            </p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-500 mt-2">
+              Tools: {Array.from(selected).join(', ')}
+            </p>
+          </div>
+          <div className="mt-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-4 py-3 max-w-md">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              {results.size} of {selected.size} completed
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show tool selection step
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
