@@ -282,13 +282,26 @@ def create_client(db: Session, client: ClientCreate) -> Client:
 
     Cache invalidation: Clears client caches
     """
-    db_client = Client(id=f"client-{uuid.uuid4().hex[:12]}", **client.model_dump())
+    client_id = f"client-{uuid.uuid4().hex[:12]}"
+    print(f"📝 Creating client: {client_id} ({client.name})")
+
+    db_client = Client(id=client_id, **client.model_dump())
     db.add(db_client)
-    db.commit()
+
+    try:
+        db.commit()
+        print(f"✅ Client committed to database: {client_id}")
+    except Exception as e:
+        print(f"❌ Database commit failed for client {client_id}: {str(e)}")
+        db.rollback()
+        raise
+
     db.refresh(db_client)
+    print(f"🔄 Client refreshed: {client_id}")
 
     # Invalidate caches
     invalidate_related_caches("client", "clients")
+    print(f"🗑️  Cache invalidated for client: {client_id}")
 
     return db_client
 
@@ -301,19 +314,33 @@ def update_client(
 
     Cache invalidation: Clears client and project caches
     """
+    print(f"🔄 Updating client: {client_id}")
+
     db_client = get_client(db, client_id)
     if not db_client:
+        print(f"❌ Client not found: {client_id}")
         return None
 
     update_data = client_update.model_dump(exclude_unset=True)
+    print(f"📝 Update fields: {list(update_data.keys())}")
+
     for key, value in update_data.items():
         setattr(db_client, key, value)
 
-    db.commit()
+    try:
+        db.commit()
+        print(f"✅ Client update committed to database: {client_id}")
+    except Exception as e:
+        print(f"❌ Database commit failed for client {client_id}: {str(e)}")
+        db.rollback()
+        raise
+
     db.refresh(db_client)
+    print(f"🔄 Client refreshed: {client_id}")
 
     # Invalidate caches
     invalidate_related_caches("client", "clients", "project", "projects")
+    print(f"🗑️  Cache invalidated for client: {client_id}")
 
     return db_client
 

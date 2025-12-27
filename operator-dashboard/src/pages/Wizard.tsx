@@ -73,6 +73,15 @@ export default function Wizard() {
     onSuccess: (data) => {
       setClientId(data.id);
       qc.invalidateQueries({ queryKey: ['clients'] });
+      console.log(`✅ Client created successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Client creation failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -82,9 +91,18 @@ export default function Wizard() {
       const { id, ...updateData } = data;
       return clientsApi.update(id, updateData);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['client', clientId] });
+      console.log(`✅ Client updated successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Client update failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -94,6 +112,15 @@ export default function Wizard() {
     onSuccess: (data) => {
       setProjectId(data.id);
       qc.invalidateQueries({ queryKey: ['project', data.id] });
+      console.log(`✅ Project created successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Project creation failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -163,48 +190,73 @@ export default function Wizard() {
 
   // Handler for saving client profile
   const handleSaveProfile = async (brief: ClientBrief) => {
+    console.log('📝 Starting client profile save...', {
+      isCreatingNew: isCreatingNewClient,
+      existingClientId: clientId,
+      companyName: brief.companyName,
+    });
+
     try {
       let finalClientId = clientId;
 
-      // Create client if creating new, otherwise use existing clientId
+      // Step 1: Create or update client
       if (isCreatingNewClient) {
-        const client = await createClientMutation.mutateAsync({
-          name: brief.companyName,
-          email: undefined, // Can be added to form later
-          businessDescription: brief.businessDescription,
-          idealCustomer: brief.idealCustomer,
-          mainProblemSolved: brief.mainProblemSolved,
-          tonePreference: brief.tonePreference,
-          platforms: brief.platforms,
-          customerPainPoints: brief.customerPainPoints,
-          customerQuestions: brief.customerQuestions,
-        });
-        finalClientId = client.id;
+        console.log('🆕 Creating new client...');
+        try {
+          const client = await createClientMutation.mutateAsync({
+            name: brief.companyName,
+            email: undefined, // Can be added to form later
+            businessDescription: brief.businessDescription,
+            idealCustomer: brief.idealCustomer,
+            mainProblemSolved: brief.mainProblemSolved,
+            tonePreference: brief.tonePreference,
+            platforms: brief.platforms,
+            customerPainPoints: brief.customerPainPoints,
+            customerQuestions: brief.customerQuestions,
+          });
+          finalClientId = client.id;
+          console.log('✅ Client created:', finalClientId);
+        } catch (error: any) {
+          console.error('❌ Client creation failed:', error);
+          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          alert(`Failed to create client: ${errorMsg}\n\nPlease check the console for details and try again.`);
+          return; // Stop here - don't try to create project
+        }
       } else if (!clientId) {
         alert('Please select an existing client or create a new one.');
         return;
       } else {
-        // Always update existing client with all fields from the form
-        await updateClientMutation.mutateAsync({
-          id: clientId,
-          name: brief.companyName,
-          businessDescription: brief.businessDescription,
-          idealCustomer: brief.idealCustomer,
-          mainProblemSolved: brief.mainProblemSolved,
-          tonePreference: brief.tonePreference,
-          platforms: brief.platforms,
-          customerPainPoints: brief.customerPainPoints,
-          customerQuestions: brief.customerQuestions,
-        });
-        finalClientId = clientId;
+        console.log('🔄 Updating existing client...', clientId);
+        try {
+          // Always update existing client with all fields from the form
+          await updateClientMutation.mutateAsync({
+            id: clientId,
+            name: brief.companyName,
+            businessDescription: brief.businessDescription,
+            idealCustomer: brief.idealCustomer,
+            mainProblemSolved: brief.mainProblemSolved,
+            tonePreference: brief.tonePreference,
+            platforms: brief.platforms,
+            customerPainPoints: brief.customerPainPoints,
+            customerQuestions: brief.customerQuestions,
+          });
+          finalClientId = clientId;
+          console.log('✅ Client updated:', finalClientId);
+        } catch (error: any) {
+          console.error('❌ Client update failed:', error);
+          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          alert(`Failed to update client: ${errorMsg}\n\nPlease check the console for details and try again.`);
+          return; // Stop here - don't try to create project
+        }
       }
 
-      // Create project for this client
+      // Step 2: Create project for this client
       if (!finalClientId) {
-        alert('Please select an existing client or create a new one.');
+        alert('Client ID is missing. Please try again.');
         return;
       }
 
+      console.log('📋 Creating project for client...', finalClientId);
       const projectInput: CreateProjectInput = {
         name: `${brief.companyName} - Content Project`,
         clientId: finalClientId,
@@ -217,16 +269,26 @@ export default function Wizard() {
         tone: brief.tonePreference ?? undefined,
       };
 
-      await createProjectMutation.mutateAsync(projectInput);
+      try {
+        await createProjectMutation.mutateAsync(projectInput);
+        console.log('✅ Project created successfully');
+      } catch (error: any) {
+        console.error('❌ Project creation failed:', error);
+        const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+        alert(`Client saved successfully, but project creation failed: ${errorMsg}\n\nThe client has been saved. You can try creating the project again from the client detail page.`);
+        return; // Stop here - client is saved but project failed
+      }
 
       // Save brief locally
       setClientBrief(brief);
 
       // Move to next step
+      console.log('✅ All save operations successful, advancing to research step');
       advanceToStep('research');
-    } catch (error) {
-      console.error('Failed to create project:', error);
-      alert('Failed to create project. Please try again.');
+    } catch (error: any) {
+      // This catch should rarely be hit since we have specific catches above
+      console.error('❌ Unexpected error in handleSaveProfile:', error);
+      alert(`An unexpected error occurred: ${error?.message || 'Unknown error'}\n\nPlease check the console for details.`);
     }
   };
 

@@ -69,4 +69,26 @@ export const clientsApi = {
     const { data } = await apiClient.patch<Client>(`/api/clients/${clientId}`, backendInput);
     return data;
   },
+
+  async exportProfile(clientId: string): Promise<{ blob: Blob; filename: string }> {
+    const response = await apiClient.get(`/api/clients/${clientId}/export-profile`, {
+      responseType: 'blob',
+    });
+
+    // Extract filename from Content-Disposition header if available
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'client_profile.md';
+
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/"/g, '');
+      }
+    }
+
+    return {
+      blob: response.data,
+      filename,
+    };
+  },
 };

@@ -46,6 +46,7 @@ export default function ClientDetail() {
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [showDataDialog, setShowDataDialog] = useState(false);
   const [researchResults, setResearchResults] = useState<Map<string, any>>(new Map());
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch client data
   const { data: client, isLoading: clientLoading } = useQuery({
@@ -106,6 +107,31 @@ export default function ClientDetail() {
     // For now, run tools without additional data collection
     // TODO: Add data collection dialog for tools that need it (voice_analysis, competitive_analysis, etc.)
     runResearchMutation.mutate({ tool: toolName, params: {} });
+  };
+
+  // Handler for exporting client profile
+  const handleExportProfile = async () => {
+    if (!client) return;
+
+    setIsExporting(true);
+    try {
+      const { blob, filename } = await clientsApi.exportProfile(client.id);
+
+      // Create blob URL and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export client profile:', error);
+      alert(`Failed to export client profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (clientLoading || !client) {
@@ -222,6 +248,24 @@ export default function ClientDetail() {
             <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
               <Mail className="h-4 w-4" />
               Send Email
+            </button>
+            <button
+              onClick={handleExportProfile}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Export client profile as standalone document"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Export Profile
+                </>
+              )}
             </button>
             <button
               onClick={() => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } })}
