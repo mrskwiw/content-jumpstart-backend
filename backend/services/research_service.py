@@ -54,9 +54,24 @@ except ImportError as e:
     logger = __import__("logging").getLogger(__name__)
     logger.warning(f"Research tools not available: {str(e)}")
 
-from backend.models import Project, Client
-from backend.services import crud
-from src.utils.logger import logger
+# IMPORTANT: Use relative imports to avoid SQLAlchemy table redefinition errors
+# Absolute imports (backend.models) cause circular dependencies in production
+from models import Project, Client
+from services import crud
+
+# Logger import with fallback
+try:
+    import sys
+    from pathlib import Path
+    # Add src to path for logger
+    project_root = Path(__file__).parent.parent.parent
+    src_path = project_root / "src"
+    if str(src_path) not in sys.path:
+        sys.path.insert(0, str(src_path))
+    from utils.logger import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 class ResearchService:
