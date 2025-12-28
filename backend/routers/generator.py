@@ -8,11 +8,11 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db
+from database import get_db, SessionLocal
 from middleware.auth_dependency import get_current_user
 from models import User
 from schemas.run import RunResponse
@@ -44,10 +44,68 @@ class ExportInput(BaseModel):
     format: str = "txt"  # txt, docx, pdf
 
 
+async def run_generation_background(run_id: str, project_id: str, client_id: str, num_posts: int = 30):
+    """
+    Background task to run content generation.
+
+    This prevents HTTP timeouts by running generation asynchronously.
+    Updates the Run record with progress and results.
+    """
+    # Create new DB session for background task
+    db = SessionLocal()
+
+    try:
+        logger.info(f"Background generation started for run {run_id}")
+
+        # Execute content generation via service
+        result = await generator_service.generate_all_posts(
+            db=db,
+            project_id=project_id,
+            client_id=client_id,
+            num_posts=num_posts,
+        )
+
+        # Update run status to succeeded (use LogEntry format)
+        from datetime import datetime
+        from schemas.run import LogEntry
+
+        timestamp = datetime.now().isoformat()
+        logs = [
+            LogEntry(timestamp=timestamp, message="Generation started"),
+            LogEntry(timestamp=timestamp, message="CLI execution completed"),
+            LogEntry(timestamp=timestamp, message=f"Created {result['posts_created']} post records"),
+            LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
+        ]
+
+        crud.update_run(
+            db,
+            run_id,
+            status="succeeded",
+            logs=[log.model_dump() for log in logs]
+        )
+
+        logger.info(f"Background generation completed successfully for run {run_id}")
+
+    except Exception as e:
+        logger.error(f"Background generation failed for run {run_id}: {str(e)}", exc_info=True)
+
+        # Update run status to failed
+        crud.update_run(
+            db,
+            run_id,
+            status="failed",
+            error_message=str(e)
+        )
+
+    finally:
+        db.close()
+
+
 @router.post("/generate-all", response_model=RunResponse)
 @limiter.limit("10/hour")  # TR-004: Rate limit expensive generation operations
 async def generate_all(
     request: Request,
+    background_tasks: BackgroundTasks,
     input: GenerateAllInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -56,10 +114,12 @@ async def generate_all(
     Generate all posts for a project.
 
     This endpoint:
-    1. Creates a Run record
-    2. Triggers the CLI content generator
-    3. Updates Run status
-    4. Creates Post records
+    1. Creates a Run record with status="pending"
+    2. Queues background task to run generation
+    3. Returns immediately with run_id
+    4. Client polls GET /api/runs/{run_id} for status updates
+
+    Prevents HTTP timeouts by running generation asynchronously.
     """
     # Verify project exists
     project = crud.get_project(db, input.project_id)
@@ -77,60 +137,29 @@ async def generate_all(
             detail=f"Client {input.client_id} not found"
         )
 
-    # Create Run record
+    # Create Run record with status="pending"
     db_run = crud.create_run(db, project_id=input.project_id, is_batch=input.is_batch)
 
-    # Update run status to running
+    logger.info(f"Created run {db_run.id} for project {input.project_id}")
+
+    # Queue background task (returns immediately)
+    background_tasks.add_task(
+        run_generation_background,
+        run_id=db_run.id,
+        project_id=input.project_id,
+        client_id=input.client_id,
+        num_posts=30,  # TODO: Make configurable via input
+    )
+
+    # Update run status to running (background task will update to succeeded/failed)
     crud.update_run(db, db_run.id, status="running")
 
-    try:
-        logger.info(f"Starting content generation for project {input.project_id}")
+    # Refresh to get updated data
+    db.refresh(db_run)
 
-        # Execute content generation via service
-        result = await generator_service.generate_all_posts(
-            db=db,
-            project_id=input.project_id,
-            client_id=input.client_id,
-            num_posts=30,  # TODO: Make configurable via input
-        )
+    logger.info(f"Queued background generation task for run {db_run.id}")
 
-        # Update run status to succeeded (use LogEntry format)
-        from datetime import datetime
-        from schemas.run import LogEntry
-
-        timestamp = datetime.now().isoformat()
-        logs = [
-            LogEntry(timestamp=timestamp, message="Generation started"),
-            LogEntry(timestamp=timestamp, message="CLI execution completed"),
-            LogEntry(timestamp=timestamp, message=f"Created {result['posts_created']} post records"),
-            LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
-        ]
-
-        crud.update_run(
-            db,
-            db_run.id,
-            status="succeeded",
-            logs=[log.model_dump() for log in logs]  # Convert to dicts for JSON serialization
-        )
-
-        # Refresh to get updated data
-        db.refresh(db_run)
-
-        logger.info(f"Content generation completed successfully for run {db_run.id}")
-        return db_run
-
-    except Exception as e:
-        # Update run status to failed
-        crud.update_run(
-            db,
-            db_run.id,
-            status="failed",
-            error_message=str(e)
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Generation failed: {str(e)}"
-        )
+    return db_run
 
 
 @router.post("/regenerate", response_model=RunResponse)
