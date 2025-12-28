@@ -61,6 +61,7 @@ export const RunSchema = z.object({
   completedAt: z.string().datetime().optional(),
   logs: z.array(z.string()).optional(),
   status: RunStatusSchema.optional(),
+  errorMessage: z.string().optional(),
 });
 export type Run = z.infer<typeof RunSchema>;
 
