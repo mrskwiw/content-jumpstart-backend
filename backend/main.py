@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
 from slowapi import _rate_limit_exceeded_handler
@@ -167,13 +167,18 @@ async def spa_routing_middleware(request: Request, call_next):
 
 
 # Health check endpoint
-@app.get("/health", tags=["Health"])
-async def health_check():
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+async def health_check(request: Request):
     """
     Health check endpoint.
 
+    Supports both GET and HEAD requests for health checks.
     Returns API status and rate limit statistics.
     """
+    # HEAD requests should just return 200 OK (for Render health checks)
+    if request.method == "HEAD":
+        return Response(status_code=200)
+
     usage_stats = rate_limiter.get_usage_stats()
     return {
         "status": "healthy",
@@ -251,14 +256,19 @@ if FRONTEND_BUILD_DIR.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
 
     # Root route: serve React app with no-cache headers
-    @app.get("/")
-    async def serve_root():
+    @app.api_route("/", methods=["GET", "HEAD"])
+    async def serve_root(request: Request):
         """
         Serve React app at root URL with cache prevention.
 
+        Supports both GET and HEAD requests for health checks.
         Critical: HTML file must not be cached to ensure users get
         the latest version and correct chunk references after deployments.
         """
+        # HEAD requests should just return 200 OK (for Render health checks)
+        if request.method == "HEAD":
+            return Response(status_code=200)
+
         response = FileResponse(FRONTEND_BUILD_DIR / "index.html")
         # Prevent HTML caching to avoid chunk loading errors
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
