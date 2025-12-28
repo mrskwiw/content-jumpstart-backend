@@ -490,6 +490,7 @@ export default function Wizard() {
           <GenerationPanel
             projectId={projectId}
             clientId={clientId}
+            templateQuantities={templateQuantities}
             onStarted={() => {
               qc.invalidateQueries({ queryKey: ['runs', { projectId }] });
               refetchPosts();

@@ -8,10 +8,11 @@ import { Play, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 interface Props {
   projectId: string;
   clientId: string;
+  templateQuantities?: Record<number, number>;
   onStarted?: (run: Run) => void;
 }
 
-export function GenerationPanel({ projectId, clientId, onStarted }: Props) {
+export function GenerationPanel({ projectId, clientId, templateQuantities, onStarted }: Props) {
   const [runId, setRunId] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
 
@@ -77,6 +78,7 @@ export function GenerationPanel({ projectId, clientId, onStarted }: Props) {
               projectId,
               clientId,
               isBatch: true,
+              templateQuantities,
             })
           }
           className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"

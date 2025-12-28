@@ -156,6 +156,7 @@ export const GenerateAllSchema = z.object({
   projectId: z.string(),
   clientId: z.string(),
   isBatch: z.boolean().default(true),
+  templateQuantities: z.record(z.number()).optional(),
 });
 export type GenerateAllInput = z.infer<typeof GenerateAllSchema>;
 

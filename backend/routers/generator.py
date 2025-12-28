@@ -30,6 +30,7 @@ class GenerateAllInput(BaseModel):
     project_id: str
     client_id: str
     is_batch: bool = True
+    template_quantities: Optional[dict[str, int]] = None  # Optional template quantities from frontend
 
 
 class RegenerateInput(BaseModel):
@@ -44,7 +45,13 @@ class ExportInput(BaseModel):
     format: str = "txt"  # txt, docx, pdf
 
 
-async def run_generation_background(run_id: str, project_id: str, client_id: str, num_posts: int = 30):
+async def run_generation_background(
+    run_id: str,
+    project_id: str,
+    client_id: str,
+    num_posts: int = 30,
+    template_quantities: Optional[dict[str, int]] = None,
+):
     """
     Background task to run content generation.
 
@@ -56,6 +63,8 @@ async def run_generation_background(run_id: str, project_id: str, client_id: str
 
     try:
         logger.info(f"Background generation started for run {run_id}")
+        if template_quantities:
+            logger.info(f"Using template quantities from request: {template_quantities}")
 
         # Execute content generation via service
         result = await generator_service.generate_all_posts(
@@ -63,6 +72,7 @@ async def run_generation_background(run_id: str, project_id: str, client_id: str
             project_id=project_id,
             client_id=client_id,
             num_posts=num_posts,
+            template_quantities=template_quantities,
         )
 
         # Update run status to succeeded (use LogEntry format)
@@ -149,6 +159,7 @@ async def generate_all(
         project_id=input.project_id,
         client_id=input.client_id,
         num_posts=30,  # TODO: Make configurable via input
+        template_quantities=input.template_quantities,  # Pass template quantities from frontend
     )
 
     # Update run status to running (background task will update to succeeded/failed)
