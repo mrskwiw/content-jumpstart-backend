@@ -38,7 +38,7 @@ class DeliverableResponse(DeliverableBase):
         ),  # Convert snake_case to camelCase
     )
 
-    @field_serializer('created_at', 'delivered_at', 'file_modified_at', when_used='always')
+    @field_serializer('created_at', 'delivered_at', when_used='always')
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
         """Serialize datetime to ISO 8601 with timezone (Z suffix for UTC)"""
         if dt is None:
