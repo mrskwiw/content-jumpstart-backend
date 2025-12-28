@@ -43,6 +43,16 @@ async def lifespan(app: FastAPI):
     print(f">> CORS Origins: {settings.cors_origins_list}")
     print(f">> DEBUG: CORS_ORIGINS env var = '{settings.CORS_ORIGINS}'")
 
+    # Log database connection info
+    from database import engine
+    db_url = str(engine.url)
+    # Mask password in URL for security
+    if '@' in db_url:
+        db_display = db_url.split('@')[1] if '@' in db_url else db_url
+        print(f">> Database: PostgreSQL ({db_display})")
+    else:
+        print(f">> Database: SQLite (local)")
+
     # Initialize database
     init_db()
     print(">> Database initialized")
