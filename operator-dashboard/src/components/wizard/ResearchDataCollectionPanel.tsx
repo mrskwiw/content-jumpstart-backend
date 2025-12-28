@@ -129,9 +129,9 @@ export function ResearchDataCollectionPanel({
   );
 
   const handleTextListChange = (key: string, value: string) => {
-    // Convert comma-separated string to array
-    const items = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
-    setCollectedData(prev => ({ ...prev, [key]: items }));
+    // Store the raw string value directly without processing
+    // Processing will happen during validation/submission
+    setCollectedData(prev => ({ ...prev, [key]: value }));
     setErrors(prev => ({ ...prev, [key]: '' }));
   };
 
@@ -162,22 +162,28 @@ export function ResearchDataCollectionPanel({
       const value = collectedData[field.key];
 
       if (field.required) {
-        if (!value || (Array.isArray(value) && value.length === 0)) {
+        // For text-list fields, convert string to array for validation
+        let processedValue = value;
+        if (field.type === 'text-list' && typeof value === 'string') {
+          processedValue = value.split(',').map(item => item.trim()).filter(item => item.length > 0);
+        }
+
+        if (!processedValue || (Array.isArray(processedValue) && processedValue.length === 0) || (typeof processedValue === 'string' && processedValue.trim().length === 0)) {
           newErrors[field.key] = `${field.label} is required`;
           isValid = false;
           return;
         }
 
-        if (Array.isArray(value)) {
+        if (Array.isArray(processedValue)) {
           // Check minimum count
-          if (field.min && value.length < field.min) {
+          if (field.min && processedValue.length < field.min) {
             newErrors[field.key] = `Minimum ${field.min} items required`;
             isValid = false;
             return;
           }
 
           // Check maximum count
-          if (field.max && value.length > field.max) {
+          if (field.max && processedValue.length > field.max) {
             newErrors[field.key] = `Maximum ${field.max} items allowed`;
             isValid = false;
             return;
@@ -185,14 +191,14 @@ export function ResearchDataCollectionPanel({
 
           // For content samples, check each item length
           if (field.key === 'content_samples') {
-            const validSamples = value.filter((sample: string) => sample.length >= 50);
+            const validSamples = processedValue.filter((sample: string) => sample.length >= 50);
             if (validSamples.length < (field.min || 0)) {
               newErrors[field.key] = `At least ${field.min} samples must be 50+ characters`;
               isValid = false;
               return;
             }
           }
-        } else if (typeof value === 'string') {
+        } else if (typeof processedValue === 'string') {
           // Check minimum length
           if (field.min && value.length < field.min) {
             newErrors[field.key] = `Minimum ${field.min} characters required`;
@@ -209,7 +215,17 @@ export function ResearchDataCollectionPanel({
 
   const handleContinue = () => {
     if (validateData()) {
-      onContinue(collectedData);
+      // Process text-list fields: convert strings to arrays
+      const processedData = { ...collectedData };
+      requiredFields.forEach(field => {
+        if (field.type === 'text-list' && typeof processedData[field.key] === 'string') {
+          processedData[field.key] = processedData[field.key]
+            .split(',')
+            .map((item: string) => item.trim())
+            .filter((item: string) => item.length > 0);
+        }
+      });
+      onContinue(processedData);
     }
   };
 
@@ -290,7 +306,7 @@ export function ResearchDataCollectionPanel({
                     {field.required && <span className="text-rose-500">*</span>}
                   </label>
                   <Textarea
-                    value={(collectedData[field.key] || []).join(', ')}
+                    value={collectedData[field.key] || ''}
                     onChange={(e) => handleTextListChange(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     rows={3}
