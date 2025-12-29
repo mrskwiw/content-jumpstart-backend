@@ -1,12 +1,14 @@
 """
 Database configuration and session management.
 """
+import sys
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import OperationalError, DatabaseError
 
 from config import settings
 from utils.query_profiler import enable_sqlalchemy_profiling
@@ -14,29 +16,80 @@ from utils.query_profiler import enable_sqlalchemy_profiling
 # Create SQLAlchemy engine with optimized connection pooling
 database_url = make_url(settings.DATABASE_URL)
 
+print(f">> DEBUG: Creating database engine for {database_url.drivername}")
+
 # SQLite-specific connection args (single-threaded, no real pooling)
 if database_url.drivername.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
     # SQLite uses NullPool or SingletonThreadPool by default
     # Connection pooling settings don't apply
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args=connect_args,
-        echo_pool=settings.DB_ECHO_POOL,
-    )
+    try:
+        engine = create_engine(
+            settings.DATABASE_URL,
+            connect_args=connect_args,
+            echo_pool=settings.DB_ECHO_POOL,
+        )
+        print(f">> DEBUG: SQLite engine created successfully")
+    except Exception as e:
+        print(f">> ERROR: Failed to create SQLite engine: {e}")
+        raise
 else:
     # PostgreSQL/MySQL connection pooling (production)
     connect_args = {}
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args=connect_args,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_recycle=settings.DB_POOL_RECYCLE,
-        pool_pre_ping=settings.DB_POOL_PRE_PING,
-        echo_pool=settings.DB_ECHO_POOL,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-    )
+    try:
+        engine = create_engine(
+            settings.DATABASE_URL,
+            connect_args=connect_args,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
+            pool_recycle=settings.DB_POOL_RECYCLE,
+            pool_pre_ping=settings.DB_POOL_PRE_PING,
+            echo_pool=settings.DB_ECHO_POOL,
+            pool_timeout=settings.DB_POOL_TIMEOUT,
+        )
+        print(f">> DEBUG: PostgreSQL engine created successfully")
+
+        # Test connection immediately
+        print(f">> DEBUG: Testing PostgreSQL connection...")
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT 1"))
+                result.fetchone()
+            print(f">> DEBUG: PostgreSQL connection test PASSED")
+        except OperationalError as e:
+            error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
+            print(f">> ERROR: PostgreSQL connection FAILED")
+            print(f">> ERROR: Cannot connect to database")
+            print(f">> ERROR: Details: {error_msg}")
+
+            # Provide helpful troubleshooting tips
+            if "could not connect to server" in error_msg.lower():
+                print(f">> ERROR: Database server unreachable. Check:")
+                print(f">>   1. DATABASE_URL is correct (internal URL for Render)")
+                print(f">>   2. PostgreSQL service is running")
+                print(f">>   3. Network/firewall allows connection")
+            elif "authentication failed" in error_msg.lower() or "password" in error_msg.lower():
+                print(f">> ERROR: Authentication failed. Check:")
+                print(f">>   1. Username is correct")
+                print(f">>   2. Password is correct")
+                print(f">>   3. User has access to the database")
+            elif "database" in error_msg.lower() and "does not exist" in error_msg.lower():
+                print(f">> ERROR: Database does not exist. Check:")
+                print(f">>   1. Database name in DATABASE_URL is correct")
+                print(f">>   2. Database has been created")
+
+            print(f">> FATAL: Cannot start application without database connection")
+            sys.exit(1)
+        except Exception as e:
+            print(f">> ERROR: Unexpected database error: {e}")
+            print(f">> FATAL: Cannot start application without database connection")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f">> ERROR: Failed to create PostgreSQL engine: {e}")
+        print(f">> ERROR: DATABASE_URL format may be invalid")
+        print(f">> ERROR: Expected format: postgresql://user:pass@host:port/dbname")
+        raise
 
 # Enable query profiling for performance monitoring
 enable_sqlalchemy_profiling(engine)
