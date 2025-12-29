@@ -275,6 +275,11 @@ class GeneratorService:
 
             # Generate posts using template quantities
             logger.info(f"Calling generate_posts_async with template quantities: {template_quantities}")
+            logger.info(f"Template quantities type: {type(template_quantities)}")
+            logger.info(f"Template quantities keys: {list(template_quantities.keys()) if template_quantities else 'None'}")
+            logger.info(f"Template quantities values: {list(template_quantities.values()) if template_quantities else 'None'}")
+            logger.info(f"Expected total posts: {sum(template_quantities.values()) if template_quantities else 0}")
+
             try:
                 posts = await generator.generate_posts_async(
                     client_brief=brief,
@@ -284,7 +289,7 @@ class GeneratorService:
                     max_concurrent=5,
                     use_client_memory=False,  # Not using client memory for now
                 )
-                logger.info(f"Successfully generated {len(posts)} posts")
+                logger.info(f"Successfully generated {len(posts)} posts (expected: {sum(template_quantities.values()) if template_quantities else 'unknown'})")
 
                 if len(posts) == 0:
                     logger.warning("⚠️ CRITICAL: generate_posts_async returned 0 posts!")
