@@ -46,6 +46,18 @@ async def lifespan(app: FastAPI):
     # Log database connection info
     from database import engine
     db_url = str(engine.url)
+
+    # Debug: Show DATABASE_URL from settings (helps diagnose Render env var issues)
+    import os
+    raw_db_url = os.getenv("DATABASE_URL", "NOT_SET")
+    if raw_db_url != "NOT_SET" and "@" in raw_db_url:
+        # Mask password for security
+        raw_db_display = raw_db_url.split('@')[0].split(':')[0] + ":***@" + raw_db_url.split('@')[1]
+    else:
+        raw_db_display = raw_db_url[:50] if raw_db_url != "NOT_SET" else "NOT_SET"
+    print(f">> DEBUG: DATABASE_URL env var = '{raw_db_display}'")
+    print(f">> DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL[:80]}...'")
+
     # Mask password in URL for security
     if '@' in db_url:
         db_display = db_url.split('@')[1] if '@' in db_url else db_url
