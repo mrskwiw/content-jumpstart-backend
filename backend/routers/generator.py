@@ -73,6 +73,7 @@ async def run_generation_background(
             client_id=client_id,
             num_posts=num_posts,
             template_quantities=template_quantities,
+            run_id=run_id,  # Pass run_id so posts can reference the run
         )
 
         # Update run status to succeeded (use LogEntry format)

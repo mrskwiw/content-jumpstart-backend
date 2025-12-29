@@ -47,6 +47,7 @@ class GeneratorService:
         num_posts: Optional[int] = None,
         platform: Optional[str] = None,
         template_quantities: Optional[Dict[str, int]] = None,
+        run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Generate all posts for a project
@@ -105,6 +106,7 @@ class GeneratorService:
                 client=client,
                 template_quantities=template_quantities_int,
                 platform=platform,
+                run_id=run_id,
             )
 
         # Legacy mode: use num_posts parameter
@@ -182,6 +184,7 @@ class GeneratorService:
         client: any,
         template_quantities: Dict[int, int],
         platform: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Generate posts using template quantities (direct content generator call)
@@ -303,17 +306,15 @@ class GeneratorService:
                     db_post = Post(
                         id=post_id,
                         project_id=project.id,
+                        run_id=run_id or f"run-{uuid.uuid4().hex[:12]}",  # Use provided run_id or generate new one
                         content=post.content,
-                        platform=post.target_platform.value.lower(),
+                        target_platform=post.target_platform.value.lower(),  # Fixed: was 'platform', should be 'target_platform'
                         template_id=str(post.template_id),
                         template_name=post.template_name,
                         variant=post.variant,
                         word_count=post.word_count,
                         has_cta=post.has_cta,
-                        needs_review=False,  # Template quantities are deliberate choices
-                        review_reasons=[],
-                        keywords_used=post.keywords_used or [],
-                        status="approved",
+                        status="approved",  # Template quantities are deliberate choices
                         created_at=datetime.utcnow(),
                     )
                     db.add(db_post)
