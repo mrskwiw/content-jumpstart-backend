@@ -63,6 +63,7 @@ def get_project(db: Session, project_id: str) -> Optional[Project]:
         db.query(Project)
         .options(
             joinedload(Project.client),
+            joinedload(Project.brief),  # FIXED: Added missing brief eager loading (fixes session error in generation task)
             joinedload(Project.posts),
             joinedload(Project.deliverables),
             joinedload(Project.runs),
@@ -92,6 +93,7 @@ def get_projects(
     # Eager load all relationships to prevent N+1 queries
     query = db.query(Project).options(
         joinedload(Project.client),
+        joinedload(Project.brief),
         joinedload(Project.posts),
         joinedload(Project.deliverables),
         joinedload(Project.runs),
@@ -134,6 +136,7 @@ def get_projects_cursor(
     # Eager load all relationships
     query = db.query(Project).options(
         joinedload(Project.client),
+        joinedload(Project.brief),
         joinedload(Project.posts),
         joinedload(Project.deliverables),
         joinedload(Project.runs),
@@ -270,10 +273,19 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100) -> List[Client]:
     """
     Get list of clients.
 
+    Performance: Uses eager loading for projects relationship
+    to prevent N+1 query problem.
+
     Caching: Medium TTL (10 minutes) - clients change less frequently
     Cache invalidation: On client create
     """
-    return db.query(Client).offset(skip).limit(limit).all()
+    return (
+        db.query(Client)
+        .options(joinedload(Client.projects))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def create_client(db: Session, client: ClientCreate) -> Client:
@@ -353,10 +365,21 @@ def get_post(db: Session, post_id: str) -> Optional[Post]:
     """
     Get post by ID.
 
+    Performance: Uses eager loading for project and run relationships
+    to prevent N+1 query problem.
+
     Caching: Short TTL (5 minutes)
     Cache invalidation: On post creation (via generator)
     """
-    return db.query(Post).filter(Post.id == post_id).first()
+    return (
+        db.query(Post)
+        .options(
+            joinedload(Post.project),
+            joinedload(Post.run)
+        )
+        .filter(Post.id == post_id)
+        .first()
+    )
 
 
 @cache_short(key_prefix="posts")
@@ -531,8 +554,21 @@ def get_posts_cursor(
 
 
 def get_deliverable(db: Session, deliverable_id: str) -> Optional[Deliverable]:
-    """Get deliverable by ID"""
-    return db.query(Deliverable).filter(Deliverable.id == deliverable_id).first()
+    """
+    Get deliverable by ID.
+
+    Performance: Uses eager loading for project and client relationships
+    to prevent N+1 query problem.
+    """
+    return (
+        db.query(Deliverable)
+        .options(
+            joinedload(Deliverable.project),
+            joinedload(Deliverable.client)
+        )
+        .filter(Deliverable.id == deliverable_id)
+        .first()
+    )
 
 
 def get_deliverables(
@@ -587,13 +623,33 @@ def mark_deliverable_delivered(
 
 
 def get_brief(db: Session, brief_id: str) -> Optional[Brief]:
-    """Get brief by ID"""
-    return db.query(Brief).filter(Brief.id == brief_id).first()
+    """
+    Get brief by ID.
+
+    Performance: Uses eager loading for project relationship
+    to prevent N+1 query problem.
+    """
+    return (
+        db.query(Brief)
+        .options(joinedload(Brief.project))
+        .filter(Brief.id == brief_id)
+        .first()
+    )
 
 
 def get_brief_by_project(db: Session, project_id: str) -> Optional[Brief]:
-    """Get brief by project ID"""
-    return db.query(Brief).filter(Brief.project_id == project_id).first()
+    """
+    Get brief by project ID.
+
+    Performance: Uses eager loading for project relationship
+    to prevent N+1 query problem.
+    """
+    return (
+        db.query(Brief)
+        .options(joinedload(Brief.project))
+        .filter(Brief.project_id == project_id)
+        .first()
+    )
 
 
 def create_brief(
@@ -617,9 +673,19 @@ def create_brief(
 
 
 def get_run(db: Session, run_id: str):
-    """Get run by ID"""
+    """
+    Get run by ID.
+
+    Performance: Uses eager loading for project relationship
+    to prevent N+1 query problem.
+    """
     from models import Run
-    return db.query(Run).filter(Run.id == run_id).first()
+    return (
+        db.query(Run)
+        .options(joinedload(Run.project))
+        .filter(Run.id == run_id)
+        .first()
+    )
 
 
 def get_runs(

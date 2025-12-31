@@ -47,6 +47,7 @@ class GeneratorService:
         num_posts: Optional[int] = None,
         platform: Optional[str] = None,
         template_quantities: Optional[Dict[str, int]] = None,
+        custom_topics: Optional[List[str]] = None,  # NEW: topic override for generation
         run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
@@ -106,6 +107,7 @@ class GeneratorService:
                 client=client,
                 template_quantities=template_quantities_int,
                 platform=platform,
+                custom_topics=custom_topics,  # NEW: pass topic override
                 run_id=run_id,
             )
 
@@ -126,7 +128,10 @@ class GeneratorService:
         )
 
         if not result["success"]:
-            raise Exception(result.get("error", "Generation failed"))
+            error_details = result.get("error", "Unknown error - CLI execution failed")
+            logger.error(f"CLI generation failed: {error_details}")
+            logger.error(f"Full result: {result}")
+            raise Exception(f"Content generation failed: {error_details}")
 
         # Create Post records in database
         posts_created = 0
@@ -184,6 +189,7 @@ class GeneratorService:
         client: any,
         template_quantities: Dict[int, int],
         platform: Optional[str] = None,
+        custom_topics: Optional[List[str]] = None,  # NEW: topic override for generation
         run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
@@ -212,22 +218,22 @@ class GeneratorService:
             logger.info(f"Client: {client.name} (ID: {client.id})")
             logger.info(f"Project: {project.name} (ID: {project.id})")
 
-            # Add src to path to import content generator
-            src_path = Path(__file__).parent.parent.parent / "src"
-            logger.info(f"Adding src path to sys.path: {src_path}")
+            # Add project root to path to import from src package
+            project_root = Path(__file__).parent.parent.parent
+            logger.info(f"Adding project root to sys.path: {project_root}")
 
-            if not src_path.exists():
-                raise FileNotFoundError(f"Source path does not exist: {src_path}")
+            if not project_root.exists():
+                raise FileNotFoundError(f"Project root does not exist: {project_root}")
 
-            if str(src_path) not in sys.path:
-                sys.path.insert(0, str(src_path))
-                logger.info(f"Successfully added {src_path} to sys.path")
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+                logger.info(f"Successfully added {project_root} to sys.path")
 
-            # Import required modules
+            # Import required modules (use src.* imports since project root is in sys.path)
             logger.info("Importing ContentGeneratorAgent and models...")
             try:
-                from agents.content_generator import ContentGeneratorAgent
-                from models.client_brief import ClientBrief, Platform
+                from src.agents.content_generator import ContentGeneratorAgent
+                from src.models.client_brief import ClientBrief, Platform
                 logger.info("Successfully imported required modules")
             except ImportError as e:
                 logger.error(f"Failed to import required modules: {str(e)}", exc_info=True)
@@ -355,9 +361,10 @@ class GeneratorService:
             }
 
         except Exception as e:
-            logger.error(f"❌ CRITICAL ERROR in _generate_with_template_quantities: {str(e)}", exc_info=True)
-            # Re-raise so background task marks run as failed
-            raise
+            error_type = type(e).__name__
+            logger.error(f"❌ CRITICAL ERROR in _generate_with_template_quantities: {error_type}: {str(e)}", exc_info=True)
+            # Re-raise with more context
+            raise Exception(f"Template-based generation failed ({error_type}): {str(e)}") from e
 
     def _create_brief_file(self, project: Project, client: any) -> Path:
         """

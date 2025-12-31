@@ -12,6 +12,7 @@ class Run(Base):
     """Generation execution run"""
 
     __tablename__ = "runs"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, index=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
@@ -24,9 +25,9 @@ class Run(Base):
     logs = Column(JSON)  # Array of log messages
     error_message = Column(String)  # Error details if failed
 
-    # Relationships
-    project = relationship("Project", back_populates="runs")
-    posts = relationship("Post", back_populates="run", cascade="all, delete-orphan")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    project = relationship("backend.models.project.Project")
+    posts = relationship("backend.models.post.Post", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Run {self.id} ({self.status})>"

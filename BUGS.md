@@ -4,7 +4,124 @@ This file tracks known bugs and issues in the application.
 
 ## Active Bugs
 
-(None)
+### 8. SQLAlchemy Session Error - Project instance not bound to Session
+
+**Status:** ✅ RESOLVED (December 31, 2025)
+**Severity:** Critical - Blocks generation completely
+**Component:** Backend / Database Session Management
+**Location:** Wizard Generate step (Step 4)
+
+**Description:**
+When attempting to generate content via the wizard, the backend fails with error: "Instance <Project at 0x79638cc1B3d0> is not bound to a Session; attribute refresh operation cannot proceed (Background on this error at: https://sqlalche.me/e/20/bhk3)"
+
+**Steps to Reproduce:**
+1. Navigate to Wizard/QA page
+2. Complete all wizard steps (Client Profile, Research, Templates)
+3. Click "Generate All" button on Generate step (Step 4)
+4. Error appears blocking generation
+
+**Expected vs. Actual Behavior:**
+- Expected: Content generation starts successfully
+- Actual: SQLAlchemy session error blocks generation
+
+**Affected Component:** Backend database session management in generation endpoints
+
+**Potential Causes:**
+- Project object loaded in one session but used in another
+- Session not being passed correctly to background tasks
+- Database session closed prematurely before async generation completes
+
+**Solution:**
+Fixed database session management in `backend/routers/generator.py`. The issue was that `crud.update_run()` returns a refreshed instance, but the code was trying to refresh the old instance. Changed line 171 to capture the return value: `db_run = crud.update_run(db, db_run.id, status="running")` and removed the redundant `db.refresh(db_run)` call.
+
+**Files Changed:**
+- `project/backend/routers/generator.py` - Fixed session management on lines 171-175
+
+**Date Reported:** December 31, 2025
+**Resolution Date:** December 31, 2025
+**Source:** Error image review (error images/image.png)
+
+---
+
+### 9. Import Error - Relative import beyond top-level package
+
+**Status:** ✅ RESOLVED (December 31, 2025)
+**Severity:** Critical - Blocks generation completely
+**Component:** Backend / Python Module Imports
+**Location:** Wizard Generate step (Step 4)
+
+**Description:**
+Content generation fails with error: "Generation failed: attempted relative import beyond top-level package"
+
+**Steps to Reproduce:**
+1. Navigate to Wizard/QA page
+2. Complete all wizard steps
+3. Click "Generate All" button
+4. Error appears blocking generation
+
+**Expected vs. Actual Behavior:**
+- Expected: Content generation starts successfully
+- Actual: Import error blocks generation
+
+**Affected Component:** Python module import structure in backend
+
+**Potential Causes:**
+- Incorrect relative import statement (e.g., `from ...module import X`)
+- Module attempting to import from parent package incorrectly
+- Circular import dependency
+- Python path configuration issue
+
+**Solution:**
+Fixed Python module import path in `backend/services/generator_service.py`. The issue was that the code was adding `src/` to `sys.path`, making it the top-level package, causing relative imports in `src/agents/content_generator.py` to fail when trying to go beyond the top level. Changed lines 221-236 to add the project root instead and use `from src.agents...` style imports.
+
+**Files Changed:**
+- `project/backend/services/generator_service.py` - Fixed sys.path manipulation and imports on lines 221-236
+
+**Date Reported:** December 31, 2025
+**Resolution Date:** December 31, 2025
+**Source:** Error image review (error images/image (1).png)
+
+---
+
+### 10. Generic Generation Failure - No error details provided
+
+**Status:** ✅ RESOLVED (December 31, 2025)
+**Severity:** High - Blocks generation but error message unhelpful
+**Component:** Error Handling / Reporting System
+**Location:** Wizard Generate step (Step 4)
+
+**Description:**
+Content generation fails with unhelpful error message: "Generation failed: Generation failed:" (no specific error details)
+
+**Steps to Reproduce:**
+1. Navigate to Wizard/QA page
+2. Complete all wizard steps
+3. Click "Generate All" button
+4. Generic error message appears with no diagnostic information
+
+**Expected vs. Actual Behavior:**
+- Expected: Specific error message indicating what went wrong (file not found, API error, validation failure, etc.)
+- Actual: Generic "Generation failed: Generation failed:" with no actionable information
+
+**Affected Component:** Error handling and exception reporting in generation service
+
+**Potential Causes:**
+- Exception being caught but not logged properly
+- Error message not being propagated from inner exception
+- Generic try/catch block swallowing specific error details
+- Error handling middleware not configured correctly
+
+**Solution:**
+Improved error handling and messages in `backend/services/generator_service.py`. Changed the generic fallback error message from "Generation failed" to "Unknown error - CLI execution failed" and added detailed logging. Also improved error messages in `_generate_with_template_quantities` to include error type and context (lines 130-134 and 363-367).
+
+**Files Changed:**
+- `project/backend/services/generator_service.py` - Improved error messages on lines 130-134 and 363-367
+
+**Impact:** Error messages now provide actionable debugging information including error type and context, making it much easier to diagnose generation failures.
+
+**Date Reported:** December 31, 2025
+**Resolution Date:** December 31, 2025
+**Source:** Error image review (error images/error code 1.pdf)
 
 ---
 

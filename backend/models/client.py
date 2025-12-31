@@ -12,6 +12,7 @@ class Client(Base):
     """Client company"""
 
     __tablename__ = "clients"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(String, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
@@ -27,9 +28,9 @@ class Client(Base):
     customer_pain_points = Column(JSON, nullable=True)
     customer_questions = Column(JSON, nullable=True)
 
-    # Relationships
-    projects = relationship("Project", back_populates="client", cascade="all, delete-orphan")
-    deliverables = relationship("Deliverable", back_populates="client")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    projects = relationship("backend.models.project.Project", cascade="all, delete-orphan")
+    deliverables = relationship("backend.models.deliverable.Deliverable")
 
     def __repr__(self):
         return f"<Client {self.name}>"

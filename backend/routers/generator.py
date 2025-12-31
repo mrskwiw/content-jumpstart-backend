@@ -31,6 +31,7 @@ class GenerateAllInput(BaseModel):
     client_id: str
     is_batch: bool = True
     template_quantities: Optional[dict[str, int]] = None  # Optional template quantities from frontend
+    custom_topics: Optional[list[str]] = None  # NEW: topic override for content generation
 
 
 class RegenerateInput(BaseModel):
@@ -51,6 +52,7 @@ async def run_generation_background(
     client_id: str,
     num_posts: int = 30,
     template_quantities: Optional[dict[str, int]] = None,
+    custom_topics: Optional[list[str]] = None,  # NEW: topic override for generation
 ):
     """
     Background task to run content generation.
@@ -73,6 +75,7 @@ async def run_generation_background(
             client_id=client_id,
             num_posts=num_posts,
             template_quantities=template_quantities,
+            custom_topics=custom_topics,  # NEW: topic override for generation
             run_id=run_id,  # Pass run_id so posts can reference the run
         )
 
@@ -161,13 +164,11 @@ async def generate_all(
         client_id=input.client_id,
         num_posts=30,  # TODO: Make configurable via input
         template_quantities=input.template_quantities,  # Pass template quantities from frontend
+        custom_topics=input.custom_topics,  # NEW: pass topic override for generation
     )
 
     # Update run status to running (background task will update to succeeded/failed)
-    crud.update_run(db, db_run.id, status="running")
-
-    # Refresh to get updated data
-    db.refresh(db_run)
+    db_run = crud.update_run(db, db_run.id, status="running")
 
     logger.info(f"Queued background generation task for run {db_run.id}")
 

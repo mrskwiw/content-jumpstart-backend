@@ -38,22 +38,19 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    client = relationship("Client", back_populates="projects")
-    runs = relationship("Run", back_populates="project", cascade="all, delete-orphan")
-    posts = relationship("Post", back_populates="project", cascade="all, delete-orphan")
-    deliverables = relationship(
-        "Deliverable", back_populates="project", cascade="all, delete-orphan"
-    )
-    brief = relationship(
-        "Brief", back_populates="project", uselist=False, cascade="all, delete-orphan"
-    )
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    client = relationship("backend.models.client.Client")
+    runs = relationship("backend.models.run.Run", cascade="all, delete-orphan")
+    posts = relationship("backend.models.post.Post", cascade="all, delete-orphan")
+    deliverables = relationship("backend.models.deliverable.Deliverable", cascade="all, delete-orphan")
+    brief = relationship("backend.models.brief.Brief", uselist=False, cascade="all, delete-orphan")
 
     # Composite indexes for cursor pagination (Week 3 optimization)
     __table_args__ = (
         # Cursor pagination index: (created_at DESC, id DESC)
         # Enables O(1) performance for deep pagination
         Index('ix_projects_created_at_id', 'created_at', 'id', postgresql_using='btree'),
+        {'extend_existing': True},
     )
 
     def __repr__(self):

@@ -28,17 +28,21 @@ from pydantic import ValidationError
 
 
 # Dangerous patterns that might indicate injection attempts
+# NOTE: Patterns are designed to catch actual attacks while allowing legitimate business text
 DANGEROUS_PATTERNS = [
-    r'<script[^>]*>',  # XSS
-    r'javascript:',     # XSS
-    r'on\w+\s*=',      # Event handlers (XSS)
-    r'--',             # SQL comment
-    r';.*(?:DROP|DELETE|INSERT|UPDATE|ALTER|CREATE)',  # SQL injection
+    r'<script[^>]*>',  # XSS - script tags
+    r'javascript:',     # XSS - javascript: protocol
+    r'on\w+\s*=',      # XSS - event handlers (onclick=, onerror=, etc.)
+    r';\s*(?:DROP|DELETE|INSERT|UPDATE|ALTER|CREATE)\s+(?:TABLE|DATABASE|INDEX)',  # SQL injection (requires SQL keywords after semicolon)
     r'\.\./|\.\.',     # Path traversal
     r'\$\{',           # Template injection
-    r'`.*`',           # Command execution
-    r'\|.*\|',         # Command piping
+    r'`[^`]*(?:bash|sh|cmd|powershell|python|ruby|perl|node|rm|curl|wget)[^`]*`',  # Command execution in backticks
+    r'\|\s*(?:bash|sh|cmd|powershell|python|ruby|perl|node|rm|curl|wget)',  # Command piping to shell executables
 ]
+# Removed overly restrictive patterns (fixed in todo.md issue 2.1):
+# - r'--' : Blocked legitimate double hyphens (e.g., "self-service", "Q1--Q2", business names with dashes)
+# - r'\|.*\|' : Blocked pipes used for formatting (e.g., "professional | friendly | innovative")
+# - r'`.*`' : Blocked all backticks; replaced with pattern that only blocks backticks with shell commands
 
 # Compile patterns for performance
 DANGEROUS_REGEX = [re.compile(pattern, re.IGNORECASE) for pattern in DANGEROUS_PATTERNS]

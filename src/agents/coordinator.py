@@ -153,11 +153,25 @@ class CoordinatorAgent:
         # Step 5.5: Auto-regenerate failed posts (if enabled)
         if auto_fix:
             logger.info("\n[5.5/7] Auto-fixing quality issues...")
+
+            # Load templates for regeneration
+            from ..utils.template_loader import TemplateLoader
+            template_loader = TemplateLoader()
+            all_templates = template_loader.load_templates()
+
+            # Create simple system prompt for regeneration
+            system_prompt = (
+                f"You are an expert content strategist creating social media posts for {client_brief.company_name}. "
+                f"Ideal customer: {client_brief.ideal_customer}. "
+                f"Brand voice: {', '.join(t.value for t in client_brief.brand_personality)}. "
+                f"Focus on improving quality metrics while maintaining brand voice."
+            )
+
             regenerated_posts, regen_stats = self.post_regenerator.regenerate_failed_posts(
                 posts=posts,
-                templates=selected_templates,
+                templates=all_templates,
                 client_brief=client_brief,
-                system_prompt=cached_system_prompt,
+                system_prompt=system_prompt,
             )
             posts = regenerated_posts  # Update with regenerated versions
             logger.info(

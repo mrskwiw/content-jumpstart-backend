@@ -128,15 +128,88 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,  # Cache preflight requests for 1 hour
-)
+# Production: Restrict to specific origins, methods, and headers
+# Development: More permissive for ease of development
+if settings.DEBUG_MODE:
+    # Development mode - permissive CORS for easier testing
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=3600,
+    )
+else:
+    # Production mode - restrictive CORS for security
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,  # Only whitelisted origins
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Explicit methods only
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+        ],  # Only necessary headers
+        expose_headers=["X-Process-Time", "X-Total-Count"],  # Only exposed headers
+        max_age=3600,
+    )
+
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security headers to all responses
+
+    Headers added:
+    - X-Content-Type-Options: Prevent MIME-type sniffing
+    - X-Frame-Options: Prevent clickjacking
+    - X-XSS-Protection: Enable XSS filter
+    - Strict-Transport-Security: Enforce HTTPS (production only)
+    - Content-Security-Policy: Restrict resource loading
+    - Referrer-Policy: Control referer information
+    - Permissions-Policy: Control browser features
+    """
+    response = await call_next(request)
+
+    # Prevent MIME-type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Enable XSS protection (legacy browsers)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Enforce HTTPS in production
+    if not settings.DEBUG_MODE:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Content Security Policy - restrictive for API
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+    # Control referer information
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Disable unnecessary browser features
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+    )
+
+    return response
 
 
 # Request timing middleware
@@ -145,7 +218,6 @@ async def add_process_time_header(request: Request, call_next):
     """Add X-Process-Time header to all responses"""
     start_time = time.time()
     response = await call_next(request)
-    process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(round(process_time, 3))
     return response
 

@@ -27,9 +27,9 @@ class Deliverable(Base):
     checksum = Column(String)  # File checksum for verification
     file_size_bytes = Column(Integer)  # Actual file size in bytes
 
-    # Relationships
-    project = relationship("Project", back_populates="deliverables")
-    client = relationship("Client", back_populates="deliverables")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    project = relationship("backend.models.project.Project")
+    client = relationship("backend.models.client.Client")
 
     # Composite indexes for common query patterns (Performance optimization - December 25, 2025)
     __table_args__ = (
@@ -39,6 +39,7 @@ class Deliverable(Base):
         Index('ix_deliverables_status_created', 'status', 'created_at'),  # Filter by status, sort by date
         # Cursor pagination index (enables O(1) performance for deep pagination)
         Index('ix_deliverables_created_at_id', 'created_at', 'id', postgresql_using='btree'),
+        {'extend_existing': True},
     )
 
     def __repr__(self):

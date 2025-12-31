@@ -78,6 +78,12 @@ Examples:
     )
 
     parser.add_argument(
+        "--topics",
+        type=str,
+        help="Comma-separated list of content topics to focus on (overrides research suggestions)",
+    )
+
+    parser.add_argument(
         "-p",
         "--platform",
         choices=["linkedin", "twitter", "facebook", "blog", "email"],
