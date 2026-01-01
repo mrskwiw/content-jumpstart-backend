@@ -21,8 +21,8 @@ class Brief(Base):
     file_path = Column(String)  # Path to uploaded file (if source=upload)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("backend.models.project.Project")
+    # Relationships
+    project = relationship("Project")
 
     def __repr__(self):
         return f"<Brief for {self.project_id}>"

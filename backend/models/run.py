@@ -26,8 +26,8 @@ class Run(Base):
     error_message = Column(String)  # Error details if failed
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("backend.models.project.Project")
-    posts = relationship("backend.models.post.Post", cascade="all, delete-orphan")
+    project = relationship("project.Project")
+    posts = relationship("post.Post", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Run {self.id} ({self.status})>"

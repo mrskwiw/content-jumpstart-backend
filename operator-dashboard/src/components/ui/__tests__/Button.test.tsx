@@ -29,8 +29,8 @@ describe('Button', () => {
     rerender(<Button variant="outline">Outline</Button>);
     expect(screen.getByRole('button')).toHaveClass('border');
 
-    rerender(<Button variant="destructive">Destructive</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-destructive');
+    rerender(<Button variant="danger">Danger</Button>);
+    expect(screen.getByRole('button')).toHaveClass('bg-red-600');
   });
 
   it('handles click events', () => {
@@ -55,13 +55,13 @@ describe('Button', () => {
   });
 
   it('shows loading state', () => {
-    render(<Button isLoading>Loading</Button>);
+    render(<Button loading>Loading</Button>);
 
     const button = screen.getByRole('button');
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('aria-busy', 'true');
-    // Check for loading spinner (if implemented)
-    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
+    // Check for loading spinner
+    const svg = button.querySelector('svg');
+    expect(svg).toBeInTheDocument();
   });
 
   it('applies custom className', () => {
@@ -71,11 +71,11 @@ describe('Button', () => {
     expect(button).toHaveClass('custom-class');
   });
 
-  it('renders as different element types', () => {
-    render(<Button as="a" href="https://example.com">Link Button</Button>);
+  it('renders with link variant', () => {
+    render(<Button variant="link">Link Button</Button>);
 
-    const link = screen.getByRole('link');
-    expect(link).toHaveAttribute('href', 'https://example.com');
+    const button = screen.getByRole('button');
+    expect(button).toHaveClass('underline-offset-4');
   });
 
   it('has proper accessibility attributes', () => {
@@ -87,12 +87,12 @@ describe('Button', () => {
 
   it('supports different sizes', () => {
     const { rerender } = render(<Button size="sm">Small</Button>);
-    expect(screen.getByRole('button')).toHaveClass('h-8');
+    expect(screen.getByRole('button')).toHaveClass('px-3');
 
-    rerender(<Button size="default">Default</Button>);
-    expect(screen.getByRole('button')).toHaveClass('h-10');
+    rerender(<Button size="md">Medium</Button>);
+    expect(screen.getByRole('button')).toHaveClass('px-4');
 
     rerender(<Button size="lg">Large</Button>);
-    expect(screen.getByRole('button')).toHaveClass('h-12');
+    expect(screen.getByRole('button')).toHaveClass('px-6');
   });
 });

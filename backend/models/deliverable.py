@@ -28,8 +28,8 @@ class Deliverable(Base):
     file_size_bytes = Column(Integer)  # Actual file size in bytes
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("backend.models.project.Project")
-    client = relationship("backend.models.client.Client")
+    project = relationship("project.Project")
+    client = relationship("client.Client")
 
     # Composite indexes for common query patterns (Performance optimization - December 25, 2025)
     __table_args__ = (

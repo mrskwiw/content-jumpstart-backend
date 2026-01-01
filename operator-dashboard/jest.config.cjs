@@ -19,10 +19,4 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
-  globals: {
-    'ts-jest': {
-      useESM: true,
-      tsconfig: 'tsconfig.jest.json',
-    },
-  },
 };

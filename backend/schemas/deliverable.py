@@ -119,9 +119,9 @@ class DeliverableDetailResponse(DeliverableResponse):
         ),
     )
 
-    @field_serializer('file_modified_at', when_used='always')
-    def serialize_file_modified_at(self, dt: Optional[datetime], _info) -> Optional[str]:
-        """Serialize file_modified_at to ISO 8601 with timezone"""
+    @field_serializer('created_at', 'delivered_at', 'file_modified_at', when_used='always')
+    def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
+        """Serialize all datetime fields to ISO 8601 with timezone (Z suffix for UTC)"""
         if dt is None:
             return None
         # Ensure timezone-aware

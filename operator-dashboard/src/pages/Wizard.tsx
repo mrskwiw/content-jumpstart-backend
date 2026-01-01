@@ -516,7 +516,7 @@ export default function Wizard() {
             <strong>Client Brief:</strong> {clientBrief ? '✓ Saved' : 'Not set'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Template Mode:</strong> {Object.keys(templateQuantities).length > 0 ? (templateMode === 'preset' ? 'Preset Package' : 'Custom') : 'Not selected'}
+            <strong>Templates:</strong> {Object.keys(templateQuantities).length > 0 ? `${Object.keys(templateQuantities).length} selected` : 'Not selected'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Total Posts:</strong> {Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0) || 0}

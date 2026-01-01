@@ -1,6 +1,8 @@
 import { useState, useEffect, memo } from 'react';
 import { ClientBriefSchema, type ClientBrief, type Platform } from '@/types/domain';
 import { User, Building2, Target, Lightbulb, MessageSquare, Save } from 'lucide-react';
+import { BriefImportSection, type ParsedBriefResponse } from './BriefImportSection';
+import { ImportPreviewModal } from '../ui/ImportPreviewModal';
 
 interface Props {
   projectId?: string;
@@ -26,6 +28,10 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
   const [painPoint, setPainPoint] = useState('');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+
+  // Brief import state
+  const [showPreview, setShowPreview] = useState(false);
+  const [importedData, setImportedData] = useState<ParsedBriefResponse | null>(null);
 
   // Update form when initialData changes (e.g., when selecting existing client)
   useEffect(() => {
@@ -109,6 +115,52 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
     });
   };
 
+  // Brief import handlers
+  const handleBriefImport = (parsed: ParsedBriefResponse) => {
+    setImportedData(parsed);
+    setShowPreview(true);
+  };
+
+  const handleConfirmImport = () => {
+    if (!importedData) return;
+
+    // Merge imported data with current form data
+    const merged: Partial<ClientBrief> = { ...formData };
+
+    // String fields: Use imported if current is empty
+    const stringFields: (keyof ClientBrief)[] = [
+      'companyName',
+      'businessDescription',
+      'idealCustomer',
+      'mainProblemSolved',
+      'tonePreference',
+    ];
+
+    stringFields.forEach((field) => {
+      const importedValue = importedData.fields[field]?.value;
+      if (importedValue && !merged[field]) {
+        merged[field] = importedValue as any;
+      }
+    });
+
+    // Array fields: Union without duplicates
+    const arrayFields: (keyof ClientBrief)[] = [
+      'platforms',
+      'customerPainPoints',
+      'customerQuestions',
+    ];
+
+    arrayFields.forEach((field) => {
+      const currentArray = (merged[field] as any[]) || [];
+      const importedArray = (importedData.fields[field]?.value as any[]) || [];
+      merged[field] = [...new Set([...currentArray, ...importedArray])] as any;
+    });
+
+    setFormData(merged);
+    setShowPreview(false);
+    setImportedData(null);
+  };
+
   const handleSubmit = async () => {
     try {
       const validated = ClientBriefSchema.parse(formData);
@@ -147,6 +199,9 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
       <p className="mb-6 text-sm text-slate-600 dark:text-neutral-400">
         Gather essential information about the client, their business, and their target audience.
       </p>
+
+      {/* Brief Import Section */}
+      <BriefImportSection onImport={handleBriefImport} />
 
       <div className="space-y-6">
         {/* Company Name */}
@@ -413,6 +468,17 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
           </button>
         </div>
       </div>
+
+      {/* Import Preview Modal */}
+      {importedData && (
+        <ImportPreviewModal
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          onConfirm={handleConfirmImport}
+          currentData={formData}
+          importedData={importedData}
+        />
+      )}
     </div>
   );
 });

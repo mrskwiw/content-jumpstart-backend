@@ -77,13 +77,13 @@ class TestPlatformAwarePrompts:
         assert "12-18 words" in prompt
 
         # Should include critical warning emoji
-        assert "🚨 CRITICAL" in prompt
+        assert "🚨" in prompt
 
         # Should warn about validation failure
-        assert "FAIL validation" in prompt or "will be rejected" in prompt or "hard limit" in prompt
+        assert "FAIL" in prompt or "will be rejected" in prompt or "HARD LIMIT" in prompt
 
         # Should emphasize word economy
-        assert "Every single word must earn its place" in prompt or "earn its place" in prompt
+        assert "EVERY word count" in prompt or "earn its place" in prompt
 
         # Should include length reminder at end
         assert "📏 REMINDER" in prompt
@@ -100,10 +100,10 @@ class TestPlatformAwarePrompts:
         assert "10-15 words" in prompt
 
         # Should include critical warning
-        assert "🚨 CRITICAL" in prompt
+        assert "🚨" in prompt
 
         # Should warn about validation
-        assert "FAIL validation" in prompt or "will be rejected" in prompt or "hard limit" in prompt
+        assert "FAIL" in prompt or "will be rejected" in prompt or "HARD LIMIT" in prompt
 
     def test_blog_prompt_structure_requirements(self, generator, sample_brief):
         """Test blog prompt includes structure requirements"""

@@ -266,10 +266,11 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           />
           <label htmlFor="include-research" className="flex-1 cursor-pointer text-sm font-medium text-slate-700 flex items-center gap-1.5">
             <span>Include topic research (+$15/post) {includeResearch && `= +$${(totalPosts * RESEARCH_PRICE_PER_POST).toLocaleString()}`}</span>
-            <HelpCircle
-              className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors"
-              title="Topic research identifies trending keywords and content themes for your posts. This is separate from the client research tools in the Research step."
-            />
+            <span title="Topic research identifies trending keywords and content themes for your posts. This is separate from the client research tools in the Research step.">
+              <HelpCircle
+                className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors"
+              />
+            </span>
           </label>
         </div>
 

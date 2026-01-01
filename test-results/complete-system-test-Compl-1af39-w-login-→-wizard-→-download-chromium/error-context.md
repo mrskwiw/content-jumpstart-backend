@@ -1,0 +1,277 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: O
+        - generic [ref=e8]:
+          - paragraph [ref=e9]: Operator Dashboard
+          - paragraph [ref=e10]: Content Jumpstart
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - button "Light theme" [ref=e13] [cursor=pointer]:
+            - img [ref=e14]
+          - button "System theme" [ref=e20] [cursor=pointer]:
+            - img [ref=e21]
+          - button "Dark theme" [ref=e23] [cursor=pointer]:
+            - img [ref=e24]
+        - generic [ref=e26]:
+          - paragraph [ref=e27]: mrskwiw
+          - paragraph [ref=e28]: operator
+        - button "Logout" [ref=e29] [cursor=pointer]:
+          - img [ref=e30]
+          - text: Logout
+  - generic [ref=e33]:
+    - complementary [ref=e34]:
+      - navigation [ref=e35]:
+        - link "Overview" [ref=e36] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e37]
+          - text: Overview
+        - link "Projects" [ref=e39] [cursor=pointer]:
+          - /url: /dashboard/projects
+          - img [ref=e40]
+          - text: Projects
+        - link "Clients" [ref=e43] [cursor=pointer]:
+          - /url: /dashboard/clients
+          - img [ref=e44]
+          - text: Clients
+        - link "Deliverables" [ref=e49] [cursor=pointer]:
+          - /url: /dashboard/deliverables
+          - img [ref=e50]
+          - text: Deliverables
+        - link "Wizard / QA" [ref=e54] [cursor=pointer]:
+          - /url: /dashboard/wizard
+          - img [ref=e55]
+          - text: Wizard / QA
+        - link "Settings" [ref=e60] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e61]
+          - text: Settings
+    - main [ref=e64]:
+      - generic [ref=e65]:
+        - generic [ref=e66]:
+          - heading "Project Wizard" [level=1] [ref=e67]
+          - paragraph [ref=e68]: Multi-step flow for client profile → templates → generation → quality gate → export.
+        - generic [ref=e69]:
+          - button "1 Client Profile" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]: "1"
+            - text: Client Profile
+          - button "2 Research" [disabled] [ref=e72]:
+            - generic [ref=e73]: "2"
+            - text: Research
+          - button "3 Templates" [disabled] [ref=e74]:
+            - generic [ref=e75]: "3"
+            - text: Templates
+          - button "4 Generate" [disabled] [ref=e76]:
+            - generic [ref=e77]: "4"
+            - text: Generate
+          - button "5 Quality Gate" [disabled] [ref=e78]:
+            - generic [ref=e79]: "5"
+            - text: Quality Gate
+          - button "6 Export" [disabled] [ref=e80]:
+            - generic [ref=e81]: "6"
+            - text: Export
+        - generic [ref=e82]:
+          - generic [ref=e84]:
+            - heading "Select Client" [level=3] [ref=e85]
+            - generic [ref=e86]:
+              - button "Create New Client" [ref=e87] [cursor=pointer]
+              - button "Use Existing Client" [active] [ref=e88] [cursor=pointer]
+            - generic [ref=e89]:
+              - generic [ref=e90]: Select Existing Client
+              - combobox "Select Existing Client" [ref=e91]:
+                - option "-- Select a client --"
+                - option "TechVision AI" [selected]
+                - option "GrowthLab Marketing"
+                - option "FinanceFlow Solutions"
+                - option "HealthTech Innovations"
+                - option "EduPro Learning"
+                - option "SecureNet Cybersecurity"
+                - option "WanderLust Travel"
+                - option "CloudScale Infrastructure"
+                - option "ContentCraft Agency"
+                - option "DataSense Analytics"
+                - option "UrbanSpace Real Estate"
+                - option "NextGen Startups"
+                - option "Minimal Test 1766547106466"
+                - option "Minimal Test 1766547314080"
+                - option "Debug Test 1766549667183"
+                - option "Debug Test 1766549757747"
+                - option "Debug Test 1766549815226"
+                - option "E2E Test Client 1766547333828"
+                - option "FitWell Wellness"
+                - option "Test Company 20251225131728"
+                - option "Test Company 20251225131929"
+                - option "Test Company 20251225132118"
+                - option "Test Company 20251225132819"
+                - option "Test Company Inc"
+                - option "Test Integration Co"
+                - option "Test Integration Co"
+                - option "Test Integration Co"
+                - option "Test Integration Co"
+                - option "Test Integration Co"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Update Test Client"
+                - option "Delete Test Client"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+                - option "Update Status Test Client"
+                - option "Brief Test Client"
+                - option "Generation Test Client"
+                - option "Status Test Client"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Updated Client Name"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+                - option "Update Status Test Client"
+                - option "Generation Test Client"
+                - option "Brief Test Client"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Updated Client Name"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+                - option "Update Status Test Client"
+                - option "Brief Test Client"
+                - option "Generation Test Client"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Updated Client Name"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+                - option "Update Status Test Client"
+                - option "Brief Test Client"
+                - option "Generation Test Client"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Updated Client Name"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+                - option "Update Status Test Client"
+                - option "Brief Test Client"
+                - option "Generation Test Client"
+                - option "E2E Test Client Complete"
+                - option "E2E Test Client Minimal"
+                - option "Duplicate Test"
+                - option "Duplicate Test"
+                - option "Get Test Client"
+                - option "Updated Client Name"
+                - option "Project Test Client"
+                - option "Minimal Project Test Client"
+                - option "Get Project Test Client"
+            - button "Continue to Research" [ref=e93] [cursor=pointer]
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - img [ref=e96]
+              - heading "Client Profile" [level=3] [ref=e100]
+            - paragraph [ref=e101]: Gather essential information about the client, their business, and their target audience.
+            - generic [ref=e102]:
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - img [ref=e105]
+                  - text: Company Name
+                - textbox "Acme Corp" [ref=e108]: TechVision AI
+              - generic [ref=e109]:
+                - generic [ref=e110]:
+                  - generic [ref=e111]:
+                    - img [ref=e112]
+                    - text: Business Description
+                    - generic [ref=e116]: "*"
+                  - generic [ref=e117]: 0/70 characters
+                - textbox "We provide cloud-based project management software for small teams..." [ref=e118]
+                - paragraph [ref=e119]: Required for research tools. Describe what your business does and what makes it unique.
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - img [ref=e123]
+                    - text: Target Audience
+                    - generic [ref=e127]: "*"
+                  - generic [ref=e128]: 0/20 characters
+                - textbox "Small business owners with 5-20 employees who struggle with team coordination..." [ref=e129]
+                - paragraph [ref=e130]: Required for research tools. Who is your ideal customer or target audience?
+              - generic [ref=e131]:
+                - generic [ref=e132]:
+                  - img [ref=e133]
+                  - text: Main Problem Solved
+                - textbox "We eliminate the chaos of scattered communication and missed deadlines..." [ref=e135]
+              - generic [ref=e136]:
+                - generic [ref=e137]:
+                  - img [ref=e138]
+                  - text: Tone Preference
+                - combobox [ref=e140]:
+                  - option "Professional" [selected]
+                  - option "Conversational"
+                  - option "Authoritative"
+                  - option "Friendly"
+                  - option "Innovative"
+                  - option "Educational"
+              - generic [ref=e141]:
+                - generic [ref=e142]: Platforms
+                - generic [ref=e143]:
+                  - button "LinkedIn" [ref=e144] [cursor=pointer]
+                  - button "Twitter" [ref=e145] [cursor=pointer]
+                  - button "Blog" [ref=e146] [cursor=pointer]
+                  - button "Email" [ref=e147] [cursor=pointer]
+                  - button "Generic" [ref=e148] [cursor=pointer]
+              - generic [ref=e149]:
+                - generic [ref=e150]: Customer Pain Points
+                - generic [ref=e151]:
+                  - textbox "Add a pain point..." [ref=e152]
+                  - button "Add" [ref=e153] [cursor=pointer]
+              - generic [ref=e154]:
+                - generic [ref=e155]: Common Customer Questions & Answers
+                - generic [ref=e156]:
+                  - 'textbox "Question: What do customers ask?" [ref=e157]'
+                  - generic [ref=e158]:
+                    - 'textbox "Answer: Your response to this question..." [ref=e159]'
+                    - button "Add" [disabled] [ref=e160]
+              - button "Save Profile" [ref=e162] [cursor=pointer]:
+                - img [ref=e163]
+                - text: Save Profile
+        - generic [ref=e167]:
+          - heading "Wizard Status" [level=3] [ref=e168]
+          - generic [ref=e169]:
+            - paragraph [ref=e170]:
+              - strong [ref=e171]: "Project:"
+              - text: Not created
+            - paragraph [ref=e172]:
+              - strong [ref=e173]: "Client Brief:"
+              - text: ✓ Saved
+            - paragraph [ref=e174]:
+              - strong [ref=e175]: "Templates:"
+              - text: None selected
+            - paragraph [ref=e176]:
+              - strong [ref=e177]: "Posts:"
+              - text: 0 generated
+            - paragraph [ref=e178]:
+              - strong [ref=e179]: "Flagged:"
+              - text: "0"
+            - paragraph [ref=e180]:
+              - strong [ref=e181]: "Runs:"
+              - text: "0"
+```
