@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import OperationalError, DatabaseError
 
-from config import settings
-from utils.query_profiler import enable_sqlalchemy_profiling
+from backend.config import settings
+from backend.utils.query_profiler import enable_sqlalchemy_profiling
 
 # Create SQLAlchemy engine with optimized connection pooling
 database_url = make_url(settings.DATABASE_URL)
@@ -121,11 +121,27 @@ def init_db():
     """
     Initialize database by creating all tables.
     Call this on application startup.
+    Handles existing indexes gracefully to support database persistence.
     """
     from sqlalchemy import text, inspect
+    from sqlalchemy.exc import OperationalError
 
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # Create all tables (handles existing indexes gracefully)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as e:
+        # Ignore "index already exists" errors (common with persistent databases)
+        if "already exists" in str(e):
+            print(f">> Note: Some database objects already exist (expected for persistent storage): {e}")
+            # Create tables individually to work around index errors
+            for table in Base.metadata.sorted_tables:
+                try:
+                    table.create(bind=engine, checkfirst=True)
+                except OperationalError as table_error:
+                    if "already exists" not in str(table_error):
+                        raise  # Re-raise if it's not an "already exists" error
+        else:
+            raise  # Re-raise if it's a different error
 
     # Run migrations (add missing columns)
     with engine.connect() as conn:
