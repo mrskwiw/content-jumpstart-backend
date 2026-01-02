@@ -153,8 +153,8 @@ class TestContextManager:
             context = ConversationContext(session_id=f"session_{i}", user_id="test_user")
             self.manager.save_context(context)
 
-        # Get recent sessions
-        recent = self.manager.get_recent_sessions(limit=3)
+        # Get recent sessions (must specify user_id to match the sessions created)
+        recent = self.manager.get_recent_sessions(user_id="test_user", limit=3)
 
         assert len(recent) == 3
         assert all(isinstance(ctx, ConversationContext) for ctx in recent)

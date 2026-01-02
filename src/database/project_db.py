@@ -156,6 +156,24 @@ class ProjectDatabase:
             rows = cursor.fetchall()
             return [Project.from_dict(dict(row)) for row in rows]
 
+    def get_projects(self, limit: int = 100) -> List[Dict]:
+        """Get all projects with optional limit
+
+        Args:
+            limit: Maximum number of projects to return
+
+        Returns:
+            List of project dictionaries
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM projects ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            )
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
     def update_project_status(self, project_id: str, status: ProjectStatus) -> bool:
         """Update project status
 

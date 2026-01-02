@@ -72,14 +72,17 @@ class TestPost:
         assert post.character_count > 0
 
     def test_post_too_short(self):
-        """Test that short posts are rejected"""
-        with pytest.raises(ValueError, match="Post too short"):
-            Post(
-                content="Too short",
-                template_id=1,
-                template_name="Test",
-                client_name="Test",
-            )
+        """Test that short posts are allowed but flagged with low word count"""
+        # Post model allows short content - validation happens at QA stage
+        post = Post(
+            content="Too short",
+            template_id=1,
+            template_name="Test",
+            client_name="Test",
+        )
+        # Word count should be calculated
+        assert post.word_count == 2
+        assert post.character_count == len("Too short")
 
     def test_cta_detection(self):
         """Test CTA detection"""

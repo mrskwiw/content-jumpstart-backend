@@ -17,16 +17,16 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
+from backend.routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # Import models so SQLAlchemy can create tables
-import models  # noqa: F401
-from config import settings
-from database import init_db
-from utils.rate_limiter import rate_limiter
-from utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
+import backend.models  # noqa: F401
+from backend.config import settings
+from backend.database import init_db
+from backend.utils.rate_limiter import rate_limiter
+from backend.utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
 
 
 @asynccontextmanager
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
     print(f">> DEBUG: CORS_ORIGINS env var = '{settings.CORS_ORIGINS}'")
 
     # Log database connection info
-    from database import engine
+    from backend.database import engine
     db_url = str(engine.url)
 
     # Debug: Show DATABASE_URL from settings (helps diagnose Render env var issues)
@@ -70,9 +70,9 @@ async def lifespan(app: FastAPI):
     print(">> Database initialized")
 
     # Auto-seed users if database is empty
-    from database import SessionLocal
-    from models.user import User
-    from utils.auth import get_password_hash
+    from backend.database import SessionLocal
+    from backend.models.user import User
+    from backend.utils.auth import get_password_hash
     import uuid
 
     db = SessionLocal()
