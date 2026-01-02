@@ -13,7 +13,7 @@ class Project(Base):
 
     __tablename__ = "projects"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     client_id = Column(String, ForeignKey("clients.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     status = Column(

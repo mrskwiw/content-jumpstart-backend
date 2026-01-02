@@ -13,7 +13,7 @@ class Post(Base):
 
     __tablename__ = "posts"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), nullable=False, index=True)
     content = Column(Text, nullable=False)

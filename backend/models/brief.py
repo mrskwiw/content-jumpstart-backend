@@ -14,7 +14,7 @@ class Brief(Base):
     __tablename__ = "briefs"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, unique=True)
     content = Column(Text, nullable=False)  # Brief text content
     source = Column(String, nullable=False)  # "upload" or "paste"

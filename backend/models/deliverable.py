@@ -13,7 +13,7 @@ class Deliverable(Base):
 
     __tablename__ = "deliverables"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String, ForeignKey("clients.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), index=True)

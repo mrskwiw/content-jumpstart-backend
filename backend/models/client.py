@@ -14,7 +14,7 @@ class Client(Base):
     __tablename__ = "clients"
     __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False, index=True)
     email = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
