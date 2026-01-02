@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Brief(Base):
@@ -22,7 +22,7 @@ class Brief(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    project = relationship("Project")
+    project = relationship("backend.models.project.Project")
 
     def __repr__(self):
         return f"<Brief for {self.project_id}>"

@@ -4,7 +4,7 @@ User model for authentication.
 from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class User(Base):

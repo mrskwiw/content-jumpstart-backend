@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, String, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Client(Base):
@@ -29,8 +29,8 @@ class Client(Base):
     customer_questions = Column(JSON, nullable=True)
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    projects = relationship("project.Project", cascade="all, delete-orphan")
-    deliverables = relationship("deliverable.Deliverable")
+    projects = relationship("backend.models.project.Project", cascade="all, delete-orphan")
+    deliverables = relationship("backend.models.deliverable.Deliverable")
 
     def __repr__(self):
         return f"<Client {self.name}>"

@@ -5,7 +5,7 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Run(Base):
@@ -26,8 +26,8 @@ class Run(Base):
     error_message = Column(String)  # Error details if failed
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("project.Project")
-    posts = relationship("post.Post", cascade="all, delete-orphan")
+    project = relationship("backend.models.project.Project")
+    posts = relationship("backend.models.post.Post", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Run {self.id} ({self.status})>"

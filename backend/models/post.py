@@ -5,7 +5,7 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Post(Base):
@@ -29,8 +29,8 @@ class Post(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("project.Project")
-    run = relationship("run.Run")
+    project = relationship("backend.models.project.Project")
+    run = relationship("backend.models.run.Run")
 
     # Composite indexes for common query patterns
     __table_args__ = (

@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Deliverable(Base):
@@ -28,8 +28,8 @@ class Deliverable(Base):
     file_size_bytes = Column(Integer)  # Actual file size in bytes
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("project.Project")
-    client = relationship("client.Client")
+    project = relationship("backend.models.project.Project")
+    client = relationship("backend.models.client.Client")
 
     # Composite indexes for common query patterns (Performance optimization - December 25, 2025)
     __table_args__ = (
