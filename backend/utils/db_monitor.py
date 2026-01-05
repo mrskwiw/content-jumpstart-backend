@@ -4,8 +4,8 @@ Database connection pool monitoring utilities.
 from typing import Dict, Any
 from sqlalchemy.engine.url import make_url
 
-from database import engine
-from config import settings
+from backend.database import engine
+from backend.config import settings
 
 
 def get_pool_status() -> Dict[str, Any]:

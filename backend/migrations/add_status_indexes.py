@@ -13,7 +13,7 @@ Usage:
 from sqlalchemy import create_index, Index, MetaData, Table
 from sqlalchemy.exc import OperationalError
 
-from database import engine
+from backend.database import engine
 
 
 def upgrade():

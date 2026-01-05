@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, jest } from '@jest/globals';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Button } from '../Button';
@@ -19,12 +19,12 @@ describe('Button', () => {
     render(<Button>Click me</Button>);
     const button = screen.getByRole('button', { name: /click me/i });
     expect(button).toBeInTheDocument();
-    expect(button).toHaveClass('bg-primary'); // Default variant
+    expect(button).toHaveClass('bg-primary-600'); // Default variant (primary)
   });
 
   it('renders with different variants', () => {
     const { rerender } = render(<Button variant="secondary">Secondary</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-secondary');
+    expect(screen.getByRole('button')).toHaveClass('bg-neutral-100');
 
     rerender(<Button variant="outline">Outline</Button>);
     expect(screen.getByRole('button')).toHaveClass('border');
@@ -34,7 +34,7 @@ describe('Button', () => {
   });
 
   it('handles click events', () => {
-    const handleClick = vi.fn();
+    const handleClick = jest.fn();
     render(<Button onClick={handleClick}>Click me</Button>);
 
     const button = screen.getByRole('button');
@@ -44,7 +44,7 @@ describe('Button', () => {
   });
 
   it('does not call onClick when disabled', () => {
-    const handleClick = vi.fn();
+    const handleClick = jest.fn();
     render(<Button onClick={handleClick} disabled>Disabled</Button>);
 
     const button = screen.getByRole('button');

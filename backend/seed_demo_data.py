@@ -26,12 +26,12 @@ if sys.platform == "win32":
 # Add parent directory to path to import backend modules
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database import SessionLocal, init_db
-from models.client import Client
-from models.project import Project
-from models.run import Run
-from models.post import Post
-from models.deliverable import Deliverable
+from backend.database import SessionLocal, init_db
+from backend.models.client import Client
+from backend.models.project import Project
+from backend.models.run import Run
+from backend.models.post import Post
+from backend.models.deliverable import Deliverable
 
 
 def check_environment(force=False):

@@ -11,7 +11,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database import Base, engine, init_db
+from backend.database import Base, engine, init_db
 from sqlalchemy import inspect, text
 
 

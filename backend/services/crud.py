@@ -7,12 +7,12 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from schemas import BriefCreate, ClientCreate, ClientUpdate, ProjectCreate, ProjectUpdate
+from backend.schemas import BriefCreate, ClientCreate, ClientUpdate, ProjectCreate, ProjectUpdate
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
-from utils.query_cache import cache_short, cache_medium, invalidate_related_caches
+from backend.utils.query_cache import cache_short, cache_medium, invalidate_related_caches
 
-from models import Brief, Client, Deliverable, Post, Project, User
+from backend.models import Brief, Client, Deliverable, Post, Project, User
 
 
 # ==================== Cursor Pagination Utilities ====================

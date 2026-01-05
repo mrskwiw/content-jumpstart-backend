@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 import time
 from unittest.mock import Mock, patch
-from utils.query_cache import (
+from backend.utils.query_cache import (
     cached,
     cache_short,
     cache_medium,

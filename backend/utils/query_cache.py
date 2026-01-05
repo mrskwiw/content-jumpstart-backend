@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, Optional
 from cachetools import TTLCache
 
 # Import settings for cache configuration
-from config import settings
+from backend.config import settings
 
 
 def _initialize_caches() -> Dict[str, TTLCache]:

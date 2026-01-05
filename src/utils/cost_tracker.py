@@ -350,7 +350,7 @@ class CostTracker:
                 cost, timestamp
             FROM api_calls
             WHERE project_id = ?
-            ORDER BY timestamp DESC
+            ORDER BY timestamp DESC, call_id DESC
         """,
             (project_id,),
         )

@@ -45,7 +45,7 @@ try:
         "seo_keyword_research": SEOKeywordResearcher,
         "competitive_analysis": CompetitiveAnalyzer,
         "content_gap_analysis": ContentGapAnalyzer,
-        "market_trends": MarketTrendsResearcher,  # Match router tool name
+        "market_trends_research": MarketTrendsResearcher,  # Match tool_name property
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses
@@ -56,8 +56,8 @@ except ImportError as e:
 
 # IMPORTANT: Use relative imports to avoid SQLAlchemy table redefinition errors
 # Absolute imports (backend.models) cause circular dependencies in production
-from models import Project, Client
-from services import crud
+from backend.models import Project, Client
+from backend.services import crud
 
 # Logger import with fallback
 try:

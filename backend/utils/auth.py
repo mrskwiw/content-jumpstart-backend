@@ -7,7 +7,7 @@ from typing import Optional
 import bcrypt
 from jose import JWTError, jwt
 
-from config import settings
+from backend.config import settings
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

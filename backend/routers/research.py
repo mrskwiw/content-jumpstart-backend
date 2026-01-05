@@ -9,12 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db
-from middleware.auth_dependency import get_current_user
-from models import User
-from services import crud
-from services.research_service import research_service
-from utils.logger import logger
+from backend.database import get_db
+from backend.middleware.auth_dependency import get_current_user
+from backend.models import User
+from backend.services import crud
+from backend.services.research_service import research_service
+from backend.utils.logger import logger
 
 router = APIRouter()
 
@@ -92,7 +92,7 @@ RESEARCH_TOOLS = [
 
     # Market Intelligence Tools ($400 Total)
     ResearchTool(
-        name="market_trends",
+        name="market_trends_research",
         label="Market Trends Research",
         price=400.0,
         status="available",

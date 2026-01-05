@@ -4,18 +4,18 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from middleware.auth_dependency import get_current_user
-from schemas.deliverable import (
+from backend.middleware.auth_dependency import get_current_user
+from backend.schemas.deliverable import (
     DeliverableResponse,
     DeliverableDetailResponse,
     MarkDeliveredRequest,
 )
-from services import crud
-from services.deliverable_service import get_deliverable_details
+from backend.services import crud
+from backend.services.deliverable_service import get_deliverable_details
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import User
+from backend.database import get_db
+from backend.models import User
 
 router = APIRouter()
 

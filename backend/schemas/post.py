@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from schemas.enums import Platform
+from src.models.client_brief import Platform
 
 
 class PostBase(BaseModel):

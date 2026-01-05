@@ -4,16 +4,16 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from middleware.auth_dependency import get_current_user
-from schemas.brief import BriefCreate, BriefResponse
-from services import crud
+from backend.middleware.auth_dependency import get_current_user
+from backend.schemas.brief import BriefCreate, BriefResponse
+from backend.services import crud
 from sqlalchemy.orm import Session
 
-from config import settings
-from database import get_db
-from models import User
-from models.brief_import import FieldExtraction, ParsedBriefResponse, ParseError
-from utils.logger import logger
+from backend.config import settings
+from backend.database import get_db
+from backend.models import User
+from backend.models.brief_import import FieldExtraction, ParsedBriefResponse, ParseError
+from backend.utils.logger import logger
 
 router = APIRouter()
 

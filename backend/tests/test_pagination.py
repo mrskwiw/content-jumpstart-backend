@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, MagicMock
-from utils.pagination import (
+from backend.utils.pagination import (
     paginate_offset,
     paginate_cursor,
     paginate_hybrid,

@@ -14,10 +14,10 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from models import Post, Project, Run
-from services import crud
-from utils.cli_executor import cli_executor
-from utils.logger import logger
+from backend.models import Post, Project, Run
+from backend.services import crud
+from backend.utils.cli_executor import cli_executor
+from backend.utils.logger import logger
 
 
 class GeneratorService:

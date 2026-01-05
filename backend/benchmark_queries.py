@@ -18,9 +18,9 @@ from typing import Callable, List
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database import SessionLocal
-from models import Post, Project, Client, Run
-from services import crud
+from backend.database import SessionLocal
+from backend.models import Post, Project, Client, Run
+from backend.services import crud
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 

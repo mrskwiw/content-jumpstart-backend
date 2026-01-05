@@ -12,15 +12,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import get_db, SessionLocal
-from middleware.auth_dependency import get_current_user
-from models import User
-from schemas.run import RunResponse
-from schemas.deliverable import DeliverableResponse
-from services import crud
-from services.generator_service import generator_service
-from utils.logger import logger
-from utils.http_rate_limiter import limiter
+from backend.database import get_db, SessionLocal
+from backend.middleware.auth_dependency import get_current_user
+from backend.models import User
+from backend.schemas.run import RunResponse
+from backend.schemas.deliverable import DeliverableResponse
+from backend.services import crud
+from backend.services.generator_service import generator_service
+from backend.utils.logger import logger
+from backend.utils.http_rate_limiter import limiter
 
 router = APIRouter()
 

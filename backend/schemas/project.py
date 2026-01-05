@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
-from utils.input_validators import (
+from backend.utils.input_validators import (
     validate_string_field,
     validate_id_field,
     validate_integer_field,

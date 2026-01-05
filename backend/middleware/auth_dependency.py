@@ -3,12 +3,12 @@ Authentication dependency for protected routes.
 """
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from services import crud
+from backend.services import crud
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import User
-from utils.auth import decode_token
+from backend.database import get_db
+from backend.models import User
+from backend.utils.auth import decode_token
 
 
 class HTTPBearerWith401(HTTPBearer):

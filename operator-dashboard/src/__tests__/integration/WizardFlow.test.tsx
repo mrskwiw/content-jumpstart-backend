@@ -67,19 +67,19 @@ describe('Wizard Flow Integration Tests', () => {
         </TestWrapper>
       );
 
-      // Fill in required fields
+      // Fill in required fields (min 70 chars for businessDescription, 30 for others)
       await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Company');
       await user.type(
         screen.getByPlaceholderText(/cloud-based project management/i),
-        'We provide software solutions'
+        'We provide comprehensive cloud-based software solutions for small and medium-sized businesses to help them streamline their operations and improve productivity'
       );
       await user.type(
         screen.getByPlaceholderText(/Small business owners/i),
-        'Small businesses with 5-20 employees'
+        'Small businesses with 5-20 employees who need better collaboration tools'
       );
       await user.type(
         screen.getByPlaceholderText(/eliminate the chaos/i),
-        'We solve communication problems'
+        'We solve communication and collaboration problems in distributed teams'
       );
 
       // Select at least one platform (required field)
@@ -140,19 +140,19 @@ describe('Wizard Flow Integration Tests', () => {
 
   describe('Step 2: Template Selection', () => {
     async function advanceToTemplateSelection(user: ReturnType<typeof userEvent.setup>) {
-      // Fill and save profile
+      // Fill and save profile (min 70 chars for businessDescription, 30 for others)
       await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Company');
       await user.type(
         screen.getByPlaceholderText(/cloud-based project management/i),
-        'Software solutions'
+        'We provide comprehensive cloud-based software solutions for small and medium-sized businesses to help them streamline their operations and improve productivity'
       );
       await user.type(
         screen.getByPlaceholderText(/Small business owners/i),
-        'Small businesses'
+        'Small businesses with 5-20 employees who need better collaboration tools'
       );
       await user.type(
         screen.getByPlaceholderText(/eliminate the chaos/i),
-        'Solve communication'
+        'We solve communication and collaboration problems in distributed teams'
       );
 
       // Select at least one platform (required)
