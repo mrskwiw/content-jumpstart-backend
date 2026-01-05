@@ -2,6 +2,7 @@ import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, User
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import AIAssistantSidebar from '@/components/ui/AIAssistantSidebar';
 
 const navItems = [
   { to: '/dashboard', label: 'Overview', icon: PanelsTopLeft, end: true },
@@ -80,6 +81,9 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* AI Assistant Sidebar - Available on all pages */}
+      <AIAssistantSidebar />
     </div>
   );
 }
