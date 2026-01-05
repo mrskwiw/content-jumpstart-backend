@@ -139,7 +139,7 @@ RESEARCH_TOOLS = [
         name="icp_workshop",
         label="ICP Development Workshop",
         price=600.0,
-        status="coming_soon",
+        status="available",
         description="Facilitate ideal customer profile definition through guided conversation",
         category="workshop"
     ),

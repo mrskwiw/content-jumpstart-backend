@@ -41,6 +41,7 @@ try:
     from src.research.platform_strategy import PlatformStrategist
     from src.research.content_calendar_strategy import ContentCalendarStrategist
     from src.research.audience_research import AudienceResearcher
+    from src.research.icp_workshop import ICPWorkshopFacilitator
 
     RESEARCH_TOOLS_AVAILABLE = True
     RESEARCH_TOOL_MAP = {
@@ -54,6 +55,7 @@ try:
         "platform_strategy": PlatformStrategist,
         "content_calendar": ContentCalendarStrategist,
         "audience_research": AudienceResearcher,
+        "icp_workshop": ICPWorkshopFacilitator,
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses
