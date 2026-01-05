@@ -106,7 +106,7 @@ def test_prepare_inputs_tool_name_branches():
     - Result: Input preparation skipped, validation fails
     """
     from backend.services.research_service import research_service
-    from models import Project, Client
+    # from backend.models import Project, Client  # Not needed, using mocks
 
     # Create mock models
     class MockProject:

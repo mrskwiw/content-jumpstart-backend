@@ -14,10 +14,10 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from models import Post, Project, Run
-from services import crud
-from utils.cli_executor import cli_executor
-from utils.logger import logger
+from backend.models import Post, Project, Run
+from backend.services import crud
+from backend.utils.cli_executor import cli_executor
+from backend.utils.logger import logger
 
 
 class GeneratorService:
@@ -46,20 +46,23 @@ class GeneratorService:
         client_id: str,
         num_posts: Optional[int] = None,
         platform: Optional[str] = None,
+        template_quantities: Optional[Dict[str, int]] = None,
+        custom_topics: Optional[List[str]] = None,  # NEW: topic override for generation
+        run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Generate all posts for a project
 
-        NEW: Supports template quantities from project model.
-        If project has template_quantities, uses those for generation.
-        Otherwise, falls back to legacy num_posts parameter.
+        NEW: Supports template quantities from project model OR from parameter.
+        Priority: parameter template_quantities > project.template_quantities > num_posts
 
         Args:
             db: Database session
             project_id: Project ID
             client_id: Client ID
-            num_posts: Number of posts to generate (optional, overrides template_quantities)
+            num_posts: Number of posts to generate (optional, lowest priority)
             platform: Target platform (optional)
+            template_quantities: Template quantities from frontend (optional, highest priority)
 
         Returns:
             Dict with:
@@ -69,6 +72,8 @@ class GeneratorService:
                 - files: Dict[str, str]
         """
         logger.info(f"Starting content generation for project {project_id}")
+        if template_quantities:
+            logger.info(f"Using template quantities from parameter: {template_quantities}")
 
         # Get project and client
         project = crud.get_project(db, project_id)
@@ -79,16 +84,19 @@ class GeneratorService:
         if not client:
             raise ValueError(f"Client {client_id} not found")
 
-        # NEW: Check for template quantities
-        template_quantities = project.template_quantities
-        if template_quantities:
+        # Priority 1: Use template quantities from parameter (from frontend)
+        # Priority 2: Use template quantities from project model (saved in DB)
+        # Priority 3: Use num_posts parameter (legacy mode)
+        quantities_to_use = template_quantities or project.template_quantities
+        if quantities_to_use:
             # Convert string keys to integers (JSON stores keys as strings)
             template_quantities_int = {
-                int(k): v for k, v in template_quantities.items()
+                int(k): v for k, v in quantities_to_use.items()
             }
             total_posts = sum(template_quantities_int.values())
+            source = "parameter (frontend)" if template_quantities else "project model (database)"
             logger.info(
-                f"Using template quantities from project: {template_quantities_int} "
+                f"Using template quantities from {source}: {template_quantities_int} "
                 f"(total: {total_posts} posts)"
             )
 
@@ -99,6 +107,8 @@ class GeneratorService:
                 client=client,
                 template_quantities=template_quantities_int,
                 platform=platform,
+                custom_topics=custom_topics,  # NEW: pass topic override
+                run_id=run_id,
             )
 
         # Legacy mode: use num_posts parameter
@@ -118,7 +128,10 @@ class GeneratorService:
         )
 
         if not result["success"]:
-            raise Exception(result.get("error", "Generation failed"))
+            error_details = result.get("error", "Unknown error - CLI execution failed")
+            logger.error(f"CLI generation failed: {error_details}")
+            logger.error(f"Full result: {result}")
+            raise Exception(f"Content generation failed: {error_details}")
 
         # Create Post records in database
         posts_created = 0
@@ -176,6 +189,8 @@ class GeneratorService:
         client: any,
         template_quantities: Dict[int, int],
         platform: Optional[str] = None,
+        custom_topics: Optional[List[str]] = None,  # NEW: topic override for generation
+        run_id: Optional[str] = None,
     ) -> Dict[str, any]:
         """
         Generate posts using template quantities (direct content generator call)
@@ -194,94 +209,162 @@ class GeneratorService:
         Returns:
             Dict with generation results
         """
-        import sys
-        from pathlib import Path
+        try:
+            import sys
+            from pathlib import Path
 
-        # Add src to path to import content generator
-        src_path = Path(__file__).parent.parent.parent / "src"
-        if str(src_path) not in sys.path:
-            sys.path.insert(0, str(src_path))
+            logger.info(f"Starting _generate_with_template_quantities for project {project.id}")
+            logger.info(f"Template quantities: {template_quantities}")
+            logger.info(f"Client: {client.name} (ID: {client.id})")
+            logger.info(f"Project: {project.name} (ID: {project.id})")
 
-        from agents.content_generator import ContentGeneratorAgent
-        from models.client_brief import ClientBrief, Platform
+            # Add project root to path to import from src package
+            project_root = Path(__file__).parent.parent.parent
+            logger.info(f"Adding project root to sys.path: {project_root}")
 
-        # Build client brief from project/client data
-        logger.info("Building client brief from project data")
+            if not project_root.exists():
+                raise FileNotFoundError(f"Project root does not exist: {project_root}")
 
-        # Map platform string to Platform enum
-        platform_enum = Platform.LINKEDIN  # Default
-        if platform:
-            platform_upper = platform.upper()
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+                logger.info(f"Successfully added {project_root} to sys.path")
+
+            # Import required modules (use src.* imports since project root is in sys.path)
+            logger.info("Importing ContentGeneratorAgent and models...")
             try:
-                platform_enum = Platform[platform_upper]
-            except KeyError:
-                logger.warning(f"Unknown platform '{platform}', using LINKEDIN")
+                from src.agents.content_generator import ContentGeneratorAgent
+                from src.models.client_brief import ClientBrief, Platform
+                logger.info("Successfully imported required modules")
+            except ImportError as e:
+                logger.error(f"Failed to import required modules: {str(e)}", exc_info=True)
+                raise
 
-        # Create client brief
-        brief = ClientBrief(
-            company_name=client.name,
-            business_description=client.business_description or "Content creation project",
-            ideal_customer=client.ideal_customer or "General audience",
-            main_problem_solved=client.main_problem_solved or "Communication challenges",
-            platforms=[platform_enum],
-            tone_preference=project.tone or client.tone_preference or "Professional",
-            customer_pain_points=client.customer_pain_points or [],
-            customer_questions=client.customer_questions or [],
-        )
+            # Build client brief from project/client data
+            logger.info("Building client brief from project data")
+            logger.info(f"Client data - name: {client.name}, business_description: {client.business_description[:100] if client.business_description else 'None'}...")
 
-        # Initialize content generator
-        logger.info("Initializing content generator")
-        generator = ContentGeneratorAgent()
+            # Map platform string to Platform enum
+            platform_enum = Platform.LINKEDIN  # Default
+            if platform:
+                platform_upper = platform.upper()
+                try:
+                    platform_enum = Platform[platform_upper]
+                    logger.info(f"Using platform: {platform_enum.value}")
+                except KeyError:
+                    logger.warning(f"Unknown platform '{platform}', using LINKEDIN")
 
-        # Generate posts using template quantities
-        logger.info(f"Generating posts with template quantities: {template_quantities}")
-        posts = await generator.generate_posts_async(
-            client_brief=brief,
-            template_quantities=template_quantities,
-            platform=platform_enum,
-            randomize=True,
-            max_concurrent=5,
-            use_client_memory=False,  # Not using client memory for now
-        )
-
-        logger.info(f"Generated {len(posts)} posts")
-
-        # Create Post records in database
-        posts_created = 0
-        for post in posts:
+            # Create client brief
             try:
-                db_post = Post(
-                    id=f"post-{uuid.uuid4().hex[:12]}",
-                    project_id=project.id,
-                    content=post.content,
-                    platform=post.target_platform.value.lower(),
-                    template_id=str(post.template_id),
-                    template_name=post.template_name,
-                    variant=post.variant,
-                    word_count=post.word_count,
-                    has_cta=post.has_cta,
-                    needs_review=False,  # Template quantities are deliberate choices
-                    review_reasons=[],
-                    keywords_used=post.keywords_used or [],
-                    status="approved",
-                    created_at=datetime.utcnow(),
+                brief = ClientBrief(
+                    company_name=client.name,
+                    business_description=client.business_description or "Content creation project",
+                    ideal_customer=client.ideal_customer or "General audience",
+                    main_problem_solved=client.main_problem_solved or "Communication challenges",
+                    platforms=[platform_enum],
+                    tone_preference=project.tone or client.tone_preference or "Professional",
+                    customer_pain_points=client.customer_pain_points or [],
+                    customer_questions=client.customer_questions or [],
                 )
-                db.add(db_post)
-                posts_created += 1
+                logger.info(f"Successfully created ClientBrief for {brief.company_name}")
+            except Exception as e:
+                logger.error(f"Failed to create ClientBrief: {str(e)}", exc_info=True)
+                raise
+
+            # Initialize content generator
+            logger.info("Initializing content generator")
+            try:
+                generator = ContentGeneratorAgent()
+                logger.info("Successfully initialized ContentGeneratorAgent")
+            except Exception as e:
+                logger.error(f"Failed to initialize ContentGeneratorAgent: {str(e)}", exc_info=True)
+                raise
+
+            # Generate posts using template quantities
+            logger.info(f"Calling generate_posts_async with template quantities: {template_quantities}")
+            logger.info(f"Template quantities type: {type(template_quantities)}")
+            logger.info(f"Template quantities keys: {list(template_quantities.keys()) if template_quantities else 'None'}")
+            logger.info(f"Template quantities values: {list(template_quantities.values()) if template_quantities else 'None'}")
+            logger.info(f"Expected total posts: {sum(template_quantities.values()) if template_quantities else 0}")
+
+            try:
+                posts = await generator.generate_posts_async(
+                    client_brief=brief,
+                    template_quantities=template_quantities,
+                    platform=platform_enum,
+                    randomize=True,
+                    max_concurrent=5,
+                    use_client_memory=False,  # Not using client memory for now
+                )
+                logger.info(f"Successfully generated {len(posts)} posts (expected: {sum(template_quantities.values()) if template_quantities else 'unknown'})")
+
+                if len(posts) == 0:
+                    logger.warning("⚠️ CRITICAL: generate_posts_async returned 0 posts!")
+                    logger.warning(f"Expected posts based on template_quantities: {sum(template_quantities.values())}")
 
             except Exception as e:
-                logger.error(f"Failed to create post record: {str(e)}")
-                continue
+                logger.error(f"Failed to generate posts: {str(e)}", exc_info=True)
+                raise
 
-        # Commit all posts
-        db.commit()
-        logger.info(f"Successfully created {posts_created} post records in database")
+            # Create Post records in database
+            logger.info(f"Creating {len(posts)} Post records in database for project {project.id}")
+            posts_created = 0
 
-        return {
-            "posts_created": posts_created,
-            "output_dir": None,  # No file output for direct generation
-            "files": {},
-        }
+            for idx, post in enumerate(posts):
+                try:
+                    post_id = f"post-{uuid.uuid4().hex[:12]}"
+                    logger.info(f"Creating post {idx+1}/{len(posts)}: {post_id} (template: {post.template_name})")
+
+                    db_post = Post(
+                        id=post_id,
+                        project_id=project.id,
+                        run_id=run_id or f"run-{uuid.uuid4().hex[:12]}",  # Use provided run_id or generate new one
+                        content=post.content,
+                        target_platform=post.target_platform.value.lower(),  # Fixed: was 'platform', should be 'target_platform'
+                        template_id=str(post.template_id),
+                        template_name=post.template_name,
+                        variant=post.variant,
+                        word_count=post.word_count,
+                        has_cta=post.has_cta,
+                        status="approved",  # Template quantities are deliberate choices
+                        created_at=datetime.utcnow(),
+                    )
+                    db.add(db_post)
+                    posts_created += 1
+                    logger.info(f"Successfully created post record {post_id}")
+
+                except Exception as e:
+                    logger.error(f"Failed to create post record {idx+1}: {str(e)}", exc_info=True)
+                    continue
+
+            # Commit all posts
+            logger.info(f"Committing {posts_created} posts to database...")
+            try:
+                db.commit()
+                logger.info(f"✅ Successfully committed {posts_created} post records to database")
+            except Exception as e:
+                logger.error(f"Failed to commit posts to database: {str(e)}", exc_info=True)
+                db.rollback()
+                raise
+
+            # Verify posts were saved
+            from services import crud
+            saved_posts = crud.get_posts(db, project_id=project.id, limit=100)
+            logger.info(f"Verification: Found {len(saved_posts)} posts in database for project {project.id}")
+
+            if len(saved_posts) != posts_created:
+                logger.warning(f"⚠️ Mismatch: Created {posts_created} posts but found {len(saved_posts)} in database")
+
+            return {
+                "posts_created": posts_created,
+                "output_dir": None,  # No file output for direct generation
+                "files": {},
+            }
+
+        except Exception as e:
+            error_type = type(e).__name__
+            logger.error(f"❌ CRITICAL ERROR in _generate_with_template_quantities: {error_type}: {str(e)}", exc_info=True)
+            # Re-raise with more context
+            raise Exception(f"Template-based generation failed ({error_type}): {str(e)}") from e
 
     def _create_brief_file(self, project: Project, client: any) -> Path:
         """

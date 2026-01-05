@@ -5,15 +5,16 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Run(Base):
     """Generation execution run"""
 
     __tablename__ = "runs"
+    __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     is_batch = Column(Boolean, default=False)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -24,9 +25,9 @@ class Run(Base):
     logs = Column(JSON)  # Array of log messages
     error_message = Column(String)  # Error details if failed
 
-    # Relationships
-    project = relationship("Project", back_populates="runs")
-    posts = relationship("Post", back_populates="run", cascade="all, delete-orphan")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    project = relationship("backend.models.project.Project", back_populates="runs")
+    posts = relationship("backend.models.post.Post", back_populates="run", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Run {self.id} ({self.status})>"

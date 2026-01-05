@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
-from database import get_db, engine
-from models.deliverable import Deliverable
+from backend.database import get_db, engine
+from backend.models.deliverable import Deliverable
 from sqlalchemy import text
 
 

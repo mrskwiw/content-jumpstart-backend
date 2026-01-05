@@ -1,42 +1,95 @@
 """
 Database configuration and session management.
 """
+import sys
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import OperationalError, DatabaseError
 
-from config import settings
-from utils.query_profiler import enable_sqlalchemy_profiling
+from backend.config import settings
+from backend.utils.query_profiler import enable_sqlalchemy_profiling
 
 # Create SQLAlchemy engine with optimized connection pooling
 database_url = make_url(settings.DATABASE_URL)
+
+print(f">> DEBUG: Creating database engine for {database_url.drivername}")
 
 # SQLite-specific connection args (single-threaded, no real pooling)
 if database_url.drivername.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
     # SQLite uses NullPool or SingletonThreadPool by default
     # Connection pooling settings don't apply
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args=connect_args,
-        echo_pool=settings.DB_ECHO_POOL,
-    )
+    try:
+        engine = create_engine(
+            settings.DATABASE_URL,
+            connect_args=connect_args,
+            echo_pool=settings.DB_ECHO_POOL,
+        )
+        print(f">> DEBUG: SQLite engine created successfully")
+    except Exception as e:
+        print(f">> ERROR: Failed to create SQLite engine: {e}")
+        raise
 else:
     # PostgreSQL/MySQL connection pooling (production)
     connect_args = {}
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args=connect_args,
-        pool_size=settings.DB_POOL_SIZE,
-        max_overflow=settings.DB_MAX_OVERFLOW,
-        pool_recycle=settings.DB_POOL_RECYCLE,
-        pool_pre_ping=settings.DB_POOL_PRE_PING,
-        echo_pool=settings.DB_ECHO_POOL,
-        pool_timeout=settings.DB_POOL_TIMEOUT,
-    )
+    try:
+        engine = create_engine(
+            settings.DATABASE_URL,
+            connect_args=connect_args,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
+            pool_recycle=settings.DB_POOL_RECYCLE,
+            pool_pre_ping=settings.DB_POOL_PRE_PING,
+            echo_pool=settings.DB_ECHO_POOL,
+            pool_timeout=settings.DB_POOL_TIMEOUT,
+        )
+        print(f">> DEBUG: PostgreSQL engine created successfully")
+
+        # Test connection immediately
+        print(f">> DEBUG: Testing PostgreSQL connection...")
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT 1"))
+                result.fetchone()
+            print(f">> DEBUG: PostgreSQL connection test PASSED")
+        except OperationalError as e:
+            error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
+            print(f">> ERROR: PostgreSQL connection FAILED")
+            print(f">> ERROR: Cannot connect to database")
+            print(f">> ERROR: Details: {error_msg}")
+
+            # Provide helpful troubleshooting tips
+            if "could not connect to server" in error_msg.lower():
+                print(f">> ERROR: Database server unreachable. Check:")
+                print(f">>   1. DATABASE_URL is correct (internal URL for Render)")
+                print(f">>   2. PostgreSQL service is running")
+                print(f">>   3. Network/firewall allows connection")
+            elif "authentication failed" in error_msg.lower() or "password" in error_msg.lower():
+                print(f">> ERROR: Authentication failed. Check:")
+                print(f">>   1. Username is correct")
+                print(f">>   2. Password is correct")
+                print(f">>   3. User has access to the database")
+            elif "database" in error_msg.lower() and "does not exist" in error_msg.lower():
+                print(f">> ERROR: Database does not exist. Check:")
+                print(f">>   1. Database name in DATABASE_URL is correct")
+                print(f">>   2. Database has been created")
+
+            print(f">> FATAL: Cannot start application without database connection")
+            sys.exit(1)
+        except Exception as e:
+            print(f">> ERROR: Unexpected database error: {e}")
+            print(f">> FATAL: Cannot start application without database connection")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f">> ERROR: Failed to create PostgreSQL engine: {e}")
+        print(f">> ERROR: DATABASE_URL format may be invalid")
+        print(f">> ERROR: Expected format: postgresql://user:pass@host:port/dbname")
+        raise
 
 # Enable query profiling for performance monitoring
 enable_sqlalchemy_profiling(engine)
@@ -68,11 +121,31 @@ def init_db():
     """
     Initialize database by creating all tables.
     Call this on application startup.
+    Handles existing indexes gracefully to support database persistence.
     """
     from sqlalchemy import text, inspect
+    from sqlalchemy.exc import OperationalError
 
-    # Create all tables
-    Base.metadata.create_all(bind=engine)
+    # Import all models to ensure they're registered with SQLAlchemy
+    # This must happen before Base.metadata.create_all() or mapper configuration
+    from backend.models import Brief, Client, Deliverable, Post, Project, Run, User
+
+    # Create all tables (handles existing indexes gracefully)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except OperationalError as e:
+        # Ignore "index already exists" errors (common with persistent databases)
+        if "already exists" in str(e):
+            print(f">> Note: Some database objects already exist (expected for persistent storage): {e}")
+            # Create tables individually to work around index errors
+            for table in Base.metadata.sorted_tables:
+                try:
+                    table.create(bind=engine, checkfirst=True)
+                except OperationalError as table_error:
+                    if "already exists" not in str(table_error):
+                        raise  # Re-raise if it's not an "already exists" error
+        else:
+            raise  # Re-raise if it's a different error
 
     # Run migrations (add missing columns)
     with engine.connect() as conn:
@@ -158,7 +231,7 @@ def init_db():
                     from sqlalchemy.orm import Session
                     session = Session(bind=engine)
                     try:
-                        from models.project import Project
+                        from backend.models.project import Project
                         import json
 
                         projects = session.query(Project).filter(

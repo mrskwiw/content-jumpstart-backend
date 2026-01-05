@@ -1,10 +1,10 @@
 """
 Pydantic schemas for Deliverable API.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class DeliverableBase(BaseModel):
@@ -37,6 +37,16 @@ class DeliverableResponse(DeliverableBase):
             for i, word in enumerate(field_name.split('_'))
         ),  # Convert snake_case to camelCase
     )
+
+    @field_serializer('created_at', 'delivered_at', when_used='always')
+    def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
+        """Serialize datetime to ISO 8601 with timezone (Z suffix for UTC)"""
+        if dt is None:
+            return None
+        # Ensure timezone-aware
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
 
 
 class MarkDeliveredRequest(BaseModel):
@@ -108,3 +118,13 @@ class DeliverableDetailResponse(DeliverableResponse):
             for i, word in enumerate(field_name.split('_'))
         ),
     )
+
+    @field_serializer('created_at', 'delivered_at', 'file_modified_at', when_used='always')
+    def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
+        """Serialize all datetime fields to ISO 8601 with timezone (Z suffix for UTC)"""
+        if dt is None:
+            return None
+        # Ensure timezone-aware
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()

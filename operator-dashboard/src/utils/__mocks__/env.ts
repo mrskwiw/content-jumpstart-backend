@@ -17,15 +17,18 @@ export function getApiBaseUrl(): string {
 
   if (!value) {
     if (mode === 'production') {
+      console.log('VITE_API_URL not set in production; using relative URLs (same origin)');
       return '';  // Relative URLs
     }
+    console.warn('VITE_API_URL not set; using default http://localhost:8000');
     return FALLBACK_API_URL;
   }
 
   try {
     const normalized = new URL(value).toString();
     return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
-  } catch {
+  } catch (error) {
+    console.warn('Invalid VITE_API_URL provided; using default http://localhost:8000', error);
     return FALLBACK_API_URL;
   }
 }

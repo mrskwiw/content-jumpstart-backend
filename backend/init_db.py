@@ -16,7 +16,7 @@ from pathlib import Path
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
-from database import Base, engine
+from backend.database import Base, engine
 import models  # noqa: F401 - Import all models so Base.metadata knows about them
 
 

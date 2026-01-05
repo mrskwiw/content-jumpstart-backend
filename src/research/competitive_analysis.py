@@ -20,6 +20,40 @@ from ..models.competitive_analysis_models import (
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from .base import ResearchTool
+import re
+
+
+def extract_json_from_response(response_text: str) -> str:
+    """
+    Extract JSON from Claude response, handling markdown code blocks.
+
+    Claude often wraps JSON in ```json ... ``` blocks. This function
+    extracts the JSON content, falling back to the raw response if no
+    code blocks are found.
+
+    Args:
+        response_text: Raw response from Claude API
+
+    Returns:
+        Extracted JSON string
+    """
+    if not response_text or not response_text.strip():
+        logger.warning("Empty response received, returning empty object")
+        return "{}"
+
+    # Try to extract JSON from markdown code blocks
+    json_match = re.search(r'```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```', response_text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
+
+    # Try to find JSON array or object without code blocks
+    json_match = re.search(r'(\[.*\]|\{.*\})', response_text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
+
+    # If no JSON found, return empty object
+    logger.warning(f"No JSON found in response, returning empty object. Response preview: {response_text[:200]}")
+    return "{}"
 
 
 class CompetitiveAnalyzer(ResearchTool):
@@ -171,7 +205,9 @@ estimated_reach, engagement_level"""
                     temperature=0.4,
                 )
 
-                data = json.loads(response)
+                # Parse JSON response (extract from markdown if needed)
+                json_str = extract_json_from_response(response)
+                data = json.loads(json_str)
 
                 # Parse content types
                 content_types = []

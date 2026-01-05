@@ -120,5 +120,6 @@ async def test_coordinator():
     print("\n" + "=" * 60)
 
 
-# Run test
-asyncio.run(test_coordinator())
+# Run test only when executed directly, not during pytest collection
+if __name__ == "__main__":
+    asyncio.run(test_coordinator())

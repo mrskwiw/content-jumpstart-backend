@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Apply missing indexes to posts table"""
-from database import engine
+from backend.database import engine
 from sqlalchemy import text, inspect
 
 def main():

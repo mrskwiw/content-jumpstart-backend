@@ -1,5 +1,5 @@
 import { useState, useMemo, memo } from 'react';
-import { Plus, Minus, DollarSign, FileText, Calculator, TrendingUp } from 'lucide-react';
+import { Plus, Minus, DollarSign, FileText, Calculator, TrendingUp, HelpCircle, AlertCircle, X } from 'lucide-react';
 
 interface Template {
   id: number;
@@ -120,7 +120,8 @@ const TEMPLATES: Template[] = [
 interface Props {
   initialQuantities?: Record<number, number>;
   initialIncludeResearch?: boolean;
-  onContinue?: (quantities: Record<number, number>, includeResearch: boolean, totalPrice: number) => void;
+  initialTopics?: string[];  // NEW: custom topics for generation
+  onContinue?: (quantities: Record<number, number>, includeResearch: boolean, totalPrice: number, customTopics: string[]) => void;
 }
 
 const PRICE_PER_POST = 40.0;
@@ -129,10 +130,12 @@ const RESEARCH_PRICE_PER_POST = 15.0;
 export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   initialQuantities = {},
   initialIncludeResearch = false,
+  initialTopics = [],  // NEW
   onContinue,
 }: Props) {
   const [quantities, setQuantities] = useState<Record<number, number>>(initialQuantities);
   const [includeResearch, setIncludeResearch] = useState(initialIncludeResearch);
+  const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);  // NEW: topic override state
 
   // Calculate totals
   const { totalPosts, totalPrice, pricePerPost } = useMemo(() => {
@@ -215,7 +218,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
       </div>
 
       <p className="mb-6 text-sm text-slate-600">
-        Specify exact quantities for each template. Pricing is $40/post, with optional $15/post research add-on.
+        Specify exact quantities for each template. Pricing is $40/post, with optional $15/post topic research add-on.
       </p>
 
       {/* Pricing Summary Card */}
@@ -252,7 +255,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           </div>
         </div>
 
-        {/* Research Checkbox */}
+        {/* Topic Research Checkbox */}
         <div className="mt-4 flex items-center gap-2 border-t border-blue-200 pt-4">
           <input
             type="checkbox"
@@ -261,9 +264,49 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
             onChange={(e) => setIncludeResearch(e.target.checked)}
             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
           />
-          <label htmlFor="include-research" className="flex-1 cursor-pointer text-sm font-medium text-slate-700">
-            Include research (+$15/post) {includeResearch && `= +$${(totalPosts * RESEARCH_PRICE_PER_POST).toLocaleString()}`}
+          <label htmlFor="include-research" className="flex-1 cursor-pointer text-sm font-medium text-slate-700 flex items-center gap-1.5">
+            <span>Include topic research (+$15/post) {includeResearch && `= +$${(totalPosts * RESEARCH_PRICE_PER_POST).toLocaleString()}`}</span>
+            <span title="Topic research identifies trending keywords and content themes for your posts. This is separate from the client research tools in the Research step.">
+              <HelpCircle
+                className="h-4 w-4 text-slate-400 hover:text-slate-600 transition-colors"
+              />
+            </span>
           </label>
+        </div>
+
+        {/* Topic Override Section */}
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <label className="text-sm font-medium text-amber-900">
+              Custom Topics (Optional)
+            </label>
+          </div>
+          <p className="text-xs text-amber-700 mb-3">
+            Specify topics to guide content generation. Leave empty to use research results or AI suggestions. Separate with commas.
+          </p>
+          <textarea
+            value={customTopics.join(', ')}
+            onChange={(e) => setCustomTopics(
+              e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+            )}
+            placeholder="e.g., customer retention, churn prediction, product analytics"
+            className="w-full rounded-md border-amber-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500"
+            rows={2}
+          />
+          {customTopics.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {customTopics.map((topic, i) => (
+                <span key={i} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                  {topic}
+                  <X
+                    className="h-3 w-3 cursor-pointer hover:text-amber-900"
+                    onClick={() => setCustomTopics(prev => prev.filter((_, idx) => idx !== i))}
+                  />
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -357,7 +400,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           {totalPosts > 50 && 'Large order - generation may take longer'}
         </div>
         <button
-          onClick={() => onContinue?.(quantities, includeResearch, totalPrice)}
+          onClick={() => onContinue?.(quantities, includeResearch, totalPrice, customTopics)}
           disabled={totalPosts === 0}
           className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >

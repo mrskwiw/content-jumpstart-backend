@@ -52,10 +52,10 @@ class Settings(BaseSettings):
         if not v.startswith('sk-ant-'):
             logger.warning(
                 f"ANTHROPIC_API_KEY does not start with expected prefix 'sk-ant-'. "
-                f"This may be an invalid key (current: {v[:10]}...)"
+                f"This may be an invalid key (prefix: {v[:4]}...)"
             )
 
-        logger.info(f"ANTHROPIC_API_KEY validated (length: {len(v)}, prefix: {v[:7]}...)")
+        logger.info(f"ANTHROPIC_API_KEY validated (length: {len(v)} chars)")
         return v
     MAX_TOKENS: int = 4096
     TEMPERATURE: float = 0.7

@@ -2,15 +2,15 @@
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from middleware.auth_dependency import get_current_user
-from schemas.post import PostResponse, PostUpdate
-from services import crud
+from backend.middleware.auth_dependency import get_current_user
+from backend.schemas.post import PostResponse, PostUpdate
+from backend.services import crud
 from sqlalchemy.orm import Session
-from utils.caching import CacheConfig, create_cacheable_response
-from utils.pagination import paginate_hybrid, get_pagination_params
+from backend.utils.caching import CacheConfig, create_cacheable_response
+from backend.utils.pagination import paginate_hybrid, get_pagination_params
 
-from database import get_db
-from models import Post, User
+from backend.database import get_db
+from backend.models import Post, User
 
 router = APIRouter()
 

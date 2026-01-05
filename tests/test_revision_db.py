@@ -5,6 +5,7 @@ Quick test to verify database schema, models, and CRUD operations.
 
 import sys
 from pathlib import Path
+import pytest
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -13,21 +14,65 @@ from src.database.project_db import ProjectDatabase
 from src.models.project import Project, ProjectStatus, Revision, RevisionPost, RevisionStatus
 
 
-def test_database_initialization():
+@pytest.fixture
+def db_path(tmp_path):
+    """Create a temporary database path for testing"""
+    return tmp_path / "test_projects.db"
+
+
+@pytest.fixture
+def db(db_path):
+    """Create and initialize a test database"""
+    if db_path.exists():
+        db_path.unlink()
+    return ProjectDatabase(db_path=db_path)
+
+
+@pytest.fixture
+def client_name():
+    """Test client name"""
+    return "Test Client Corp"
+
+
+@pytest.fixture
+def project(db, client_name):
+    """Create a test project"""
+    proj = Project(
+        project_id="TestClient_20250101_120000",
+        client_name=client_name,
+        deliverable_path="data/outputs/TestClient/deliverable.md",
+        brief_path="tests/fixtures/test_brief.txt",
+        num_posts=30,
+        quality_profile_name="professional_linkedin",
+        status=ProjectStatus.COMPLETED,
+    )
+    db.create_project(proj)
+    return proj
+
+
+@pytest.fixture
+def revision(db, project):
+    """Create a test revision"""
+    rev = Revision(
+        revision_id="rev_001",
+        project_id=project.project_id,
+        attempt_number=1,
+        feedback="Update 5 posts based on client feedback",
+        status=RevisionStatus.PENDING,
+    )
+    db.create_revision(rev)
+    return rev
+
+
+def test_database_initialization(db, db_path):
     """Test 1: Database initialization"""
     print("\n" + "=" * 60)
     print("TEST 1: Database Initialization")
     print("=" * 60)
 
-    # Use test database
-    db_path = Path(__file__).parent / "test_projects.db"
-    if db_path.exists():
-        db_path.unlink()  # Delete old test db
-
-    db = ProjectDatabase(db_path=db_path)
+    assert db is not None
     print("[OK] Database initialized successfully")
     print(f"  Database path: {db_path}")
-    return db
 
 
 def test_create_project(db: ProjectDatabase):

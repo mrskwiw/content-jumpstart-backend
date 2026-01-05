@@ -11,11 +11,11 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from models.deliverable import Deliverable
-from models.post import Post
-from schemas.deliverable import DeliverableDetailResponse, PostSummary, QASummary
-from services import crud
-from utils.logger import logger
+from backend.models.deliverable import Deliverable
+from backend.models.post import Post
+from backend.schemas.deliverable import DeliverableDetailResponse, PostSummary, QASummary
+from backend.services import crud
+from backend.utils.logger import logger
 
 
 def get_file_preview(file_path: Path, max_chars: int = 5000) -> Tuple[Optional[str], bool]:

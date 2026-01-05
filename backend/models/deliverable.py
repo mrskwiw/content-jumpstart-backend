@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Deliverable(Base):
@@ -13,7 +13,7 @@ class Deliverable(Base):
 
     __tablename__ = "deliverables"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     client_id = Column(String, ForeignKey("clients.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), index=True)
@@ -27,9 +27,9 @@ class Deliverable(Base):
     checksum = Column(String)  # File checksum for verification
     file_size_bytes = Column(Integer)  # Actual file size in bytes
 
-    # Relationships
-    project = relationship("Project", back_populates="deliverables")
-    client = relationship("Client", back_populates="deliverables")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    project = relationship("backend.models.project.Project", back_populates="deliverables")
+    client = relationship("backend.models.client.Client", back_populates="deliverables")
 
     # Composite indexes for common query patterns (Performance optimization - December 25, 2025)
     __table_args__ = (
@@ -39,6 +39,7 @@ class Deliverable(Base):
         Index('ix_deliverables_status_created', 'status', 'created_at'),  # Filter by status, sort by date
         # Cursor pagination index (enables O(1) performance for deep pagination)
         Index('ix_deliverables_created_at_id', 'created_at', 'id', postgresql_using='btree'),
+        {'extend_existing': True},
     )
 
     def __repr__(self):

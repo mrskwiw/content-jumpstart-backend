@@ -18,6 +18,40 @@ from ..models.seo_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+import re
+
+
+def extract_json_from_response(response_text: str) -> str:
+    """
+    Extract JSON from Claude response, handling markdown code blocks.
+
+    Claude often wraps JSON in ```json ... ``` blocks. This function
+    extracts the JSON content, falling back to the raw response if no
+    code blocks are found.
+
+    Args:
+        response_text: Raw response from Claude API
+
+    Returns:
+        Extracted JSON string
+    """
+    if not response_text or not response_text.strip():
+        logger.warning("Empty response received, returning empty array")
+        return "[]"
+
+    # Try to extract JSON from markdown code blocks
+    json_match = re.search(r'```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```', response_text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
+
+    # Try to find JSON array or object without code blocks
+    json_match = re.search(r'(\[.*\]|\{.*\})', response_text, re.DOTALL)
+    if json_match:
+        return json_match.group(1)
+
+    # If no JSON found, return empty array
+    logger.warning(f"No JSON found in response, returning empty array. Response preview: {response_text[:200]}")
+    return "[]"
 from .base import ResearchTool
 
 
@@ -161,8 +195,9 @@ keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, lo
                 temperature=0.4,
             )
 
-            # Parse JSON response
-            keywords_data = json.loads(response)
+            # Parse JSON response (extract from markdown if needed)
+            json_str = extract_json_from_response(response)
+            keywords_data = json.loads(json_str)
             keywords = []
 
             for kw_data in keywords_data[:10]:  # Max 10 primary
@@ -223,7 +258,9 @@ keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, lo
                 temperature=0.5,
             )
 
-            keywords_data = json.loads(response)
+            # Parse JSON response (extract from markdown if needed)
+            json_str = extract_json_from_response(response)
+            keywords_data = json.loads(json_str)
             keywords = []
 
             for kw_data in keywords_data[:30]:  # Max 30 secondary

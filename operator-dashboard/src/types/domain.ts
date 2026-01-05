@@ -61,6 +61,7 @@ export const RunSchema = z.object({
   completedAt: z.string().datetime().optional(),
   logs: z.array(z.string()).optional(),
   status: RunStatusSchema.optional(),
+  errorMessage: z.string().optional(),
 });
 export type Run = z.infer<typeof RunSchema>;
 
@@ -125,7 +126,7 @@ export const QASummarySchema = z.object({
 export type QASummary = z.infer<typeof QASummarySchema>;
 
 export const DeliverableDetailsSchema = DeliverableSchema.extend({
-  filePreview: z.string().optional(),
+  filePreview: z.string().nullish(),
   filePreviewTruncated: z.boolean(),
   posts: z.array(PostSummarySchema),
   qaSummary: QASummarySchema.nullish(),
@@ -155,6 +156,8 @@ export const GenerateAllSchema = z.object({
   projectId: z.string(),
   clientId: z.string(),
   isBatch: z.boolean().default(true),
+  templateQuantities: z.record(z.string(), z.number()).optional(),
+  customTopics: z.array(z.string()).optional(),  // NEW: topic override for generation
 });
 export type GenerateAllInput = z.infer<typeof GenerateAllSchema>;
 

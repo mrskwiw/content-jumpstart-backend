@@ -5,7 +5,7 @@ from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Post(Base):
@@ -13,7 +13,7 @@ class Post(Base):
 
     __tablename__ = "posts"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), nullable=False, index=True)
     content = Column(Text, nullable=False)
@@ -28,9 +28,9 @@ class Post(Base):
     target_platform = Column(String)  # linkedin, twitter, facebook, blog
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
-    project = relationship("Project", back_populates="posts")
-    run = relationship("Run", back_populates="posts")
+    # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
+    project = relationship("backend.models.project.Project", back_populates="posts")
+    run = relationship("backend.models.run.Run", back_populates="posts")
 
     # Composite indexes for common query patterns
     __table_args__ = (
@@ -47,6 +47,7 @@ class Post(Base):
         # Cursor pagination index (Week 3 optimization)
         # Enables O(1) performance for deep pagination
         Index('ix_posts_created_at_id', 'created_at', 'id', postgresql_using='btree'),
+        {'extend_existing': True},
     )
 
     def __repr__(self):

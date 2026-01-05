@@ -16,8 +16,8 @@ from unittest.mock import patch, Mock
 
 # Import from backend (conftest.py sets up environment)
 from main import app
-from utils.query_profiler import record_query, reset_statistics
-from utils.query_cache import cached, cache_short, clear_cache, reset_cache_stats
+from backend.utils.query_profiler import record_query, reset_statistics
+from backend.utils.query_cache import cached, cache_short, clear_cache, reset_cache_stats
 
 
 @pytest.fixture

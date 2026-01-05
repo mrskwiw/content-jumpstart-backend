@@ -4,9 +4,9 @@ Seed initial users into the database.
 from typing import List
 import uuid
 
-from database import SessionLocal
-from models import User
-from utils.auth import get_password_hash
+from backend.database import SessionLocal
+from backend.models import User
+from backend.utils.auth import get_password_hash
 
 
 def seed_users(emails: List[str], password: str) -> None:

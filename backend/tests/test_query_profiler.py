@@ -11,7 +11,7 @@ Tests cover:
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
-from utils.query_profiler import (
+from backend.utils.query_profiler import (
     record_query,
     get_query_statistics,
     get_slow_queries,

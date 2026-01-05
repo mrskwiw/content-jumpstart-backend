@@ -18,7 +18,7 @@ Usage:
     celery -A backend.celery_app flower --port=5555
 """
 from celery import Celery
-from config import settings
+from backend.config import settings
 
 # Initialize Celery application
 celery_app = Celery(

@@ -3,7 +3,7 @@ Pydantic schemas for Authentication API.
 """
 from __future__ import annotations  # Enable forward references
 from pydantic import BaseModel, EmailStr, field_validator
-from utils.input_validators import validate_string_field
+from backend.utils.input_validators import validate_string_field
 
 
 class LoginRequest(BaseModel):

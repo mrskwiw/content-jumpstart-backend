@@ -9,7 +9,7 @@ Tests cover:
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from utils.db_monitor import get_pool_status, get_pool_events, _get_recommendations
+from backend.utils.db_monitor import get_pool_status, get_pool_events, _get_recommendations
 
 
 class TestGetPoolStatus:

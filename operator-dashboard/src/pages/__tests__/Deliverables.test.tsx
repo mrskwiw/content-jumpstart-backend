@@ -19,6 +19,18 @@ jest.mock('@/api/deliverables', () => ({
   },
 }));
 
+jest.mock('@/api/clients', () => ({
+  clientsApi: {
+    get: jest.fn().mockResolvedValue({
+      id: 'c1',
+      name: 'Client c1',
+      businessDescription: 'Test business',
+      idealCustomer: 'Test customer',
+      createdAt: new Date().toISOString(),
+    }),
+  },
+}));
+
 describe('Deliverables page', () => {
   it('shows grouped deliverables', async () => {
     const { wrapper } = renderWithProviders();

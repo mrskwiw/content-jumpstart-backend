@@ -5,7 +5,6 @@ import { WizardStepper } from '@/components/wizard/WizardStepper';
 import { ClientProfilePanel } from '@/components/wizard/ClientProfilePanel';
 import { ResearchPanel } from '@/components/wizard/ResearchPanel';
 import { TemplateSelectionPanel } from '@/components/wizard/TemplateSelectionPanel';
-import { PresetPackageSelector } from '@/components/wizard/PresetPackageSelector';
 import { TemplateQuantitySelector } from '@/components/wizard/TemplateQuantitySelector';
 import { GenerationPanel } from '@/components/wizard/GenerationPanel';
 import { QualityGatePanel } from '@/components/wizard/QualityGatePanel';
@@ -19,13 +18,12 @@ import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
 import { Button, Card, CardContent, Select } from '@/components/ui';
 
-type StepKey = 'profile' | 'research' | 'templates' | 'generate' | 'quality' | 'export';
+type StepKey = 'profile' | 'research' | 'templates' | 'quality' | 'export';
 
 const steps: { key: StepKey; label: string }[] = [
   { key: 'profile', label: 'Client Profile' },
   { key: 'research', label: 'Research' },
   { key: 'templates', label: 'Templates' },
-  { key: 'generate', label: 'Generate' },
   { key: 'quality', label: 'Quality Gate' },
   { key: 'export', label: 'Export' },
 ];
@@ -49,10 +47,10 @@ export default function Wizard() {
   const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
 
   // Template quantities state (new pricing model)
-  const [templateMode, setTemplateMode] = useState<'preset' | 'custom'>('preset');
   const [templateQuantities, setTemplateQuantities] = useState<Record<number, number>>({});
   const [includeResearch, setIncludeResearch] = useState<boolean>(false);
   const [totalPrice, setTotalPrice] = useState<number>(0);
+  const [customTopics, setCustomTopics] = useState<string[]>([]);  // NEW: topic override for generation
 
   // Query to list existing clients
   const { data: existingClients } = useQuery({
@@ -73,6 +71,15 @@ export default function Wizard() {
     onSuccess: (data) => {
       setClientId(data.id);
       qc.invalidateQueries({ queryKey: ['clients'] });
+      console.log(`✅ Client created successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Client creation failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -82,9 +89,18 @@ export default function Wizard() {
       const { id, ...updateData } = data;
       return clientsApi.update(id, updateData);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['client', clientId] });
+      console.log(`✅ Client updated successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Client update failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -94,6 +110,15 @@ export default function Wizard() {
     onSuccess: (data) => {
       setProjectId(data.id);
       qc.invalidateQueries({ queryKey: ['project', data.id] });
+      console.log(`✅ Project created successfully: ${data.id} (${data.name})`);
+    },
+    onError: (error: any) => {
+      console.error('❌ Project creation failed:', error);
+      console.error('Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+      });
     },
   });
 
@@ -163,48 +188,73 @@ export default function Wizard() {
 
   // Handler for saving client profile
   const handleSaveProfile = async (brief: ClientBrief) => {
+    console.log('📝 Starting client profile save...', {
+      isCreatingNew: isCreatingNewClient,
+      existingClientId: clientId,
+      companyName: brief.companyName,
+    });
+
     try {
       let finalClientId = clientId;
 
-      // Create client if creating new, otherwise use existing clientId
+      // Step 1: Create or update client
       if (isCreatingNewClient) {
-        const client = await createClientMutation.mutateAsync({
-          name: brief.companyName,
-          email: undefined, // Can be added to form later
-          businessDescription: brief.businessDescription,
-          idealCustomer: brief.idealCustomer,
-          mainProblemSolved: brief.mainProblemSolved,
-          tonePreference: brief.tonePreference,
-          platforms: brief.platforms,
-          customerPainPoints: brief.customerPainPoints,
-          customerQuestions: brief.customerQuestions,
-        });
-        finalClientId = client.id;
+        console.log('🆕 Creating new client...');
+        try {
+          const client = await createClientMutation.mutateAsync({
+            name: brief.companyName,
+            email: undefined, // Can be added to form later
+            businessDescription: brief.businessDescription,
+            idealCustomer: brief.idealCustomer,
+            mainProblemSolved: brief.mainProblemSolved,
+            tonePreference: brief.tonePreference,
+            platforms: brief.platforms,
+            customerPainPoints: brief.customerPainPoints,
+            customerQuestions: brief.customerQuestions,
+          });
+          finalClientId = client.id;
+          console.log('✅ Client created:', finalClientId);
+        } catch (error: any) {
+          console.error('❌ Client creation failed:', error);
+          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          alert(`Failed to create client: ${errorMsg}\n\nPlease check the console for details and try again.`);
+          return; // Stop here - don't try to create project
+        }
       } else if (!clientId) {
         alert('Please select an existing client or create a new one.');
         return;
       } else {
-        // Always update existing client with all fields from the form
-        await updateClientMutation.mutateAsync({
-          id: clientId,
-          name: brief.companyName,
-          businessDescription: brief.businessDescription,
-          idealCustomer: brief.idealCustomer,
-          mainProblemSolved: brief.mainProblemSolved,
-          tonePreference: brief.tonePreference,
-          platforms: brief.platforms,
-          customerPainPoints: brief.customerPainPoints,
-          customerQuestions: brief.customerQuestions,
-        });
-        finalClientId = clientId;
+        console.log('🔄 Updating existing client...', clientId);
+        try {
+          // Always update existing client with all fields from the form
+          await updateClientMutation.mutateAsync({
+            id: clientId,
+            name: brief.companyName,
+            businessDescription: brief.businessDescription,
+            idealCustomer: brief.idealCustomer,
+            mainProblemSolved: brief.mainProblemSolved,
+            tonePreference: brief.tonePreference,
+            platforms: brief.platforms,
+            customerPainPoints: brief.customerPainPoints,
+            customerQuestions: brief.customerQuestions,
+          });
+          finalClientId = clientId;
+          console.log('✅ Client updated:', finalClientId);
+        } catch (error: any) {
+          console.error('❌ Client update failed:', error);
+          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          alert(`Failed to update client: ${errorMsg}\n\nPlease check the console for details and try again.`);
+          return; // Stop here - don't try to create project
+        }
       }
 
-      // Create project for this client
+      // Step 2: Create project for this client
       if (!finalClientId) {
-        alert('Please select an existing client or create a new one.');
+        alert('Client ID is missing. Please try again.');
         return;
       }
 
+      console.log('📋 Creating project for client...', finalClientId);
       const projectInput: CreateProjectInput = {
         name: `${brief.companyName} - Content Project`,
         clientId: finalClientId,
@@ -217,16 +267,26 @@ export default function Wizard() {
         tone: brief.tonePreference ?? undefined,
       };
 
-      await createProjectMutation.mutateAsync(projectInput);
+      try {
+        await createProjectMutation.mutateAsync(projectInput);
+        console.log('✅ Project created successfully');
+      } catch (error: any) {
+        console.error('❌ Project creation failed:', error);
+        const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+        alert(`Client saved successfully, but project creation failed: ${errorMsg}\n\nThe client has been saved. You can try creating the project again from the client detail page.`);
+        return; // Stop here - client is saved but project failed
+      }
 
       // Save brief locally
       setClientBrief(brief);
 
       // Move to next step
+      console.log('✅ All save operations successful, advancing to research step');
       advanceToStep('research');
-    } catch (error) {
-      console.error('Failed to create project:', error);
-      alert('Failed to create project. Please try again.');
+    } catch (error: any) {
+      // This catch should rarely be hit since we have specific catches above
+      console.error('❌ Unexpected error in handleSaveProfile:', error);
+      alert(`An unexpected error occurred: ${error?.message || 'Unknown error'}\n\nPlease check the console for details.`);
     }
   };
 
@@ -367,101 +427,72 @@ export default function Wizard() {
 
       {activeStep === 'templates' && (
         <div className="space-y-4">
-          {/* Tab Interface */}
+          {/* Template Selection */}
           <Card>
             <CardContent className="p-6">
-              <div className="mb-6 flex gap-2 border-b border-slate-200">
-                <button
-                  onClick={() => setTemplateMode('preset')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                    templateMode === 'preset'
-                      ? 'border-b-2 border-blue-600 text-blue-600'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Preset Packages
-                </button>
-                <button
-                  onClick={() => setTemplateMode('custom')}
-                  className={`px-4 py-2 text-sm font-semibold transition-colors ${
-                    templateMode === 'custom'
-                      ? 'border-b-2 border-blue-600 text-blue-600'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Custom Builder
-                </button>
-              </div>
-
-              {/* Preset Package Selector */}
-              {templateMode === 'preset' && (
-                <PresetPackageSelector
-                  onContinue={(pkg) => {
-                    setTemplateQuantities(pkg.templateQuantities);
-                    setIncludeResearch(pkg.researchIncluded);
-                    setTotalPrice(pkg.price);
-                    advanceToStep('generate');
-                  }}
-                />
-              )}
-
-              {/* Custom Template Quantity Selector */}
-              {templateMode === 'custom' && (
-                <TemplateQuantitySelector
-                  initialQuantities={templateQuantities}
-                  initialIncludeResearch={includeResearch}
-                  onContinue={(quantities, research, price) => {
-                    setTemplateQuantities(quantities);
-                    setIncludeResearch(research);
-                    setTotalPrice(price);
-                    advanceToStep('generate');
-                  }}
-                />
-              )}
+              <TemplateQuantitySelector
+                initialQuantities={templateQuantities}
+                initialIncludeResearch={includeResearch}
+                initialTopics={customTopics}
+                onContinue={(quantities, research, price, topics) => {
+                  setTemplateQuantities(quantities);
+                  setIncludeResearch(research);
+                  setTotalPrice(price);
+                  setCustomTopics(topics);
+                  advanceToStep('quality');
+                }}
+              />
             </CardContent>
           </Card>
         </div>
       )}
 
-      {activeStep === 'generate' && projectId && clientId && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <GenerationPanel
-            projectId={projectId}
-            clientId={clientId}
-            onStarted={() => {
-              qc.invalidateQueries({ queryKey: ['runs', { projectId }] });
-              refetchPosts();
-              advanceToStep('quality');
-            }}
-          />
-          <QualityGatePanel
-            posts={posts ?? []}
-            projectId={projectId}
-            onRegenerated={() => {
-              refetchPosts();
-            }}
-          />
-        </div>
-      )}
-
-      {activeStep === 'quality' && projectId && (
+      {activeStep === 'quality' && projectId && clientId && (
         <div className="space-y-4">
-          <QualityGatePanel
-            posts={posts ?? []}
-            projectId={projectId}
-            onRegenerated={() => {
-              refetchPosts();
-            }}
-          />
-          <div className="flex justify-end">
-            <button
-              onClick={() => advanceToStep('export')}
-              disabled={flagged.length > 0}
-              className="rounded-md bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {flagged.length > 0 ? `${flagged.length} posts flagged - fix before exporting` : 'Continue to Export'}
-            </button>
-          </div>
+          {/* Show GenerationPanel if no posts exist, otherwise show Quality view */}
+          {(!posts || posts.length === 0) ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <GenerationPanel
+                projectId={projectId}
+                clientId={clientId}
+                templateQuantities={templateQuantities}
+                customTopics={customTopics}
+                onStarted={() => {
+                  qc.invalidateQueries({ queryKey: ['runs', { projectId }] });
+                  refetchPosts();
+                }}
+              />
+              <Card>
+                <CardContent className="p-6">
+                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+                    Quality Gate Preview
+                  </h3>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Generate posts to see quality analysis and validation results here.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <>
+              <QualityGatePanel
+                posts={posts}
+                projectId={projectId}
+                onRegenerated={() => {
+                  refetchPosts();
+                }}
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={() => advanceToStep('export')}
+                  disabled={flagged.length > 0}
+                  className="rounded-md bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {flagged.length > 0 ? `${flagged.length} posts flagged - fix before exporting` : 'Continue to Export'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -485,7 +516,7 @@ export default function Wizard() {
             <strong>Client Brief:</strong> {clientBrief ? '✓ Saved' : 'Not set'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Template Mode:</strong> {Object.keys(templateQuantities).length > 0 ? (templateMode === 'preset' ? 'Preset Package' : 'Custom') : 'Not selected'}
+            <strong>Templates:</strong> {Object.keys(templateQuantities).length > 0 ? `${Object.keys(templateQuantities).length} selected` : 'Not selected'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Total Posts:</strong> {Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0) || 0}

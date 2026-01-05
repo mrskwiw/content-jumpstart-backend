@@ -42,10 +42,10 @@ try:
     RESEARCH_TOOL_MAP = {
         "voice_analysis": VoiceAnalyzer,
         "brand_archetype": BrandArchetypeAnalyzer,
-        "seo_keyword_research": SEOKeywordResearcher,  # Fixed: was "seo_keyword"
+        "seo_keyword_research": SEOKeywordResearcher,
         "competitive_analysis": CompetitiveAnalyzer,
-        "content_gap_analysis": ContentGapAnalyzer,    # Fixed: was "content_gap"
-        "market_trends_research": MarketTrendsResearcher,  # Fixed: was "market_trends"
+        "content_gap_analysis": ContentGapAnalyzer,
+        "market_trends_research": MarketTrendsResearcher,  # Match tool_name property
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses
@@ -56,8 +56,8 @@ except ImportError as e:
 
 # IMPORTANT: Use relative imports to avoid SQLAlchemy table redefinition errors
 # Absolute imports (backend.models) cause circular dependencies in production
-from models import Project, Client
-from services import crud
+from backend.models import Project, Client
+from backend.services import crud
 
 # Logger import with fallback
 try:
@@ -226,11 +226,11 @@ class ResearchService:
             # Competitive analysis needs competitor list
             inputs["competitors"] = params.get("competitors", [])
 
-        elif tool_name == "content_gap_analysis":  # Fixed: was "content_gap"
+        elif tool_name == "content_gap_analysis":
             # Content gap needs current topics
             inputs["current_content_topics"] = params.get("current_content_topics", [])
 
-        elif tool_name == "market_trends_research":  # Fixed: was "market_trends"
+        elif tool_name == "market_trends":
             # Market trends needs industry context
             inputs["industry"] = params.get("industry", "")
 

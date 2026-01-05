@@ -37,6 +37,9 @@ class TestAgentTools:
         result = self.tools.list_projects(client_name="NonExistentClient", limit=10)
 
         assert result is not None
+        # Should return success=True with empty projects list
+        if not result["success"]:
+            print(f"Error: {result.get('error', 'Unknown error')}")
         assert result["success"] is True
         assert result["count"] == 0
 

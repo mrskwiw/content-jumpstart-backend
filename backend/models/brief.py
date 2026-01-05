@@ -5,15 +5,16 @@ from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from database import Base
+from backend.database import Base
 
 
 class Brief(Base):
     """Client brief (uploaded file or pasted text)"""
 
     __tablename__ = "briefs"
+    __table_args__ = {'extend_existing': True}
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, unique=True)
     content = Column(Text, nullable=False)  # Brief text content
     source = Column(String, nullable=False)  # "upload" or "paste"
@@ -21,7 +22,7 @@ class Brief(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    project = relationship("Project", back_populates="brief")
+    project = relationship("backend.models.project.Project", back_populates="brief")
 
     def __repr__(self):
         return f"<Brief for {self.project_id}>"

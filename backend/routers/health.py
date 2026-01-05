@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Query
-from utils.db_monitor import get_pool_status, get_pool_events
-from utils.query_cache import get_cache_info, clear_cache, reset_cache_stats
-from utils.query_profiler import (
+from backend.utils.db_monitor import get_pool_status, get_pool_events
+from backend.utils.query_cache import get_cache_info, clear_cache, reset_cache_stats
+from backend.utils.query_profiler import (
     get_query_statistics,
     get_slow_queries,
     get_profiling_report,

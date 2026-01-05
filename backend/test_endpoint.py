@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from schemas.project import ProjectCreate
+from backend.schemas.project import ProjectCreate
 
 app = FastAPI()
 

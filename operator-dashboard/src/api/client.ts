@@ -39,8 +39,11 @@ class ApiClient {
       async (error) => {
         const originalRequest = error.config;
 
-        // If 401 and we haven't retried yet
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Don't intercept 401 errors for login/refresh endpoints - let them bubble up
+        const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh');
+
+        // If 401 and we haven't retried yet, and it's not an auth endpoint
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
           originalRequest._retry = true;
 
           try {

@@ -52,6 +52,15 @@ class PresetPackage(BaseModel):
     research_included: bool
     price: float  # Pre-calculated for display
 
+    # Pydantic v2 config for camelCase serialization
+    model_config = {
+        "populate_by_name": True,
+        "alias_generator": lambda field_name: ''.join(
+            word.capitalize() if i > 0 else word
+            for i, word in enumerate(field_name.split('_'))
+        ),
+    }
+
     @property
     def total_posts(self) -> int:
         """Calculate total posts from template quantities"""

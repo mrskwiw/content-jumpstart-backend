@@ -4,15 +4,15 @@ Projects router - CRUD operations for projects.
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from middleware.auth_dependency import get_current_user
-from schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
-from services import crud
+from backend.middleware.auth_dependency import get_current_user
+from backend.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
+from backend.services import crud
 from sqlalchemy.orm import Session
-from utils.caching import CacheConfig, CacheInvalidator, create_cacheable_response
-from utils.pagination import paginate_hybrid, get_pagination_params
+from backend.utils.caching import CacheConfig, CacheInvalidator, create_cacheable_response
+from backend.utils.pagination import paginate_hybrid, get_pagination_params
 
-from database import get_db
-from models import Project, User
+from backend.database import get_db
+from backend.models import Project, User
 
 router = APIRouter()
 

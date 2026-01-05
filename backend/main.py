@@ -15,18 +15,18 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
+from backend.routers import auth, briefs, clients, database, deliverables, generator, health, posts, pricing, projects, research, runs
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # Import models so SQLAlchemy can create tables
-import models  # noqa: F401
-from config import settings
-from database import init_db
-from utils.rate_limiter import rate_limiter
-from utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
+import backend.models  # noqa: F401
+from backend.config import settings
+from backend.database import init_db
+from backend.utils.rate_limiter import rate_limiter
+from backend.utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
 
 
 @asynccontextmanager
@@ -43,14 +43,36 @@ async def lifespan(app: FastAPI):
     print(f">> CORS Origins: {settings.cors_origins_list}")
     print(f">> DEBUG: CORS_ORIGINS env var = '{settings.CORS_ORIGINS}'")
 
+    # Log database connection info
+    from backend.database import engine
+    db_url = str(engine.url)
+
+    # Debug: Show DATABASE_URL from settings (helps diagnose Render env var issues)
+    import os
+    raw_db_url = os.getenv("DATABASE_URL", "NOT_SET")
+    if raw_db_url != "NOT_SET" and "@" in raw_db_url:
+        # Mask password for security
+        raw_db_display = raw_db_url.split('@')[0].split(':')[0] + ":***@" + raw_db_url.split('@')[1]
+    else:
+        raw_db_display = raw_db_url[:50] if raw_db_url != "NOT_SET" else "NOT_SET"
+    print(f">> DEBUG: DATABASE_URL env var = '{raw_db_display}'")
+    print(f">> DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL[:80]}...'")
+
+    # Mask password in URL for security
+    if '@' in db_url:
+        db_display = db_url.split('@')[1] if '@' in db_url else db_url
+        print(f">> Database: PostgreSQL ({db_display})")
+    else:
+        print(f">> Database: SQLite (local)")
+
     # Initialize database
     init_db()
     print(">> Database initialized")
 
     # Auto-seed users if database is empty
-    from database import SessionLocal
-    from models.user import User
-    from utils.auth import get_password_hash
+    from backend.database import SessionLocal
+    from backend.models.user import User
+    from backend.utils.auth import get_password_hash
     import uuid
 
     db = SessionLocal()
@@ -106,15 +128,88 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,  # Cache preflight requests for 1 hour
-)
+# Production: Restrict to specific origins, methods, and headers
+# Development: More permissive for ease of development
+if settings.DEBUG_MODE:
+    # Development mode - permissive CORS for easier testing
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+        max_age=3600,
+    )
+else:
+    # Production mode - restrictive CORS for security
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,  # Only whitelisted origins
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Explicit methods only
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Accept",
+            "Origin",
+            "X-Requested-With",
+        ],  # Only necessary headers
+        expose_headers=["X-Process-Time", "X-Total-Count"],  # Only exposed headers
+        max_age=3600,
+    )
+
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security headers to all responses
+
+    Headers added:
+    - X-Content-Type-Options: Prevent MIME-type sniffing
+    - X-Frame-Options: Prevent clickjacking
+    - X-XSS-Protection: Enable XSS filter
+    - Strict-Transport-Security: Enforce HTTPS (production only)
+    - Content-Security-Policy: Restrict resource loading
+    - Referrer-Policy: Control referer information
+    - Permissions-Policy: Control browser features
+    """
+    response = await call_next(request)
+
+    # Prevent MIME-type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Enable XSS protection (legacy browsers)
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+
+    # Enforce HTTPS in production
+    if not settings.DEBUG_MODE:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Content Security Policy - restrictive for API
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
+
+    # Control referer information
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Disable unnecessary browser features
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+    )
+
+    return response
 
 
 # Request timing middleware
@@ -157,13 +252,18 @@ async def spa_routing_middleware(request: Request, call_next):
 
 
 # Health check endpoint
-@app.get("/health", tags=["Health"])
-async def health_check():
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
+async def health_check(request: Request):
     """
     Health check endpoint.
 
+    Supports both GET and HEAD requests for health checks.
     Returns API status and rate limit statistics.
     """
+    # HEAD requests should just return 200 OK (for Render health checks)
+    if request.method == "HEAD":
+        return Response(status_code=200)
+
     usage_stats = rate_limiter.get_usage_stats()
     return {
         "status": "healthy",
@@ -241,14 +341,19 @@ if FRONTEND_BUILD_DIR.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
 
     # Root route: serve React app with no-cache headers
-    @app.get("/")
-    async def serve_root():
+    @app.api_route("/", methods=["GET", "HEAD"])
+    async def serve_root(request: Request):
         """
         Serve React app at root URL with cache prevention.
 
+        Supports both GET and HEAD requests for health checks.
         Critical: HTML file must not be cached to ensure users get
         the latest version and correct chunk references after deployments.
         """
+        # HEAD requests should just return 200 OK (for Render health checks)
+        if request.method == "HEAD":
+            return Response(status_code=200)
+
         response = FileResponse(FRONTEND_BUILD_DIR / "index.html")
         # Prevent HTML caching to avoid chunk loading errors
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -287,6 +392,7 @@ app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
 app.include_router(pricing.router, prefix="/api/pricing", tags=["Pricing"])
+app.include_router(database.router, prefix="/api", tags=["Database"])
 
 
 if __name__ == "__main__":
