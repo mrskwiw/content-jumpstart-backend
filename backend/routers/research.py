@@ -100,12 +100,12 @@ RESEARCH_TOOLS = [
         category="market"
     ),
 
-    # Strategy & Planning Tools (Coming Soon)
+    # Strategy & Planning Tools
     ResearchTool(
         name="content_audit",
         label="Content Audit",
         price=400.0,
-        status="coming_soon",
+        status="available",
         description="Analyze existing content performance and opportunities",
         category="strategy"
     ),
@@ -162,8 +162,8 @@ async def list_research_tools(
     List all available research tools.
 
     Returns metadata for all 12 research tools:
-    - 6 implemented and available
-    - 6 coming soon
+    - 7 implemented and available
+    - 5 coming soon
     """
     return RESEARCH_TOOLS
 

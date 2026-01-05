@@ -37,6 +37,7 @@ try:
     from src.research.competitive_analysis import CompetitiveAnalyzer
     from src.research.content_gap_analysis import ContentGapAnalyzer
     from src.research.market_trends_research import MarketTrendsResearcher
+    from src.research.content_audit import ContentAuditor
 
     RESEARCH_TOOLS_AVAILABLE = True
     RESEARCH_TOOL_MAP = {
@@ -45,7 +46,8 @@ try:
         "seo_keyword_research": SEOKeywordResearcher,
         "competitive_analysis": CompetitiveAnalyzer,
         "content_gap_analysis": ContentGapAnalyzer,
-        "market_trends_research": MarketTrendsResearcher,  # Match tool_name property
+        "market_trends_research": MarketTrendsResearcher,
+        "content_audit": ContentAuditor,
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses
