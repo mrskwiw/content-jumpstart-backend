@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from backend.routers import auth, briefs, clients, deliverables, generator, health, posts, pricing, projects, research, runs
+from backend.routers import auth, briefs, clients, database, deliverables, generator, health, posts, pricing, projects, research, runs
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -392,6 +392,7 @@ app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
 app.include_router(pricing.router, prefix="/api/pricing", tags=["Pricing"])
+app.include_router(database.router, prefix="/api", tags=["Database"])
 
 
 if __name__ == "__main__":

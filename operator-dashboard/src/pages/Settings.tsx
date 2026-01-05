@@ -22,6 +22,9 @@ import {
   Database,
   RefreshCw,
   X,
+  Download,
+  Upload,
+  HardDrive,
 } from 'lucide-react';
 
 // Interfaces
@@ -129,11 +132,13 @@ const mockWorkflowRules: WorkflowRule[] = [
 export default function Settings() {
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'integrations' | 'workflows' | 'notifications' | 'preferences' | 'security'>('integrations');
+  const [activeTab, setActiveTab] = useState<'integrations' | 'workflows' | 'notifications' | 'preferences' | 'security' | 'database'>('integrations');
   const [showNewApiKeyModal, setShowNewApiKeyModal] = useState(false);
   const [showKeyValue, setShowKeyValue] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [workflowConfigs, setWorkflowConfigs] = useState<Record<string, WorkflowRule['config']>>({});
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
   // Mock queries
   const { data: apiKeys = mockApiKeys } = useQuery({
@@ -189,6 +194,73 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workflow-rules'] });
+    },
+  });
+
+  // Database backup mutation
+  const downloadBackupMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/database/backup', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to download backup');
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `jumpstart_backup_${new Date().toISOString().slice(0, 10)}.db`;
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+  });
+
+  // Database restore mutation
+  const restoreDatabaseMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/database/restore', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to restore database');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Clear all queries after restore
+      queryClient.clear();
+      setShowRestoreConfirm(false);
+      setUploadFile(null);
+      alert('Database restored successfully. Please refresh the page.');
+    },
+    onError: (error: Error) => {
+      alert(`Restore failed: ${error.message}`);
     },
   });
 
@@ -279,6 +351,7 @@ export default function Settings() {
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'preferences', label: 'Preferences', icon: SettingsIcon },
             { id: 'security', label: 'Security', icon: Shield },
+            { id: 'database', label: 'Database', icon: HardDrive },
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -673,6 +746,171 @@ export default function Settings() {
               </button>
               <button className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-left">
                 Delete My Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Database Tab */}
+      {activeTab === 'database' && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Database Backup</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+              Download a complete backup of your database. This includes all clients, projects, posts, runs, and deliverables.
+            </p>
+            <button
+              onClick={() => downloadBackupMutation.mutate()}
+              disabled={downloadBackupMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
+            >
+              {downloadBackupMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Creating Backup...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Download Database Backup
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Database Restore</h3>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 mb-4">
+              <div className="flex gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-700 dark:text-amber-300">
+                  <strong>Warning:</strong> Restoring a database backup will replace all current data.
+                  A backup of the current database will be created automatically before restore.
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Select Backup File (.db)
+                </label>
+                <input
+                  type="file"
+                  accept=".db"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setUploadFile(file);
+                    }
+                  }}
+                  className="block w-full text-sm text-neutral-500 dark:text-neutral-400
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-medium
+                    file:bg-primary-50 dark:file:bg-primary-900/20 file:text-primary-700 dark:file:text-primary-400
+                    hover:file:bg-primary-100 dark:hover:file:bg-primary-900/30
+                    cursor-pointer"
+                />
+              </div>
+
+              {uploadFile && (
+                <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                    <span className="text-sm text-neutral-700 dark:text-neutral-300">{uploadFile.name}</span>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      ({(uploadFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setUploadFile(null)}
+                    className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => setShowRestoreConfirm(true)}
+                disabled={!uploadFile || restoreDatabaseMutation.isPending}
+                className="w-full rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+              >
+                <Upload className="inline h-4 w-4 mr-2" />
+                Restore Database from Backup
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Database Information</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-neutral-600 dark:text-neutral-400">Database Type:</span>
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">SQLite</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600 dark:text-neutral-400">Backup Location:</span>
+                <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">data/backups/</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Confirmation Modal */}
+      {showRestoreConfirm && uploadFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-3">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Confirm Database Restore</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  This will replace all current data with the backup file. This action cannot be undone.
+                </p>
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100 mt-3">
+                  Restoring: {uploadFile.name}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 mb-6">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                A backup of the current database will be created automatically before restore.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowRestoreConfirm(false);
+                }}
+                disabled={restoreDatabaseMutation.isPending}
+                className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => restoreDatabaseMutation.mutate(uploadFile)}
+                disabled={restoreDatabaseMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 dark:bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50"
+              >
+                {restoreDatabaseMutation.isPending ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Restoring...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Restore Database
+                  </>
+                )}
               </button>
             </div>
           </div>
