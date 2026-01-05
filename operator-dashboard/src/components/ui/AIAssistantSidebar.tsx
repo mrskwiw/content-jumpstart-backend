@@ -48,7 +48,7 @@ export default function AIAssistantSidebar() {
 
   const loadContextSuggestions = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/assistant/context', {
         method: 'POST',
         headers: {
@@ -85,7 +85,7 @@ export default function AIAssistantSidebar() {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       const response = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: {
@@ -135,7 +135,7 @@ export default function AIAssistantSidebar() {
 
   const resetConversation = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('access_token');
       await fetch('/api/assistant/reset', {
         method: 'POST',
         headers: {
