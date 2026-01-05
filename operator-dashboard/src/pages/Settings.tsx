@@ -115,16 +115,6 @@ const mockIntegrations: Integration[] = [
 
 const mockWorkflowRules: WorkflowRule[] = [
   {
-    id: '1',
-    name: 'Auto-approve high quality posts',
-    trigger: 'Quality score above threshold',
-    action: 'Mark as ready for delivery',
-    enabled: true,
-    config: {
-      qualityThreshold: 90,
-    },
-  },
-  {
     id: '2',
     name: 'Send client satisfaction survey',
     trigger: 'Days after delivery',
@@ -134,22 +124,12 @@ const mockWorkflowRules: WorkflowRule[] = [
       daysDelay: 14,
     },
   },
-  {
-    id: '3',
-    name: 'Alert on low quality',
-    trigger: 'Quality score below threshold',
-    action: 'Notify team for review',
-    enabled: false,
-    config: {
-      minScore: 70,
-    },
-  },
 ];
 
 export default function Settings() {
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'integrations' | 'api-keys' | 'workflows' | 'notifications' | 'preferences' | 'security'>('integrations');
+  const [activeTab, setActiveTab] = useState<'integrations' | 'workflows' | 'notifications' | 'preferences' | 'security'>('integrations');
   const [showNewApiKeyModal, setShowNewApiKeyModal] = useState(false);
   const [showKeyValue, setShowKeyValue] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -295,7 +275,6 @@ export default function Settings() {
         <div className="flex gap-4 overflow-x-auto">
           {[
             { id: 'integrations', label: 'Integrations', icon: Server },
-            { id: 'api-keys', label: 'API Keys', icon: Key },
             { id: 'workflows', label: 'Workflows', icon: Zap },
             { id: 'notifications', label: 'Notifications', icon: Bell },
             { id: 'preferences', label: 'Preferences', icon: SettingsIcon },
@@ -359,74 +338,6 @@ export default function Settings() {
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* API Keys Tab */}
-      {activeTab === 'api-keys' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowNewApiKeyModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600"
-            >
-              <Plus className="h-4 w-4" />
-              Create API Key
-            </button>
-          </div>
-
-          {apiKeys.map(apiKey => (
-            <div key={apiKey.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{apiKey.name}</h3>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                    <span>Created {new Date(apiKey.created).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>Last used {formatTimeAgo(apiKey.lastUsed)}</span>
-                    <span>•</span>
-                    <span>{apiKey.usageCount.toLocaleString()} requests</span>
-                  </div>
-                </div>
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium ${
-                    apiKey.status === 'active'
-                      ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700'
-                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700'
-                  }`}
-                >
-                  {apiKey.status === 'active' && <CheckCircle className="h-3 w-3" />}
-                  {apiKey.status.charAt(0).toUpperCase() + apiKey.status.slice(1)}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-4 py-2 font-mono text-sm">
-                  {showKeyValue === apiKey.id ? apiKey.key : apiKey.key.replace(/\*/g, '•')}
-                </div>
-                <button
-                  onClick={() => setShowKeyValue(showKeyValue === apiKey.id ? null : apiKey.id)}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700"
-                >
-                  {showKeyValue === apiKey.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-                <button
-                  onClick={() => copyToClipboard(apiKey.key, apiKey.id)}
-                  className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 p-2 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-700"
-                >
-                  {copiedKey === apiKey.id ? <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" /> : <Copy className="h-4 w-4" />}
-                </button>
-                {apiKey.status === 'active' && (
-                  <button
-                    onClick={() => revokeApiKeyMutation.mutate(apiKey.id)}
-                    className="rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-neutral-800 p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
         </div>
       )}
 
@@ -576,7 +487,6 @@ export default function Settings() {
             <div className="space-y-4">
               {[
                 { id: 'deliverable_ready', label: 'Deliverable ready for client', default: true },
-                { id: 'quality_issues', label: 'Quality issues detected', default: true },
                 { id: 'new_project', label: 'New project assigned', default: true },
                 { id: 'client_feedback', label: 'Client feedback received', default: false },
                 { id: 'deadline_approaching', label: 'Deadline approaching (24h)', default: true },
@@ -630,23 +540,68 @@ export default function Settings() {
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Theme</label>
                 <select
-                  value={theme}
-                  onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
+                  value={theme === 'system' ? 'light' : theme}
+                  onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
                   className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
-                  <option value="system">System</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Timezone</label>
                 <select className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500">
-                  <option value="utc">UTC</option>
-                  <option value="est">Eastern Time (EST)</option>
-                  <option value="pst">Pacific Time (PST)</option>
-                  <option value="cet">Central European Time (CET)</option>
+                  <option value="UTC">UTC (Coordinated Universal Time)</option>
+                  <optgroup label="Americas">
+                    <option value="America/New_York">Eastern Time (ET)</option>
+                    <option value="America/Chicago">Central Time (CT)</option>
+                    <option value="America/Denver">Mountain Time (MT)</option>
+                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                    <option value="America/Anchorage">Alaska Time (AKT)</option>
+                    <option value="Pacific/Honolulu">Hawaii-Aleutian Time (HAT)</option>
+                    <option value="America/Toronto">Toronto</option>
+                    <option value="America/Vancouver">Vancouver</option>
+                    <option value="America/Mexico_City">Mexico City</option>
+                    <option value="America/Sao_Paulo">São Paulo</option>
+                    <option value="America/Buenos_Aires">Buenos Aires</option>
+                  </optgroup>
+                  <optgroup label="Europe">
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET/CEST)</option>
+                    <option value="Europe/Berlin">Berlin (CET/CEST)</option>
+                    <option value="Europe/Rome">Rome (CET/CEST)</option>
+                    <option value="Europe/Madrid">Madrid (CET/CEST)</option>
+                    <option value="Europe/Amsterdam">Amsterdam (CET/CEST)</option>
+                    <option value="Europe/Brussels">Brussels (CET/CEST)</option>
+                    <option value="Europe/Vienna">Vienna (CET/CEST)</option>
+                    <option value="Europe/Stockholm">Stockholm (CET/CEST)</option>
+                    <option value="Europe/Warsaw">Warsaw (CET/CEST)</option>
+                    <option value="Europe/Istanbul">Istanbul (TRT)</option>
+                    <option value="Europe/Moscow">Moscow (MSK)</option>
+                  </optgroup>
+                  <optgroup label="Asia">
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Asia/Kolkata">India (IST)</option>
+                    <option value="Asia/Bangkok">Bangkok (ICT)</option>
+                    <option value="Asia/Singapore">Singapore (SGT)</option>
+                    <option value="Asia/Hong_Kong">Hong Kong (HKT)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Seoul">Seoul (KST)</option>
+                  </optgroup>
+                  <optgroup label="Australia & Pacific">
+                    <option value="Australia/Sydney">Sydney (AEDT/AEST)</option>
+                    <option value="Australia/Melbourne">Melbourne (AEDT/AEST)</option>
+                    <option value="Australia/Brisbane">Brisbane (AEST)</option>
+                    <option value="Australia/Perth">Perth (AWST)</option>
+                    <option value="Pacific/Auckland">Auckland (NZDT/NZST)</option>
+                  </optgroup>
+                  <optgroup label="Africa">
+                    <option value="Africa/Cairo">Cairo (EET)</option>
+                    <option value="Africa/Johannesburg">Johannesburg (SAST)</option>
+                    <option value="Africa/Lagos">Lagos (WAT)</option>
+                  </optgroup>
                 </select>
               </div>
 

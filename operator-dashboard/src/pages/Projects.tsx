@@ -68,17 +68,33 @@ export default function Projects() {
       if (aValue == null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue == null) return sortDirection === 'asc' ? -1 : 1;
 
+      // Special handling for status field - use workflow order
+      if (sortField === 'status') {
+        const statusOrder = {
+          'draft': 0,
+          'processing': 1,
+          'qa_review': 2,
+          'ready': 3,
+          'delivered': 4
+        };
+        const aOrder = statusOrder[aValue as keyof typeof statusOrder] ?? 999;
+        const bOrder = statusOrder[bValue as keyof typeof statusOrder] ?? 999;
+        const comparison = aOrder - bOrder;
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+
       // Compare values
       let comparison = 0;
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        comparison = aValue.localeCompare(bValue);
+        // Use localeCompare with options for proper alphabetical sorting
+        comparison = aValue.localeCompare(bValue, undefined, { sensitivity: 'base' });
       } else if (typeof aValue === 'number' && typeof bValue === 'number') {
         comparison = aValue - bValue;
       } else if (aValue instanceof Date && bValue instanceof Date) {
         comparison = aValue.getTime() - bValue.getTime();
       } else {
         // For arrays or other types, convert to string
-        comparison = String(aValue).localeCompare(String(bValue));
+        comparison = String(aValue).localeCompare(String(bValue), undefined, { sensitivity: 'base' });
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;
