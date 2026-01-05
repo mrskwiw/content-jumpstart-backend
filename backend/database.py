@@ -126,6 +126,10 @@ def init_db():
     from sqlalchemy import text, inspect
     from sqlalchemy.exc import OperationalError
 
+    # Import all models to ensure they're registered with SQLAlchemy
+    # This must happen before Base.metadata.create_all() or mapper configuration
+    from backend.models import Brief, Client, Deliverable, Post, Project, Run, User
+
     # Create all tables (handles existing indexes gracefully)
     try:
         Base.metadata.create_all(bind=engine)
