@@ -113,7 +113,7 @@ RESEARCH_TOOLS = [
         name="platform_strategy",
         label="Platform Strategy",
         price=300.0,
-        status="coming_soon",
+        status="available",
         description="Recommend optimal platform mix for distribution",
         category="strategy"
     ),
