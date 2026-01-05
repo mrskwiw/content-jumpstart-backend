@@ -84,16 +84,14 @@ def test_icp_workshop_validation():
     # Test description too short
     with pytest.raises(ValueError, match="too short"):
         facilitator.validate_inputs({
-            "business_description": "Short",
-            "target_audience": "Teams"
+            "business_description": "Short"
         })
 
-    # Test audience too short
-    with pytest.raises(ValueError, match="too short"):
-        facilitator.validate_inputs({
-            "business_description": "A" * 100,
-            "target_audience": "Teams"
-        })
+    # Test valid input (description is 50+ chars, target_audience is optional)
+    is_valid = facilitator.validate_inputs({
+        "business_description": "A" * 100
+    })
+    assert is_valid is True
 
     print("[OK] Validation tests passed")
 
