@@ -340,9 +340,9 @@ class ContentGeneratorAgent:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def generate_with_limit(task_params):
-            """Generate single post with concurrency limit via semaphore"""
+            """Generate single post with concurrency limit via semaphore and quality retry"""
             async with semaphore:
-                return await self._generate_single_post_async(
+                return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
                     client_brief=client_brief,
                     variant=task_params["variant"],
@@ -350,6 +350,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
+                    max_attempts=10,  # Try up to 10 times for quality
                 )
 
         # Execute all tasks in parallel
@@ -688,9 +689,9 @@ class ContentGeneratorAgent:
         semaphore = asyncio.Semaphore(max_concurrent)
 
         async def generate_with_limit(task_params):
-            """Generate single post with concurrency limit via semaphore"""
+            """Generate single post with concurrency limit via semaphore and quality retry"""
             async with semaphore:
-                return await self._generate_single_post_async(
+                return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
                     client_brief=client_brief,
                     variant=task_params["variant"],
@@ -698,6 +699,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
+                    max_attempts=10,  # Try up to 10 times for quality
                 )
 
         # Execute all tasks in parallel
@@ -900,6 +902,122 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             )
             post.flag_for_review(f"Generation failed: {str(e)}")
             return post
+
+    async def _generate_single_post_with_retry_async(
+        self,
+        template: Template,
+        client_brief: ClientBrief,
+        variant: int,
+        post_number: int,
+        cached_system_prompt: Optional[str] = None,
+        base_context: Optional[Dict[str, Any]] = None,
+        platform: Platform = Platform.LINKEDIN,
+        max_attempts: int = 10,
+    ) -> Post:
+        """
+        Generate a single post with quality-based retry logic.
+
+        Attempts up to max_attempts times, caching all results.
+        Returns first post with no quality flags, or best of all attempts.
+
+        Args:
+            template: Template to use
+            client_brief: Client context
+            variant: Variant number
+            post_number: Post number in sequence
+            cached_system_prompt: Pre-built system prompt
+            base_context: Pre-built base context
+            platform: Target platform
+            max_attempts: Maximum generation attempts (default 10)
+
+        Returns:
+            Generated Post object (either first adequate or best of attempts)
+        """
+        attempts = []
+
+        for attempt in range(max_attempts):
+            # Generate post
+            post = await self._generate_single_post_async(
+                template=template,
+                client_brief=client_brief,
+                variant=variant,
+                post_number=post_number,
+                cached_system_prompt=cached_system_prompt,
+                base_context=base_context,
+                platform=platform,
+            )
+
+            # Calculate quality score based on flags and metrics
+            quality_score = self._calculate_post_quality_score(post)
+
+            # Cache attempt
+            attempts.append({
+                'post': post,
+                'quality_score': quality_score,
+                'has_flags': len(post.flags) > 0 if post.flags else False,
+                'attempt_number': attempt + 1,
+            })
+
+            # If post has no quality flags, it's adequate - return immediately
+            if not post.flags or len(post.flags) == 0:
+                logger.info(
+                    f"Post {post_number} passed quality check on attempt {attempt + 1}/{max_attempts} "
+                    f"(quality score: {quality_score:.2%})"
+                )
+                return post
+
+            # Log retry
+            logger.info(
+                f"Post {post_number} attempt {attempt + 1}/{max_attempts} has quality issues: {post.flags}. "
+                f"Retrying..." if attempt < max_attempts - 1 else "Max attempts reached."
+            )
+
+        # No adequate result - return best attempt
+        best = max(attempts, key=lambda x: x['quality_score'])
+        logger.warning(
+            f"Post {post_number} did not meet quality standards after {max_attempts} attempts. "
+            f"Returning best attempt (#{best['attempt_number']}, quality score: {best['quality_score']:.2%}, "
+            f"flags: {best['post'].flags if best['post'].flags else 'none'})"
+        )
+
+        return best['post']
+
+    def _calculate_post_quality_score(self, post: Post) -> float:
+        """
+        Calculate a quality score for a post based on various metrics.
+
+        Returns a score from 0.0 to 1.0 where:
+        - 1.0 = perfect (no flags, good length, has CTA)
+        - 0.0 = very poor (multiple flags, bad length, no CTA)
+        """
+        score = 1.0
+
+        # Penalize for each flag (0.2 per flag, max 3 flags considered)
+        if post.flags:
+            flag_penalty = min(len(post.flags) * 0.2, 0.6)
+            score -= flag_penalty
+
+        # Reward for appropriate word count (within target range)
+        if post.word_count:
+            if MIN_POST_WORD_COUNT <= post.word_count <= MAX_POST_WORD_COUNT:
+                # Perfect length
+                pass
+            elif post.word_count < MIN_POST_WORD_COUNT * 0.8:
+                # Very short
+                score -= 0.2
+            elif post.word_count > MAX_POST_WORD_COUNT * 1.2:
+                # Very long
+                score -= 0.2
+            else:
+                # Slightly off
+                score -= 0.1
+
+        # Reward for having CTA
+        if not post.has_cta:
+            score -= 0.1
+
+        # Ensure score stays in valid range
+        return max(0.0, min(1.0, score))
 
     def _sanitize_client_brief(self, client_brief: ClientBrief) -> ClientBrief:
         """
