@@ -147,7 +147,7 @@ RESEARCH_TOOLS = [
         name="story_mining",
         label="Story Mining Interview",
         price=500.0,
-        status="coming_soon",
+        status="available",
         description="Extract customer success stories and case study material",
         category="workshop"
     ),
