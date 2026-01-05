@@ -386,9 +386,10 @@ class CostTracker:
 
         cursor.execute(
             """
-            SELECT DISTINCT project_id
+            SELECT project_id, MAX(timestamp) as last_call
             FROM api_calls
-            ORDER BY MAX(timestamp) DESC
+            GROUP BY project_id
+            ORDER BY last_call DESC
         """
         )
 

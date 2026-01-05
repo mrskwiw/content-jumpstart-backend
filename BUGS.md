@@ -4,6 +4,45 @@ This file tracks known bugs and issues in the application.
 
 ## Active Bugs
 
+### 11. Cost Tracker SQL Error - Misuse of aggregate MAX()
+
+**Status:** ✅ RESOLVED (January 5, 2026)
+**Severity:** Low - Affects cost tracking only, not content generation
+**Component:** Cost Tracker Utility
+**Location:** `src/utils/cost_tracker.py:387`
+
+**Description:**
+The `get_all_projects()` method failed with SQL error "misuse of aggregate: MAX()" when trying to retrieve all project IDs sorted by most recent activity.
+
+**Steps to Reproduce:**
+1. Run pytest on tests/unit/test_cost_tracker.py::test_get_all_projects
+2. SQL error occurs
+
+**Expected vs. Actual Behavior:**
+- Expected: Get list of project IDs sorted by most recent API call
+- Actual: SQLite error "misuse of aggregate: MAX()"
+
+**Root Cause:**
+SQL query used `ORDER BY MAX(timestamp)` without a `GROUP BY` clause, which is invalid in SQLite.
+
+**Solution:**
+Fixed SQL query to use `GROUP BY project_id` and select the MAX(timestamp) as an aliased column:
+```sql
+SELECT project_id, MAX(timestamp) as last_call
+FROM api_calls
+GROUP BY project_id
+ORDER BY last_call DESC
+```
+
+**Files Changed:**
+- `project/src/utils/cost_tracker.py` - Fixed lines 387-393
+
+**Date Reported:** January 5, 2026
+**Resolution Date:** January 5, 2026
+**Source:** Unit test failure during bug verification
+
+---
+
 ### 8. SQLAlchemy Session Error - Project instance not bound to Session
 
 **Status:** ✅ RESOLVED (December 31, 2025)
