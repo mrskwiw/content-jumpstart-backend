@@ -129,7 +129,7 @@ RESEARCH_TOOLS = [
         name="audience_research",
         label="Audience Research",
         price=500.0,
-        status="coming_soon",
+        status="available",
         description="Deep-dive into target audience demographics and psychographics",
         category="strategy"
     ),
