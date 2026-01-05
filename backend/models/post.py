@@ -29,8 +29,8 @@ class Post(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    project = relationship("backend.models.project.Project")
-    run = relationship("backend.models.run.Run")
+    project = relationship("backend.models.project.Project", back_populates="posts")
+    run = relationship("backend.models.run.Run", back_populates="posts")
 
     # Composite indexes for common query patterns
     __table_args__ = (

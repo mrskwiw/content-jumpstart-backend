@@ -29,8 +29,8 @@ class Client(Base):
     customer_questions = Column(JSON, nullable=True)
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    projects = relationship("backend.models.project.Project", cascade="all, delete-orphan")
-    deliverables = relationship("backend.models.deliverable.Deliverable")
+    projects = relationship("backend.models.project.Project", back_populates="client", cascade="all, delete-orphan")
+    deliverables = relationship("backend.models.deliverable.Deliverable", back_populates="client")
 
     def __repr__(self):
         return f"<Client {self.name}>"

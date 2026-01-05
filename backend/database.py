@@ -227,7 +227,7 @@ def init_db():
                     from sqlalchemy.orm import Session
                     session = Session(bind=engine)
                     try:
-                        from models.project import Project
+                        from backend.models.project import Project
                         import json
 
                         projects = session.query(Project).filter(

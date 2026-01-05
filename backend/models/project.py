@@ -39,11 +39,11 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
-    client = relationship("backend.models.client.Client")
-    runs = relationship("backend.models.run.Run", cascade="all, delete-orphan")
-    posts = relationship("backend.models.post.Post", cascade="all, delete-orphan")
-    deliverables = relationship("backend.models.deliverable.Deliverable", cascade="all, delete-orphan")
-    brief = relationship("backend.models.brief.Brief", uselist=False, cascade="all, delete-orphan")
+    client = relationship("backend.models.client.Client", back_populates="projects")
+    runs = relationship("backend.models.run.Run", back_populates="project", cascade="all, delete-orphan")
+    posts = relationship("backend.models.post.Post", back_populates="project", cascade="all, delete-orphan")
+    deliverables = relationship("backend.models.deliverable.Deliverable", back_populates="project", cascade="all, delete-orphan")
+    brief = relationship("backend.models.brief.Brief", back_populates="project", uselist=False, cascade="all, delete-orphan")
 
     # Composite indexes for cursor pagination (Week 3 optimization)
     __table_args__ = (

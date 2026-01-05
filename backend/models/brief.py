@@ -22,7 +22,7 @@ class Brief(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    project = relationship("backend.models.project.Project")
+    project = relationship("backend.models.project.Project", back_populates="brief")
 
     def __repr__(self):
         return f"<Brief for {self.project_id}>"
