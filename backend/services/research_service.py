@@ -39,6 +39,7 @@ try:
     from src.research.market_trends_research import MarketTrendsResearcher
     from src.research.content_audit import ContentAuditor
     from src.research.platform_strategy import PlatformStrategist
+    from src.research.content_calendar_strategy import ContentCalendarStrategist
 
     RESEARCH_TOOLS_AVAILABLE = True
     RESEARCH_TOOL_MAP = {
@@ -50,6 +51,7 @@ try:
         "market_trends_research": MarketTrendsResearcher,
         "content_audit": ContentAuditor,
         "platform_strategy": PlatformStrategist,
+        "content_calendar": ContentCalendarStrategist,
     }
 except ImportError as e:
     # Research tools not available - service will return stub responses

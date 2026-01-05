@@ -121,7 +121,7 @@ RESEARCH_TOOLS = [
         name="content_calendar",
         label="Content Calendar Strategy",
         price=300.0,
-        status="coming_soon",
+        status="available",
         description="Create strategic 90-day content calendar",
         category="strategy"
     ),
