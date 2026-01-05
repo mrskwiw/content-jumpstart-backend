@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, Button, Input, Textarea } from '@/components/ui';
 import { AlertCircle, Plus, X, FileText } from 'lucide-react';
+import { ContentAuditCollector } from './ContentAuditCollector';
 
 interface ResearchDataCollectionPanelProps {
   selectedTools: string[];
@@ -70,13 +71,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   content_audit: {
     fields: [{
       key: 'content_inventory',
-      label: 'Content Inventory',
+      label: 'Content to Audit',
       type: 'content-list',
       required: true,
       min: 1,
       max: 100,
-      placeholder: 'Paste content piece information (title, URL, type)...',
-      helperText: 'Provide 1-100 content pieces to audit. Each should include title, type (blog/video/case study), and optionally URL, date, word count.'
+      placeholder: 'URLs will be auto-analyzed...',
+      helperText: 'Paste URLs for quick import, or manually add content without URLs. Tool analyzes performance, identifies top/underperformers, and recommends updates, refreshes, or archives.'
     }]
   },
   market_trends_research: {
@@ -328,53 +329,67 @@ export function ResearchDataCollectionPanel({
 
               {field.type === 'content-list' && (
                 <div>
-                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    <FileText className="h-4 w-4" />
-                    {field.label}
-                    {field.required && <span className="text-rose-500">*</span>}
-                  </label>
+                  {/* Special handling for content_inventory (Content Audit) */}
+                  {field.key === 'content_inventory' ? (
+                    <ContentAuditCollector
+                      value={collectedData[field.key] || []}
+                      onChange={(pieces) => {
+                        setCollectedData(prev => ({ ...prev, [field.key]: pieces }));
+                        setErrors(prev => ({ ...prev, [field.key]: '' }));
+                      }}
+                      error={errors[field.key]}
+                    />
+                  ) : (
+                    <>
+                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                        <FileText className="h-4 w-4" />
+                        {field.label}
+                        {field.required && <span className="text-rose-500">*</span>}
+                      </label>
 
-                  <div className="space-y-3">
-                    {(collectedData[field.key] || []).map((sample: string, index: number) => (
-                      <div key={index} className="flex gap-2">
-                        <Textarea
-                          value={sample}
-                          onChange={(e) => handleContentListChange(field.key, index, e.target.value)}
-                          placeholder={`${field.placeholder} (${index + 1}/${field.max || '∞'})`}
-                          rows={3}
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleRemoveContentSample(field.key, index)}
-                          className="mt-1"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                      <div className="space-y-3">
+                        {(collectedData[field.key] || []).map((sample: string, index: number) => (
+                          <div key={index} className="flex gap-2">
+                            <Textarea
+                              value={sample}
+                              onChange={(e) => handleContentListChange(field.key, index, e.target.value)}
+                              placeholder={`${field.placeholder} (${index + 1}/${field.max || '∞'})`}
+                              rows={3}
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleRemoveContentSample(field.key, index)}
+                              className="mt-1"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleAddContentSample(field.key)}
-                    disabled={!!(field.max && (collectedData[field.key] || []).length >= field.max)}
-                    className="mt-3"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Sample ({(collectedData[field.key] || []).length}/{field.max || '∞'})
-                  </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleAddContentSample(field.key)}
+                        disabled={!!(field.max && (collectedData[field.key] || []).length >= field.max)}
+                        className="mt-3"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Sample ({(collectedData[field.key] || []).length}/{field.max || '∞'})
+                      </Button>
 
-                  {errors[field.key] && (
-                    <p className="mt-2 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {errors[field.key]}
-                    </p>
-                  )}
-                  {field.helperText && (
-                    <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                      {errors[field.key] && (
+                        <p className="mt-2 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {errors[field.key]}
+                        </p>
+                      )}
+                      {field.helperText && (
+                        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                      )}
+                    </>
                   )}
                 </div>
               )}
