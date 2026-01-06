@@ -344,7 +344,7 @@ class ContentGeneratorAgent:
             async with semaphore:
                 return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
-                    client_brief=client_brief,
+                    client_brief=sanitized_brief,  # SECURITY FIX: Use sanitized brief (TR-014)
                     variant=task_params["variant"],
                     post_number=task_params["post_number"],
                     cached_system_prompt=task_params["cached_system_prompt"],
@@ -595,7 +595,7 @@ class ContentGeneratorAgent:
             for variant in range(1, quantity + 1):
                 post = self._generate_single_post(
                     template=template,
-                    client_brief=client_brief,
+                    client_brief=sanitized_brief,  # SECURITY FIX: Use sanitized brief (TR-014)
                     variant=variant,
                     post_number=post_number,
                     cached_system_prompt=cached_system_prompt,
@@ -693,7 +693,7 @@ class ContentGeneratorAgent:
             async with semaphore:
                 return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
-                    client_brief=client_brief,
+                    client_brief=sanitized_brief,  # SECURITY FIX: Use sanitized brief (TR-014)
                     variant=task_params["variant"],
                     post_number=task_params["post_number"],
                     cached_system_prompt=task_params["cached_system_prompt"],

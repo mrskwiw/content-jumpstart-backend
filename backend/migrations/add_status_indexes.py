@@ -77,11 +77,17 @@ def downgrade():
 
 def index_exists(index_name: str) -> bool:
     """Check if index exists in database"""
+    # SECURITY FIX: Validate index name to prevent SQL injection (TR-015)
+    import re
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', index_name):
+        raise ValueError(f"Invalid index name: {index_name}")
+
     with engine.connect() as conn:
-        result = conn.execute(f"""
+        from sqlalchemy import text
+        result = conn.execute(text("""
             SELECT 1 FROM pg_indexes
-            WHERE indexname = '{index_name}'
-        """)
+            WHERE indexname = :index_name
+        """), {"index_name": index_name})
         return result.fetchone() is not None
 
 

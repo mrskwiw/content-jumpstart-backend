@@ -185,6 +185,12 @@ def init_db():
 
             for col_name, col_type in new_columns:
                 if col_name not in columns:
+                    # SECURITY FIX: Validate SQL identifiers to prevent injection (TR-015)
+                    import re
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col_name):
+                        print(f">> ERROR: Invalid column name '{col_name}' (security check failed)")
+                        continue
+
                     print(f">> Running migration: Adding {col_name} column to clients table")
                     try:
                         conn.execute(text(f"ALTER TABLE clients ADD COLUMN {col_name} {col_type}"))
@@ -211,6 +217,12 @@ def init_db():
 
             for col_name, col_type in new_project_columns:
                 if col_name not in columns:
+                    # SECURITY FIX: Validate SQL identifiers to prevent injection (TR-015)
+                    import re
+                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col_name):
+                        print(f">> ERROR: Invalid column name '{col_name}' (security check failed)")
+                        continue
+
                     print(f">> Running migration: Adding {col_name} column to projects table")
                     try:
                         conn.execute(text(f"ALTER TABLE projects ADD COLUMN {col_name} {col_type}"))

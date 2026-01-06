@@ -147,18 +147,26 @@ export default function Wizard() {
   // Populate form with selected client's data when loading existing client
   useEffect(() => {
     if (selectedClient && !isCreatingNewClient) {
-      setClientBrief({
-        companyName: selectedClient.name,
-        businessDescription: selectedClient.businessDescription || '',
-        idealCustomer: selectedClient.idealCustomer || '',
-        mainProblemSolved: selectedClient.mainProblemSolved || '',
-        tonePreference: selectedClient.tonePreference || 'professional',
-        platforms: selectedClient.platforms || [],
-        customerPainPoints: selectedClient.customerPainPoints || [],
-        customerQuestions: selectedClient.customerQuestions || [],
-      });
+      // SECURITY FIX: Check if update is needed to prevent unnecessary re-renders (TR-017)
+      const needsUpdate =
+        clientBrief?.companyName !== selectedClient.name ||
+        clientBrief?.businessDescription !== (selectedClient.businessDescription || '') ||
+        clientBrief?.idealCustomer !== (selectedClient.idealCustomer || '');
+
+      if (needsUpdate) {
+        setClientBrief({
+          companyName: selectedClient.name,
+          businessDescription: selectedClient.businessDescription || '',
+          idealCustomer: selectedClient.idealCustomer || '',
+          mainProblemSolved: selectedClient.mainProblemSolved || '',
+          tonePreference: selectedClient.tonePreference || 'professional',
+          platforms: selectedClient.platforms || [],
+          customerPainPoints: selectedClient.customerPainPoints || [],
+          customerQuestions: selectedClient.customerQuestions || [],
+        });
+      }
     }
-  }, [selectedClient, isCreatingNewClient]);
+  }, [selectedClient, isCreatingNewClient, clientBrief]);
 
   // Helper to advance to a step (updates maxReachedStep if moving forward)
   const advanceToStep = (targetStep: StepKey) => {

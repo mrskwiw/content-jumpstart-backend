@@ -9,6 +9,8 @@ This is the backend API for the Operator Dashboard, providing:
 - Server-Sent Events for progress updates
 - Static file serving for React frontend (eliminates CORS)
 """
+import os
+import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -91,11 +93,25 @@ async def lifespan(app: FastAPI):
                 }
             ]
 
+            # SECURITY FIX: Use environment variable for default password (TR-018)
+            default_password = os.getenv("DEFAULT_USER_PASSWORD")
+
+            if not default_password:
+                # Generate secure random password if not provided
+                default_password = secrets.token_urlsafe(16)
+                print(">> WARNING: No DEFAULT_USER_PASSWORD set in environment!")
+                print(f">> Generated random password for new users: {default_password}")
+                print(">> IMPORTANT: Save this password immediately - it won't be shown again!")
+                print(">> Set DEFAULT_USER_PASSWORD in .env to use a custom password")
+            else:
+                print(">> Using DEFAULT_USER_PASSWORD from environment")
+                print(">> SECURITY: Password not displayed (using environment variable)")
+
             for user_data in users_to_create:
                 user = User(
                     id=f"user-{uuid.uuid4().hex[:12]}",
                     email=user_data["email"],
-                    hashed_password=get_password_hash("Random!1Pass"),
+                    hashed_password=get_password_hash(default_password),
                     full_name=user_data["full_name"],
                     is_active=True
                 )
@@ -103,7 +119,6 @@ async def lifespan(app: FastAPI):
 
             db.commit()
             print(f">> Created {len(users_to_create)} default users")
-            print(">> Default password: Random!1Pass")
         else:
             print(f">> Found {user_count} existing users")
     finally:

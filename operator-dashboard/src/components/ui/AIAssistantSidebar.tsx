@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircle, X, Send, RotateCcw, Sparkles } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
@@ -39,14 +39,8 @@ export default function AIAssistantSidebar() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load context suggestions when sidebar opens or page changes
-  useEffect(() => {
-    if (isOpen && suggestions.length === 0) {
-      loadContextSuggestions();
-    }
-  }, [isOpen, location.pathname]);
-
-  const loadContextSuggestions = async () => {
+  // SECURITY FIX: Wrap in useCallback to fix React Hook dependency issue (TR-017)
+  const loadContextSuggestions = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch('/api/assistant/context', {
@@ -68,7 +62,14 @@ export default function AIAssistantSidebar() {
     } catch (error) {
       console.error('Failed to load context suggestions:', error);
     }
-  };
+  }, [location.pathname]); // Dependencies: location changes trigger new suggestions
+
+  // Load context suggestions when sidebar opens or page changes
+  useEffect(() => {
+    if (isOpen && suggestions.length === 0) {
+      loadContextSuggestions();
+    }
+  }, [isOpen, location.pathname, suggestions.length, loadContextSuggestions]); // SECURITY FIX: Added all dependencies (TR-017)
 
   const sendMessage = async (messageText?: string) => {
     const textToSend = messageText || inputMessage.trim();

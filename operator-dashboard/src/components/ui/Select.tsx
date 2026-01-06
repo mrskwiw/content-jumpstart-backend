@@ -29,7 +29,9 @@ export interface SelectProps
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, variant, label, error, helperText, id, children, ...props }, ref) => {
-    const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
+    // SECURITY FIX: Use useId() instead of Math.random() for React purity (TR-016)
+    const generatedId = React.useId();
+    const selectId = id || `select-${generatedId}`;
     const hasError = !!error;
 
     return (

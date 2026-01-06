@@ -31,7 +31,9 @@ export interface TextareaProps
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, variant, label, error, helperText, showCount, maxLength, id, value, ...props }, ref) => {
-    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+    // SECURITY FIX: Use useId() instead of Math.random() for React purity (TR-016)
+    const generatedId = React.useId();
+    const textareaId = id || `textarea-${generatedId}`;
     const hasError = !!error;
     const currentLength = typeof value === 'string' ? value.length : 0;
 
