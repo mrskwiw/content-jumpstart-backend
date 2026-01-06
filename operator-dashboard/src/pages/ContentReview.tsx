@@ -92,12 +92,23 @@ export default function ContentReview() {
 
   // Enrich posts with context
   const postsWithContext: PostWithContext[] = useMemo(() => {
+    // SECURITY FIX: Use deterministic hash instead of Math.random() for React purity (TR-016)
+    const hashPostId = (id: string): number => {
+      let hash = 0;
+      for (let i = 0; i < id.length; i++) {
+        const char = id.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return Math.abs(hash);
+    };
+
     return posts.map(post => {
       const project = projects.find(p => p.id === post.projectId);
       const client = project ? clients.find(c => c.id === project.clientId) : undefined;
 
-      // Mock quality score (would come from backend)
-      const qualityScore = 70 + Math.floor(Math.random() * 30);
+      // Mock quality score (would come from backend) - deterministic based on post ID
+      const qualityScore = 70 + (hashPostId(post.id) % 30);
 
       return {
         ...post,

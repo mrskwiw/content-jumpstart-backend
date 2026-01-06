@@ -1,6 +1,7 @@
 """
 Database configuration and session management.
 """
+
 import sys
 from typing import Generator
 
@@ -8,7 +9,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.exc import OperationalError, DatabaseError
+from sqlalchemy.exc import OperationalError
 
 from backend.config import settings
 from backend.utils.query_profiler import enable_sqlalchemy_profiling
@@ -29,7 +30,7 @@ if database_url.drivername.startswith("sqlite"):
             connect_args=connect_args,
             echo_pool=settings.DB_ECHO_POOL,
         )
-        print(f">> DEBUG: SQLite engine created successfully")
+        print(">> DEBUG: SQLite engine created successfully")
     except Exception as e:
         print(f">> ERROR: Failed to create SQLite engine: {e}")
         raise
@@ -47,48 +48,48 @@ else:
             echo_pool=settings.DB_ECHO_POOL,
             pool_timeout=settings.DB_POOL_TIMEOUT,
         )
-        print(f">> DEBUG: PostgreSQL engine created successfully")
+        print(">> DEBUG: PostgreSQL engine created successfully")
 
         # Test connection immediately
-        print(f">> DEBUG: Testing PostgreSQL connection...")
+        print(">> DEBUG: Testing PostgreSQL connection...")
         try:
             with engine.connect() as conn:
                 result = conn.execute(text("SELECT 1"))
                 result.fetchone()
-            print(f">> DEBUG: PostgreSQL connection test PASSED")
+            print(">> DEBUG: PostgreSQL connection test PASSED")
         except OperationalError as e:
-            error_msg = str(e.orig) if hasattr(e, 'orig') else str(e)
-            print(f">> ERROR: PostgreSQL connection FAILED")
-            print(f">> ERROR: Cannot connect to database")
+            error_msg = str(e.orig) if hasattr(e, "orig") else str(e)
+            print(">> ERROR: PostgreSQL connection FAILED")
+            print(">> ERROR: Cannot connect to database")
             print(f">> ERROR: Details: {error_msg}")
 
             # Provide helpful troubleshooting tips
             if "could not connect to server" in error_msg.lower():
-                print(f">> ERROR: Database server unreachable. Check:")
-                print(f">>   1. DATABASE_URL is correct (internal URL for Render)")
-                print(f">>   2. PostgreSQL service is running")
-                print(f">>   3. Network/firewall allows connection")
+                print(">> ERROR: Database server unreachable. Check:")
+                print(">>   1. DATABASE_URL is correct (internal URL for Render)")
+                print(">>   2. PostgreSQL service is running")
+                print(">>   3. Network/firewall allows connection")
             elif "authentication failed" in error_msg.lower() or "password" in error_msg.lower():
-                print(f">> ERROR: Authentication failed. Check:")
-                print(f">>   1. Username is correct")
-                print(f">>   2. Password is correct")
-                print(f">>   3. User has access to the database")
+                print(">> ERROR: Authentication failed. Check:")
+                print(">>   1. Username is correct")
+                print(">>   2. Password is correct")
+                print(">>   3. User has access to the database")
             elif "database" in error_msg.lower() and "does not exist" in error_msg.lower():
-                print(f">> ERROR: Database does not exist. Check:")
-                print(f">>   1. Database name in DATABASE_URL is correct")
-                print(f">>   2. Database has been created")
+                print(">> ERROR: Database does not exist. Check:")
+                print(">>   1. Database name in DATABASE_URL is correct")
+                print(">>   2. Database has been created")
 
-            print(f">> FATAL: Cannot start application without database connection")
+            print(">> FATAL: Cannot start application without database connection")
             sys.exit(1)
         except Exception as e:
             print(f">> ERROR: Unexpected database error: {e}")
-            print(f">> FATAL: Cannot start application without database connection")
+            print(">> FATAL: Cannot start application without database connection")
             sys.exit(1)
 
     except Exception as e:
         print(f">> ERROR: Failed to create PostgreSQL engine: {e}")
-        print(f">> ERROR: DATABASE_URL format may be invalid")
-        print(f">> ERROR: Expected format: postgresql://user:pass@host:port/dbname")
+        print(">> ERROR: DATABASE_URL format may be invalid")
+        print(">> ERROR: Expected format: postgresql://user:pass@host:port/dbname")
         raise
 
 # Enable query profiling for performance monitoring
@@ -128,7 +129,7 @@ def init_db():
 
     # Import all models to ensure they're registered with SQLAlchemy
     # This must happen before Base.metadata.create_all() or mapper configuration
-    from backend.models import Brief, Client, Deliverable, Post, Project, Run, User
+    from backend.models import Project
 
     # Create all tables (handles existing indexes gracefully)
     try:
@@ -136,7 +137,9 @@ def init_db():
     except OperationalError as e:
         # Ignore "index already exists" errors (common with persistent databases)
         if "already exists" in str(e):
-            print(f">> Note: Some database objects already exist (expected for persistent storage): {e}")
+            print(
+                f">> Note: Some database objects already exist (expected for persistent storage): {e}"
+            )
             # Create tables individually to work around index errors
             for table in Base.metadata.sorted_tables:
                 try:
@@ -152,14 +155,16 @@ def init_db():
         inspector = inspect(engine)
 
         # Check if deliverables table exists
-        if 'deliverables' in inspector.get_table_names():
+        if "deliverables" in inspector.get_table_names():
             # Check if file_size_bytes column exists
-            columns = [col['name'] for col in inspector.get_columns('deliverables')]
+            columns = [col["name"] for col in inspector.get_columns("deliverables")]
 
-            if 'file_size_bytes' not in columns:
+            if "file_size_bytes" not in columns:
                 print(">> Running migration: Adding file_size_bytes column to deliverables table")
                 try:
-                    conn.execute(text("ALTER TABLE deliverables ADD COLUMN file_size_bytes INTEGER"))
+                    conn.execute(
+                        text("ALTER TABLE deliverables ADD COLUMN file_size_bytes INTEGER")
+                    )
                     conn.commit()
                     print(">> Migration completed successfully")
                 except Exception as e:
@@ -168,27 +173,38 @@ def init_db():
                     pass
 
         # Check if clients table exists
-        if 'clients' in inspector.get_table_names():
+        if "clients" in inspector.get_table_names():
             # Check for ClientBrief columns
-            columns = [col['name'] for col in inspector.get_columns('clients')]
+            columns = [col["name"] for col in inspector.get_columns("clients")]
 
             # List of columns to add
             new_columns = [
-                ('business_description', 'TEXT'),
-                ('ideal_customer', 'TEXT'),
-                ('main_problem_solved', 'TEXT'),
-                ('tone_preference', 'VARCHAR'),
-                ('platforms', 'JSON'),
-                ('customer_pain_points', 'JSON'),
-                ('customer_questions', 'JSON'),
+                ("business_description", "TEXT"),
+                ("ideal_customer", "TEXT"),
+                ("main_problem_solved", "TEXT"),
+                ("tone_preference", "VARCHAR"),
+                ("platforms", "JSON"),
+                ("customer_pain_points", "JSON"),
+                ("customer_questions", "JSON"),
             ]
+
+            # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)
+            ALLOWED_TYPES = {"TEXT", "VARCHAR", "INTEGER", "REAL", "JSON", "BOOLEAN", "TIMESTAMP"}
 
             for col_name, col_type in new_columns:
                 if col_name not in columns:
                     # SECURITY FIX: Validate SQL identifiers to prevent injection (TR-015)
                     import re
-                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col_name):
+
+                    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col_name):
                         print(f">> ERROR: Invalid column name '{col_name}' (security check failed)")
+                        continue
+
+                    # SECURITY FIX: Validate column type against whitelist (TR-015)
+                    # Extract base type (handle "REAL DEFAULT 40.0" -> "REAL")
+                    base_type = col_type.split()[0] if " " in col_type else col_type
+                    if base_type not in ALLOWED_TYPES:
+                        print(f">> ERROR: Invalid column type '{col_type}' (security check failed)")
                         continue
 
                     print(f">> Running migration: Adding {col_name} column to clients table")
@@ -202,25 +218,37 @@ def init_db():
                         pass
 
         # Check if projects table exists (template quantities & pricing migration)
-        if 'projects' in inspector.get_table_names():
+        if "projects" in inspector.get_table_names():
             # Check for new template quantities and pricing columns
-            columns = [col['name'] for col in inspector.get_columns('projects')]
+            columns = [col["name"] for col in inspector.get_columns("projects")]
 
             # List of new columns to add for template quantities and pricing refactor
             new_project_columns = [
-                ('template_quantities', 'JSON'),  # Dict mapping template_id -> quantity
-                ('num_posts', 'INTEGER'),  # Total post count
-                ('price_per_post', 'REAL DEFAULT 40.0'),  # Base price per post
-                ('research_price_per_post', 'REAL DEFAULT 0.0'),  # Research add-on per post
-                ('total_price', 'REAL'),  # Total calculated price
+                ("template_quantities", "JSON"),  # Dict mapping template_id -> quantity
+                ("num_posts", "INTEGER"),  # Total post count
+                ("price_per_post", "REAL DEFAULT 40.0"),  # Base price per post
+                ("research_price_per_post", "REAL DEFAULT 0.0"),  # Research add-on per post
+                ("total_price", "REAL"),  # Total calculated price
             ]
+
+            # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)
+            # Reuse same whitelist from clients table migration
+            ALLOWED_TYPES = {"TEXT", "VARCHAR", "INTEGER", "REAL", "JSON", "BOOLEAN", "TIMESTAMP"}
 
             for col_name, col_type in new_project_columns:
                 if col_name not in columns:
                     # SECURITY FIX: Validate SQL identifiers to prevent injection (TR-015)
                     import re
-                    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col_name):
+
+                    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col_name):
                         print(f">> ERROR: Invalid column name '{col_name}' (security check failed)")
+                        continue
+
+                    # SECURITY FIX: Validate column type against whitelist (TR-015)
+                    # Extract base type (handle "REAL DEFAULT 40.0" -> "REAL")
+                    base_type = col_type.split()[0] if " " in col_type else col_type
+                    if base_type not in ALLOWED_TYPES:
+                        print(f">> ERROR: Invalid column type '{col_type}' (security check failed)")
                         continue
 
                     print(f">> Running migration: Adding {col_name} column to projects table")
@@ -235,21 +263,23 @@ def init_db():
 
             # Migrate existing projects: convert templates array to template_quantities dict
             # Only migrate projects that have templates but no template_quantities
-            if 'templates' in columns and 'template_quantities' in columns:
+            if "templates" in columns and "template_quantities" in columns:
                 print(">> Running data migration: Converting templates to template_quantities")
                 try:
                     # This SQL is database-agnostic for projects with legacy data
                     # We'll handle the conversion in Python for better control
                     from sqlalchemy.orm import Session
+
                     session = Session(bind=engine)
                     try:
-                        from backend.models.project import Project
-                        import json
-
-                        projects = session.query(Project).filter(
-                            Project.templates.isnot(None),
-                            Project.template_quantities.is_(None)
-                        ).all()
+                        # Project already imported at line 131
+                        projects = (
+                            session.query(Project)
+                            .filter(
+                                Project.templates.isnot(None), Project.template_quantities.is_(None)
+                            )
+                            .all()
+                        )
 
                         migrated_count = 0
                         for project in projects:
@@ -265,7 +295,9 @@ def init_db():
                                     template_quantities = {}
                                     for i, template_id in enumerate(project.templates):
                                         # Distribute remainder to first templates
-                                        quantity = quantity_per_template + (1 if i < remainder else 0)
+                                        quantity = quantity_per_template + (
+                                            1 if i < remainder else 0
+                                        )
                                         template_quantities[str(template_id)] = quantity
 
                                     # Update project
@@ -279,7 +311,9 @@ def init_db():
 
                         if migrated_count > 0:
                             session.commit()
-                            print(f">> Data migration completed: Migrated {migrated_count} projects")
+                            print(
+                                f">> Data migration completed: Migrated {migrated_count} projects"
+                            )
                         else:
                             print(">> No projects to migrate")
 

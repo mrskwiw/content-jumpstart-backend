@@ -1,0 +1,337 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allow manual trigger
+
+# Cancel in-progress runs for same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black ruff mypy pre-commit
+
+      - name: Check code formatting (Black)
+        run: |
+          black --check --line-length=100 src/ tests/ backend/
+        continue-on-error: false  # Fail if not formatted
+
+      - name: Lint with Ruff
+        run: |
+          ruff check src/ tests/ backend/
+        continue-on-error: false  # Fail on lint errors
+
+      - name: Type check with mypy
+        run: |
+          mypy src/
+        continue-on-error: true  # Warning only for now
+
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit run --all-files
+        continue-on-error: true  # Warning only
+
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio pytest-mock
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml --cov-report=term
+        continue-on-error: false
+
+      - name: Run integration tests (non-server)
+        run: |
+          pytest tests/integration/ -v --tb=short -m "not requires_server"
+        continue-on-error: true  # Some integration tests may need server
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true  # Don't fail if codecov upload fails
+
+  test-coverage:
+    name: Test Coverage Requirements
+    runs-on: ubuntu-latest
+    needs: python-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/unit/ --cov=src --cov-report=html --cov-report=term --cov-report=json
+
+      - name: Check coverage threshold
+        run: |
+          python -c "
+          import json
+          with open('coverage.json') as f:
+              cov = json.load(f)
+          total = cov['totals']['percent_covered']
+          print(f'Total coverage: {total:.2f}%')
+          if total < 70:
+              print(f'❌ Coverage {total:.2f}% is below 70% threshold')
+              exit(1)
+          else:
+              print(f'✅ Coverage {total:.2f}% meets 70% threshold')
+          "
+        continue-on-error: true  # Warning only for now
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: htmlcov/
+
+  security-tests:
+    name: Security Test Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run security tests
+        run: |
+          pytest tests/unit/test_prompt_injection_defense.py \
+                 tests/unit/test_sql_injection_prevention.py \
+                 tests/unit/test_react_purity_violations.py \
+                 tests/unit/test_react_hook_dependencies.py \
+                 tests/unit/test_password_security.py \
+                 -v --tb=short
+
+      - name: Verify security test count
+        run: |
+          # Should have 164 security tests total
+          count=$(pytest tests/unit/test_prompt_injection_defense.py \
+                         tests/unit/test_sql_injection_prevention.py \
+                         tests/unit/test_react_purity_violations.py \
+                         tests/unit/test_react_hook_dependencies.py \
+                         tests/unit/test_password_security.py \
+                         --co -q | wc -l)
+          echo "Total security tests: $count"
+          if [ "$count" -lt 160 ]; then
+            echo "❌ Expected at least 160 security tests, found $count"
+            exit 1
+          else
+            echo "✅ Security test coverage meets requirements"
+          fi
+
+  frontend-quality:
+    name: Frontend Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: operator-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd operator-dashboard
+          npm ci
+
+      - name: Lint TypeScript/React
+        run: |
+          cd operator-dashboard
+          npm run lint
+        continue-on-error: true  # Warning only
+
+      - name: Type check
+        run: |
+          cd operator-dashboard
+          npx tsc --noEmit
+        continue-on-error: true  # Warning only
+
+      - name: Build frontend
+        run: |
+          cd operator-dashboard
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: operator-dashboard/dist/
+
+  backend-quality:
+    name: Backend API Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Verify backend imports
+        run: |
+          python -c "
+          from backend.main import app
+          from backend.database import init_db
+          print('✅ Backend imports successful')
+          "
+
+      - name: Test backend startup
+        run: |
+          # Test that backend can start (don't actually run it)
+          python -c "
+          from backend.main import app
+          assert app is not None
+          print('✅ Backend app created successfully')
+          "
+
+  integration-check:
+    name: Integration Check
+    runs-on: ubuntu-latest
+    needs: [code-quality, python-tests, frontend-quality, backend-quality]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate quality report
+        run: |
+          echo "# Quality Gates Report" > quality-report.md
+          echo "" >> quality-report.md
+          echo "## Check Results" >> quality-report.md
+          echo "- Code Quality: ${{ needs.code-quality.result }}" >> quality-report.md
+          echo "- Python Tests: ${{ needs.python-tests.result }}" >> quality-report.md
+          echo "- Frontend Quality: ${{ needs.frontend-quality.result }}" >> quality-report.md
+          echo "- Backend Quality: ${{ needs.backend-quality.result }}" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "## Status" >> quality-report.md
+          if [[ "${{ needs.code-quality.result }}" == "success" ]] && \
+             [[ "${{ needs.python-tests.result }}" == "success" ]] && \
+             [[ "${{ needs.frontend-quality.result }}" == "success" ]] && \
+             [[ "${{ needs.backend-quality.result }}" == "success" ]]; then
+            echo "✅ All quality gates passed" >> quality-report.md
+          else
+            echo "❌ Some quality gates failed" >> quality-report.md
+          fi
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: quality-report.md
+
+  quality-summary:
+    name: Quality Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, python-tests, test-coverage, security-tests, frontend-quality, backend-quality]
+    if: always()
+
+    steps:
+      - name: Check all gates
+        run: |
+          echo "# Quality Gates Summary"
+          echo ""
+          echo "## Results:"
+          echo "- Code Quality: ${{ needs.code-quality.result }}"
+          echo "- Python Tests: ${{ needs.python-tests.result }}"
+          echo "- Test Coverage: ${{ needs.test-coverage.result }}"
+          echo "- Security Tests: ${{ needs.security-tests.result }}"
+          echo "- Frontend Quality: ${{ needs.frontend-quality.result }}"
+          echo "- Backend Quality: ${{ needs.backend-quality.result }}"
+          echo ""
+
+          # Fail if critical checks failed
+          if [[ "${{ needs.code-quality.result }}" != "success" ]] || \
+             [[ "${{ needs.python-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.security-tests.result }}" != "success" ]]; then
+            echo "❌ Critical quality gates failed"
+            exit 1
+          else
+            echo "✅ All critical quality gates passed"
+          fi

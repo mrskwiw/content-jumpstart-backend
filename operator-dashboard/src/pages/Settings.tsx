@@ -169,7 +169,11 @@ export default function Settings() {
   const createApiKeyMutation = useMutation({
     mutationFn: async (name: string) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return { name, key: `sk_${Math.random().toString(36).substring(2, 15)}` };
+      // SECURITY FIX: Use crypto.getRandomValues() instead of Math.random() for API keys (TR-016)
+      const randomBytes = new Uint8Array(16);
+      crypto.getRandomValues(randomBytes);
+      const key = Array.from(randomBytes, byte => byte.toString(36)).join('').substring(0, 15);
+      return { name, key: `sk_${key}` };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });

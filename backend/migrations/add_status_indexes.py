@@ -10,7 +10,8 @@ Expected performance improvement: 30-50% for filtered queries.
 Usage:
     python migrations/add_status_indexes.py
 """
-from sqlalchemy import create_index, Index, MetaData, Table
+
+from sqlalchemy import Index, MetaData, Table
 from sqlalchemy.exc import OperationalError
 
 from backend.database import engine
@@ -25,10 +26,10 @@ def upgrade():
 
     # Add index to projects.status
     try:
-        projects_table = Table('projects', metadata, autoload_with=engine)
-        idx_projects_status = Index('ix_projects_status', projects_table.c.status)
+        projects_table = Table("projects", metadata, autoload_with=engine)
+        idx_projects_status = Index("ix_projects_status", projects_table.c.status)
 
-        if not index_exists('ix_projects_status'):
+        if not index_exists("ix_projects_status"):
             idx_projects_status.create(engine)
             print("✓ Created index: ix_projects_status")
         else:
@@ -38,10 +39,10 @@ def upgrade():
 
     # Add index to deliverables.status
     try:
-        deliverables_table = Table('deliverables', metadata, autoload_with=engine)
-        idx_deliverables_status = Index('ix_deliverables_status', deliverables_table.c.status)
+        deliverables_table = Table("deliverables", metadata, autoload_with=engine)
+        idx_deliverables_status = Index("ix_deliverables_status", deliverables_table.c.status)
 
-        if not index_exists('ix_deliverables_status'):
+        if not index_exists("ix_deliverables_status"):
             idx_deliverables_status.create(engine)
             print("✓ Created index: ix_deliverables_status")
         else:
@@ -59,18 +60,24 @@ def downgrade():
     """Remove status indexes"""
     print("Removing status indexes...")
 
-    with engine.connect() as conn:
-        try:
-            conn.execute("DROP INDEX IF EXISTS ix_projects_status")
-            print("✓ Dropped index: ix_projects_status")
-        except OperationalError as e:
-            print(f"✗ Error dropping projects.status index: {e}")
+    # SECURITY FIX: Validate index names before use (TR-015)
+    # Even though these are hardcoded, validation ensures defense-in-depth
+    indexes_to_drop = ["ix_projects_status", "ix_deliverables_status"]
 
-        try:
-            conn.execute("DROP INDEX IF EXISTS ix_deliverables_status")
-            print("✓ Dropped index: ix_deliverables_status")
-        except OperationalError as e:
-            print(f"✗ Error dropping deliverables.status index: {e}")
+    import re
+
+    for index_name in indexes_to_drop:
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", index_name):
+            print(f"✗ ERROR: Invalid index name '{index_name}' (security check failed)")
+            continue
+
+        with engine.connect() as conn:
+            try:
+                # Using hardcoded validated strings - PostgreSQL doesn't support parameterized index names
+                conn.execute(f"DROP INDEX IF EXISTS {index_name}")
+                print(f"✓ Dropped index: {index_name}")
+            except OperationalError as e:
+                print(f"✗ Error dropping {index_name}: {e}")
 
     print("\nDowngrade complete!")
 
@@ -79,15 +86,22 @@ def index_exists(index_name: str) -> bool:
     """Check if index exists in database"""
     # SECURITY FIX: Validate index name to prevent SQL injection (TR-015)
     import re
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', index_name):
+
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", index_name):
         raise ValueError(f"Invalid index name: {index_name}")
 
     with engine.connect() as conn:
         from sqlalchemy import text
-        result = conn.execute(text("""
+
+        result = conn.execute(
+            text(
+                """
             SELECT 1 FROM pg_indexes
             WHERE indexname = :index_name
-        """), {"index_name": index_name})
+        """
+            ),
+            {"index_name": index_name},
+        )
         return result.fetchone() is not None
 
 

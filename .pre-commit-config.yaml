@@ -10,7 +10,7 @@
 repos:
   # Detect secrets and credentials
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         name: Detect secrets
@@ -30,7 +30,7 @@ repos:
 
   # Prevent committing sensitive files
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
         args: ['--maxkb=500']
@@ -44,19 +44,47 @@ repos:
 
   # Python code quality
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 25.12.0
     hooks:
       - id: black
-        language_version: python3.11
+        name: Format code with Black
+        language_version: python3.12
+        args: ['--line-length=100']
+        files: ^(src|tests|backend)/.*\.py$
+
+  # Python linting with Ruff (fast, replaces flake8, isort, etc.)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff
+        name: Lint with Ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+        files: ^(src|tests|backend)/.*\.py$
+
+  # Python type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        name: Type check with mypy
+        files: ^src/.*\.py$
+        args:
+          - --ignore-missing-imports
+          - --no-strict-optional
+          - --warn-unreachable
+          - --show-error-codes
+        additional_dependencies:
+          - types-requests
+          - types-python-dateutil
+          - pydantic
 
   # Security scanning
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.5
+    rev: 1.9.2
     hooks:
       - id: bandit
-        name: Security checks with bandit
-        args:
-          - '-r'
-          - 'src/'
-          - 'backend/'
-        exclude: 'tests/.*'
+        name: Security checks with Bandit
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
+        files: ^(src|backend)/.*\.py$
+        exclude: ^tests/
