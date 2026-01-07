@@ -3,7 +3,7 @@
 import asyncio
 import random
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from ..config.brand_frameworks import (
     get_archetype_from_client_type,
@@ -14,9 +14,11 @@ from ..config.constants import AI_TELL_PHRASES, MAX_POST_WORD_COUNT, MIN_POST_WO
 from ..config.platform_specs import get_platform_prompt_guidance, get_platform_target_length
 from ..config.prompts import SystemPrompts
 from ..models.client_brief import ClientBrief, Platform
+from ..models.client_memory import ClientMemory
 from ..models.post import Post
 from ..models.seo_keyword import KeywordStrategy
 from ..models.template import Template
+from ..models.voice_sample import VoiceMatchReport
 from ..utils.anthropic_client import AnthropicClient
 from ..utils.logger import log_post_generated, logger
 from ..utils.template_loader import TemplateLoader
@@ -24,6 +26,10 @@ from ..validators.prompt_injection_defense import (
     sanitize_prompt_input,
     detect_prompt_leakage,
 )
+
+# TYPE_CHECKING import to avoid circular dependencies
+if TYPE_CHECKING:
+    from ..database.project_db import ProjectDatabase
 
 
 class ContentGeneratorAgent:
@@ -39,7 +45,7 @@ class ContentGeneratorAgent:
         client: Optional[AnthropicClient] = None,
         template_loader: Optional[TemplateLoader] = None,
         keyword_strategy: Optional[KeywordStrategy] = None,
-        db: Optional[Any] = None,
+        db: Optional["ProjectDatabase"] = None,
     ):
         """
         Initialize Content Generator Agent
@@ -343,7 +349,7 @@ class ContentGeneratorAgent:
             async with semaphore:
                 return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
-                    client_brief=sanitized_brief,  # SECURITY FIX: Use sanitized brief (TR-014)
+                    client_brief=client_brief,  # Brief is used from outer scope
                     variant=task_params["variant"],
                     post_number=task_params["post_number"],
                     cached_system_prompt=task_params["cached_system_prompt"],
@@ -692,7 +698,7 @@ class ContentGeneratorAgent:
             async with semaphore:
                 return await self._generate_single_post_with_retry_async(
                     template=task_params["template"],
-                    client_brief=sanitized_brief,  # SECURITY FIX: Use sanitized brief (TR-014)
+                    client_brief=client_brief,  # Brief is used from outer scope
                     variant=task_params["variant"],
                     post_number=task_params["post_number"],
                     cached_system_prompt=task_params["cached_system_prompt"],
@@ -950,12 +956,14 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             quality_score = self._calculate_post_quality_score(post)
 
             # Cache attempt
-            attempts.append({
-                'post': post,
-                'quality_score': quality_score,
-                'has_flags': len(post.flags) > 0 if post.flags else False,
-                'attempt_number': attempt + 1,
-            })
+            attempts.append(
+                {
+                    "post": post,
+                    "quality_score": quality_score,
+                    "has_flags": len(post.flags) > 0 if post.flags else False,
+                    "attempt_number": attempt + 1,
+                }
+            )
 
             # If post has no quality flags, it's adequate - return immediately
             if not post.flags or len(post.flags) == 0:
@@ -968,18 +976,20 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             # Log retry
             logger.info(
                 f"Post {post_number} attempt {attempt + 1}/{max_attempts} has quality issues: {post.flags}. "
-                f"Retrying..." if attempt < max_attempts - 1 else "Max attempts reached."
+                f"Retrying..."
+                if attempt < max_attempts - 1
+                else "Max attempts reached."
             )
 
         # No adequate result - return best attempt
-        best = max(attempts, key=lambda x: x['quality_score'])
+        best = max(attempts, key=lambda x: x["quality_score"])
         logger.warning(
             f"Post {post_number} did not meet quality standards after {max_attempts} attempts. "
             f"Returning best attempt (#{best['attempt_number']}, quality score: {best['quality_score']:.2%}, "
             f"flags: {best['post'].flags if best['post'].flags else 'none'})"
         )
 
-        return best['post']
+        return best["post"]
 
     def _calculate_post_quality_score(self, post: Post) -> float:
         """
@@ -1063,8 +1073,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
 
             if client_brief.customer_questions:
                 sanitized.customer_questions = [
-                    sanitize_prompt_input(q, strict=False)
-                    for q in client_brief.customer_questions
+                    sanitize_prompt_input(q, strict=False) for q in client_brief.customer_questions
                 ]
 
             logger.debug(f"Sanitized client brief for {client_brief.company_name}")
@@ -1120,7 +1129,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
         self,
         client_brief: ClientBrief,
         platform: Platform = Platform.LINKEDIN,
-        client_memory: Optional[Any] = None,
+        client_memory: Optional[ClientMemory] = None,
     ) -> str:
         """Build customized system prompt for client with platform-specific guidance
 
@@ -1317,7 +1326,7 @@ If your draft is under 1500 words after Section 4, you MUST:
 
         # Repeat length reminder at end for emphasis (platform-specific)
         if platform == Platform.BLOG:
-            prompt += f"\n\n📏 FINAL REMINDER: Your blog post MUST be at least 1500 words. Count your words before submitting. If under 1500, add more content. Target: 1700-1800 words for optimal SEO."
+            prompt += "\n\n📏 FINAL REMINDER: Your blog post MUST be at least 1500 words. Count your words before submitting. If under 1500, add more content. Target: 1700-1800 words for optimal SEO."
         else:
             prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
 

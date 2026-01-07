@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from ..models.client_memory import ClientMemory, FeedbackTheme, VoiceSample
 from ..models.project import (
     Project,
     ProjectStatus,
@@ -18,6 +19,7 @@ from ..models.project import (
     RevisionScope,
     RevisionStatus,
 )
+from ..models.voice_sample import VoiceSampleUpload
 
 
 class ProjectDatabase:

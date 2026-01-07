@@ -4,7 +4,7 @@ Based on 2025 industry research and engagement data.
 See: project/docs/platform_length_specifications_2025.md
 """
 
-from typing import Dict
+from typing import Any, Dict
 
 from ..models.client_brief import Platform
 
@@ -69,7 +69,7 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
 
 
 # Hook/Opening requirements by platform
-PLATFORM_HOOK_SPECS: Dict[Platform, Dict[str, any]] = {
+PLATFORM_HOOK_SPECS: Dict[Platform, Dict[str, Any]] = {
     Platform.LINKEDIN: {
         "hook_max_chars": 140,  # Mobile cutoff
         "hook_critical": True,
