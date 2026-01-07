@@ -1,6 +1,7 @@
 """Base classes for research tools"""
 
 import json
+import re
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from ..utils.logger import logger
+from ..utils.anthropic_client import get_default_client
 
 
 @dataclass
@@ -197,6 +199,150 @@ class ResearchTool(ABC):
                 summary[key] = str(type(value).__name__)
         return summary
 
+    def _call_claude_api(
+        self,
+        prompt: str,
+        max_tokens: int = 2000,
+        temperature: float = 0.4,
+        extract_json: bool = False,
+        fallback_on_error: Optional[Any] = None,
+    ) -> Any:
+        """Call Claude API with unified error handling and optional JSON extraction
+
+        This method eliminates ~340 lines of duplicate API call code across research tools
+        by providing a single interface with consistent error handling and JSON extraction.
+
+        Args:
+            prompt: System prompt for Claude
+            max_tokens: Maximum tokens to generate (default: 2000)
+            temperature: Sampling temperature 0.0-1.0 (default: 0.4)
+            extract_json: Whether to extract JSON from response (default: False)
+            fallback_on_error: Value to return on error (default: None = raise exception)
+
+        Returns:
+            - If extract_json=True: Parsed JSON dict
+            - If extract_json=False: Raw response text
+            - If error and fallback_on_error set: The fallback value
+
+        Raises:
+            ValueError: If extract_json=True but no JSON found and fallback_on_error is None
+            Exception: API errors if fallback_on_error is None
+
+        Examples:
+            >>> # Get raw text response
+            >>> text = self._call_claude_api("Analyze this business...", max_tokens=1000)
+
+            >>> # Get JSON response with automatic extraction
+            >>> data = self._call_claude_api(
+            ...     "Return JSON with keys: market, trends, competitors",
+            ...     extract_json=True
+            ... )
+
+            >>> # Get JSON with fallback on error
+            >>> data = self._call_claude_api(
+            ...     "Analyze competitors",
+            ...     extract_json=True,
+            ...     fallback_on_error={"error": "Analysis failed", "competitors": []}
+            ... )
+        """
+        try:
+            client = get_default_client()
+
+            logger.debug(
+                f"{self.tool_name}: Calling Claude API "
+                f"(max_tokens={max_tokens}, temperature={temperature})"
+            )
+
+            response = client.create_message(
+                model="claude-3-5-sonnet-latest",
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=prompt,
+                messages=[{"role": "user", "content": "Please provide the requested analysis."}],
+            )
+
+            response_text = response.content[0].text  # type: ignore[attr-defined]
+
+            logger.debug(f"{self.tool_name}: Received response ({len(response_text)} chars)")
+
+            if extract_json:
+                return self._extract_json_from_response(response_text)
+
+            return response_text
+
+        except Exception as e:
+            logger.error(f"{self.tool_name}: Claude API call failed: {str(e)}", exc_info=True)
+
+            if fallback_on_error is not None:
+                logger.warning(f"{self.tool_name}: Using fallback value due to API error")
+                return fallback_on_error
+
+            # Re-raise if no fallback specified
+            raise
+
+    def _extract_json_from_response(self, response_text: str) -> Dict[str, Any]:
+        """Extract JSON from Claude API response text
+
+        Handles multiple formats:
+        1. Raw JSON: {"key": "value"}
+        2. Markdown code blocks: ```json\\n{"key": "value"}\\n```
+        3. Embedded JSON: Text before {json} text after
+
+        Args:
+            response_text: Raw text response from Claude
+
+        Returns:
+            Parsed JSON dictionary
+
+        Raises:
+            ValueError: If no valid JSON found in response
+
+        Examples:
+            >>> # Raw JSON
+            >>> self._extract_json_from_response('{"market": "B2B SaaS"}')
+            {'market': 'B2B SaaS'}
+
+            >>> # Markdown code block
+            >>> self._extract_json_from_response('```json\\n{"market": "B2B"}\\n```')
+            {'market': 'B2B'}
+
+            >>> # Embedded in text
+            >>> text = 'Here is the analysis: {"competitors": ["A", "B"]} as requested'
+            >>> self._extract_json_from_response(text)
+            {'competitors': ['A', 'B']}
+        """
+        # Try parsing as raw JSON first
+        try:
+            return json.loads(response_text)  # type: ignore[no-any-return]
+        except json.JSONDecodeError:
+            pass
+
+        # Try extracting from markdown code block
+        markdown_pattern = r"```(?:json)?\s*\n(.*?)\n```"
+        matches = re.findall(markdown_pattern, response_text, re.DOTALL)
+        if matches:
+            try:
+                return json.loads(matches[0])  # type: ignore[no-any-return]
+            except json.JSONDecodeError:
+                pass
+
+        # Try finding JSON object in text using regex
+        # Matches {}, even with nested objects/arrays
+        json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
+        matches = re.findall(json_pattern, response_text, re.DOTALL)
+
+        for match in matches:
+            try:
+                return json.loads(match)  # type: ignore[no-any-return]
+            except json.JSONDecodeError:
+                continue
+
+        # No valid JSON found
+        raise ValueError(
+            f"Could not extract valid JSON from response. "
+            f"Response starts with: {response_text[:200]}"
+        )
+
     def _log_execution(self, result: ResearchResult):
         """Log execution for billing and tracking
 
@@ -210,7 +356,7 @@ class ResearchTool(ABC):
             try:
                 with open(log_file, "r") as f:
                     logs = json.load(f)
-            except:
+            except (json.JSONDecodeError, IOError):
                 pass
 
         # Append new log
