@@ -10,7 +10,7 @@ Security: Phase 2 - Comprehensive input validation (TR-019)
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..models.icp_workshop_models import (
     Behavioral,
@@ -30,10 +30,11 @@ from ..utils.anthropic_client import get_default_client
 class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
     """Interactive ICP development workshop"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize ICP Workshop with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:
@@ -105,35 +106,35 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
 
         # Step 1: Demographics/Firmographics
         demographics = self._gather_demographics(
-            client, business_description, target_audience, existing_customer_data
+            self.client, business_description, target_audience, existing_customer_data
         )
 
         print("[2/6] Building psychographic profile...")
 
         # Step 2: Psychographics
         psychographics = self._gather_psychographics(
-            client, business_description, demographics, existing_customer_data
+            self.client, business_description, demographics, existing_customer_data
         )
 
         print("[3/6] Analyzing behavioral patterns...")
 
         # Step 3: Behavioral
         behavioral = self._gather_behavioral(
-            client, business_description, demographics, psychographics
+            self.client, business_description, demographics, psychographics
         )
 
         print("[4/6] Identifying situational factors...")
 
         # Step 4: Situational
         situational = self._gather_situational(
-            client, business_description, demographics, psychographics
+            self.client, business_description, demographics, psychographics
         )
 
         print("[5/6] Defining success criteria...")
 
         # Step 5: Success Criteria
         success_criteria = self._gather_success_criteria(
-            client, business_description, demographics, psychographics
+            self.client, business_description, demographics, psychographics
         )
 
         print("[6/6] Synthesizing insights and recommendations...")
@@ -145,7 +146,7 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
             messaging_recommendations,
             content_topics,
         ) = self._synthesize_profile(
-            client,
+            self.client,
             business_name,
             demographics,
             psychographics,
@@ -170,7 +171,7 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
         )
 
         # Generate next steps
-        next_steps = self._generate_next_steps(client, profile)
+        next_steps = self._generate_next_steps(self.client, profile)
 
         # Create workshop analysis
         analysis = ICPWorkshopAnalysis(
@@ -221,8 +222,6 @@ Focus on the IDEAL customer, not the average customer."""
         data = self._call_claude_api(
             prompt, max_tokens=3000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
-
-        data = self._extract_json_from_response(response)
 
         return Demographics(
             company_size=data.get("company_size"),
@@ -484,6 +483,7 @@ Return JSON array of strings."""
             messages=[{"role": "user", "content": prompt}], max_tokens=1500
         )
 
+        data = self._extract_json_from_response(response)
         return data
 
     def generate_reports(self, analysis: ICPWorkshopAnalysis) -> Dict[str, Path]:

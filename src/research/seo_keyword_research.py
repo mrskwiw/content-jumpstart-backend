@@ -6,7 +6,7 @@ Researches and recommends target keywords for content optimization.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
@@ -27,7 +27,7 @@ from ..validators.research_input_validator import (
 class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
     """Automated SEO keyword research and strategy development"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize SEO keyword researcher with input validator"""
         super().__init__(project_id=project_id, config=config)
         self.validator = ResearchInputValidator(strict_mode=False)

@@ -9,7 +9,7 @@ Price: $300
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.platform_strategy_models import (
     AudienceBehavior,
@@ -31,10 +31,11 @@ from ..utils.anthropic_client import get_default_client
 class PlatformStrategist(ResearchTool, CommonValidationMixin):
     """Analyze audience and recommend optimal platform mix"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize Platform Strategist with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:
@@ -123,30 +124,30 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         # Step 1: Analyze audience platform behavior
         print("[Step 1/5] Analyzing target audience platform behavior...")
         audience_behavior = self._analyze_audience_behavior(
-            client, business_description, target_audience
+            self.client, business_description, target_audience
         )
 
         # Step 2: Generate platform recommendations
         print("[Step 2/5] Evaluating platform fit and recommendations...")
         platform_recommendations = self._generate_platform_recommendations(
-            client, business_description, target_audience, audience_behavior, content_goals
+            self.client, business_description, target_audience, audience_behavior, content_goals
         )
 
         # Step 3: Determine optimal platform mix
         print("[Step 3/5] Determining optimal platform mix...")
         platform_mix = self._determine_platform_mix(
-            client, platform_recommendations, target_audience, content_goals
+            self.client, platform_recommendations, target_audience, content_goals
         )
 
         # Step 4: Create content distribution strategy
         print("[Step 4/5] Creating content distribution strategy...")
         content_distribution = self._create_distribution_strategy(
-            client, platform_mix, business_description, target_audience
+            self.client, platform_mix, business_description, target_audience
         )
 
         # Step 5: Generate quick wins
         print("[Step 5/5] Identifying quick wins...")
-        quick_wins = self._generate_quick_wins(client, platform_mix, platform_recommendations)
+        quick_wins = self._generate_quick_wins(self.client, platform_mix, platform_recommendations)
 
         # Analyze current state if provided
         current_strengths = []
@@ -154,25 +155,25 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         if current_platforms:
             print("[Analysis] Analyzing current platform strategy...")
             current_strengths, current_gaps = self._analyze_current_state(
-                client, current_platforms, platform_recommendations, platform_mix
+                self.client, current_platforms, platform_recommendations, platform_mix
             )
 
         # Generate strategic insights
         print("[Strategy] Generating strategic insights...")
         key_insights, mistakes_to_avoid = self._generate_strategic_insights(
-            client, business_description, target_audience, platform_mix, platform_recommendations
+            self.client, business_description, target_audience, platform_mix, platform_recommendations
         )
 
         # Create implementation plans
         print("[Planning] Creating implementation plans...")
         thirty_day_plan, ninety_day_plan = self._create_implementation_plans(
-            client, platform_mix, platform_recommendations, quick_wins
+            self.client, platform_mix, platform_recommendations, quick_wins
         )
 
         # Generate executive summary
         print("[Summary] Generating executive summary...")
         executive_summary = self._generate_executive_summary(
-            client, business_name, target_audience, platform_mix, platform_recommendations
+            self.client, business_name, target_audience, platform_mix, platform_recommendations
         )
 
         # Build complete analysis
@@ -230,11 +231,8 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
             prompt, max_tokens=4000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
 
-        # Parse response
-        behaviors_data = self._extract_json_from_response(response)
-
         behaviors = []
-        for b in behaviors_data:
+        for b in data:
             try:
                 # Map platform name to enum
                 platform_str = b.get("platform", "").lower()

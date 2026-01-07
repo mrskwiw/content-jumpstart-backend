@@ -14,7 +14,7 @@ import statistics
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.research_models import (
     CTAPattern,
@@ -57,10 +57,11 @@ class VoiceAnalyzer(ResearchTool, CommonValidationMixin):
     - Voice consistency recommendations
     """
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize voice analyzer with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:

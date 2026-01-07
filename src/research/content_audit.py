@@ -11,7 +11,7 @@ This tool analyzes a client's existing content to identify:
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.content_audit_models import (
     ArchiveRecommendation,
@@ -35,7 +35,7 @@ from ..utils.anthropic_client import get_default_client
 class ContentAuditor(ResearchTool, CommonValidationMixin):
     """Analyzes existing content for performance and opportunities"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize Content Auditor with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
@@ -775,6 +775,7 @@ RECOMMENDATION: Focus on refreshing existing high-potential content before creat
 ## Repurposing Opportunities ({len(analysis.repurpose_opportunities)})
 
 """
+        opp: RepurposeOpportunity
         for opp in analysis.repurpose_opportunities:
             md += f"""
 ### {opp.source_content}

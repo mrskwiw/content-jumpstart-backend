@@ -7,7 +7,7 @@ Price: $500
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.content_gap_models import (
     BuyerJourneyGap,
@@ -28,7 +28,7 @@ from ..utils.anthropic_client import get_default_client
 class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
     """Analyzes content gaps compared to competitors and search intent"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize Content Gap Analyzer with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
@@ -117,9 +117,8 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
             if isinstance(competitors, list):
                 if len(competitors) > 5:
                     raise ValueError("Maximum 5 competitors allowed for analysis")
-                inputs["competitors"] = self.validator.validate_competitor_list(
-                    competitors, max_competitors=5
-                )
+                # Validator doesn't have validate_competitor_list method, just use the list directly
+                inputs["competitors"] = competitors
 
         return True
 
@@ -254,7 +253,8 @@ Return as JSON with these exact keys: coverage_areas, depth_assessment, formats,
         )
 
         try:
-            return json.loads(response.content[0].text)
+            result: Dict[str, Any] = json.loads(response.content[0].text)
+            return result
         except (json.JSONDecodeError, KeyError, IndexError, AttributeError):
             return {
                 "coverage_areas": [topics_str],

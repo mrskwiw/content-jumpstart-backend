@@ -7,7 +7,7 @@ content pillars, themes, and platform-specific schedules.
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.models.content_calendar_models import (
     CalendarStrategy,
@@ -20,16 +20,18 @@ from src.models.content_calendar_models import (
 )
 from src.research.base import ResearchTool
 from src.research.validation_mixin import CommonValidationMixin
+from src.utils.anthropic_client import get_default_client
 from src.validators.research_input_validator import ResearchInputValidator
 
 
 class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
     """Generate strategic 90-day content calendar"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize Content Calendar Strategist with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:
@@ -142,35 +144,34 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         content_goals = inputs.get("content_goals", "Brand awareness and engagement")
         start_date_str = inputs.get("start_date", self._get_next_monday().strftime("%Y-%m-%d"))
 
-        # Get Anthropic client
         print("[Step 1/6] Analyzing business and audience for calendar planning...")
         # Step 1: Determine content pillars
         pillars = self._determine_content_pillars(
-            client, business_description, target_audience, content_goals
+            self.client, business_description, target_audience, content_goals
         )
 
         print("[Step 2/6] Creating quarterly content themes...")
         # Step 2: Create quarterly themes
         themes = self._create_quarterly_themes(
-            client, pillars, business_description, target_audience, content_goals
+            self.client, pillars, business_description, target_audience, content_goals
         )
 
         print("[Step 3/6] Building 13-week detailed calendar...")
         # Step 3: Generate weekly calendar
         weekly_calendar = self._generate_weekly_calendar(
-            client, start_date_str, themes, pillars, business_description, target_audience
+            self.client, start_date_str, themes, pillars, business_description, target_audience
         )
 
         print("[Step 4/6] Determining platform-specific schedules...")
         # Step 4: Create platform calendars
         platform_calendars = self._create_platform_calendars(
-            client, platforms, business_description, target_audience
+            self.client, platforms, business_description, target_audience
         )
 
         print("[Step 5/6] Generating implementation guidance...")
         # Step 5: Generate implementation guidance
         implementation = self._generate_implementation_guidance(
-            client, business_description, target_audience, weekly_calendar
+            self.client, business_description, target_audience, weekly_calendar
         )
 
         print("[Step 6/6] Compiling final calendar strategy...")
@@ -594,6 +595,7 @@ Return JSON:
             max_tokens=4000,  # Increased for implementation guidance
         )
 
+        data = self._extract_json_from_response(response)
         return data
 
     def _compile_calendar_strategy(

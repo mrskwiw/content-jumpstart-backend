@@ -6,7 +6,7 @@ Identifies trending topics and emerging conversations in the client's industry.
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.market_trends_models import (
     EmergingConversation,
@@ -27,7 +27,7 @@ from ..utils.anthropic_client import get_default_client
 class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
     """Automated market trends research and analysis"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize Market Trends Researcher with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)

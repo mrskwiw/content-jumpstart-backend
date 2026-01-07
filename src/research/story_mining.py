@@ -8,7 +8,7 @@ Price: $500
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..models.story_mining_models import (
     Challenge,
@@ -30,10 +30,11 @@ from ..utils.anthropic_client import get_default_client
 class StoryMiner(ResearchTool, CommonValidationMixin):
     """Interactive customer story extraction"""
 
-    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+    def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         """Initialize story miner with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:
@@ -95,49 +96,49 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
 
         # Step 1: Customer Background
         customer_background = self._gather_customer_background(
-            client, business_description, customer_context, interview_notes
+            self.client, business_description, customer_context, interview_notes
         )
 
         print("[2/7] Exploring the challenge...")
 
         # Step 2: Challenge
         challenge = self._gather_challenge(
-            client, business_description, customer_background, interview_notes
+            self.client, business_description, customer_background, interview_notes
         )
 
         print("[3/7] Understanding the decision process...")
 
         # Step 3: Decision Process
         decision_process = self._gather_decision_process(
-            client, business_description, customer_background, challenge, interview_notes
+            self.client, business_description, customer_background, challenge, interview_notes
         )
 
         print("[4/7] Mapping the implementation journey...")
 
         # Step 4: Implementation
         implementation = self._gather_implementation(
-            client, customer_background, challenge, decision_process, interview_notes
+            self.client, customer_background, challenge, decision_process, interview_notes
         )
 
         print("[5/7] Documenting results and outcomes...")
 
         # Step 5: Results
         results = self._gather_results(
-            client, customer_background, challenge, implementation, interview_notes
+            self.client, customer_background, challenge, implementation, interview_notes
         )
 
         print("[6/7] Extracting testimonials and quotes...")
 
         # Step 6: Testimonials
         testimonials = self._gather_testimonials(
-            client, customer_background, challenge, results, interview_notes
+            self.client, customer_background, challenge, results, interview_notes
         )
 
         print("[7/7] Capturing future plans...")
 
         # Step 7: Future Plans
         future_plans = self._gather_future_plans(
-            client, customer_background, results, interview_notes
+            self.client, customer_background, results, interview_notes
         )
 
         print("[Synthesis] Synthesizing story insights...")
@@ -148,7 +149,7 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
             key_takeaways,
             use_cases,
         ) = self._synthesize_story(
-            client,
+            self.client,
             customer_background,
             challenge,
             decision_process,
@@ -174,13 +175,13 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
         )
 
         # Generate content recommendations
-        content_recommendations = self._generate_content_recommendations(client, story)
+        content_recommendations = self._generate_content_recommendations(self.client, story)
 
         # Generate social proof snippets
-        social_proof_snippets = self._generate_social_proof(client, story)
+        social_proof_snippets = self._generate_social_proof(self.client, story)
 
         # Generate case study outline
-        case_study_outline = self._generate_case_study_outline(client, story)
+        case_study_outline = self._generate_case_study_outline(self.client, story)
 
         # Create analysis
         analysis = StoryMiningAnalysis(
@@ -223,8 +224,6 @@ Return JSON with:
         data = self._call_claude_api(
             prompt, max_tokens=2000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
-
-        data = self._extract_json_from_response(response)
 
         return CustomerBackground(
             customer_name=data.get("customer_name"),
@@ -561,6 +560,7 @@ Return JSON array of strings."""
             messages=[{"role": "user", "content": prompt}], max_tokens=1500
         )
 
+        data: List[str] = self._extract_json_from_response(response)
         return data
 
     def _generate_social_proof(self, client: Any, story: SuccessStory) -> List[str]:
@@ -585,6 +585,7 @@ Return JSON array of strings."""
             messages=[{"role": "user", "content": prompt}], max_tokens=1500
         )
 
+        data: List[str] = self._extract_json_from_response(response)
         return data
 
     def _generate_case_study_outline(self, client: Any, story: SuccessStory) -> str:
@@ -610,7 +611,8 @@ Return as markdown text (not JSON)."""
             messages=[{"role": "user", "content": prompt}], max_tokens=2000
         )
 
-        return response.strip()
+        text: str = response.content[0].text if response.content else ""
+        return text.strip()
 
     def generate_reports(self, analysis: StoryMiningAnalysis) -> Dict[str, Path]:
         """Generate output files"""
