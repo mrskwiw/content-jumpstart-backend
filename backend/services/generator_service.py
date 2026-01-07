@@ -14,7 +14,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from backend.models import Post, Project, Run
+from backend.models import Post, Project
 from backend.services import crud
 from backend.utils.cli_executor import cli_executor
 from backend.utils.logger import logger

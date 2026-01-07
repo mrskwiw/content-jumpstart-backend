@@ -2,8 +2,6 @@
 File utility functions for deliverables.
 """
 from pathlib import Path
-from typing import Optional
-import os
 
 
 def calculate_file_size(file_path: str) -> int:

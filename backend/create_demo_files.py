@@ -92,7 +92,6 @@ In production, this would be a properly formatted Word document with:
     try:
         from database import SessionLocal
         from models import Deliverable
-        from sqlalchemy import text
 
         db = SessionLocal()
         try:

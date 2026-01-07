@@ -24,7 +24,6 @@ Usage:
 """
 import re
 from typing import Optional
-from pydantic import ValidationError
 
 
 # Dangerous patterns that might indicate injection attempts

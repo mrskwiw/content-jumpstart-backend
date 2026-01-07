@@ -9,7 +9,6 @@ Phase 2 optimization: Async content generation with progress tracking
 """
 from datetime import datetime
 from typing import Dict, Any, Optional
-import traceback
 
 from celery import Task
 from celery.utils.log import get_task_logger

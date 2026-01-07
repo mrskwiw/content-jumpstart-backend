@@ -7,7 +7,6 @@ Uses asyncio.create_subprocess_exec (safe, no shell injection)
 import asyncio
 import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 

@@ -19,7 +19,7 @@ import os
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 class SecretNotFoundError(Exception):
     """Raised when a required secret is not found"""
-    pass
 
 
 class SecretsProvider(ABC):
@@ -36,22 +35,18 @@ class SecretsProvider(ABC):
     @abstractmethod
     def get_secret(self, key: str, default: Optional[str] = None) -> str:
         """Get a secret value by key"""
-        pass
 
     @abstractmethod
     def set_secret(self, key: str, value: str) -> None:
         """Set a secret value (if supported)"""
-        pass
 
     @abstractmethod
     def delete_secret(self, key: str) -> None:
         """Delete a secret (if supported)"""
-        pass
 
     @abstractmethod
     def list_secret_keys(self) -> list[str]:
         """List all available secret keys (not values!)"""
-        pass
 
 
 class EnvironmentSecretsProvider(SecretsProvider):

@@ -23,7 +23,6 @@ from ..utils.template_loader import TemplateLoader
 from ..validators.prompt_injection_defense import (
     sanitize_prompt_input,
     detect_prompt_leakage,
-    SecurityError,
 )
 
 
@@ -1141,7 +1140,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
         target_length = get_platform_target_length(platform)
         from ..config.platform_specs import PLATFORM_LENGTH_SPECS
 
-        specs = PLATFORM_LENGTH_SPECS.get(platform, {})
+        PLATFORM_LENGTH_SPECS.get(platform, {})
 
         # Add prominent platform header
         prompt += f"\n\n{'=' * 60}"

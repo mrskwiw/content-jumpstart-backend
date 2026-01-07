@@ -19,9 +19,9 @@ from typing import Callable, List
 sys.path.insert(0, str(Path(__file__).parent))
 
 from backend.database import SessionLocal
-from backend.models import Post, Project, Client, Run
+from backend.models import Post, Project, Client
 from backend.services import crud
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 
@@ -66,7 +66,7 @@ def benchmark_function(name: str, func: Callable, iterations: int = 10) -> dict:
         start = time.time()
 
         try:
-            result = func()
+            func()
             elapsed = (time.time() - start) * 1000  # Convert to ms
 
             times.append(elapsed)

@@ -4,17 +4,14 @@ Database backup and restore endpoints.
 Provides functionality to download and upload SQLite database files
 for backup and restore operations.
 """
-import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from backend.config import settings
 from backend.database import get_db, engine
 from backend.middleware.auth_dependency import get_current_user
 from backend.models.user import User

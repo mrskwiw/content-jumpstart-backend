@@ -170,7 +170,6 @@ def init_db():
                 except Exception as e:
                     print(f">> Migration failed: {e}")
                     # Non-critical - continue startup
-                    pass
 
         # Check if clients table exists
         if "clients" in inspector.get_table_names():
@@ -215,7 +214,6 @@ def init_db():
                     except Exception as e:
                         print(f">> Migration for {col_name} failed: {e}")
                         # Non-critical - continue startup
-                        pass
 
         # Check if projects table exists (template quantities & pricing migration)
         if "projects" in inspector.get_table_names():
@@ -259,7 +257,6 @@ def init_db():
                     except Exception as e:
                         print(f">> Migration for {col_name} failed: {e}")
                         # Non-critical - continue startup
-                        pass
 
             # Migrate existing projects: convert templates array to template_quantities dict
             # Only migrate projects that have templates but no template_quantities
@@ -323,4 +320,3 @@ def init_db():
                 except Exception as e:
                     print(f">> Data migration failed: {e}")
                     # Non-critical - continue startup
-                    pass

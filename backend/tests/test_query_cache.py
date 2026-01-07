@@ -9,8 +9,7 @@ Tests cover:
 - TTL tiers
 """
 import pytest
-import time
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from backend.utils.query_cache import (
     cached,
     cache_short,

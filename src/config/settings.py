@@ -3,7 +3,7 @@ from typing import Optional
 import logging
 
 from pydantic_settings import BaseSettings
-from pydantic import field_validator, ValidationError
+from pydantic import field_validator
 
 logger = logging.getLogger(__name__)
 

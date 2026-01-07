@@ -7,8 +7,7 @@ Tests cover:
 - Health status detection
 - Metric formatting
 """
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from backend.utils.db_monitor import get_pool_status, get_pool_events, _get_recommendations
 
 

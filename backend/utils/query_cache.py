@@ -12,7 +12,6 @@ Week 3 Optimization: Cache sizes tuned for production load
 import functools
 import hashlib
 import json
-import time
 from typing import Any, Callable, Dict, Optional
 
 from cachetools import TTLCache

@@ -2,7 +2,6 @@
 Migration: Add file_size_bytes column and calculate sizes for existing deliverables
 Date: 2025-12-19
 """
-import os
 import sys
 from pathlib import Path
 

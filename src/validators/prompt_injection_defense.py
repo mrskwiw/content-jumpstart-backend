@@ -15,7 +15,7 @@ OWASP LLM01: Prompt Injection
 
 import re
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -338,4 +338,3 @@ def validate_safe_output(output: str) -> str:
 
 class SecurityError(Exception):
     """Raised when security validation fails"""
-    pass

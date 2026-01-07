@@ -23,7 +23,6 @@ from .prompt_injection_defense import sanitize_prompt_input
 class ValidationError(ValueError):
     """Input validation failed"""
 
-    pass
 
 
 class ResearchInputValidator:

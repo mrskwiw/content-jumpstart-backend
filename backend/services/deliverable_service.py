@@ -11,7 +11,6 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from backend.models.deliverable import Deliverable
 from backend.models.post import Post
 from backend.schemas.deliverable import DeliverableDetailResponse, PostSummary, QASummary
 from backend.services import crud

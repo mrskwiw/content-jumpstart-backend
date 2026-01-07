@@ -10,7 +10,7 @@ Tests cover:
 """
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock
 from backend.utils.pagination import (
     paginate_offset,
     paginate_cursor,
@@ -20,7 +20,6 @@ from backend.utils.pagination import (
     PaginatedResponse,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
-    OFFSET_THRESHOLD,
 )
 
 
@@ -42,7 +41,7 @@ def mock_query():
 @pytest.fixture
 def mock_items():
     """Create mock items for pagination"""
-    base_time = datetime(2025, 12, 15, 10, 0, 0)
+    datetime(2025, 12, 15, 10, 0, 0)
     items = []
     for i in range(50):
         item = MockModel(

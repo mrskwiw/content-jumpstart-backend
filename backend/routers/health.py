@@ -2,7 +2,6 @@
 Health and monitoring endpoints.
 """
 from datetime import datetime, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Query
 from backend.utils.db_monitor import get_pool_status, get_pool_events
