@@ -71,7 +71,7 @@ def test_content_gap_analysis_validation():
     analyzer = ContentGapAnalyzer(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         analyzer.validate_inputs({})
 
     # Test description too short

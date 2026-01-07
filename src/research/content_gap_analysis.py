@@ -18,13 +18,14 @@ from ..models.content_gap_models import (
     GapPriority,
     GapType,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
-class ContentGapAnalyzer(ResearchTool):
+class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
     """Analyzes content gaps compared to competitors and search intent"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -51,24 +52,10 @@ class ContentGapAnalyzer(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate target audience with sanitization
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=10,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs)
 
         # SECURITY: Validate current content topics (can be string or list)
         current_content = inputs.get("current_content_topics")

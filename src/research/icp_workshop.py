@@ -21,12 +21,13 @@ from ..models.icp_workshop_models import (
     Situational,
     SuccessCriteria,
 )
-from ..utils.anthropic_client import get_default_client
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
-class ICPWorkshopFacilitator(ResearchTool):
+class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
     """Interactive ICP development workshop"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -53,14 +54,7 @@ class ICPWorkshopFacilitator(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate optional business name
         if "business_name" in inputs:
@@ -105,8 +99,6 @@ class ICPWorkshopFacilitator(ResearchTool):
         business_name = inputs.get("business_name", "Client")
         target_audience = inputs.get("target_audience", "")
         existing_customer_data = inputs.get("existing_customer_data", "")
-
-        client = get_default_client()
 
         print("[ICP Workshop] Starting interactive profile development...")
         print("[1/6] Analyzing business context...")
@@ -225,8 +217,9 @@ Return JSON with these fields:
 
 Focus on the IDEAL customer, not the average customer."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=3000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        data = self._call_claude_api(
+            prompt, max_tokens=3000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
 
         data = self._extract_json_from_response(response)
@@ -491,7 +484,7 @@ Return JSON array of strings."""
             messages=[{"role": "user", "content": prompt}], max_tokens=1500
         )
 
-        return self._extract_json_from_response(response)
+        return data
 
     def generate_reports(self, analysis: ICPWorkshopAnalysis) -> Dict[str, Path]:
         """Generate output files"""

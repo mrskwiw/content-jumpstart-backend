@@ -21,7 +21,6 @@ from ..models.seo_models import (
 from ..utils.logger import logger
 from ..validators.research_input_validator import (
     ResearchInputValidator,
-    validate_competitor_list,
 )
 
 
@@ -315,9 +314,7 @@ keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, lo
                 (
                     1
                     if kw.difficulty == KeywordDifficulty.LOW
-                    else 2
-                    if kw.difficulty == KeywordDifficulty.MEDIUM
-                    else 3
+                    else 2 if kw.difficulty == KeywordDifficulty.MEDIUM else 3
                 )
                 for kw in topic_keywords
             ) / len(topic_keywords)

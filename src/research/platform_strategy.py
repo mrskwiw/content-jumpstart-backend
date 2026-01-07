@@ -22,12 +22,13 @@ from ..models.platform_strategy_models import (
     PlatformStrategyAnalysis,
     QuickWin,
 )
-from ..utils.anthropic_client import get_default_client
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
-class PlatformStrategist(ResearchTool):
+class PlatformStrategist(ResearchTool, CommonValidationMixin):
     """Analyze audience and recommend optimal platform mix"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -54,24 +55,10 @@ class PlatformStrategist(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate target audience with sanitization
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=20,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs, min_length=20)
 
         # SECURITY: Validate optional business name
         if "business_name" in inputs and inputs["business_name"]:
@@ -132,8 +119,6 @@ class PlatformStrategist(ResearchTool):
         industry = inputs.get("industry", "Not specified")
         current_platforms = inputs.get("current_platforms", [])
         content_goals = inputs.get("content_goals", "awareness and leads")
-
-        client = get_default_client()
 
         # Step 1: Analyze audience platform behavior
         print("[Step 1/5] Analyzing target audience platform behavior...")
@@ -240,8 +225,9 @@ Return a JSON array with objects containing:
 
 Focus on platforms where the audience is ACTUALLY active, not theoretical presence."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=4000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        data = self._call_claude_api(
+            prompt, max_tokens=4000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
 
         # Parse response

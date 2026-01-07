@@ -61,7 +61,7 @@ def test_market_trends_validation():
     researcher = MarketTrendsResearcher(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         researcher.validate_inputs({})
 
     # Test description too short

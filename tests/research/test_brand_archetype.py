@@ -68,8 +68,8 @@ def test_brand_archetype_validation():
 
     analyzer = BrandArchetypeAnalyzer(project_id="test_validation")
 
-    # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    # Test missing input (updated to match CommonValidationMixin error messages)
+    with pytest.raises(ValueError, match="business_description is required"):
         analyzer.validate_inputs({})
 
     # Test description too short

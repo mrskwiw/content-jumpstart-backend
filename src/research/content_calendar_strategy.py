@@ -19,11 +19,11 @@ from src.models.content_calendar_models import (
     PostingFrequency,
 )
 from src.research.base import ResearchTool
-from src.utils.anthropic_client import get_default_client
+from src.research.validation_mixin import CommonValidationMixin
 from src.validators.research_input_validator import ResearchInputValidator
 
 
-class ContentCalendarStrategist(ResearchTool):
+class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
     """Generate strategic 90-day content calendar"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -50,24 +50,10 @@ class ContentCalendarStrategist(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate target audience with sanitization
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=20,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs, min_length=20)
 
         # SECURITY: Validate optional business name
         if "business_name" in inputs and inputs["business_name"]:
@@ -157,8 +143,6 @@ class ContentCalendarStrategist(ResearchTool):
         start_date_str = inputs.get("start_date", self._get_next_monday().strftime("%Y-%m-%d"))
 
         # Get Anthropic client
-        client = get_default_client()
-
         print("[Step 1/6] Analyzing business and audience for calendar planning...")
         # Step 1: Determine content pillars
         pillars = self._determine_content_pillars(
@@ -245,11 +229,12 @@ Return JSON array with 4-6 pillars:
 
 Percentages should add up to 100."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=2000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        data = self._call_claude_api(
+            prompt, max_tokens=2000, temperature=0.4, extract_json=True, fallback_on_error={}
         )
 
-        return self._extract_json_from_response(response)
+        return data
 
     def _create_quarterly_themes(
         self,
@@ -609,7 +594,7 @@ Return JSON:
             max_tokens=4000,  # Increased for implementation guidance
         )
 
-        return self._extract_json_from_response(response)
+        return data
 
     def _compile_calendar_strategy(
         self,

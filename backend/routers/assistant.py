@@ -29,10 +29,14 @@ except ImportError:
     logger.warning("Claude API client not available for assistant")
 
 # Initialize chat response cache with 1-hour TTL (Phase 3: Performance optimization)
-chat_cache = ResponseCache(
-    ttl_seconds=3600,  # 1 hour cache for chat responses
-    enabled=CLAUDE_AVAILABLE,
-) if CLAUDE_AVAILABLE else None
+chat_cache = (
+    ResponseCache(
+        ttl_seconds=3600,  # 1 hour cache for chat responses
+        enabled=CLAUDE_AVAILABLE,
+    )
+    if CLAUDE_AVAILABLE
+    else None
+)
 
 router = APIRouter()
 

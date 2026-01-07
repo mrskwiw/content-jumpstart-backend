@@ -108,7 +108,7 @@ def test_content_audit_validation():
     auditor = ContentAuditor(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         auditor.validate_inputs({})
 
     # Test description too short

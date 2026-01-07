@@ -17,13 +17,14 @@ from ..models.competitive_analysis_models import (
     DifferentiationStrategy,
     MarketPosition,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import (
     ResearchInputValidator,
     validate_competitor_list,
 )
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 import re
 
 
@@ -62,14 +63,14 @@ def extract_json_from_response(response_text: str) -> str:
     return "{}"
 
 
-class CompetitiveAnalyzer(ResearchTool):
+class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
     """Automated competitive analysis and strategy development"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
         """Initialize competitive analyzer with input validator"""
         super().__init__(project_id=project_id, config=config)
-        self.client = get_default_client()
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Still needed for unmigrated API calls
 
     @property
     def tool_name(self) -> str:
@@ -90,24 +91,10 @@ class CompetitiveAnalyzer(ResearchTool):
         - Field presence validation
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate target audience description
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=10,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs)
 
         # SECURITY: Validate competitors list (1-5 competitors)
         inputs["competitors"] = validate_competitor_list(
@@ -122,15 +109,7 @@ class CompetitiveAnalyzer(ResearchTool):
             )
 
         # SECURITY: Validate optional industry
-        if "industry" in inputs and inputs["industry"]:
-            inputs["industry"] = self.validator.validate_text(
-                inputs["industry"],
-                field_name="industry",
-                min_length=2,
-                max_length=200,
-                required=False,
-                sanitize=True,
-            )
+        inputs["industry"] = self.validate_optional_industry(inputs)
 
         return True
 

@@ -78,19 +78,15 @@ def test_icp_workshop_validation():
     facilitator = ICPWorkshopFacilitator(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         facilitator.validate_inputs({})
 
     # Test description too short
     with pytest.raises(ValueError, match="too short"):
-        facilitator.validate_inputs({
-            "business_description": "Short"
-        })
+        facilitator.validate_inputs({"business_description": "Short"})
 
     # Test valid input (description is 50+ chars, target_audience is optional)
-    is_valid = facilitator.validate_inputs({
-        "business_description": "A" * 100
-    })
+    is_valid = facilitator.validate_inputs({"business_description": "A" * 100})
     assert is_valid is True
 
     print("[OK] Validation tests passed")
@@ -112,11 +108,13 @@ def test_icp_workshop_minimal_inputs():
     spreadsheets and want to save time on bookkeeping and tax preparation.
     """
 
-    result = facilitator.execute({
-        "business_description": business_description,
-        "target_audience": target_audience,
-        "business_name": "ExpenseFlow",
-    })
+    result = facilitator.execute(
+        {
+            "business_description": business_description,
+            "target_audience": target_audience,
+            "business_name": "ExpenseFlow",
+        }
+    )
 
     assert result.success, f"Tool failed: {result.error}"
     assert len(result.outputs) == 3  # JSON, Markdown, Text

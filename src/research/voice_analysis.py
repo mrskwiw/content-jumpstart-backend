@@ -28,13 +28,14 @@ from ..models.research_models import (
     VoiceGuide,
     VoiceProfile,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import (
     ResearchInputValidator,
     validate_content_samples,
 )
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 # Try to import textstat for readability scoring
 try:
@@ -46,7 +47,7 @@ except ImportError:
     logger.warning("textstat not installed - readability scoring disabled")
 
 
-class VoiceAnalyzer(ResearchTool):
+class VoiceAnalyzer(ResearchTool, CommonValidationMixin):
     """Analyzes content samples to extract voice and style patterns
 
     Takes 10-20 content samples and produces:

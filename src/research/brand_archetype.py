@@ -27,10 +27,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
 class BrandArchetype:
@@ -267,7 +268,7 @@ ARCHETYPES = {
 }
 
 
-class BrandArchetypeAnalyzer(ResearchTool):
+class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
     """Analyzes brand positioning to determine primary and secondary archetypes"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -300,14 +301,7 @@ class BrandArchetypeAnalyzer(ResearchTool):
         - core_values: Optional[List[str]]
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=70,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate optional brand positioning
         if "brand_positioning" in inputs and inputs["brand_positioning"]:

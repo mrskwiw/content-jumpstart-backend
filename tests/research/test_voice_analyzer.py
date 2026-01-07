@@ -75,7 +75,7 @@ def test_voice_analyzer_validation():
     analyzer = VoiceAnalyzer(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         analyzer.validate_inputs({})
 
     # Test too few samples

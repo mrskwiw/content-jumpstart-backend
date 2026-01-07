@@ -25,13 +25,14 @@ from ..models.content_audit_models import (
     RepurposeOpportunity,
     TopicPerformance,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
-class ContentAuditor(ResearchTool):
+class ContentAuditor(ResearchTool, CommonValidationMixin):
     """Analyzes existing content for performance and opportunities"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
@@ -58,24 +59,10 @@ class ContentAuditor(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate target audience with sanitization
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=10,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs)
 
         # SECURITY: Validate content inventory (list of dicts)
         content_inventory = inputs.get("content_inventory")

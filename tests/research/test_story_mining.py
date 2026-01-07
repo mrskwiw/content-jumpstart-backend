@@ -78,22 +78,18 @@ def test_story_mining_validation():
     miner = StoryMiner(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         miner.validate_inputs({})
 
     # Test description too short
     with pytest.raises(ValueError, match="too short"):
-        miner.validate_inputs({
-            "business_description": "Short",
-            "customer_context": "Customer info"
-        })
+        miner.validate_inputs(
+            {"business_description": "Short", "customer_context": "Customer info"}
+        )
 
     # Test customer context too short
     with pytest.raises(ValueError, match="too short"):
-        miner.validate_inputs({
-            "business_description": "A" * 100,
-            "customer_context": "Info"
-        })
+        miner.validate_inputs({"business_description": "A" * 100, "customer_context": "Info"})
 
     print("[OK] Validation tests passed")
 
@@ -115,11 +111,13 @@ def test_story_mining_minimal_notes():
     Result: Delivered projects 20% faster after implementation
     """
 
-    result = miner.execute({
-        "business_description": business_description,
-        "customer_context": customer_context,
-        "business_name": "ProjectFlow",
-    })
+    result = miner.execute(
+        {
+            "business_description": business_description,
+            "customer_context": customer_context,
+            "business_name": "ProjectFlow",
+        }
+    )
 
     assert result.success, f"Tool failed: {result.error}"
     assert len(result.outputs) == 4  # JSON, Markdown, Text, Case Study
@@ -184,12 +182,14 @@ def test_story_mining_with_detailed_notes():
     - Became a case study we use in sales conversations
     """
 
-    result = miner.execute({
-        "business_description": business_description,
-        "customer_context": customer_context,
-        "business_name": "UnifiedWorkspace",
-        "interview_notes": interview_notes,
-    })
+    result = miner.execute(
+        {
+            "business_description": business_description,
+            "customer_context": customer_context,
+            "business_name": "UnifiedWorkspace",
+            "interview_notes": interview_notes,
+        }
+    )
 
     assert result.success, f"Tool failed: {result.error}"
 

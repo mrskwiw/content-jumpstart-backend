@@ -68,14 +68,17 @@ def test_audience_research_validation():
 
     researcher = AudienceResearcher(project_id="test_validation")
 
-    # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    # Test missing input (updated to match CommonValidationMixin error messages)
+    with pytest.raises(ValueError, match="business_description is required"):
         researcher.validate_inputs({})
 
     # Test description too short
     with pytest.raises(ValueError, match="too short"):
         researcher.validate_inputs(
-            {"business_description": "Short", "target_audience": "Engineering managers"}
+            {
+                "business_description": "Short",
+                "target_audience": "Engineering managers and technical leaders",  # >20 chars
+            }
         )
 
     # Test audience too short

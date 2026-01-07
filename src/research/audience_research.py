@@ -23,13 +23,13 @@ from ..models.audience_research_models import (
     IncomeLevel,
     Psychographics,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
 
 
-class AudienceResearcher(ResearchTool):
+class AudienceResearcher(ResearchTool, CommonValidationMixin):
     """Analyzes target audience demographics, psychographics, and behaviors
 
     Creates comprehensive audience profiles with segments, pain points,
@@ -58,48 +58,16 @@ class AudienceResearcher(ResearchTool):
         - Prompt injection sanitization
         - Type validation
         - Field presence validation
+
+        Uses CommonValidationMixin for standard validations (Phase 3 deduplication)
         """
-        # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        # Use mixin methods for standard validations
+        inputs["business_description"] = self.validate_business_description(inputs)
+        inputs["target_audience"] = self.validate_target_audience(inputs, min_length=20)
 
-        # SECURITY: Validate target audience description
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=20,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
-
-        # SECURITY: Validate optional business name
-        if "business_name" in inputs and inputs["business_name"]:
-            inputs["business_name"] = self.validator.validate_text(
-                inputs["business_name"],
-                field_name="business_name",
-                min_length=2,
-                max_length=200,
-                required=False,
-                sanitize=True,
-            )
-
-        # SECURITY: Validate optional industry
-        if "industry" in inputs and inputs["industry"]:
-            inputs["industry"] = self.validator.validate_text(
-                inputs["industry"],
-                field_name="industry",
-                min_length=2,
-                max_length=200,
-                required=False,
-                sanitize=True,
-            )
+        # Optional fields via mixin
+        inputs["business_name"] = self.validate_optional_business_name(inputs)
+        inputs["industry"] = self.validate_optional_industry(inputs)
 
         return True
 
@@ -148,8 +116,6 @@ class AudienceResearcher(ResearchTool):
         self, business_desc: str, target_audience: str, industry: str
     ) -> Dict[str, Any]:
         """Step 1: Analyze demographics and psychographics"""
-        client = get_default_client()
-
         prompt = f"""Analyze the target audience for this business and provide demographics and psychographics.
 
 BUSINESS: {business_desc}
@@ -193,18 +159,15 @@ Return ONLY valid JSON:
   "audience_size_estimate": "..."
 }}"""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=4000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        return self._call_claude_api(
+            prompt, max_tokens=4000, extract_json=True, fallback_on_error={}
         )
-
-        return self._extract_json_from_response(response)
 
     def _analyze_behaviors_pain_points(
         self, business_desc: str, target_audience: str, industry: str
     ) -> Dict[str, Any]:
         """Step 2: Analyze behaviors and pain points"""
-        client = get_default_client()
-
         prompt = f"""Analyze the behavioral patterns and pain points for this audience.
 
 BUSINESS: {business_desc}
@@ -253,11 +216,10 @@ Return ONLY valid JSON:
   "influencers_brands": ["influencer1", "influencer2", ...]
 }}"""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=3500
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        return self._call_claude_api(
+            prompt, max_tokens=3500, extract_json=True, fallback_on_error={}
         )
-
-        return self._extract_json_from_response(response)
 
     def _identify_segments(
         self,
@@ -268,8 +230,6 @@ Return ONLY valid JSON:
         behaviors_pain: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Step 3: Identify 3-5 distinct audience segments"""
-        client = get_default_client()
-
         prompt = f"""Identify 3-5 distinct audience segments for this business.
 
 BUSINESS: {business_desc}
@@ -301,11 +261,10 @@ Return ONLY valid JSON array:
   ...
 ]"""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=3000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        return self._call_claude_api(
+            prompt, max_tokens=3000, extract_json=True, fallback_on_error=[]
         )
-
-        return self._extract_json_from_response(response)
 
     def _generate_strategy(
         self,
@@ -317,8 +276,6 @@ Return ONLY valid JSON array:
         segments: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Step 4: Generate strategic recommendations"""
-        client = get_default_client()
-
         prompt = f"""Generate strategic recommendations for reaching this audience.
 
 BUSINESS: {business_desc}
@@ -351,11 +308,10 @@ Return ONLY valid JSON:
   "what_to_avoid": [...]
 }}"""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=3000
+        # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+        return self._call_claude_api(
+            prompt, max_tokens=3000, extract_json=True, fallback_on_error={}
         )
-
-        return self._extract_json_from_response(response)
 
     def _compile_research(
         self,

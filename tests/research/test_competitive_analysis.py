@@ -63,7 +63,7 @@ def test_competitive_analysis_validation():
     analyzer = CompetitiveAnalyzer(project_id="test_validation")
 
     # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    with pytest.raises(ValueError, match="business_description is required"):
         analyzer.validate_inputs({})
 
     # Test description too short

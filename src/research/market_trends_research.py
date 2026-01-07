@@ -17,20 +17,21 @@ from ..models.market_trends_models import (
     TrendRelevance,
     TrendReport,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
+from ..utils.anthropic_client import get_default_client
 
 
-class MarketTrendsResearcher(ResearchTool):
+class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
     """Automated market trends research and analysis"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
         """Initialize Market Trends Researcher with input validator"""
         super().__init__(project_id, config)
-        self.client = get_default_client()
         self.validator = ResearchInputValidator(strict_mode=False)
+        self.client = get_default_client()  # Still needed for unmigrated API calls
 
     @property
     def tool_name(self) -> str:
@@ -51,14 +52,7 @@ class MarketTrendsResearcher(ResearchTool):
         - Field presence checks
         """
         # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["business_description"] = self.validate_business_description(inputs)
 
         # SECURITY: Validate industry with sanitization
         inputs["industry"] = self.validator.validate_text(
@@ -71,14 +65,7 @@ class MarketTrendsResearcher(ResearchTool):
         )
 
         # SECURITY: Validate target audience with sanitization
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=10,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        inputs["target_audience"] = self.validate_target_audience(inputs)
 
         # SECURITY: Validate optional business name
         if "business_name" in inputs and inputs["business_name"]:
