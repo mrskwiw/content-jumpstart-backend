@@ -25,6 +25,7 @@ from ..models.audience_research_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
@@ -35,6 +36,11 @@ class AudienceResearcher(ResearchTool):
     content preferences, and strategic recommendations.
     """
 
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize audience researcher with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
+
     @property
     def tool_name(self) -> str:
         return "audience_research"
@@ -44,19 +50,56 @@ class AudienceResearcher(ResearchTool):
         return 500
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "target_audience"]
+        """
+        Validate required inputs with comprehensive security checks (TR-019)
 
-        for field in required:
-            if field not in inputs or not inputs[field]:
-                raise ValueError(f"Missing required input: {field}")
+        Security Features:
+        - Max length checks (prevent DOS attacks)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence validation
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate minimum lengths
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("business_description too short (min 50 chars)")
+        # SECURITY: Validate target audience description
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=20,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
 
-        if len(inputs["target_audience"]) < 20:
-            raise ValueError("target_audience too short (min 20 chars)")
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs["business_name"],
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional industry
+        if "industry" in inputs and inputs["industry"]:
+            inputs["industry"] = self.validator.validate_text(
+                inputs["industry"],
+                field_name="industry",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
 
         return True
 

@@ -19,15 +19,18 @@ from ..models.market_trends_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
 class MarketTrendsResearcher(ResearchTool):
     """Automated market trends research and analysis"""
 
-    def __init__(self, project_id: str):
-        super().__init__(project_id=project_id)
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize Market Trends Researcher with input validator"""
+        super().__init__(project_id, config)
         self.client = get_default_client()
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -38,16 +41,71 @@ class MarketTrendsResearcher(ResearchTool):
         return 400
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "industry", "target_audience"]
+        """
+        Validate required inputs with comprehensive security checks
 
-        missing = [field for field in required if field not in inputs]
-        if missing:
-            raise ValueError(f"Missing required inputs: {', '.join(missing)}")
+        Security improvements:
+        - Max length validation (prevent DOS)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence checks
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate business description length
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("Business description too short (min 50 characters)")
+        # SECURITY: Validate industry with sanitization
+        inputs["industry"] = self.validator.validate_text(
+            inputs.get("industry"),
+            field_name="industry",
+            min_length=2,
+            max_length=200,
+            required=True,
+            sanitize=True,
+        )
+
+        # SECURITY: Validate target audience with sanitization
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=10,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
+
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs.get("business_name"),
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional focus areas list
+        if "focus_areas" in inputs and inputs["focus_areas"]:
+            inputs["focus_areas"] = self.validator.validate_list(
+                inputs.get("focus_areas"),
+                field_name="focus_areas",
+                max_items=10,
+                item_validator=lambda x: self.validator.validate_text(
+                    x,
+                    field_name="focus_area",
+                    min_length=2,
+                    max_length=200,
+                    required=False,
+                    sanitize=True,
+                ),
+            )
 
         return True
 

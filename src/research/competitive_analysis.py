@@ -19,6 +19,10 @@ from ..models.competitive_analysis_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import (
+    ResearchInputValidator,
+    validate_competitor_list,
+)
 from .base import ResearchTool
 import re
 
@@ -42,26 +46,30 @@ def extract_json_from_response(response_text: str) -> str:
         return "{}"
 
     # Try to extract JSON from markdown code blocks
-    json_match = re.search(r'```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```', response_text, re.DOTALL)
+    json_match = re.search(r"```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```", response_text, re.DOTALL)
     if json_match:
         return json_match.group(1)
 
     # Try to find JSON array or object without code blocks
-    json_match = re.search(r'(\[.*\]|\{.*\})', response_text, re.DOTALL)
+    json_match = re.search(r"(\[.*\]|\{.*\})", response_text, re.DOTALL)
     if json_match:
         return json_match.group(1)
 
     # If no JSON found, return empty object
-    logger.warning(f"No JSON found in response, returning empty object. Response preview: {response_text[:200]}")
+    logger.warning(
+        f"No JSON found in response, returning empty object. Response preview: {response_text[:200]}"
+    )
     return "{}"
 
 
 class CompetitiveAnalyzer(ResearchTool):
     """Automated competitive analysis and strategy development"""
 
-    def __init__(self, project_id: str):
-        super().__init__(project_id=project_id)
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize competitive analyzer with input validator"""
+        super().__init__(project_id=project_id, config=config)
         self.client = get_default_client()
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -72,23 +80,57 @@ class CompetitiveAnalyzer(ResearchTool):
         return 500
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "target_audience", "competitors"]
+        """
+        Validate required inputs with comprehensive security checks (TR-019)
 
-        missing = [field for field in required if field not in inputs]
-        if missing:
-            raise ValueError(f"Missing required inputs: {', '.join(missing)}")
+        Security Features:
+        - Max length checks (prevent DOS attacks)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence validation
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate business description length
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("Business description too short (min 50 characters)")
+        # SECURITY: Validate target audience description
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=10,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate competitors list
-        if not isinstance(inputs["competitors"], list) or len(inputs["competitors"]) < 1:
-            raise ValueError("Must provide at least 1 competitor")
+        # SECURITY: Validate competitors list (1-5 competitors)
+        inputs["competitors"] = validate_competitor_list(
+            inputs.get("competitors"),
+            validator=self.validator,
+        )
 
+        # Enforce max 5 competitors for focused analysis
         if len(inputs["competitors"]) > 5:
-            raise ValueError("Maximum 5 competitors allowed (keeps analysis focused)")
+            raise ValueError(
+                f"Maximum 5 competitors allowed (keeps analysis focused), got {len(inputs['competitors'])}"
+            )
+
+        # SECURITY: Validate optional industry
+        if "industry" in inputs and inputs["industry"]:
+            inputs["industry"] = self.validator.validate_text(
+                inputs["industry"],
+                field_name="industry",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
 
         return True
 
@@ -551,9 +593,6 @@ positioning_statement, unique_angles (array), competitive_advantages (array), ar
         # Analyze competitor strengths
         strong_count = sum(
             1 for c in competitors if c.engagement_level == CompetitorStrength.STRONG
-        )
-        moderate_count = sum(
-            1 for c in competitors if c.engagement_level == CompetitorStrength.MODERATE
         )
 
         # Analyze content coverage

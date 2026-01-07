@@ -27,11 +27,17 @@ from ..models.content_audit_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
 class ContentAuditor(ResearchTool):
     """Analyzes existing content for performance and opportunities"""
+
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize Content Auditor with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -42,27 +48,109 @@ class ContentAuditor(ResearchTool):
         return 400
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "target_audience", "content_inventory"]
+        """
+        Validate required inputs with comprehensive security checks
 
-        for field in required:
-            if field not in inputs or not inputs[field]:
-                raise ValueError(f"Missing required input: {field}")
+        Security improvements:
+        - Max length validation (prevent DOS)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence checks
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Business description validation
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("business_description too short (minimum 50 characters)")
+        # SECURITY: Validate target audience with sanitization
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=10,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Content inventory validation
-        if isinstance(inputs["content_inventory"], list):
-            if len(inputs["content_inventory"]) == 0:
-                raise ValueError("Provide at least 1 content piece to audit")
-            if len(inputs["content_inventory"]) > 100:
-                raise ValueError(
-                    "Maximum 100 content pieces allowed (got {})".format(
-                        len(inputs["content_inventory"])
-                    )
+        # SECURITY: Validate content inventory (list of dicts)
+        content_inventory = inputs.get("content_inventory")
+        if not content_inventory:
+            raise ValueError("Missing required input: content_inventory")
+
+        if not isinstance(content_inventory, list):
+            raise ValueError("content_inventory must be a list")
+
+        if len(content_inventory) == 0:
+            raise ValueError("Provide at least 1 content piece to audit")
+
+        if len(content_inventory) > 100:
+            raise ValueError(f"Maximum 100 content pieces allowed (got {len(content_inventory)})")
+
+        # Validate each content piece in inventory
+        for i, content_item in enumerate(content_inventory):
+            if not isinstance(content_item, dict):
+                raise ValueError(f"Content item {i} must be a dictionary")
+
+            # Validate title if present
+            if "title" in content_item and content_item["title"]:
+                content_item["title"] = self.validator.validate_text(
+                    content_item["title"],
+                    field_name=f"content_item_{i}_title",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
                 )
+
+            # Validate description if present
+            if "description" in content_item and content_item["description"]:
+                content_item["description"] = self.validator.validate_text(
+                    content_item["description"],
+                    field_name=f"content_item_{i}_description",
+                    min_length=0,
+                    max_length=2000,
+                    required=False,
+                    allow_empty=True,
+                    sanitize=True,
+                )
+
+            # Validate URL if present
+            if "url" in content_item and content_item["url"]:
+                content_item["url"] = self.validator.validate_text(
+                    content_item["url"],
+                    field_name=f"content_item_{i}_url",
+                    min_length=5,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                )
+
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs.get("business_name"),
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional industry
+        if "industry" in inputs and inputs["industry"]:
+            inputs["industry"] = self.validator.validate_text(
+                inputs.get("industry"),
+                field_name="industry",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
 
         return True
 
@@ -214,9 +302,7 @@ For each piece, provide:
 
 Provide analysis in JSON array format."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=16000
-        )
+        client.create_message(messages=[{"role": "user", "content": prompt}], max_tokens=16000)
 
         # Parse response and create ContentPiece objects
         analyzed_content = []
@@ -284,9 +370,7 @@ For each topic cluster, provide:
 
 Return as JSON array of topic performance objects."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=8000
-        )
+        client.create_message(messages=[{"role": "user", "content": prompt}], max_tokens=8000)
 
         # For now, return sample data
         return [
@@ -337,9 +421,7 @@ For each refresh opportunity, provide:
 
 Return as JSON array."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=8000
-        )
+        client.create_message(messages=[{"role": "user", "content": prompt}], max_tokens=8000)
 
         # Return sample data
         return (
@@ -392,9 +474,7 @@ Examples:
 
 Return as JSON array."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=8000
-        )
+        client.create_message(messages=[{"role": "user", "content": prompt}], max_tokens=8000)
 
         # Return sample data
         return [
@@ -453,9 +533,7 @@ For each gap:
 
 Return as JSON array."""
 
-        response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=8000
-        )
+        client.create_message(messages=[{"role": "user", "content": prompt}], max_tokens=8000)
 
         # Return sample data
         return [
@@ -512,9 +590,11 @@ Return as JSON array."""
     ) -> List[str]:
         """Identify what's working well"""
         return [
-            f"Strong performance in {top_performers[0].content_type.value} content"
-            if top_performers
-            else "Diverse content mix",
+            (
+                f"Strong performance in {top_performers[0].content_type.value} content"
+                if top_performers
+                else "Diverse content mix"
+            ),
             f"Overall health score of {self._calculate_overall_health(all_content):.1f}/100",
             f"{len([p for p in all_content if p.health_status == ContentHealth.EXCELLENT])} pieces in excellent condition",
         ]

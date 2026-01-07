@@ -1,28 +1,51 @@
 """
 Pydantic schemas for API validation.
 """
-from .auth import LoginRequest, RefreshTokenRequest, TokenResponse, UserCreate, UserResponse
-from .brief import BriefCreate, BriefResponse
+
+from .auth import (
+    LoginRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+)
+from .brief import BriefCreate, BriefUpdate, BriefResponse
 from .client import ClientCreate, ClientUpdate, ClientResponse
-from .deliverable import DeliverableResponse, MarkDeliveredRequest
-from .post import PostResponse
+from .deliverable import (
+    DeliverableCreate,
+    DeliverableUpdate,
+    DeliverableResponse,
+    MarkDeliveredRequest,
+)
+from .post import PostCreate, PostUpdate, PostResponse
 from .project import ProjectCreate, ProjectResponse, ProjectUpdate
+from .run import RunCreate, RunUpdate, RunResponse
 
 __all__ = [
     "ProjectCreate",
     "ProjectUpdate",
     "ProjectResponse",
+    "PostCreate",
+    "PostUpdate",
     "PostResponse",
+    "DeliverableCreate",
+    "DeliverableUpdate",
     "DeliverableResponse",
     "MarkDeliveredRequest",
     "ClientCreate",
     "ClientUpdate",
     "ClientResponse",
     "BriefCreate",
+    "BriefUpdate",
     "BriefResponse",
     "LoginRequest",
     "TokenResponse",
     "RefreshTokenRequest",
     "UserCreate",
+    "UserUpdate",
     "UserResponse",
+    "RunCreate",
+    "RunUpdate",
+    "RunResponse",
 ]

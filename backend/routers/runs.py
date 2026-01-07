@@ -1,16 +1,20 @@
 """
 Runs router - CRUD operations for generation runs.
 """
+
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.authorization import (
+    verify_run_ownership,
+)  # TR-021: Authorization
 from backend.schemas.run import RunCreate, RunResponse, RunUpdate
 from backend.services import crud
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import User
+from backend.models import Run, User
 
 router = APIRouter()
 
@@ -51,16 +55,16 @@ async def create_run(
 @router.get("/{run_id}", response_model=RunResponse)
 async def get_run(
     run_id: str,
+    run: Run = Depends(verify_run_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get run by ID"""
-    run = crud.get_run(db, run_id)
-    if not run:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Run {run_id} not found",
-        )
+    """
+    Get run by ID.
+
+    Authorization: TR-021 - User must own run's project
+    """
+    # TR-021: run already verified by dependency
     return run
 
 
@@ -68,10 +72,16 @@ async def get_run(
 async def update_run(
     run_id: str,
     run_update: RunUpdate,
+    run: Run = Depends(verify_run_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update run"""
+    """
+    Update run.
+
+    Authorization: TR-021 - User must own run's project
+    """
+    # TR-021: run already verified by dependency
     update_data = run_update.model_dump(exclude_unset=True)
     updated_run = crud.update_run(db, run_id, **update_data)
     if not updated_run:

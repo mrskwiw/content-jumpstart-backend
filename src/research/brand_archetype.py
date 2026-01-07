@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
@@ -269,6 +270,11 @@ ARCHETYPES = {
 class BrandArchetypeAnalyzer(ResearchTool):
     """Analyzes brand positioning to determine primary and secondary archetypes"""
 
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize brand archetype analyzer with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
+
     @property
     def tool_name(self) -> str:
         return "brand_archetype"
@@ -278,19 +284,70 @@ class BrandArchetypeAnalyzer(ResearchTool):
         return 300
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs
+        """
+        Validate required inputs with comprehensive security checks (TR-019)
+
+        Security Features:
+        - Max length checks (prevent DOS attacks)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence validation
 
         Required:
-        - business_description: str (min 100 chars)
+        - business_description: str (min 70 chars)
         - brand_positioning: Optional[str]
         - target_audience: Optional[str]
         - core_values: Optional[List[str]]
         """
-        if "business_description" not in inputs:
-            raise ValueError("Missing required input: business_description")
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=70,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        if len(inputs["business_description"]) < 70:
-            raise ValueError("business_description too short (minimum 70 characters)")
+        # SECURITY: Validate optional brand positioning
+        if "brand_positioning" in inputs and inputs["brand_positioning"]:
+            inputs["brand_positioning"] = self.validator.validate_text(
+                inputs["brand_positioning"],
+                field_name="brand_positioning",
+                min_length=10,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional target audience
+        if "target_audience" in inputs and inputs["target_audience"]:
+            inputs["target_audience"] = self.validator.validate_text(
+                inputs["target_audience"],
+                field_name="target_audience",
+                min_length=10,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional core values list
+        if "core_values" in inputs and inputs["core_values"]:
+            inputs["core_values"] = self.validator.validate_list(
+                inputs["core_values"],
+                field_name="core_values",
+                min_items=1,
+                max_items=20,
+                required=False,
+                item_validator=lambda v: self.validator.validate_text(
+                    v,
+                    field_name="core_value",
+                    min_length=2,
+                    max_length=100,
+                    required=True,
+                    sanitize=True,
+                ),
+            )
 
         return True
 

@@ -20,11 +20,17 @@ from ..models.content_gap_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
 class ContentGapAnalyzer(ResearchTool):
     """Analyzes content gaps compared to competitors and search intent"""
+
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize Content Gap Analyzer with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -34,33 +40,99 @@ class ContentGapAnalyzer(ResearchTool):
     def price(self) -> int:
         return 500
 
-    def validate_inputs(self, inputs: Dict[str, Any]) -> None:
-        """Validate required inputs"""
-        required = ["business_description", "target_audience", "current_content_topics"]
+    def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
+        """
+        Validate required inputs with comprehensive security checks
 
-        for field in required:
-            if field not in inputs or not inputs[field]:
-                raise ValueError(f"Missing required input: {field}")
+        Security improvements:
+        - Max length validation (prevent DOS)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence checks
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate descriptions
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("business_description too short (minimum 50 characters)")
+        # SECURITY: Validate target audience with sanitization
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=10,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate current content topics
-        if isinstance(inputs["current_content_topics"], list):
-            if len(inputs["current_content_topics"]) == 0:
+        # SECURITY: Validate current content topics (can be string or list)
+        current_content = inputs.get("current_content_topics")
+        if isinstance(current_content, str):
+            inputs["current_content_topics"] = self.validator.validate_text(
+                current_content,
+                field_name="current_content_topics",
+                min_length=10,
+                max_length=5000,
+                required=True,
+                sanitize=True,
+            )
+        elif isinstance(current_content, list):
+            if len(current_content) == 0:
                 raise ValueError(
                     "Provide at least 1 current content topic, or use 'None' if starting fresh"
                 )
-        elif isinstance(inputs["current_content_topics"], str):
-            if len(inputs["current_content_topics"]) < 10:
-                raise ValueError("current_content_topics too short (minimum 10 characters)")
+            inputs["current_content_topics"] = self.validator.validate_list(
+                current_content,
+                field_name="current_content_topics",
+                max_items=100,
+                item_validator=lambda x: self.validator.validate_text(
+                    x,
+                    field_name="content_topic",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                ),
+            )
+        else:
+            raise ValueError("current_content_topics must be string or list")
 
-        # Competitors are optional but recommended
-        if "competitors" in inputs:
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs.get("business_name"),
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional industry
+        if "industry" in inputs and inputs["industry"]:
+            inputs["industry"] = self.validator.validate_text(
+                inputs.get("industry"),
+                field_name="industry",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional competitors list
+        if "competitors" in inputs and inputs["competitors"]:
             competitors = inputs["competitors"]
-            if isinstance(competitors, list) and len(competitors) > 5:
-                raise ValueError("Maximum 5 competitors allowed for analysis")
+            if isinstance(competitors, list):
+                if len(competitors) > 5:
+                    raise ValueError("Maximum 5 competitors allowed for analysis")
+                inputs["competitors"] = self.validator.validate_competitor_list(
+                    competitors, max_competitors=5
+                )
 
         return True
 
@@ -196,7 +268,7 @@ Return as JSON with these exact keys: coverage_areas, depth_assessment, formats,
 
         try:
             return json.loads(response.content[0].text)
-        except:
+        except (json.JSONDecodeError, KeyError, IndexError, AttributeError):
             return {
                 "coverage_areas": [topics_str],
                 "depth_assessment": "Unknown",
@@ -246,7 +318,7 @@ Return as JSON with keys: content_strengths, popular_topics, formats_used, gaps_
                         gaps_in_their_content=data.get("gaps_in_their_content", []),
                     )
                 )
-            except:
+            except (json.JSONDecodeError, KeyError, IndexError, AttributeError, TypeError):
                 # Fallback
                 analyses.append(
                     CompetitorContentAnalysis(
@@ -376,7 +448,7 @@ Return as JSON array of format gap objects."""
                 gaps_data = gaps_data["formats"]
 
             return [FormatGap(**gap) for gap in gaps_data]
-        except:
+        except (json.JSONDecodeError, KeyError, IndexError, AttributeError, TypeError):
             return [
                 FormatGap(
                     format_name="Video tutorials",
@@ -420,7 +492,7 @@ Return as JSON array of buyer journey gap objects."""
                 gaps_data = gaps_data["stages"]
 
             return [BuyerJourneyGap(**gap) for gap in gaps_data]
-        except:
+        except (json.JSONDecodeError, KeyError, IndexError, AttributeError, TypeError):
             return [
                 BuyerJourneyGap(
                     stage="Awareness",

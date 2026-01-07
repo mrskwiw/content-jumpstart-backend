@@ -3,9 +3,8 @@ Generator API endpoints.
 
 Handles content generation, regeneration, and export operations.
 """
-import asyncio
-import subprocess
-from pathlib import Path
+
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
@@ -14,34 +13,41 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
 from backend.middleware.auth_dependency import get_current_user
-from backend.models import User
-from backend.schemas.run import RunResponse
+from backend.middleware.authorization import verify_project_ownership  # TR-021: Authorization
+from backend.models import Project, User
+from backend.schemas.run import RunResponse, LogEntry
 from backend.schemas.deliverable import DeliverableResponse
 from backend.services import crud
 from backend.services.generator_service import generator_service
 from backend.utils.logger import logger
-from backend.utils.http_rate_limiter import limiter
+from backend.utils.http_rate_limiter import strict_limiter, standard_limiter
+from src.validators.prompt_injection_defense import sanitize_prompt_input
 
 router = APIRouter()
 
 
 class GenerateAllInput(BaseModel):
     """Input for generate-all endpoint"""
+
     project_id: str
     client_id: str
     is_batch: bool = True
-    template_quantities: Optional[dict[str, int]] = None  # Optional template quantities from frontend
+    template_quantities: Optional[dict[str, int]] = (
+        None  # Optional template quantities from frontend
+    )
     custom_topics: Optional[list[str]] = None  # NEW: topic override for content generation
 
 
 class RegenerateInput(BaseModel):
     """Input for regenerate endpoint"""
+
     project_id: str
     post_ids: list[str]
 
 
 class ExportInput(BaseModel):
     """Input for export endpoint"""
+
     project_id: str
     format: str = "txt"  # txt, docx, pdf
 
@@ -68,6 +74,25 @@ async def run_generation_background(
         if template_quantities:
             logger.info(f"Using template quantities from request: {template_quantities}")
 
+        # SECURITY (TR-020): Sanitize custom_topics before passing to LLM
+        sanitized_topics = None
+        if custom_topics:
+            try:
+                sanitized_topics = [
+                    sanitize_prompt_input(topic, strict=False) for topic in custom_topics
+                ]
+                logger.info(f"Sanitized {len(custom_topics)} custom topics for generation")
+            except ValueError as e:
+                logger.error(f"Prompt injection detected in custom_topics: {e}")
+                # Update run to failed status
+                crud.update_run(
+                    db,
+                    run_id,
+                    status="failed",
+                    error_message=f"Security validation failed: {str(e)}",
+                )
+                return
+
         # Execute content generation via service
         result = await generator_service.generate_all_posts(
             db=db,
@@ -75,7 +100,7 @@ async def run_generation_background(
             client_id=client_id,
             num_posts=num_posts,
             template_quantities=template_quantities,
-            custom_topics=custom_topics,  # NEW: topic override for generation
+            custom_topics=sanitized_topics,  # Use sanitized topics
             run_id=run_id,  # Pass run_id so posts can reference the run
         )
 
@@ -87,16 +112,13 @@ async def run_generation_background(
         logs = [
             LogEntry(timestamp=timestamp, message="Generation started"),
             LogEntry(timestamp=timestamp, message="CLI execution completed"),
-            LogEntry(timestamp=timestamp, message=f"Created {result['posts_created']} post records"),
+            LogEntry(
+                timestamp=timestamp, message=f"Created {result['posts_created']} post records"
+            ),
             LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
         ]
 
-        crud.update_run(
-            db,
-            run_id,
-            status="succeeded",
-            logs=[log.model_dump() for log in logs]
-        )
+        crud.update_run(db, run_id, status="succeeded", logs=[log.model_dump() for log in logs])
 
         logger.info(f"Background generation completed successfully for run {run_id}")
 
@@ -104,28 +126,28 @@ async def run_generation_background(
         logger.error(f"Background generation failed for run {run_id}: {str(e)}", exc_info=True)
 
         # Update run status to failed
-        crud.update_run(
-            db,
-            run_id,
-            status="failed",
-            error_message=str(e)
-        )
+        crud.update_run(db, run_id, status="failed", error_message=str(e))
 
     finally:
         db.close()
 
 
 @router.post("/generate-all", response_model=RunResponse)
-@limiter.limit("10/hour")  # TR-004: Rate limit expensive generation operations
+@strict_limiter.limit("10/hour")  # TR-004: Expensive AI generation (composite key: IP+user)
 async def generate_all(
     request: Request,
     background_tasks: BackgroundTasks,
     input: GenerateAllInput,
+    project: Project = Depends(
+        verify_project_ownership
+    ),  # TR-021: Authorization check (using project_id from input)
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Generate all posts for a project.
+
+    Authorization: TR-021 - User must own project
 
     This endpoint:
     1. Creates a Run record with status="pending"
@@ -135,20 +157,30 @@ async def generate_all(
 
     Prevents HTTP timeouts by running generation asynchronously.
     """
-    # Verify project exists
+    # TR-021: project already verified by dependency (verify_project_ownership uses project_id from path/query)
+    # Note: We need to manually verify since project_id comes from request body, not path
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
+        )
+
+    # TR-021: Verify user owns the project
+    if (
+        hasattr(project, "user_id")
+        and project.user_id != current_user.id
+        and not current_user.is_superuser
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
         )
 
     # Verify client exists
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client {input.client_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Client {input.client_id} not found"
         )
 
     # Create Run record with status="pending"
@@ -176,7 +208,7 @@ async def generate_all(
 
 
 @router.post("/regenerate", response_model=RunResponse)
-@limiter.limit("20/hour")  # TR-004: Rate limit regeneration (less strict than full generation)
+@strict_limiter.limit("20/hour")  # TR-004: Expensive AI regeneration (composite key: IP+user)
 async def regenerate(
     request: Request,
     input: RegenerateInput,
@@ -186,14 +218,26 @@ async def regenerate(
     """
     Regenerate specific posts.
 
+    Authorization: TR-021 - User must own project
+
     Used for quality gate - regenerate flagged posts.
     """
     # Verify project exists
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
+        )
+
+    # TR-021: Verify user owns the project
+    if (
+        hasattr(project, "user_id")
+        and project.user_id != current_user.id
+        and not current_user.is_superuser
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
         )
 
     # Create Run record for regeneration
@@ -203,7 +247,9 @@ async def regenerate(
     crud.update_run(db, db_run.id, status="running")
 
     try:
-        logger.info(f"Starting regeneration for {len(input.post_ids)} posts in project {input.project_id}")
+        logger.info(
+            f"Starting regeneration for {len(input.post_ids)} posts in project {input.project_id}"
+        )
 
         # Execute regeneration via service
         result = await generator_service.regenerate_posts(
@@ -216,7 +262,10 @@ async def regenerate(
         timestamp = datetime.now().isoformat()
         logs = [
             LogEntry(timestamp=timestamp, message="Regeneration started"),
-            LogEntry(timestamp=timestamp, message=f"Regenerated {result.get('posts_regenerated', 0)} posts"),
+            LogEntry(
+                timestamp=timestamp,
+                message=f"Regenerated {result.get('posts_regenerated', 0)} posts",
+            ),
             LogEntry(timestamp=timestamp, message=f"Status: {result.get('status', 'completed')}"),
         ]
 
@@ -224,7 +273,7 @@ async def regenerate(
             db,
             db_run.id,
             status="succeeded",
-            logs=[log.model_dump() for log in logs]  # Convert to dicts for JSON serialization
+            logs=[log.model_dump() for log in logs],  # Convert to dicts for JSON serialization
         )
 
         db.refresh(db_run)
@@ -233,20 +282,15 @@ async def regenerate(
 
     except Exception as e:
         logger.error(f"Regeneration failed: {str(e)}", exc_info=True)
-        crud.update_run(
-            db,
-            db_run.id,
-            status="failed",
-            error_message=str(e)
-        )
+        crud.update_run(db, db_run.id, status="failed", error_message=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Regeneration failed: {str(e)}"
+            detail=f"Regeneration failed: {str(e)}",
         )
 
 
 @router.post("/export", response_model=DeliverableResponse)
-@limiter.limit("30/hour")  # TR-004: Rate limit export operations
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation (file generation)
 async def export_package(
     request: Request,
     input: ExportInput,
@@ -256,6 +300,8 @@ async def export_package(
     """
     Export deliverable package.
 
+    Authorization: TR-021 - User must own project
+
     Creates a deliverable file (TXT/DOCX/PDF) from generated posts.
     """
     try:
@@ -264,10 +310,23 @@ async def export_package(
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project {input.project_id} not found"
+                detail=f"Project {input.project_id} not found",
             )
 
-        logger.info(f"Creating deliverable export for project {input.project_id} in format {input.format}")
+        # TR-021: Verify user owns the project
+        if (
+            hasattr(project, "user_id")
+            and project.user_id != current_user.id
+            and not current_user.is_superuser
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You don't own this project",
+            )
+
+        logger.info(
+            f"Creating deliverable export for project {input.project_id} in format {input.format}"
+        )
 
         # TODO: Implement actual file export logic
         # For now, create a deliverable record with placeholder path
@@ -295,7 +354,7 @@ async def export_package(
             path=deliverable_path,
             status="ready",
             created_at=datetime.utcnow(),
-            file_size_bytes=file_size
+            file_size_bytes=file_size,
         )
 
         db.add(db_deliverable)
@@ -310,6 +369,5 @@ async def export_package(
     except Exception as e:
         logger.error(f"Export failed: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Export failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Export failed: {str(e)}"
         )

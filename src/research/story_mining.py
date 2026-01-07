@@ -22,11 +22,17 @@ from ..models.story_mining_models import (
     Testimonials,
 )
 from ..utils.anthropic_client import get_default_client
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
 class StoryMiner(ResearchTool):
     """Interactive customer story extraction"""
+
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize story miner with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -37,20 +43,56 @@ class StoryMiner(ResearchTool):
         return 500
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "customer_context"]
+        """
+        Validate required inputs with comprehensive security checks (TR-019)
 
-        for field in required:
-            if field not in inputs:
-                raise ValueError(f"Missing required input: {field}")
+        Security Features:
+        - Max length checks (prevent DOS attacks)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence validation
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate description length
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("business_description too short (minimum 50 characters)")
+        # SECURITY: Validate customer context with sanitization
+        inputs["customer_context"] = self.validator.validate_text(
+            inputs.get("customer_context"),
+            field_name="customer_context",
+            min_length=30,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
 
-        if len(inputs["customer_context"]) < 30:
-            raise ValueError(
-                "customer_context too short (minimum 30 characters). Provide basic customer info."
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs["business_name"],
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional interview notes (can be lengthy)
+        if "interview_notes" in inputs and inputs["interview_notes"]:
+            inputs["interview_notes"] = self.validator.validate_text(
+                inputs["interview_notes"],
+                field_name="interview_notes",
+                min_length=0,
+                max_length=10000,  # Longer limit for detailed notes
+                required=False,
+                allow_empty=True,
+                sanitize=True,
             )
 
         return True
@@ -513,9 +555,7 @@ Return JSON with:
             data.get("use_cases", []),
         )
 
-    def _generate_content_recommendations(
-        self, client: Any, story: SuccessStory
-    ) -> List[str]:
+    def _generate_content_recommendations(self, client: Any, story: SuccessStory) -> List[str]:
         """Generate content recommendations"""
         prompt = f"""Based on this success story, recommend 5-7 pieces of content to create.
 
@@ -796,9 +836,7 @@ Return as markdown text (not JSON)."""
 
         return md
 
-    def _format_list(
-        self, items: List[str], numbered: bool = False, quote: bool = False
-    ) -> str:
+    def _format_list(self, items: List[str], numbered: bool = False, quote: bool = False) -> str:
         """Format list for markdown"""
         if not items:
             return "None specified\n"

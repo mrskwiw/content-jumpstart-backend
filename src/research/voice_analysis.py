@@ -30,6 +30,10 @@ from ..models.research_models import (
 )
 from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
+from ..validators.research_input_validator import (
+    ResearchInputValidator,
+    validate_content_samples,
+)
 from .base import ResearchTool
 
 # Try to import textstat for readability scoring
@@ -52,6 +56,11 @@ class VoiceAnalyzer(ResearchTool):
     - Voice consistency recommendations
     """
 
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize voice analyzer with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
+
     @property
     def tool_name(self) -> str:
         return "voice_analysis"
@@ -61,10 +70,17 @@ class VoiceAnalyzer(ResearchTool):
         return 400
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate voice analysis inputs
+        """
+        Validate voice analysis inputs with comprehensive security checks (TR-019)
+
+        Security Features:
+        - Max length checks (prevent DOS attacks)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence validation
 
         Required:
-        - content_samples: List of text samples (10-20 pieces)
+        - content_samples: List of text samples (3-20 pieces)
 
         Args:
             inputs: Input dictionary
@@ -73,43 +89,47 @@ class VoiceAnalyzer(ResearchTool):
             True if valid
 
         Raises:
-            ValueError: If validation fails
+            ValidationError: If validation fails
         """
-        if "content_samples" not in inputs:
-            raise ValueError("Missing required input: content_samples")
+        # SECURITY: Validate content samples list (3-30 samples)
+        # Using validate_content_samples convenience function
+        inputs["content_samples"] = validate_content_samples(
+            inputs.get("content_samples"),
+            validator=self.validator,
+        )
 
-        samples = inputs["content_samples"]
-
-        if not isinstance(samples, list):
-            raise ValueError("content_samples must be a list")
-
-        if len(samples) < 5:
-            raise ValueError(
-                f"Need at least 5 content samples, got {len(samples)}. "
-                "Provide 10-20 samples for best results."
+        # Enforce max 30 samples for performance (trim if needed)
+        if len(inputs["content_samples"]) > 30:
+            logger.warning(
+                f"Got {len(inputs['content_samples'])} samples, using first 30 for analysis"
             )
+            inputs["content_samples"] = inputs["content_samples"][:30]
 
-        if len(samples) > 30:
-            logger.warning(f"Got {len(samples)} samples, using first 30 for analysis")
-
-        # Check each sample has text
-        for i, sample in enumerate(samples[:30]):
+        # Validate each sample is either string or dict with text field
+        validated_samples = []
+        for i, sample in enumerate(inputs["content_samples"]):
             if isinstance(sample, str):
-                if len(sample.strip()) < 50:
-                    raise ValueError(
-                        f"Sample {i} is too short ({len(sample)} chars). "
-                        "Each sample should be at least 50 characters."
-                    )
+                # Already validated by validate_content_samples
+                validated_samples.append(sample)
             elif isinstance(sample, dict):
+                # Extract and validate text field
                 if "text" not in sample:
                     raise ValueError(f"Sample {i} missing 'text' field")
-                if len(sample["text"].strip()) < 50:
-                    raise ValueError(
-                        f"Sample {i} text is too short. "
-                        "Each sample should be at least 50 characters."
-                    )
+                text = self.validator.validate_text(
+                    sample["text"],
+                    field_name=f"content_sample_{i}.text",
+                    min_length=50,
+                    max_length=5000,
+                    required=True,
+                    sanitize=True,
+                )
+                validated_samples.append(text)
             else:
-                raise ValueError(f"Sample {i} must be string or dict with 'text' field")
+                raise ValueError(
+                    f"Sample {i} must be string or dict with 'text' field, got {type(sample).__name__}"
+                )
+
+        inputs["content_samples"] = validated_samples
 
         return True
 
@@ -303,7 +323,7 @@ class VoiceAnalyzer(ResearchTool):
         openings = []
 
         for text in texts:
-            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            lines = [line.strip() for line in text.split("\n") if line.strip()]
             if lines:
                 first_line = lines[0]
                 openings.append(first_line[:100])  # First 100 chars
@@ -382,7 +402,7 @@ class VoiceAnalyzer(ResearchTool):
         ctas = []
 
         for text in texts:
-            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            lines = [line.strip() for line in text.split("\n") if line.strip()]
             if lines:
                 last_line = lines[-1]
                 ctas.append(last_line)
@@ -488,7 +508,7 @@ class VoiceAnalyzer(ResearchTool):
                 level = "Graduate level (very difficult)"
 
             return {"score": round(score, 1), "level": level}
-        except:
+        except (ZeroDivisionError, ValueError, TypeError):
             return {"score": 60.0, "level": "High school level (estimated)"}
 
     def _identify_tone_and_personality(self, texts: List[str]) -> Dict[str, Any]:
@@ -594,10 +614,10 @@ Focus on objective patterns in the writing, not what the content is about."""
         # Simple check for common emojis
         emoji_pattern = re.compile(
             "["
-            "\U0001F600-\U0001F64F"  # emoticons
-            "\U0001F300-\U0001F5FF"  # symbols & pictographs
-            "\U0001F680-\U0001F6FF"  # transport & map symbols
-            "\U0001F1E0-\U0001F1FF"  # flags
+            "\U0001f600-\U0001f64f"  # emoticons
+            "\U0001f300-\U0001f5ff"  # symbols & pictographs
+            "\U0001f680-\U0001f6ff"  # transport & map symbols
+            "\U0001f1e0-\U0001f1ff"  # flags
             "]+",
             flags=re.UNICODE,
         )
@@ -648,7 +668,7 @@ Focus on objective patterns in the writing, not what the content is about."""
         do_examples = []
         for i, text in enumerate(texts[:3]):
             # Get first paragraph or sentence
-            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            lines = [line.strip() for line in text.split("\n") if line.strip()]
             if lines:
                 do_examples.append(lines[0][:200])
 

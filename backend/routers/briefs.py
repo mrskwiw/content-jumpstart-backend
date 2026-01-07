@@ -1,9 +1,10 @@
 """Briefs router"""
+
 import sys
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from backend.middleware.auth_dependency import get_current_user
 from backend.schemas.brief import BriefCreate, BriefResponse
 from backend.services import crud
@@ -12,19 +13,27 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.database import get_db
 from backend.models import User
-from backend.models.brief_import import FieldExtraction, ParsedBriefResponse, ParseError
+from backend.models.brief_import import FieldExtraction, ParsedBriefResponse
 from backend.utils.logger import logger
+from backend.utils.http_rate_limiter import standard_limiter, lenient_limiter
+from src.validators.prompt_injection_defense import sanitize_prompt_input
 
 router = APIRouter()
 
 
 @router.post("/create", response_model=BriefResponse, status_code=status.HTTP_201_CREATED)
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def create_brief_from_text(
+    request: Request,
     brief: BriefCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create brief from pasted text"""
+    """
+    Create brief from pasted text.
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    """
     # Verify project exists
     project = crud.get_project(db, brief.project_id)
     if not project:
@@ -37,23 +46,42 @@ async def create_brief_from_text(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Brief already exists for this project"
         )
 
-    # Save brief to file
+    # SECURITY (TR-020): Sanitize brief content before saving (will be passed to LLM later)
+    try:
+        sanitized_content = sanitize_prompt_input(brief.content, strict=False)
+        logger.info(f"Sanitized brief content for project {brief.project_id}")
+    except ValueError as e:
+        logger.warning(f"Prompt injection detected in brief content: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Brief content contains potentially unsafe patterns. Please review and resubmit.",
+        )
+
+    # Save brief to file (use sanitized content)
     briefs_dir = Path(settings.BRIEFS_DIR)
     briefs_dir.mkdir(parents=True, exist_ok=True)
     file_path = briefs_dir / f"{brief.project_id}.txt"
-    file_path.write_text(brief.content, encoding="utf-8")
+    file_path.write_text(sanitized_content, encoding="utf-8")
 
-    return crud.create_brief(db, brief, source="paste", file_path=str(file_path))
+    # Create brief with sanitized content
+    sanitized_brief = BriefCreate(project_id=brief.project_id, content=sanitized_content)
+    return crud.create_brief(db, sanitized_brief, source="paste", file_path=str(file_path))
 
 
 @router.post("/upload", response_model=BriefResponse, status_code=status.HTTP_201_CREATED)
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def upload_brief_file(
+    request: Request,
     project_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload brief file"""
+    """
+    Upload brief file.
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    """
     # Verify project exists
     project = crud.get_project(db, project_id)
     if not project:
@@ -71,24 +99,41 @@ async def upload_brief_file(
     content = await file.read()
     text_content = content.decode("utf-8")
 
-    # Save file
+    # SECURITY (TR-020): Sanitize uploaded brief content before saving
+    try:
+        sanitized_content = sanitize_prompt_input(text_content, strict=False)
+        logger.info(f"Sanitized uploaded brief for project {project_id}")
+    except ValueError as e:
+        logger.warning(f"Prompt injection detected in uploaded brief: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file contains potentially unsafe patterns. Please review and resubmit.",
+        )
+
+    # Save file (use sanitized content)
     briefs_dir = Path(settings.BRIEFS_DIR)
     briefs_dir.mkdir(parents=True, exist_ok=True)
     file_path = briefs_dir / f"{project_id}{file_ext}"
-    file_path.write_bytes(content)
+    file_path.write_text(sanitized_content, encoding="utf-8")
 
-    # Create brief record
-    brief_data = BriefCreate(project_id=project_id, content=text_content)
+    # Create brief record (use sanitized content)
+    brief_data = BriefCreate(project_id=project_id, content=sanitized_content)
     return crud.create_brief(db, brief_data, source="upload", file_path=str(file_path))
 
 
 @router.get("/{brief_id}", response_model=BriefResponse)
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def get_brief(
+    request: Request,
     brief_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get brief by ID"""
+    """
+    Get brief by ID.
+
+    Rate limit: 1000/hour (cheap read operation)
+    """
     brief = crud.get_brief(db, brief_id)
     if not brief:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brief not found")
@@ -96,11 +141,17 @@ async def get_brief(
 
 
 @router.post("/parse", response_model=ParsedBriefResponse)
+@standard_limiter.limit("100/hour")  # TR-004: AI parsing operation (moderate cost)
 async def parse_brief_file(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Parse uploaded brief file and extract client data with confidence scores"""
+    """
+    Parse uploaded brief file and extract client data with confidence scores.
+
+    Rate limit: 100/hour per IP+user (AI parsing operation)
+    """
     start_time = time.time()
 
     # Validate file extension (.txt, .md only)
@@ -147,14 +198,29 @@ async def parse_brief_file(
             },
         )
 
-    # Parse with BriefParserAgent
+    # SECURITY (TR-020): Sanitize brief content before parsing with LLM
+    try:
+        sanitized_content = sanitize_prompt_input(text_content, strict=False)
+        logger.info(f"Sanitized brief content for parsing: {file.filename}")
+    except ValueError as e:
+        logger.warning(f"Prompt injection detected in brief file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "SECURITY_VALIDATION_FAILED",
+                "message": "File contains potentially unsafe content patterns",
+                "details": {"filename": file.filename, "error": str(e)},
+            },
+        )
+
+    # Parse with BriefParserAgent (use sanitized content)
     try:
         # Import here to avoid circular dependency
         sys.path.insert(0, str(Path(__file__).parent.parent.parent))
         from src.agents.brief_parser import BriefParserAgent
 
         parser = BriefParserAgent()
-        parsed_brief = parser.parse_brief(text_content)
+        parsed_brief = parser.parse_brief(sanitized_content)  # Use sanitized content
 
         # Convert ClientBrief to field extractions with confidence scoring
         fields_with_confidence = _add_confidence_scores(parsed_brief, text_content)
@@ -246,9 +312,7 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
                     source = f"line {i}"
                     break
 
-        fields[field_name] = FieldExtraction(
-            value=value, confidence=confidence, source=source
-        )
+        fields[field_name] = FieldExtraction(value=value, confidence=confidence, source=source)
 
     return fields
 

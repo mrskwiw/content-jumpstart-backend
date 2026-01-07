@@ -1,6 +1,7 @@
 """
 Pydantic schemas for Deliverable API.
 """
+
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -13,8 +14,45 @@ class DeliverableBase(BaseModel):
     format: str  # txt, docx, pdf
 
 
+class DeliverableCreate(DeliverableBase):
+    """
+    Schema for creating a deliverable.
+
+    TR-022: Mass assignment protection
+    - Only allows: format, project_id, run_id
+    - Protected fields set by system: id, client_id, path, status, created_at, delivered_at,
+                                       proof_url, proof_notes, checksum, file_size_bytes
+    """
+
+    project_id: str
+    run_id: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")  # TR-022: Reject unknown fields
+
+
+class DeliverableUpdate(BaseModel):
+    """
+    Schema for updating a deliverable.
+
+    TR-022: Mass assignment protection
+    - Only allows: status
+    - Protected fields (never updatable): id, project_id, client_id, run_id, format, path,
+                                           created_at, delivered_at, proof_url, proof_notes,
+                                           checksum, file_size_bytes
+    - Note: Use MarkDeliveredRequest for delivery status updates
+    """
+
+    status: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")  # TR-022: Reject unknown fields
+
+
 class DeliverableResponse(DeliverableBase):
-    """Schema for deliverable response"""
+    """
+    Schema for deliverable response.
+
+    TR-022: Includes all fields including read-only ones
+    """
 
     id: str
     project_id: str
@@ -32,13 +70,12 @@ class DeliverableResponse(DeliverableBase):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,  # Allow both snake_case and camelCase
-        alias_generator=lambda field_name: ''.join(
-            word.capitalize() if i > 0 else word
-            for i, word in enumerate(field_name.split('_'))
+        alias_generator=lambda field_name: "".join(
+            word.capitalize() if i > 0 else word for i, word in enumerate(field_name.split("_"))
         ),  # Convert snake_case to camelCase
     )
 
-    @field_serializer('created_at', 'delivered_at', when_used='always')
+    @field_serializer("created_at", "delivered_at", when_used="always")
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
         """Serialize datetime to ISO 8601 with timezone (Z suffix for UTC)"""
         if dt is None:
@@ -74,9 +111,8 @@ class PostSummary(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
-        alias_generator=lambda field_name: ''.join(
-            word.capitalize() if i > 0 else word
-            for i, word in enumerate(field_name.split('_'))
+        alias_generator=lambda field_name: "".join(
+            word.capitalize() if i > 0 else word for i, word in enumerate(field_name.split("_"))
         ),
     )
 
@@ -94,9 +130,8 @@ class QASummary(BaseModel):
 
     model_config = ConfigDict(
         populate_by_name=True,
-        alias_generator=lambda field_name: ''.join(
-            word.capitalize() if i > 0 else word
-            for i, word in enumerate(field_name.split('_'))
+        alias_generator=lambda field_name: "".join(
+            word.capitalize() if i > 0 else word for i, word in enumerate(field_name.split("_"))
         ),
     )
 
@@ -113,13 +148,12 @@ class DeliverableDetailResponse(DeliverableResponse):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
-        alias_generator=lambda field_name: ''.join(
-            word.capitalize() if i > 0 else word
-            for i, word in enumerate(field_name.split('_'))
+        alias_generator=lambda field_name: "".join(
+            word.capitalize() if i > 0 else word for i, word in enumerate(field_name.split("_"))
         ),
     )
 
-    @field_serializer('created_at', 'delivered_at', 'file_modified_at', when_used='always')
+    @field_serializer("created_at", "delivered_at", "file_modified_at", when_used="always")
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
         """Serialize all datetime fields to ISO 8601 with timezone (Z suffix for UTC)"""
         if dt is None:

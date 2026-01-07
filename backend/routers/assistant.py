@@ -3,10 +3,11 @@ AI Assistant API endpoints.
 
 Provides context-aware AI assistance throughout the operator dashboard.
 """
+
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,10 +15,13 @@ from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user
 from backend.models import User
 from backend.utils.logger import logger
+from backend.utils.http_rate_limiter import standard_limiter, lenient_limiter
+from src.validators.prompt_injection_defense import sanitize_prompt_input
 
 # Will use Claude API directly for assistant conversations
 try:
     from src.utils.anthropic_client import get_default_client
+
     CLAUDE_AVAILABLE = True
 except ImportError:
     CLAUDE_AVAILABLE = False
@@ -28,6 +32,7 @@ router = APIRouter()
 
 class Message(BaseModel):
     """Chat message"""
+
     role: str  # "user" or "assistant"
     content: str
     timestamp: Optional[datetime] = None
@@ -35,6 +40,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     """Request to chat with AI assistant"""
+
     message: str
     context: Optional[dict] = {}  # Current page context (page name, project ID, etc.)
     conversation_history: List[Message] = []
@@ -42,18 +48,21 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     """Response from AI assistant"""
+
     message: str
     suggestions: List[str] = []  # Context-aware quick actions
 
 
 class ContextRequest(BaseModel):
     """Request for context-aware suggestions"""
+
     page: str  # Current page name
     data: Optional[dict] = {}  # Current page data (project, client, etc.)
 
 
 class ContextResponse(BaseModel):
     """Context-aware suggestions"""
+
     suggestions: List[str]
     quick_actions: List[dict] = []  # [{label, action, icon}]
 
@@ -70,7 +79,6 @@ Key capabilities you can help with:
 - Managing deliverables (exporting, packaging)
 
 Be concise and actionable. Suggest next steps based on current wizard stage.""",
-
     "projects": """You are an AI assistant helping operators manage content projects.
 
 Key capabilities:
@@ -81,7 +89,6 @@ Key capabilities:
 - Viewing generated content
 
 Provide quick answers about project management workflows.""",
-
     "clients": """You are an AI assistant helping operators manage client information.
 
 Key capabilities:
@@ -92,7 +99,6 @@ Key capabilities:
 - Running research tools on client data
 
 Help operators understand client profile requirements.""",
-
     "content-review": """You are an AI assistant helping operators review generated content.
 
 Key capabilities:
@@ -102,7 +108,6 @@ Key capabilities:
 - Approving content for delivery
 
 Guide operators through the QA workflow.""",
-
     "deliverables": """You are an AI assistant helping operators manage client deliverables.
 
 Key capabilities:
@@ -112,7 +117,6 @@ Key capabilities:
 - Managing revisions
 
 Explain deliverable formats and export options.""",
-
     "settings": """You are an AI assistant helping operators configure system settings.
 
 Key capabilities:
@@ -122,7 +126,6 @@ Key capabilities:
 - Managing user preferences
 
 Provide guidance on configuration options.""",
-
     "overview": """You are an AI assistant for the Content Jumpstart operator dashboard.
 
 This is the main overview page showing:
@@ -135,7 +138,9 @@ I can help you navigate the system and explain any features.""",
 }
 
 
-def build_assistant_prompt(page: str, context: dict, user_message: str, history: List[Message]) -> str:
+def build_assistant_prompt(
+    page: str, context: dict, user_message: str, history: List[Message]
+) -> str:
     """Build context-aware system prompt for assistant"""
 
     # Get page-specific context
@@ -166,6 +171,7 @@ Provide a helpful, concise response. If the user's question is about something o
 
 
 @router.post("/chat", response_model=ChatResponse)
+@standard_limiter.limit("50/hour")  # TR-004: Moderate limit for Claude API chat
 async def chat_with_assistant(
     request: ChatRequest,
     db: Session = Depends(get_db),
@@ -175,14 +181,27 @@ async def chat_with_assistant(
     Chat with AI assistant.
 
     Provides context-aware help based on current page and conversation history.
+
+    Rate limit: 50/hour per IP+user (moderate limit for AI chat)
     """
     if not CLAUDE_AVAILABLE:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI assistant is not available (Claude API client not configured)"
+            detail="AI assistant is not available (Claude API client not configured)",
         )
 
     try:
+        # SECURITY (TR-020): Sanitize user message before passing to LLM
+        try:
+            sanitized_message = sanitize_prompt_input(request.message, strict=False)
+            logger.info(f"Sanitized assistant chat message for user {current_user.email}")
+        except ValueError as e:
+            logger.warning(f"Prompt injection detected in assistant chat: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your message contains potentially unsafe content. Please rephrase and try again.",
+            )
+
         # Get current page from context
         page = request.context.get("page", "overview")
 
@@ -190,8 +209,8 @@ async def chat_with_assistant(
         system_prompt = build_assistant_prompt(
             page=page,
             context=request.context,
-            user_message=request.message,
-            history=request.conversation_history
+            user_message=sanitized_message,  # Use sanitized message
+            history=request.conversation_history,
         )
 
         # Call Claude API
@@ -201,7 +220,7 @@ async def chat_with_assistant(
             max_tokens=1024,
             temperature=0.7,
             system=system_prompt,
-            messages=[{"role": "user", "content": request.message}]
+            messages=[{"role": "user", "content": sanitized_message}],  # Use sanitized message
         )
 
         assistant_message = response.content[0].text
@@ -211,20 +230,18 @@ async def chat_with_assistant(
 
         logger.info(f"AI assistant responded to user {current_user.email} on page {page}")
 
-        return ChatResponse(
-            message=assistant_message,
-            suggestions=suggestions
-        )
+        return ChatResponse(message=assistant_message, suggestions=suggestions)
 
     except Exception as e:
         logger.error(f"AI assistant error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI assistant error: {str(e)}"
+            detail=f"AI assistant error: {str(e)}",
         )
 
 
 @router.post("/context", response_model=ContextResponse)
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap operation, no AI calls
 async def get_context_suggestions(
     request: ContextRequest,
     current_user: User = Depends(get_current_user),
@@ -233,24 +250,27 @@ async def get_context_suggestions(
     Get context-aware suggestions for current page.
 
     Returns quick actions and helpful suggestions based on what page the user is viewing.
+
+    Rate limit: 1000/hour (cheap operation, no AI calls)
     """
     suggestions = generate_suggestions(request.page, request.data)
     quick_actions = generate_quick_actions(request.page, request.data)
 
-    return ContextResponse(
-        suggestions=suggestions,
-        quick_actions=quick_actions
-    )
+    return ContextResponse(suggestions=suggestions, quick_actions=quick_actions)
 
 
 @router.post("/reset")
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap operation, no AI calls
 async def reset_conversation(
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
     Reset AI assistant conversation.
 
     Clears conversation history for a fresh start.
+
+    Rate limit: 1000/hour (cheap operation)
     """
     # In a production system, this would clear session storage
     # For now, it's a client-side operation
@@ -264,37 +284,37 @@ def generate_suggestions(page: str, context: dict) -> List[str]:
         "wizard": [
             "Need help filling out the client brief? Ask me about required fields.",
             "Want to know which templates work best for a specific industry? Just ask!",
-            "Confused about template selection? I can explain each template type."
+            "Confused about template selection? I can explain each template type.",
         ],
         "projects": [
             "Want to create a new project? I can walk you through the process.",
             "Need to check project status? Ask me about project states.",
-            "Looking for a specific project? I can help you search."
+            "Looking for a specific project? I can help you search.",
         ],
         "clients": [
             "Need to create a new client profile? I can guide you through it.",
             "Want to know what makes a good business description? Ask me!",
-            "Running research tools? I can explain each research option."
+            "Running research tools? I can explain each research option.",
         ],
         "content-review": [
             "Need help interpreting QA scores? I can explain each validator.",
             "Want to filter content by quality? Ask me about filter options.",
-            "Ready to approve content? I can walk you through the process."
+            "Ready to approve content? I can walk you through the process.",
         ],
         "deliverables": [
             "Need to download a deliverable? I can show you how.",
             "Want to understand deliverable formats? Just ask!",
-            "Managing revisions? I can explain the revision workflow."
+            "Managing revisions? I can explain the revision workflow.",
         ],
         "settings": [
             "Need to configure API keys? I can guide you through it.",
             "Want to adjust quality thresholds? Ask me about the settings.",
-            "Curious about parallel generation? I can explain the feature."
+            "Curious about parallel generation? I can explain the feature.",
         ],
         "overview": [
             "New to the dashboard? Ask me for a quick tour!",
             "Want to see your recent activity? Check the metrics above.",
-            "Need to start a new project? I can guide you to the wizard."
+            "Need to start a new project? I can guide you to the wizard.",
         ],
     }
 

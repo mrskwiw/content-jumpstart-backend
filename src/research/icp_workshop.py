@@ -4,6 +4,8 @@ Conversational tool that guides users through building a comprehensive
 Ideal Customer Profile through guided questions and Claude-powered analysis.
 
 Price: $600
+
+Security: Phase 2 - Comprehensive input validation (TR-019)
 """
 
 import json
@@ -20,11 +22,17 @@ from ..models.icp_workshop_models import (
     SuccessCriteria,
 )
 from ..utils.anthropic_client import get_default_client
+from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 
 
 class ICPWorkshopFacilitator(ResearchTool):
     """Interactive ICP development workshop"""
+
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize ICP Workshop with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -35,16 +43,59 @@ class ICPWorkshopFacilitator(ResearchTool):
         return 600
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description"]
+        """
+        Validate required inputs with comprehensive security checks
 
-        for field in required:
-            if field not in inputs:
-                raise ValueError(f"Missing required input: {field}")
+        Security improvements (TR-019):
+        - Max length validation (prevent DOS)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence checks
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-        # Validate description length
-        if len(inputs["business_description"]) < 50:
-            raise ValueError("business_description too short (minimum 50 characters)")
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs.get("business_name"),
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional target audience
+        if "target_audience" in inputs:
+            inputs["target_audience"] = self.validator.validate_text(
+                inputs.get("target_audience"),
+                field_name="target_audience",
+                min_length=0,
+                max_length=2000,
+                required=False,
+                allow_empty=True,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional existing customer data
+        if "existing_customer_data" in inputs:
+            inputs["existing_customer_data"] = self.validator.validate_text(
+                inputs.get("existing_customer_data"),
+                field_name="existing_customer_data",
+                min_length=0,
+                max_length=5000,
+                required=False,
+                allow_empty=True,
+                sanitize=True,
+            )
 
         return True
 
@@ -133,7 +184,7 @@ class ICPWorkshopFacilitator(ResearchTool):
         analysis = ICPWorkshopAnalysis(
             profile=profile,
             workshop_notes=f"ICP developed for {business_name}",
-            conversation_summary=f"Comprehensive ICP covering demographics, psychographics, behavioral patterns, situational factors, and success criteria.",
+            conversation_summary="Comprehensive ICP covering demographics, psychographics, behavioral patterns, situational factors, and success criteria.",
             next_steps=next_steps,
         )
 
@@ -419,9 +470,7 @@ Return JSON with:
             data.get("content_topics", []),
         )
 
-    def _generate_next_steps(
-        self, client: Any, profile: IdealCustomerProfile
-    ) -> list[str]:
+    def _generate_next_steps(self, client: Any, profile: IdealCustomerProfile) -> list[str]:
         """Generate recommended next steps"""
         prompt = f"""Based on this ICP, recommend 5-7 immediate next steps.
 

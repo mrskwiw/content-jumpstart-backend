@@ -3,9 +3,10 @@ Research API endpoints.
 
 Handles research tool listing and execution.
 """
+
 from typing import List, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -15,12 +16,14 @@ from backend.models import User
 from backend.services import crud
 from backend.services.research_service import research_service
 from backend.utils.logger import logger
+from backend.utils.http_rate_limiter import strict_limiter, lenient_limiter
 
 router = APIRouter()
 
 
 class ResearchTool(BaseModel):
     """Research tool metadata"""
+
     name: str
     label: str
     price: Optional[float] = None
@@ -31,6 +34,7 @@ class ResearchTool(BaseModel):
 
 class RunResearchInput(BaseModel):
     """Input for running research"""
+
     project_id: str
     client_id: str
     tool: str
@@ -39,6 +43,7 @@ class RunResearchInput(BaseModel):
 
 class ResearchRunResult(BaseModel):
     """Result from research execution"""
+
     tool: str
     outputs: Dict[str, str]
     metadata: Optional[Dict[str, Any]] = {}
@@ -53,7 +58,7 @@ RESEARCH_TOOLS = [
         price=400.0,
         status="available",
         description="Extract writing patterns from client's existing content",
-        category="foundation"
+        category="foundation",
     ),
     ResearchTool(
         name="brand_archetype",
@@ -61,9 +66,8 @@ RESEARCH_TOOLS = [
         price=300.0,
         status="available",
         description="Identify brand personality and messaging framework",
-        category="foundation"
+        category="foundation",
     ),
-
     # SEO & Competition Tools ($1,400 Total)
     ResearchTool(
         name="seo_keyword_research",
@@ -71,7 +75,7 @@ RESEARCH_TOOLS = [
         price=400.0,
         status="available",
         description="Discover target keywords and search opportunities",
-        category="seo"
+        category="seo",
     ),
     ResearchTool(
         name="competitive_analysis",
@@ -79,7 +83,7 @@ RESEARCH_TOOLS = [
         price=500.0,
         status="available",
         description="Research competitors and identify positioning gaps",
-        category="seo"
+        category="seo",
     ),
     ResearchTool(
         name="content_gap_analysis",
@@ -87,9 +91,8 @@ RESEARCH_TOOLS = [
         price=500.0,
         status="available",
         description="Identify content opportunities competitors are missing",
-        category="seo"
+        category="seo",
     ),
-
     # Market Intelligence Tools ($400 Total)
     ResearchTool(
         name="market_trends_research",
@@ -97,9 +100,8 @@ RESEARCH_TOOLS = [
         price=400.0,
         status="available",
         description="Discover trending topics and emerging opportunities",
-        category="market"
+        category="market",
     ),
-
     # Strategy & Planning Tools
     ResearchTool(
         name="content_audit",
@@ -107,7 +109,7 @@ RESEARCH_TOOLS = [
         price=400.0,
         status="available",
         description="Analyze existing content performance and opportunities",
-        category="strategy"
+        category="strategy",
     ),
     ResearchTool(
         name="platform_strategy",
@@ -115,7 +117,7 @@ RESEARCH_TOOLS = [
         price=300.0,
         status="available",
         description="Recommend optimal platform mix for distribution",
-        category="strategy"
+        category="strategy",
     ),
     ResearchTool(
         name="content_calendar",
@@ -123,7 +125,7 @@ RESEARCH_TOOLS = [
         price=300.0,
         status="available",
         description="Create strategic 90-day content calendar",
-        category="strategy"
+        category="strategy",
     ),
     ResearchTool(
         name="audience_research",
@@ -131,9 +133,8 @@ RESEARCH_TOOLS = [
         price=500.0,
         status="available",
         description="Deep-dive into target audience demographics and psychographics",
-        category="strategy"
+        category="strategy",
     ),
-
     # Workshop Assistants
     ResearchTool(
         name="icp_workshop",
@@ -141,7 +142,7 @@ RESEARCH_TOOLS = [
         price=600.0,
         status="available",
         description="Facilitate ideal customer profile definition through guided conversation",
-        category="workshop"
+        category="workshop",
     ),
     ResearchTool(
         name="story_mining",
@@ -149,13 +150,15 @@ RESEARCH_TOOLS = [
         price=500.0,
         status="available",
         description="Extract customer success stories and case study material",
-        category="workshop"
+        category="workshop",
     ),
 ]
 
 
 @router.get("/tools", response_model=List[ResearchTool])
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def list_research_tools(
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -164,12 +167,16 @@ async def list_research_tools(
     Returns metadata for all 12 research tools:
     - 7 implemented and available
     - 5 coming soon
+
+    Rate limit: 1000/hour (cheap read operation)
     """
     return RESEARCH_TOOLS
 
 
 @router.post("/run", response_model=ResearchRunResult)
+@strict_limiter.limit("5/hour")  # TR-004: Expensive operation ($400-600/call), prevent abuse
 async def run_research(
+    request: Request,
     input: RunResearchInput,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -184,21 +191,25 @@ async def run_research(
     - Competitive Analysis
     - Content Gap Analysis
     - Market Trends Research
+
+    Rate limit: 5/hour per IP+user (prevents abuse of expensive AI operations)
+
+    SECURITY (TR-020): Prompt injection defense is handled by the research tool base class
+    (src.research.base.ResearchTool) via the validate_inputs() method called in execute().
+    Each research tool validates inputs before passing them to LLM prompts.
     """
     # Verify project exists
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
         )
 
     # Verify client exists
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Client {input.client_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Client {input.client_id} not found"
         )
 
     # Validate client has sufficient data for research
@@ -227,7 +238,7 @@ async def run_research(
             if len(business_desc) < min_length:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Client profile incomplete: {input.tool} requires a business description of at least {min_length} characters. Please complete the client profile in the wizard before running research."
+                    detail=f"Client profile incomplete: {input.tool} requires a business description of at least {min_length} characters. Please complete the client profile in the wizard before running research.",
                 )
 
         # Check target_audience
@@ -236,7 +247,7 @@ async def run_research(
             if len(ideal_customer) < min_length:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Client profile incomplete: {input.tool} requires a target audience description of at least {min_length} characters. Please complete the client profile in the wizard before running research."
+                    detail=f"Client profile incomplete: {input.tool} requires a target audience description of at least {min_length} characters. Please complete the client profile in the wizard before running research.",
                 )
 
         # Check content_samples (for voice_analysis)
@@ -247,28 +258,27 @@ async def run_research(
             if not isinstance(samples, list):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{input.tool} requires content_samples as a list. Please provide {min_samples}-30 writing samples."
+                    detail=f"{input.tool} requires content_samples as a list. Please provide {min_samples}-30 writing samples.",
                 )
 
             if len(samples) < min_samples:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{input.tool} requires at least {min_samples} content samples. Please provide {min_samples}-30 samples of the client's existing writing (minimum 50 characters each)."
+                    detail=f"{input.tool} requires at least {min_samples} content samples. Please provide {min_samples}-30 samples of the client's existing writing (minimum 50 characters each).",
                 )
 
     # Find the tool
     tool = next((t for t in RESEARCH_TOOLS if t.name == input.tool), None)
     if not tool:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Research tool '{input.tool}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Research tool '{input.tool}' not found"
         )
 
     # Check if tool is available
     if tool.status == "coming_soon":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Research tool '{input.tool}' is not yet available"
+            detail=f"Research tool '{input.tool}' is not yet available",
         )
 
     logger.info(f"Executing research tool '{input.tool}' for project {input.project_id}")
@@ -286,7 +296,7 @@ async def run_research(
         if not result["success"]:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Research tool execution failed: {result.get('error', 'Unknown error')}"
+                detail=f"Research tool execution failed: {result.get('error', 'Unknown error')}",
             )
 
         # Return result in expected format
@@ -298,17 +308,14 @@ async def run_research(
                 "price": tool.price,
                 "project_id": input.project_id,
                 "client_id": input.client_id,
-            }
+            },
         )
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Research execution failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Research execution failed: {str(e)}"
+            detail=f"Research execution failed: {str(e)}",
         )

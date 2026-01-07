@@ -9,17 +9,34 @@ This is the backend API for the Operator Dashboard, providing:
 - Server-Sent Events for progress updates
 - Static file serving for React frontend (eliminates CORS)
 """
+
 import os
 import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from backend.routers import assistant, auth, briefs, clients, database, deliverables, generator, health, posts, pricing, projects, research, runs
+from backend.utils.http_rate_limiter import strict_limiter, standard_limiter, lenient_limiter
+from backend.routers import (
+    admin_users,
+    assistant,
+    auth,
+    briefs,
+    clients,
+    database,
+    deliverables,
+    generator,
+    health,
+    posts,
+    pricing,
+    projects,
+    research,
+    runs,
+)
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -28,7 +45,7 @@ import backend.models  # noqa: F401
 from backend.config import settings
 from backend.database import init_db
 from backend.utils.rate_limiter import rate_limiter
-from backend.utils.http_rate_limiter import limiter, rate_limit_exceeded_handler
+from backend.utils.http_rate_limiter import limiter
 
 
 @asynccontextmanager
@@ -47,25 +64,26 @@ async def lifespan(app: FastAPI):
 
     # Log database connection info
     from backend.database import engine
+
     db_url = str(engine.url)
 
     # Debug: Show DATABASE_URL from settings (helps diagnose Render env var issues)
-    import os
+
     raw_db_url = os.getenv("DATABASE_URL", "NOT_SET")
     if raw_db_url != "NOT_SET" and "@" in raw_db_url:
         # Mask password for security
-        raw_db_display = raw_db_url.split('@')[0].split(':')[0] + ":***@" + raw_db_url.split('@')[1]
+        raw_db_display = raw_db_url.split("@")[0].split(":")[0] + ":***@" + raw_db_url.split("@")[1]
     else:
         raw_db_display = raw_db_url[:50] if raw_db_url != "NOT_SET" else "NOT_SET"
     print(f">> DEBUG: DATABASE_URL env var = '{raw_db_display}'")
     print(f">> DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL[:80]}...'")
 
     # Mask password in URL for security
-    if '@' in db_url:
-        db_display = db_url.split('@')[1] if '@' in db_url else db_url
+    if "@" in db_url:
+        db_display = db_url.split("@")[1] if "@" in db_url else db_url
         print(f">> Database: PostgreSQL ({db_display})")
     else:
-        print(f">> Database: SQLite (local)")
+        print(">> Database: SQLite (local)")
 
     # Initialize database
     init_db()
@@ -90,7 +108,7 @@ async def lifespan(app: FastAPI):
                 {
                     "email": "michele.vanhy@gmail.com",
                     "full_name": "Secondary User",
-                }
+                },
             ]
 
             # SECURITY FIX: Use environment variable for default password (TR-018)
@@ -113,7 +131,7 @@ async def lifespan(app: FastAPI):
                     email=user_data["email"],
                     hashed_password=get_password_hash(default_password),
                     full_name=user_data["full_name"],
-                    is_active=True
+                    is_active=True,
                 )
                 db.add(user)
 
@@ -138,8 +156,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add rate limiter to app state
-app.state.limiter = limiter
+# Add rate limiters to app state (TR-004: Multiple tiers for different operation costs)
+app.state.limiter = limiter  # Default limiter
+app.state.strict_limiter = strict_limiter  # For expensive operations (research, generation)
+app.state.standard_limiter = standard_limiter  # For normal operations (projects, clients)
+app.state.lenient_limiter = lenient_limiter  # For cheap operations (posts, health)
+
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
@@ -397,6 +419,7 @@ else:
 # Include API routers
 # These MUST be registered before any catch-all routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - User Management"])
 app.include_router(health.router, prefix="/api", tags=["Health & Monitoring"])
 app.include_router(clients.router, prefix="/api/clients", tags=["Clients"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])

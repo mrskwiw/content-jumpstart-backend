@@ -5,14 +5,25 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.models.user import User
-from backend.database import SessionLocal
+from backend.database import get_db
 from backend.utils.auth import create_access_token
 
 
 @pytest.fixture
-def client():
-    """Create test client"""
-    return TestClient(app)
+def client(db_session):
+    """Create test client with overridden database"""
+
+    # Override the get_db dependency to use test database
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass  # Don't close session here, conftest handles it
+
+    app.dependency_overrides[get_db] = override_get_db
+    test_client = TestClient(app)
+    yield test_client
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -53,8 +64,9 @@ def test_chat_endpoint_requires_auth(client):
     assert response.status_code == 401
 
 
-def test_chat_basic(client, auth_headers):
+def test_chat_basic(client, auth_headers, test_user):
     """Test basic chat functionality"""
+    # test_user fixture ensures user exists in database
     response = client.post(
         "/api/assistant/chat",
         headers=auth_headers,
@@ -77,8 +89,9 @@ def test_chat_basic(client, auth_headers):
         print(f"[OK] Chat response: {data['message'][:100]}...")
 
 
-def test_chat_with_page_context(client, auth_headers):
+def test_chat_with_page_context(client, auth_headers, test_user):
     """Test chat with different page contexts"""
+    # test_user fixture ensures user exists in database
     pages = ["wizard", "projects", "clients", "content-review", "overview"]
 
     for page in pages:
@@ -96,11 +109,15 @@ def test_chat_with_page_context(client, auth_headers):
         print(f"[OK] {page} context works")
 
 
-def test_chat_with_conversation_history(client, auth_headers):
+def test_chat_with_conversation_history(client, auth_headers, test_user):
     """Test chat with conversation history"""
+    # test_user fixture ensures user exists in database
     conversation = [
         {"role": "user", "content": "What is the wizard?"},
-        {"role": "assistant", "content": "The wizard helps you create client profiles and generate content."},
+        {
+            "role": "assistant",
+            "content": "The wizard helps you create client profiles and generate content.",
+        },
     ]
 
     response = client.post(
@@ -119,11 +136,12 @@ def test_chat_with_conversation_history(client, auth_headers):
         data = response.json()
         # Response should be contextual to previous conversation
         assert "message" in data
-        print(f"[OK] Conversation history maintained")
+        print("[OK] Conversation history maintained")
 
 
-def test_context_suggestions(client, auth_headers):
+def test_context_suggestions(client, auth_headers, test_user):
     """Test context-aware suggestions"""
+    # test_user fixture ensures user exists in database
     response = client.post(
         "/api/assistant/context",
         headers=auth_headers,
@@ -144,9 +162,18 @@ def test_context_suggestions(client, auth_headers):
     print(f"[OK] Wizard suggestions: {data['suggestions']}")
 
 
-def test_context_suggestions_all_pages(client, auth_headers):
+def test_context_suggestions_all_pages(client, auth_headers, test_user):
     """Test suggestions for all pages"""
-    pages = ["wizard", "projects", "clients", "content-review", "deliverables", "settings", "overview"]
+    # test_user fixture ensures user exists in database
+    pages = [
+        "wizard",
+        "projects",
+        "clients",
+        "content-review",
+        "deliverables",
+        "settings",
+        "overview",
+    ]
 
     for page in pages:
         response = client.post(
@@ -161,8 +188,9 @@ def test_context_suggestions_all_pages(client, auth_headers):
         print(f"[OK] {page}: {len(data['suggestions'])} suggestions")
 
 
-def test_reset_conversation(client, auth_headers):
+def test_reset_conversation(client, auth_headers, test_user):
     """Test conversation reset"""
+    # test_user fixture ensures user exists in database
     response = client.post(
         "/api/assistant/reset",
         headers=auth_headers,
@@ -175,8 +203,9 @@ def test_reset_conversation(client, auth_headers):
     print("[OK] Conversation reset works")
 
 
-def test_chat_error_handling(client, auth_headers):
+def test_chat_error_handling(client, auth_headers, test_user):
     """Test error handling with invalid input"""
+    # test_user fixture ensures user exists in database
     # Missing message field
     response = client.post(
         "/api/assistant/chat",
@@ -194,7 +223,15 @@ def test_page_specific_prompts():
     """Test that each page has a specific system prompt"""
     from backend.routers.assistant import PAGE_CONTEXTS
 
-    expected_pages = ["wizard", "projects", "clients", "content-review", "deliverables", "settings", "overview"]
+    expected_pages = [
+        "wizard",
+        "projects",
+        "clients",
+        "content-review",
+        "deliverables",
+        "settings",
+        "overview",
+    ]
 
     for page in expected_pages:
         assert page in PAGE_CONTEXTS, f"Missing prompt for {page}"

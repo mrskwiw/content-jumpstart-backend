@@ -20,10 +20,16 @@ from src.models.content_calendar_models import (
 )
 from src.research.base import ResearchTool
 from src.utils.anthropic_client import get_default_client
+from src.validators.research_input_validator import ResearchInputValidator
 
 
 class ContentCalendarStrategist(ResearchTool):
     """Generate strategic 90-day content calendar"""
+
+    def __init__(self, project_id: str, config: Dict[str, Any] = None):
+        """Initialize Content Calendar Strategist with input validator"""
+        super().__init__(project_id, config)
+        self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
     def tool_name(self) -> str:
@@ -34,15 +40,94 @@ class ContentCalendarStrategist(ResearchTool):
         return 300
 
     def validate_inputs(self, inputs: Dict[str, Any]) -> bool:
-        """Validate required inputs"""
-        required = ["business_description", "target_audience"]
+        """
+        Validate required inputs with comprehensive security checks
 
-        for field in required:
-            if field not in inputs:
-                raise ValueError(f"Missing required input: {field}")
+        Security improvements:
+        - Max length validation (prevent DOS)
+        - Prompt injection sanitization
+        - Type validation
+        - Field presence checks
+        """
+        # SECURITY: Validate business description with sanitization
+        inputs["business_description"] = self.validator.validate_text(
+            inputs.get("business_description"),
+            field_name="business_description",
+            min_length=50,
+            max_length=5000,
+            required=True,
+            sanitize=True,
+        )
 
-            if len(inputs[field].strip()) < 20:
-                raise ValueError(f"{field} is too short (min 20 characters)")
+        # SECURITY: Validate target audience with sanitization
+        inputs["target_audience"] = self.validator.validate_text(
+            inputs.get("target_audience"),
+            field_name="target_audience",
+            min_length=20,
+            max_length=2000,
+            required=True,
+            sanitize=True,
+        )
+
+        # SECURITY: Validate optional business name
+        if "business_name" in inputs and inputs["business_name"]:
+            inputs["business_name"] = self.validator.validate_text(
+                inputs.get("business_name"),
+                field_name="business_name",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional industry
+        if "industry" in inputs and inputs["industry"]:
+            inputs["industry"] = self.validator.validate_text(
+                inputs.get("industry"),
+                field_name="industry",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional content goals
+        if "content_goals" in inputs and inputs["content_goals"]:
+            inputs["content_goals"] = self.validator.validate_text(
+                inputs.get("content_goals"),
+                field_name="content_goals",
+                min_length=10,
+                max_length=1000,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional primary platforms list
+        if "primary_platforms" in inputs and inputs["primary_platforms"]:
+            inputs["primary_platforms"] = self.validator.validate_list(
+                inputs.get("primary_platforms"),
+                field_name="primary_platforms",
+                max_items=10,
+                item_validator=lambda x: self.validator.validate_text(
+                    x,
+                    field_name="platform_name",
+                    min_length=2,
+                    max_length=100,
+                    required=False,
+                    sanitize=True,
+                ),
+            )
+
+        # SECURITY: Validate optional start date
+        if "start_date" in inputs and inputs["start_date"]:
+            inputs["start_date"] = self.validator.validate_text(
+                inputs.get("start_date"),
+                field_name="start_date",
+                min_length=8,
+                max_length=20,
+                required=False,
+                sanitize=True,
+            )
 
         return True
 

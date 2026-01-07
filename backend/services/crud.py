@@ -1,6 +1,7 @@
 """
 CRUD operations for database models.
 """
+
 import base64
 import json
 import uuid
@@ -24,13 +25,10 @@ def encode_cursor(created_at: datetime, id: str) -> str:
 
     Uses base64 encoding of JSON to create opaque cursor string.
     """
-    cursor_data = {
-        "created_at": created_at.isoformat(),
-        "id": id
-    }
+    cursor_data = {"created_at": created_at.isoformat(), "id": id}
     cursor_json = json.dumps(cursor_data)
-    cursor_bytes = cursor_json.encode('utf-8')
-    return base64.b64encode(cursor_bytes).decode('utf-8')
+    cursor_bytes = cursor_json.encode("utf-8")
+    return base64.b64encode(cursor_bytes).decode("utf-8")
 
 
 def decode_cursor(cursor: str) -> Tuple[datetime, str]:
@@ -39,11 +37,12 @@ def decode_cursor(cursor: str) -> Tuple[datetime, str]:
 
     Returns: (created_at, id) tuple
     """
-    cursor_bytes = base64.b64decode(cursor.encode('utf-8'))
-    cursor_json = cursor_bytes.decode('utf-8')
+    cursor_bytes = base64.b64decode(cursor.encode("utf-8"))
+    cursor_json = cursor_bytes.decode("utf-8")
     cursor_data = json.loads(cursor_json)
     created_at = datetime.fromisoformat(cursor_data["created_at"])
     return created_at, cursor_data["id"]
+
 
 # ==================== Projects ====================
 
@@ -63,7 +62,9 @@ def get_project(db: Session, project_id: str) -> Optional[Project]:
         db.query(Project)
         .options(
             joinedload(Project.client),
-            joinedload(Project.brief),  # FIXED: Added missing brief eager loading (fixes session error in generation task)
+            joinedload(
+                Project.brief
+            ),  # FIXED: Added missing brief eager loading (fixes session error in generation task)
             joinedload(Project.posts),
             joinedload(Project.deliverables),
             joinedload(Project.runs),
@@ -154,10 +155,7 @@ def get_projects_cursor(
         query = query.filter(
             or_(
                 Project.created_at < cursor_created_at,
-                and_(
-                    Project.created_at == cursor_created_at,
-                    Project.id < cursor_id
-                )
+                and_(Project.created_at == cursor_created_at, Project.id < cursor_id),
             )
         )
 
@@ -178,20 +176,23 @@ def get_projects_cursor(
         last_project = projects[-1]
         next_cursor = encode_cursor(last_project.created_at, last_project.id)
 
-    return {
-        "items": projects,
-        "next_cursor": next_cursor,
-        "has_more": has_more
-    }
+    return {"items": projects, "next_cursor": next_cursor, "has_more": has_more}
 
 
-def create_project(db: Session, project: ProjectCreate) -> Project:
+def create_project(db: Session, project: ProjectCreate, user_id: str) -> Project:
     """
     Create new project.
 
     Cache invalidation: Clears project and client caches
+
+    Args:
+        db: Database session
+        project: Project data
+        user_id: ID of user creating the project (TR-021: ownership)
     """
-    db_project = Project(id=f"proj-{uuid.uuid4().hex[:12]}", **project.model_dump())
+    project_data = project.model_dump()
+    project_data["user_id"] = user_id  # TR-021: Set owner
+    db_project = Project(id=f"proj-{uuid.uuid4().hex[:12]}", **project_data)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
@@ -261,10 +262,7 @@ def get_client(db: Session, client_id: str) -> Optional[Client]:
     Cache invalidation: On client create
     """
     return (
-        db.query(Client)
-        .options(joinedload(Client.projects))
-        .filter(Client.id == client_id)
-        .first()
+        db.query(Client).options(joinedload(Client.projects)).filter(Client.id == client_id).first()
     )
 
 
@@ -279,25 +277,26 @@ def get_clients(db: Session, skip: int = 0, limit: int = 100) -> List[Client]:
     Caching: Medium TTL (10 minutes) - clients change less frequently
     Cache invalidation: On client create
     """
-    return (
-        db.query(Client)
-        .options(joinedload(Client.projects))
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    return db.query(Client).options(joinedload(Client.projects)).offset(skip).limit(limit).all()
 
 
-def create_client(db: Session, client: ClientCreate) -> Client:
+def create_client(db: Session, client: ClientCreate, user_id: str) -> Client:
     """
     Create new client.
 
     Cache invalidation: Clears client caches
+
+    Args:
+        db: Database session
+        client: Client data
+        user_id: ID of user creating the client (TR-021: ownership)
     """
     client_id = f"client-{uuid.uuid4().hex[:12]}"
     print(f"📝 Creating client: {client_id} ({client.name})")
 
-    db_client = Client(id=client_id, **client.model_dump())
+    client_data = client.model_dump()
+    client_data["user_id"] = user_id  # TR-021: Set owner
+    db_client = Client(id=client_id, **client_data)
     db.add(db_client)
 
     try:
@@ -318,9 +317,7 @@ def create_client(db: Session, client: ClientCreate) -> Client:
     return db_client
 
 
-def update_client(
-    db: Session, client_id: str, client_update: ClientUpdate
-) -> Optional[Client]:
+def update_client(db: Session, client_id: str, client_update: ClientUpdate) -> Optional[Client]:
     """
     Update client.
 
@@ -373,10 +370,7 @@ def get_post(db: Session, post_id: str) -> Optional[Post]:
     """
     return (
         db.query(Post)
-        .options(
-            joinedload(Post.project),
-            joinedload(Post.run)
-        )
+        .options(joinedload(Post.project), joinedload(Post.run))
         .filter(Post.id == post_id)
         .first()
     )
@@ -410,10 +404,7 @@ def get_posts(
     Cache invalidation: On post creation (via generator)
     """
     # Eager load relationships to prevent N+1 queries
-    query = db.query(Post).options(
-        joinedload(Post.project),
-        joinedload(Post.run)
-    )
+    query = db.query(Post).options(joinedload(Post.project), joinedload(Post.run))
 
     # Basic filters
     if project_id:
@@ -444,9 +435,8 @@ def get_posts(
         else:
             # Posts without flags (flags is null or empty array)
             from sqlalchemy import or_
-            query = query.filter(
-                or_(Post.flags.is_(None), Post.flags == [])
-            )
+
+            query = query.filter(or_(Post.flags.is_(None), Post.flags == []))
 
     # Text search in content
     if search:
@@ -498,10 +488,7 @@ def get_posts_cursor(
         }
     """
     # Eager load relationships
-    query = db.query(Post).options(
-        joinedload(Post.project),
-        joinedload(Post.run)
-    )
+    query = db.query(Post).options(joinedload(Post.project), joinedload(Post.run))
 
     # Apply filters
     if project_id:
@@ -519,10 +506,7 @@ def get_posts_cursor(
         query = query.filter(
             or_(
                 Post.created_at < cursor_created_at,
-                and_(
-                    Post.created_at == cursor_created_at,
-                    Post.id < cursor_id
-                )
+                and_(Post.created_at == cursor_created_at, Post.id < cursor_id),
             )
         )
 
@@ -543,11 +527,7 @@ def get_posts_cursor(
         last_post = posts[-1]
         next_cursor = encode_cursor(last_post.created_at, last_post.id)
 
-    return {
-        "items": posts,
-        "next_cursor": next_cursor,
-        "has_more": has_more
-    }
+    return {"items": posts, "next_cursor": next_cursor, "has_more": has_more}
 
 
 # ==================== Deliverables ====================
@@ -562,10 +542,7 @@ def get_deliverable(db: Session, deliverable_id: str) -> Optional[Deliverable]:
     """
     return (
         db.query(Deliverable)
-        .options(
-            joinedload(Deliverable.project),
-            joinedload(Deliverable.client)
-        )
+        .options(joinedload(Deliverable.project), joinedload(Deliverable.client))
         .filter(Deliverable.id == deliverable_id)
         .first()
     )
@@ -585,8 +562,7 @@ def get_deliverables(
     """
     # Eager load relationships
     query = db.query(Deliverable).options(
-        joinedload(Deliverable.project),
-        joinedload(Deliverable.client)
+        joinedload(Deliverable.project), joinedload(Deliverable.client)
     )
 
     if status:
@@ -629,12 +605,7 @@ def get_brief(db: Session, brief_id: str) -> Optional[Brief]:
     Performance: Uses eager loading for project relationship
     to prevent N+1 query problem.
     """
-    return (
-        db.query(Brief)
-        .options(joinedload(Brief.project))
-        .filter(Brief.id == brief_id)
-        .first()
-    )
+    return db.query(Brief).options(joinedload(Brief.project)).filter(Brief.id == brief_id).first()
 
 
 def get_brief_by_project(db: Session, project_id: str) -> Optional[Brief]:
@@ -680,12 +651,8 @@ def get_run(db: Session, run_id: str):
     to prevent N+1 query problem.
     """
     from models import Run
-    return (
-        db.query(Run)
-        .options(joinedload(Run.project))
-        .filter(Run.id == run_id)
-        .first()
-    )
+
+    return db.query(Run).options(joinedload(Run.project)).filter(Run.id == run_id).first()
 
 
 def get_runs(
@@ -717,6 +684,7 @@ def get_runs(
 def create_run(db: Session, project_id: str, is_batch: bool = False):
     """Create new run"""
     from models import Run
+
     db_run = Run(
         id=f"run-{uuid.uuid4().hex[:12]}",
         project_id=project_id,
@@ -731,7 +699,7 @@ def create_run(db: Session, project_id: str, is_batch: bool = False):
 
 def update_run(db: Session, run_id: str, **kwargs):
     """Update run"""
-    from models import Run
+
     db_run = get_run(db, run_id)
     if not db_run:
         return None
@@ -758,13 +726,39 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
     return db.query(User).filter(User.email == email).first()
 
 
-def create_user(db: Session, email: str, hashed_password: str, full_name: str) -> User:
-    """Create new user"""
+def create_user(
+    db: Session,
+    email: str,
+    hashed_password: str,
+    full_name: str,
+    is_active: bool = True,
+    is_superuser: bool = False,
+) -> User:
+    """
+    Create new user.
+
+    Args:
+        db: Database session
+        email: User email (validated)
+        hashed_password: Hashed password
+        full_name: User's full name
+        is_active: User active status (default: True for backward compatibility)
+        is_superuser: Admin status (default: False, TR-023: never allow self-promotion)
+
+    Returns:
+        Created User instance
+
+    Security (TR-023):
+        - is_superuser defaults to False and should never be True from registration
+        - is_active can be False to require admin activation
+    """
     db_user = User(
         id=f"user-{uuid.uuid4().hex[:12]}",
         email=email,
         hashed_password=hashed_password,
         full_name=full_name,
+        is_active=is_active,  # TR-023: Configurable activation status
+        is_superuser=is_superuser,  # TR-023: Explicit control, defaults to False
     )
     db.add(db_user)
     db.commit()

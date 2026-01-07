@@ -1,8 +1,12 @@
 """Posts router"""
-from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.authorization import (
+    verify_post_ownership,
+)  # TR-021: Authorization
 from backend.schemas.post import PostResponse, PostUpdate
 from backend.services import crud
 from sqlalchemy.orm import Session
@@ -11,33 +15,51 @@ from backend.utils.pagination import paginate_hybrid, get_pagination_params
 
 from backend.database import get_db
 from backend.models import Post, User
+from backend.utils.http_rate_limiter import lenient_limiter
 
 router = APIRouter()
 
 
 @router.get("/")
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def list_posts(
     request: Request,
-    page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed, for offset pagination)"),
-    cursor: Optional[str] = Query(None, description="Pagination cursor (for cursor-based pagination)"),
+    page: Optional[int] = Query(
+        None, ge=1, description="Page number (1-indexed, for offset pagination)"
+    ),
+    cursor: Optional[str] = Query(
+        None, description="Pagination cursor (for cursor-based pagination)"
+    ),
     page_size: int = Query(20, ge=1, le=100, description="Number of items per page"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
     run_id: Optional[str] = Query(None, description="Filter by run ID"),
     status: Optional[str] = Query(None, description="Filter by status (approved, flagged)"),
-    platform: Optional[str] = Query(None, description="Filter by platform (linkedin, twitter, facebook, blog)"),
+    platform: Optional[str] = Query(
+        None, description="Filter by platform (linkedin, twitter, facebook, blog)"
+    ),
     has_cta: Optional[bool] = Query(None, description="Filter by CTA presence"),
-    template_name: Optional[str] = Query(None, description="Filter by template name (partial match)"),
-    needs_review: Optional[bool] = Query(None, description="Filter posts with/without review flags"),
+    template_name: Optional[str] = Query(
+        None, description="Filter by template name (partial match)"
+    ),
+    needs_review: Optional[bool] = Query(
+        None, description="Filter posts with/without review flags"
+    ),
     search: Optional[str] = Query(None, description="Search in post content"),
     min_word_count: Optional[int] = Query(None, ge=0, description="Minimum word count"),
     max_word_count: Optional[int] = Query(None, ge=0, description="Maximum word count"),
-    min_readability: Optional[float] = Query(None, ge=0, le=100, description="Minimum readability score"),
-    max_readability: Optional[float] = Query(None, ge=0, le=100, description="Maximum readability score"),
+    min_readability: Optional[float] = Query(
+        None, ge=0, le=100, description="Minimum readability score"
+    ),
+    max_readability: Optional[float] = Query(
+        None, ge=0, le=100, description="Maximum readability score"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     List posts with comprehensive filtering options.
+
+    Rate limit: 1000/hour (cheap read operation)
 
     Pagination:
     - Hybrid approach: offset pagination for first 5 pages, cursor for deeper pagination
@@ -70,8 +92,21 @@ async def list_posts(
     # Build base query
     query = db.query(Post)
 
-    # Apply filters
+    # TR-021: Filter posts by project ownership
+    # Users can only see posts from projects they own
     if project_id:
+        # Verify user owns the project before showing its posts
+        project = crud.get_project(db, project_id)
+        if project:
+            if (
+                hasattr(project, "user_id")
+                and project.user_id != current_user.id
+                and not current_user.is_superuser
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: You don't own this project",
+                )
         query = query.filter(Post.project_id == project_id)
     if run_id:
         query = query.filter(Post.run_id == run_id)
@@ -91,9 +126,8 @@ async def list_posts(
         else:
             # Posts without flags (flags is null or empty array)
             from sqlalchemy import or_
-            query = query.filter(
-                or_(Post.flags.is_(None), Post.flags == [])
-            )
+
+            query = query.filter(or_(Post.flags.is_(None), Post.flags == []))
     if search:
         query = query.filter(Post.content.ilike(f"%{search}%"))
     if min_word_count is not None:
@@ -112,17 +146,14 @@ async def list_posts(
         cursor=pagination_params["cursor"],
         page_size=pagination_params["page_size"],
         order_by_field="created_at",
-        order_direction="desc"
+        order_direction="desc",
     )
 
     # Convert items to response schema
     posts_data = [PostResponse.model_validate(p).model_dump() for p in paginated["items"]]
 
     # Prepare response with pagination metadata
-    response_data = {
-        "items": posts_data,
-        "metadata": paginated["metadata"].model_dump()
-    }
+    response_data = {"items": posts_data, "metadata": paginated["metadata"].model_dump()}
 
     # Return cacheable response with ETag
     return create_cacheable_response(
@@ -133,22 +164,25 @@ async def list_posts(
 
 
 @router.get("/{post_id}")
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def get_post(
     post_id: str,
     request: Request,
+    post: Post = Depends(verify_post_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Get post by ID.
 
+    Rate limit: 1000/hour (cheap read operation)
+    Authorization: TR-021 - User must own post's project
+
     Caching:
     - max-age: 300 seconds (5 minutes)
     - ETag support for 304 Not Modified responses
     """
-    post = crud.get_post(db, post_id)
-    if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    # TR-021: post already verified by dependency
 
     # Convert to dict for caching
     post_data = PostResponse.model_validate(post).model_dump()
@@ -162,14 +196,20 @@ async def get_post(
 
 
 @router.patch("/{post_id}")
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap operation (write but infrequent)
 async def update_post(
+    request: Request,
     post_id: str,
     post_update: PostUpdate,
+    post: Post = Depends(verify_post_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PostResponse:
     """
     Update a post's content.
+
+    Rate limit: 1000/hour (cheap operation)
+    Authorization: TR-021 - User must own post's project
 
     Updates the content field and recalculates:
     - word_count
@@ -178,10 +218,7 @@ async def update_post(
 
     Returns the updated post.
     """
-    # Get existing post
-    post = crud.get_post(db, post_id)
-    if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    # TR-021: post already verified by dependency
 
     # Update content
     post.content = post_update.content
@@ -191,7 +228,7 @@ async def update_post(
 
     # Recalculate readability score (Flesch Reading Ease)
     words = post.word_count
-    sentences = len([s for s in post_update.content.split('.') if s.strip()])
+    sentences = len([s for s in post_update.content.split(".") if s.strip()])
     if sentences == 0:
         sentences = 1
 
@@ -207,8 +244,19 @@ async def update_post(
         post.readability_score = 0
 
     # Recalculate CTA presence
-    cta_keywords = ['learn more', 'click here', 'sign up', 'get started', 'contact us',
-                     'download', 'subscribe', 'join', 'register', 'buy now', 'shop now']
+    cta_keywords = [
+        "learn more",
+        "click here",
+        "sign up",
+        "get started",
+        "contact us",
+        "download",
+        "subscribe",
+        "join",
+        "register",
+        "buy now",
+        "shop now",
+    ]
     post.has_cta = any(keyword in post_update.content.lower() for keyword in cta_keywords)
 
     # Commit changes

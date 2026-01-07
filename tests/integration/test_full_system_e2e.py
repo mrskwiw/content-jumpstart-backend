@@ -1,12 +1,22 @@
 """
 Comprehensive End-to-End System Integration Test
 Tests all systems from user perspective with edge cases
+
+IMPORTANT: These tests require a running server at http://localhost:8000
+Run the server first:
+    uvicorn backend.main:app --reload --port 8000
+
+These tests use real HTTP connections (not in-process TestClient) to test
+the full system including middleware, security headers, and network behavior.
+
+To run these tests:
+    pytest tests/integration/test_full_system_e2e.py -m "not requires_server"  # Skip these
+    pytest tests/integration/test_full_system_e2e.py  # Run with server running
 """
 
+import os
 import pytest
-import asyncio
 import httpx
-import time
 from pathlib import Path
 import sys
 
@@ -19,10 +29,15 @@ API_BASE = "http://localhost:8000"
 API_TIMEOUT = 30.0
 
 # Test user credentials
+# SECURITY NOTE: Password now comes from DEFAULT_USER_PASSWORD environment variable
+# If not set, backend generates random password on startup
 TEST_USER = {
     "email": "mrskwiw@gmail.com",
-    "password": "Random!1Pass"
+    "password": os.getenv("DEFAULT_USER_PASSWORD", "Random!1Pass"),  # Fallback for local dev
 }
+
+# Pytest marker for tests requiring running server
+pytestmark = pytest.mark.requires_server
 
 
 async def get_auth_token():
@@ -51,29 +66,27 @@ class TestAuthenticationFlow:
     async def test_login_invalid_password(self):
         """Test login with wrong password"""
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as http_client:
-            response = await http_client.post("/api/auth/login", json={
-                "email": TEST_USER["email"],
-                "password": "WrongPassword123!"
-            })
+            response = await http_client.post(
+                "/api/auth/login",
+                json={"email": TEST_USER["email"], "password": "WrongPassword123!"},
+            )
             assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_login_nonexistent_user(self):
         """Test login with non-existent user"""
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as http_client:
-            response = await http_client.post("/api/auth/login", json={
-                "email": "nonexistent@example.com",
-                "password": "SomePassword123!"
-            })
+            response = await http_client.post(
+                "/api/auth/login",
+                json={"email": "nonexistent@example.com", "password": "SomePassword123!"},
+            )
             assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_login_missing_fields(self):
         """Test login with missing fields"""
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as http_client:
-            response = await http_client.post("/api/auth/login", json={
-                "email": TEST_USER["email"]
-            })
+            response = await http_client.post("/api/auth/login", json={"email": TEST_USER["email"]})
             assert response.status_code == 422  # Validation error
 
     @pytest.mark.asyncio
@@ -101,7 +114,7 @@ class TestClientManagement:
                 "company": "Test Company Inc",
                 "industry": "Technology",
                 "website": "https://testcompany.com",
-                "notes": "Full integration test client"
+                "notes": "Full integration test client",
             }
             response = await client.post("/api/clients/", json=client_data)
             assert response.status_code == 201  # 201 Created for POST
@@ -117,10 +130,7 @@ class TestClientManagement:
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as client:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
-            client_data = {
-                "name": "E2E Test Client Minimal",
-                "email": "e2e.minimal@testclient.com"
-            }
+            client_data = {"name": "E2E Test Client Minimal", "email": "e2e.minimal@testclient.com"}
             response = await client.post("/api/clients/", json=client_data)
             assert response.status_code == 201  # 201 Created for POST
             data = response.json()
@@ -133,10 +143,7 @@ class TestClientManagement:
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as client:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
-            client_data = {
-                "name": "Duplicate Test",
-                "email": "duplicate@testclient.com"
-            }
+            client_data = {"name": "Duplicate Test", "email": "duplicate@testclient.com"}
             # First creation
             await client.post("/api/clients/", json=client_data)
             # Second creation with same email - should handle gracefully
@@ -164,10 +171,7 @@ class TestClientManagement:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create a client first
-            client_data = {
-                "name": "Get Test Client",
-                "email": "get.test@client.com"
-            }
+            client_data = {"name": "Get Test Client", "email": "get.test@client.com"}
             create_response = await client.post("/api/clients/", json=client_data)
             client_id = create_response.json()["id"]
 
@@ -196,18 +200,12 @@ class TestClientManagement:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create client
-            client_data = {
-                "name": "Update Test Client",
-                "email": "update.test@client.com"
-            }
+            client_data = {"name": "Update Test Client", "email": "update.test@client.com"}
             create_response = await client.post("/api/clients/", json=client_data)
             client_id = create_response.json()["id"]
 
             # Update it using PATCH (backend uses PATCH, not PUT)
-            update_data = {
-                "name": "Updated Client Name",
-                "company": "New Company"
-            }
+            update_data = {"name": "Updated Client Name", "company": "New Company"}
             response = await client.patch(f"/api/clients/{client_id}", json=update_data)
             assert response.status_code == 200
             data = response.json()
@@ -226,10 +224,7 @@ class TestProjectManagement:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create test client
-            client_data = {
-                "name": "Project Test Client",
-                "email": "project.test@client.com"
-            }
+            client_data = {"name": "Project Test Client", "email": "project.test@client.com"}
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
@@ -240,7 +235,7 @@ class TestProjectManagement:
                 "description": "Full integration test project",
                 "target_platforms": ["linkedin", "twitter"],
                 "num_posts": 30,
-                "status": "in_progress"
+                "status": "in_progress",
             }
             response = await client.post("/api/projects/", json=project_data)
             assert response.status_code == 201  # 201 Created for POST
@@ -259,16 +254,13 @@ class TestProjectManagement:
             # Create test client
             client_data = {
                 "name": "Minimal Project Test Client",
-                "email": "minimal.project@client.com"
+                "email": "minimal.project@client.com",
             }
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
             # Create project
-            project_data = {
-                "name": "E2E Minimal Project",
-                "client_id": test_client_id
-            }
+            project_data = {"name": "E2E Minimal Project", "client_id": test_client_id}
             response = await client.post("/api/projects/", json=project_data)
             assert response.status_code == 201  # 201 Created for POST
             data = response.json()
@@ -281,10 +273,7 @@ class TestProjectManagement:
         async with httpx.AsyncClient(base_url=API_BASE, timeout=API_TIMEOUT) as client:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
-            project_data = {
-                "name": "Invalid Client Project",
-                "client_id": 99999
-            }
+            project_data = {"name": "Invalid Client Project", "client_id": 99999}
             response = await client.post("/api/projects/", json=project_data)
             assert response.status_code in [400, 404, 422]
 
@@ -311,18 +300,12 @@ class TestProjectManagement:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create test client
-            client_data = {
-                "name": "Get Project Test Client",
-                "email": "get.project@client.com"
-            }
+            client_data = {"name": "Get Project Test Client", "email": "get.project@client.com"}
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
             # Create project
-            project_data = {
-                "name": "Get Test Project",
-                "client_id": test_client_id
-            }
+            project_data = {"name": "Get Test Project", "client_id": test_client_id}
             create_response = await client.post("/api/projects/", json=project_data)
             project_id = create_response.json()["id"]
 
@@ -340,10 +323,7 @@ class TestProjectManagement:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create test client
-            client_data = {
-                "name": "Update Status Test Client",
-                "email": "update.status@client.com"
-            }
+            client_data = {"name": "Update Status Test Client", "email": "update.status@client.com"}
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
@@ -351,7 +331,7 @@ class TestProjectManagement:
             project_data = {
                 "name": "Status Update Project",
                 "client_id": test_client_id,
-                "status": "pending"
+                "status": "pending",
             }
             create_response = await client.post("/api/projects/", json=project_data)
             project_id = create_response.json()["id"]
@@ -375,17 +355,11 @@ class TestBriefProcessing:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create test client and project
-            client_data = {
-                "name": "Brief Test Client",
-                "email": "brief.test@client.com"
-            }
+            client_data = {"name": "Brief Test Client", "email": "brief.test@client.com"}
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
-            project_data = {
-                "name": "Brief Test Project",
-                "client_id": test_client_id
-            }
+            project_data = {"name": "Brief Test Project", "client_id": test_client_id}
             project_response = await client.post("/api/projects/", json=project_data)
             project_id = project_response.json()["id"]
 
@@ -396,10 +370,7 @@ Main Problem: Time management
 Solution: Automation software"""
 
             # Use /api/briefs/create endpoint which accepts JSON
-            brief_data = {
-                "project_id": project_id,
-                "content": brief_text
-            }
+            brief_data = {"project_id": project_id, "content": brief_text}
 
             response = await client.post("/api/briefs/create", json=brief_data)
             assert response.status_code in [200, 201]
@@ -416,10 +387,7 @@ class TestContentGeneration:
             client.headers.update({"Authorization": f"Bearer {token}"})
 
             # Create test client and project
-            client_data = {
-                "name": "Generation Test Client",
-                "email": "generation.test@client.com"
-            }
+            client_data = {"name": "Generation Test Client", "email": "generation.test@client.com"}
             client_response = await client.post("/api/clients/", json=client_data)
             test_client_id = client_response.json()["id"]
 
@@ -427,24 +395,24 @@ class TestContentGeneration:
                 "name": "Generation Test Project",
                 "client_id": test_client_id,
                 "target_platforms": ["linkedin"],
-                "num_posts": 5
+                "num_posts": 5,
             }
-            project_response = await client.post("/api/projects/", json=project_data)
-            project_id = project_response.json()["id"]
+            await client.post("/api/projects/", json=project_data)
+            # project_response = await client.post("/api/projects/", json=project_data)
+            # project_id = project_response.json()["id"]
 
             # Note: Template selection may be handled during project creation
             # or as part of the generation request, not as a separate endpoint
             # Testing the actual generation endpoint instead
 
-            generation_data = {
-                "project_id": project_id,
-                "client_id": test_client_id,
-                "is_batch": True
-            }
-
             # Generator endpoints exist but may take long time
             # Just verify endpoint is accessible
             # Note: Actual generation would timeout in tests
+            # generation_data = {
+            #     "project_id": project_id,
+            #     "client_id": test_client_id,
+            #     "is_batch": True,
+            # }
             # response = await client.post("/api/generator/generate-all", json=generation_data)
             # assert response.status_code in [200, 201]
 
@@ -472,7 +440,7 @@ class TestQAValidation:
 
             post_data = {
                 "content": "This is a test LinkedIn post about productivity. Are you struggling with time management? Here's a quick tip that changed my game.",
-                "platform": "linkedin"
+                "platform": "linkedin",
             }
 
             response = await client.post("/api/qa/validate-post", json=post_data)
@@ -497,9 +465,9 @@ class TestDeliverableExport:
 
 def print_test_summary():
     """Print test execution summary"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("INTEGRATION TEST SUITE COMPLETE")
-    print("="*70)
+    print("=" * 70)
     print("\nTest Coverage:")
     print("  ✓ Authentication (login, invalid credentials, protected endpoints)")
     print("  ✓ Client Management (CRUD operations, edge cases)")
@@ -508,13 +476,13 @@ def print_test_summary():
     print("  ✓ Content Generation (template selection, status)")
     print("  ✓ QA Validation (post validation)")
     print("  ✓ Deliverable Export (format support)")
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
 
 
 if __name__ == "__main__":
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("STARTING COMPREHENSIVE E2E INTEGRATION TEST")
-    print("="*70)
+    print("=" * 70)
     print("\nThis test suite covers:")
     print("  • Authentication flow with edge cases")
     print("  • Client CRUD operations")
@@ -523,7 +491,7 @@ if __name__ == "__main__":
     print("  • Content generation workflow")
     print("  • QA validation")
     print("  • Deliverable export")
-    print("\n" + "="*70 + "\n")
+    print("\n" + "=" * 70 + "\n")
 
     # Run pytest programmatically
     pytest.main([__file__, "-v", "--tb=short", "--color=yes"])

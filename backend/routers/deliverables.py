@@ -1,10 +1,12 @@
 """Deliverables router"""
+
 from typing import List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.authorization import verify_deliverable_ownership  # TR-021: Authorization
 from backend.schemas.deliverable import (
     DeliverableResponse,
     DeliverableDetailResponse,
@@ -15,13 +17,16 @@ from backend.services.deliverable_service import get_deliverable_details
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import User
+from backend.models import Deliverable, User
+from backend.utils.http_rate_limiter import standard_limiter
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[DeliverableResponse])
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def list_deliverables(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     status: Optional[str] = None,
@@ -29,58 +34,81 @@ async def list_deliverables(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List deliverables with optional filters"""
+    """
+    List deliverables with optional filters.
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    """
     return crud.get_deliverables(db, skip=skip, limit=limit, status=status, client_id=client_id)
 
 
 @router.get("/{deliverable_id}", response_model=DeliverableResponse)
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def get_deliverable(
+    request: Request,
     deliverable_id: str,
+    deliverable: Deliverable = Depends(verify_deliverable_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get deliverable by ID"""
-    deliverable = crud.get_deliverable(db, deliverable_id)
-    if not deliverable:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deliverable not found")
+    """
+    Get deliverable by ID.
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own deliverable's project
+    """
+    # TR-021: deliverable already verified by dependency
     return deliverable
 
 
 @router.patch("/{deliverable_id}/mark-delivered", response_model=DeliverableResponse)
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def mark_delivered(
+    request: Request,
     deliverable_id: str,
-    request: MarkDeliveredRequest,
+    mark_request: MarkDeliveredRequest,
+    deliverable: Deliverable = Depends(verify_deliverable_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Mark deliverable as delivered"""
-    deliverable = crud.mark_deliverable_delivered(
-        db, deliverable_id, request.delivered_at, request.proof_url, request.proof_notes
+    """
+    Mark deliverable as delivered.
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own deliverable's project
+    """
+    # TR-021: deliverable already verified by dependency
+    updated_deliverable = crud.mark_deliverable_delivered(
+        db,
+        deliverable_id,
+        mark_request.delivered_at,
+        mark_request.proof_url,
+        mark_request.proof_notes,
     )
-    if not deliverable:
+    if not updated_deliverable:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deliverable not found")
-    return deliverable
+    return updated_deliverable
 
 
 @router.get("/{deliverable_id}/download")
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def download_deliverable(
+    request: Request,
     deliverable_id: str,
+    deliverable: Deliverable = Depends(verify_deliverable_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Download deliverable file.
 
+    Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own deliverable's project
+
     Returns the file as an attachment with appropriate headers.
     Validates file existence and path security.
     """
-    # Get deliverable from database
-    deliverable = crud.get_deliverable(db, deliverable_id)
-    if not deliverable:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Deliverable not found"
-        )
+    # TR-021: deliverable already verified by dependency
 
     # Construct file path
     # Assuming files are stored in data/outputs/ relative to project root
@@ -93,20 +121,17 @@ async def download_deliverable(
         resolved_base = base_path.resolve()
         if not str(resolved_path).startswith(str(resolved_base)):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access to this file is forbidden"
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access to this file is forbidden"
             )
     except (ValueError, OSError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file path: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid file path: {str(e)}"
         )
 
     # Check if file exists
     if not file_path.exists():
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"File not found: {deliverable.path}"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"File not found: {deliverable.path}"
         )
 
     # Determine media type based on file extension
@@ -129,20 +154,25 @@ async def download_deliverable(
         path=file_path,
         media_type=media_type,
         filename=file_path.name,
-        headers={
-            "Content-Disposition": f'attachment; filename="{file_path.name}"'
-        }
+        headers={"Content-Disposition": f'attachment; filename="{file_path.name}"'},
     )
 
 
 @router.get("/{deliverable_id}/details", response_model=DeliverableDetailResponse)
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def get_deliverable_details_endpoint(
+    request: Request,
     deliverable_id: str,
+    deliverable: Deliverable = Depends(verify_deliverable_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Get deliverable with extended details including:
+
+    Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own deliverable's project
+
     - File preview (first 5000 characters)
     - Related posts from the same run
     - QA summary statistics
@@ -151,10 +181,8 @@ async def get_deliverable_details_endpoint(
     This endpoint is used by the enhanced deliverable drawer
     to display comprehensive information about a deliverable.
     """
+    # TR-021: deliverable already verified by dependency
     details = get_deliverable_details(db, deliverable_id)
     if not details:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Deliverable not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deliverable not found")
     return details

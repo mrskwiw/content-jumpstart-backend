@@ -4,19 +4,19 @@ Pricing API endpoints.
 Provides pricing configuration, preset packages, and price calculations
 for the operator dashboard and external integrations.
 """
-from fastapi import APIRouter, Query, HTTPException, status
-from typing import Dict, List
-from pydantic import BaseModel
 
-# Import from src.config.pricing
 import sys
 from pathlib import Path
+from typing import Dict, List
+
+from fastapi import APIRouter, Query, HTTPException, Request, status
+from pydantic import BaseModel
 
 # Add project root to path to import from src
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config.pricing import (
+from src.config.pricing import (  # noqa: E402
     PRESET_PACKAGES,
     calculate_price,
     calculate_price_from_quantities,
@@ -25,6 +25,7 @@ from src.config.pricing import (
     PackageTier,
     get_preset_package,
 )
+from backend.utils.http_rate_limiter import lenient_limiter  # noqa: E402
 
 
 router = APIRouter()
@@ -32,6 +33,7 @@ router = APIRouter()
 
 class PricingConfigResponse(BaseModel):
     """Response model for pricing configuration"""
+
     pricePerPost: float
     researchPricePerPost: float
     minPosts: int
@@ -41,6 +43,7 @@ class PricingConfigResponse(BaseModel):
 
 class CalculatePriceResponse(BaseModel):
     """Response model for price calculation"""
+
     numPosts: int
     researchIncluded: bool
     pricePerPost: float
@@ -49,9 +52,12 @@ class CalculatePriceResponse(BaseModel):
 
 
 @router.get("/config", response_model=PricingConfigResponse)
-async def get_pricing_config() -> PricingConfigResponse:
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
+async def get_pricing_config(request: Request) -> PricingConfigResponse:
     """
     Get current pricing configuration.
+
+    Rate limit: 1000/hour (cheap read operation)
 
     Returns global pricing constants like price per post,
     research pricing, and revision policy.
@@ -78,9 +84,12 @@ async def get_pricing_config() -> PricingConfigResponse:
 
 
 @router.get("/packages", response_model=List[PresetPackage])
-async def get_preset_packages() -> List[PresetPackage]:
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
+async def get_preset_packages(request: Request) -> List[PresetPackage]:
     """
     Get all preset packages.
+
+    Rate limit: 1000/hour (cheap read operation)
 
     Returns a list of preset packages with their template quantities,
     descriptions, and pricing.
@@ -104,9 +113,12 @@ async def get_preset_packages() -> List[PresetPackage]:
 
 
 @router.get("/packages/{tier}", response_model=PresetPackage)
-async def get_package_by_tier(tier: PackageTier) -> PresetPackage:
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
+async def get_package_by_tier(request: Request, tier: PackageTier) -> PresetPackage:
     """
     Get a specific preset package by tier.
+
+    Rate limit: 1000/hour (cheap read operation)
 
     Args:
         tier: Package tier (starter, professional, premium)
@@ -120,19 +132,22 @@ async def get_package_by_tier(tier: PackageTier) -> PresetPackage:
     package = get_preset_package(tier)
     if not package:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Package tier '{tier}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Package tier '{tier}' not found"
         )
     return package
 
 
 @router.get("/calculate", response_model=CalculatePriceResponse)
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap operation (calculation only)
 async def calculate_custom_price(
+    request: Request,
     num_posts: int = Query(..., ge=1, description="Number of posts to generate"),
     research: bool = Query(False, description="Include research add-on"),
 ) -> CalculatePriceResponse:
     """
     Calculate price for custom configuration.
+
+    Rate limit: 1000/hour (cheap calculation operation)
 
     Args:
         num_posts: Number of posts (must be >= 1)
@@ -170,12 +185,16 @@ async def calculate_custom_price(
 
 
 @router.post("/calculate-from-quantities", response_model=CalculatePriceResponse)
+@lenient_limiter.limit("1000/hour")  # TR-004: Cheap operation (calculation only)
 async def calculate_price_from_template_quantities(
+    request: Request,
     template_quantities: Dict[str, int],
     research: bool = False,
 ) -> CalculatePriceResponse:
     """
     Calculate price from template quantities.
+
+    Rate limit: 1000/hour (cheap calculation operation)
 
     Useful for custom template selections where the user specifies
     exact quantities for each template.

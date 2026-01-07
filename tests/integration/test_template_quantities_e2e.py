@@ -10,6 +10,7 @@ Tests the full workflow:
 
 Run with: pytest tests/integration/test_template_quantities_e2e.py -v
 """
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -26,6 +27,7 @@ from backend.models import User, Client, Project
 
 # Import routers
 from backend.routers import auth, projects
+
 
 # Create a minimal app for testing
 def create_test_app():
@@ -97,15 +99,14 @@ def auth_headers(db_session, client):
         hashed_password=get_password_hash("Test1234!"),
         full_name="E2E Test User",
         is_active=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
     )
     db_session.add(test_user)
     db_session.commit()
 
     # Login to get token
     response = client.post(
-        "/api/auth/login",
-        json={"email": "test-e2e@example.com", "password": "Test1234!"}
+        "/api/auth/login", json={"email": "test-e2e@example.com", "password": "Test1234!"}
     )
     assert response.status_code == 200
     token = response.json()["access_token"]
@@ -120,9 +121,11 @@ def test_client_record(db_session):
         id="client-e2e-test-123",
         name="E2E Test Client",
         email="client-e2e@example.com",
-        company="E2E Test Company",
-        industry="Technology",
-        created_at=datetime.utcnow()
+        business_description="E2E Test Company in Technology industry",
+        ideal_customer="Technology professionals",
+        main_problem_solved="Content creation efficiency",
+        tone_preference="professional",
+        created_at=datetime.utcnow(),
     )
     db_session.add(test_client)
     db_session.commit()
@@ -150,23 +153,19 @@ class TestTemplateQuantitiesE2E:
             "name": "E2E Test Project",
             "clientId": test_client_record.id,
             "templateQuantities": {
-                "1": 3,   # Problem Recognition x3
-                "2": 2,   # Statistic + Insight x2
-                "9": 5,   # How-To x5
+                "1": 3,  # Problem Recognition x3
+                "2": 2,  # Statistic + Insight x2
+                "9": 5,  # How-To x5
             },
             "pricePerPost": 40.0,
             "researchPricePerPost": 0.0,
             "platforms": ["linkedin"],
-            "tone": "professional"
+            "tone": "professional",
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         # Step 2: Verify database storage
@@ -205,16 +204,12 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
             "researchPricePerPost": 15.0,  # Research add-on
             "platforms": ["linkedin"],
-            "tone": "professional"
+            "tone": "professional",
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         # Verify pricing: 10 posts * ($40 + $15) = $550
@@ -224,13 +219,11 @@ class TestTemplateQuantitiesE2E:
         assert project_response["totalPrice"] == 550.0
 
         print("✓ Pricing calculation correct with research add-on")
-        print(f"  - Base: 10 posts * $40 = $400")
-        print(f"  - Research: 10 posts * $15 = $150")
+        print("  - Base: 10 posts * $40 = $400")
+        print("  - Research: 10 posts * $15 = $150")
         print(f"  - Total: ${project_response['totalPrice']}")
 
-    def test_validation_template_quantities_bounds(
-        self, client, auth_headers, test_client_record
-    ):
+    def test_validation_template_quantities_bounds(self, client, auth_headers, test_client_record):
         """Test validation of template quantities (bounds checking)"""
         # Test: quantity exceeds max (100)
         project_data = {
@@ -242,21 +235,15 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
         assert response.status_code == 422  # Validation error
         error_detail = response.json()["detail"]
-        assert "cannot exceed 100" in str(error_detail)
+        assert "too large" in str(error_detail) or "Maximum value is 100" in str(error_detail)
 
         print("✓ Validation correctly rejects excessive quantities")
 
-    def test_validation_invalid_template_id(
-        self, client, auth_headers, test_client_record
-    ):
+    def test_validation_invalid_template_id(self, client, auth_headers, test_client_record):
         """Test validation of invalid template IDs"""
         project_data = {
             "name": "Invalid Template ID Test",
@@ -267,21 +254,17 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
         assert response.status_code == 422  # Validation error
         error_detail = response.json()["detail"]
-        assert "Invalid template_id" in str(error_detail)
+        assert "template_id" in str(error_detail) and (
+            "999" in str(error_detail) or "numeric" in str(error_detail)
+        )
 
         print("✓ Validation correctly rejects invalid template IDs")
 
-    def test_validation_too_many_templates(
-        self, client, auth_headers, test_client_record
-    ):
+    def test_validation_too_many_templates(self, client, auth_headers, test_client_record):
         """Test validation of excessive number of templates (DoS prevention)"""
         # Create 51 templates (exceeds limit of 50)
         template_quantities = {str(i): 1 for i in range(1, 52)}
@@ -293,11 +276,7 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
         assert response.status_code == 422  # Validation error
         error_detail = response.json()["detail"]
@@ -305,9 +284,7 @@ class TestTemplateQuantitiesE2E:
 
         print("✓ Validation correctly rejects excessive template count (DoS prevention)")
 
-    def test_preset_package_quick_start(
-        self, client, auth_headers, test_client_record, db_session
-    ):
+    def test_preset_package_quick_start(self, client, auth_headers, test_client_record, db_session):
         """Test creating project with Quick Start preset package (15 posts)"""
         project_data = {
             "name": "Quick Start Package",
@@ -317,19 +294,15 @@ class TestTemplateQuantitiesE2E:
                 "2": 3,  # Statistic
                 "5": 3,  # Question
                 "9": 3,  # How-To
-                "10": 3, # Comparison
+                "10": 3,  # Comparison
             },
             "pricePerPost": 40.0,
             "researchPricePerPost": 0.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         assert project_response["numPosts"] == 15
@@ -347,21 +320,29 @@ class TestTemplateQuantitiesE2E:
             "name": "Professional Package",
             "clientId": test_client_record.id,
             "templateQuantities": {
-                "1": 2, "2": 2, "3": 2, "4": 2, "5": 2,
-                "6": 2, "7": 2, "8": 2, "9": 2, "10": 2,
-                "11": 2, "12": 2, "13": 2, "14": 2, "15": 2,
+                "1": 2,
+                "2": 2,
+                "3": 2,
+                "4": 2,
+                "5": 2,
+                "6": 2,
+                "7": 2,
+                "8": 2,
+                "9": 2,
+                "10": 2,
+                "11": 2,
+                "12": 2,
+                "13": 2,
+                "14": 2,
+                "15": 2,
             },
             "pricePerPost": 40.0,
             "researchPricePerPost": 0.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         assert project_response["numPosts"] == 30
@@ -379,21 +360,29 @@ class TestTemplateQuantitiesE2E:
             "name": "Premium Package",
             "clientId": test_client_record.id,
             "templateQuantities": {
-                "1": 4, "2": 4, "3": 3, "4": 3, "5": 3,
-                "6": 3, "7": 3, "8": 3, "9": 3, "10": 3,
-                "11": 3, "12": 3, "13": 3, "14": 3, "15": 3,
-            },
+                "1": 4,
+                "2": 4,
+                "3": 4,
+                "4": 4,
+                "5": 3,
+                "6": 3,
+                "7": 3,
+                "8": 3,
+                "9": 3,
+                "10": 3,
+                "11": 3,
+                "12": 3,
+                "13": 3,
+                "14": 3,
+                "15": 4,
+            },  # Total: (5*4) + (10*3) = 20 + 30 = 50
             "pricePerPost": 40.0,
             "researchPricePerPost": 15.0,  # Research included
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         assert project_response["numPosts"] == 50
@@ -403,9 +392,7 @@ class TestTemplateQuantitiesE2E:
         print(f"  - Posts: {project_response['numPosts']}")
         print(f"  - Price: ${project_response['totalPrice']}")
 
-    def test_custom_template_selection(
-        self, client, auth_headers, test_client_record, db_session
-    ):
+    def test_custom_template_selection(self, client, auth_headers, test_client_record, db_session):
         """Test custom template selection (not a preset)"""
         project_data = {
             "name": "Custom Selection",
@@ -418,13 +405,9 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         assert project_response["numPosts"] == 30
@@ -445,12 +428,8 @@ class TestTemplateQuantitiesE2E:
             "pricePerPost": 40.0,
         }
 
-        create_response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
-        assert create_response.status_code == 200
+        create_response = client.post("/api/projects", json=project_data, headers=auth_headers)
+        assert create_response.status_code == 201  # POST returns 201 Created
         project_id = create_response.json()["id"]
 
         # Update quantities
@@ -459,9 +438,7 @@ class TestTemplateQuantitiesE2E:
         }
 
         update_response = client.put(
-            f"/api/projects/{project_id}",
-            json=update_data,
-            headers=auth_headers
+            f"/api/projects/{project_id}", json=update_data, headers=auth_headers
         )
 
         assert update_response.status_code == 200
@@ -473,9 +450,7 @@ class TestTemplateQuantitiesE2E:
 
         print("✓ Project updated successfully with new quantities")
 
-    def test_empty_template_quantities(
-        self, client, auth_headers, test_client_record
-    ):
+    def test_empty_template_quantities(self, client, auth_headers, test_client_record):
         """Test that empty template_quantities is handled gracefully"""
         project_data = {
             "name": "Empty Quantities Test",
@@ -486,14 +461,10 @@ class TestTemplateQuantitiesE2E:
             "totalPrice": 1200.0,  # Manually specified
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
         # Should succeed - empty quantities is valid (uses intelligent selection)
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         assert project_response["numPosts"] == 30
@@ -518,14 +489,10 @@ class TestBackwardCompatibility:
             "pricePerPost": 40.0,
         }
 
-        response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=auth_headers
-        )
+        response = client.post("/api/projects", json=project_data, headers=auth_headers)
 
         # Should succeed for backward compatibility
-        assert response.status_code == 200
+        assert response.status_code == 201  # POST returns 201 Created
         project_response = response.json()
 
         # Old templates field should be stored
