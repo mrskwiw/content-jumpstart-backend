@@ -181,3 +181,142 @@ class TestCallClaudeApi:
             tool._call_claude_api("Analyze business")
 
         assert "API Error" in str(exc_info.value)
+
+
+class TestCreateMarkdownHeader:
+    """Test markdown header creation"""
+
+    def test_level_1_header(self):
+        """Test creating a level 1 header"""
+        tool = MockResearchTool(project_id="test")
+
+        result = tool._create_markdown_header("Executive Summary", level=1)
+
+        assert result == "# Executive Summary\n\n"
+
+    def test_level_2_header(self):
+        """Test creating a level 2 header"""
+        tool = MockResearchTool(project_id="test")
+
+        result = tool._create_markdown_header("Key Findings", level=2)
+
+        assert result == "## Key Findings\n\n"
+
+    def test_level_3_header_no_spacing(self):
+        """Test creating a header without spacing"""
+        tool = MockResearchTool(project_id="test")
+
+        result = tool._create_markdown_header("Notes", level=3, add_spacing=False)
+
+        assert result == "### Notes\n"
+
+    def test_level_6_header(self):
+        """Test creating a level 6 header (maximum)"""
+        tool = MockResearchTool(project_id="test")
+
+        result = tool._create_markdown_header("Detail", level=6)
+
+        assert result == "###### Detail\n\n"
+
+    def test_invalid_level_raises_error(self):
+        """Test that invalid header levels raise ValueError"""
+        tool = MockResearchTool(project_id="test")
+
+        with pytest.raises(ValueError) as exc_info:
+            tool._create_markdown_header("Test", level=7)
+
+        assert "must be 1-6" in str(exc_info.value)
+
+    def test_zero_level_raises_error(self):
+        """Test that level 0 raises ValueError"""
+        tool = MockResearchTool(project_id="test")
+
+        with pytest.raises(ValueError) as exc_info:
+            tool._create_markdown_header("Test", level=0)
+
+        assert "must be 1-6" in str(exc_info.value)
+
+
+class TestFormatMarkdownList:
+    """Test markdown list formatting"""
+
+    def test_unordered_list(self):
+        """Test creating a bullet list"""
+        tool = MockResearchTool(project_id="test")
+        items = ["First item", "Second item", "Third item"]
+
+        result = tool._format_markdown_list(items)
+
+        assert result == "- First item\n- Second item\n- Third item\n"
+
+    def test_ordered_list(self):
+        """Test creating a numbered list"""
+        tool = MockResearchTool(project_id="test")
+        items = ["First", "Second", "Third"]
+
+        result = tool._format_markdown_list(items, ordered=True)
+
+        assert result == "1. First\n2. Second\n3. Third\n"
+
+    def test_indented_list(self):
+        """Test creating an indented list"""
+        tool = MockResearchTool(project_id="test")
+        items = ["Item A", "Item B"]
+
+        result = tool._format_markdown_list(items, indent_level=2)
+
+        assert result == "  - Item A\n  - Item B\n"
+
+    def test_empty_list(self):
+        """Test that empty list returns empty string"""
+        tool = MockResearchTool(project_id="test")
+
+        result = tool._format_markdown_list([])
+
+        assert result == ""
+
+    def test_custom_formatter(self):
+        """Test using a custom item formatter"""
+        tool = MockResearchTool(project_id="test")
+        items = ["important", "critical", "urgent"]
+
+        def bold_formatter(item):
+            return f"**{item}**"
+
+        result = tool._format_markdown_list(items, item_formatter=bold_formatter)
+
+        assert result == "- **important**\n- **critical**\n- **urgent**\n"
+
+    def test_ordered_list_with_indent(self):
+        """Test ordered list with indentation"""
+        tool = MockResearchTool(project_id="test")
+        items = ["Sub-task A", "Sub-task B"]
+
+        result = tool._format_markdown_list(items, ordered=True, indent_level=4)
+
+        assert result == "    1. Sub-task A\n    2. Sub-task B\n"
+
+    def test_non_string_items(self):
+        """Test formatting non-string items (integers)"""
+        tool = MockResearchTool(project_id="test")
+        items = [100, 200, 300]
+
+        result = tool._format_markdown_list(items)
+
+        assert result == "- 100\n- 200\n- 300\n"
+
+    def test_complex_custom_formatter(self):
+        """Test custom formatter with complex objects"""
+        tool = MockResearchTool(project_id="test")
+        items = [
+            {"name": "Task 1", "priority": "high"},
+            {"name": "Task 2", "priority": "low"},
+        ]
+
+        def task_formatter(task):
+            return f"{task['name']} (Priority: {task['priority']})"
+
+        result = tool._format_markdown_list(items, item_formatter=task_formatter)
+
+        expected = "- Task 1 (Priority: high)\n" "- Task 2 (Priority: low)\n"
+        assert result == expected

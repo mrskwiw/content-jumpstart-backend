@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..utils.logger import logger
 from ..utils.anthropic_client import get_default_client
@@ -421,3 +421,113 @@ class ResearchTool(ABC):
 
         logger.debug(f"Saved text to {output_path}")
         return output_path
+
+    def _create_markdown_header(
+        self,
+        text: str,
+        level: int = 1,
+        add_spacing: bool = True,
+    ) -> str:
+        """Create a markdown header with consistent formatting
+
+        This method eliminates ~80 lines of duplicate header creation code
+        by providing a single interface for markdown headers across all reports.
+
+        Args:
+            text: Header text
+            level: Header level 1-6 (default: 1)
+            add_spacing: Whether to add blank line after header (default: True)
+
+        Returns:
+            Formatted markdown header string
+
+        Raises:
+            ValueError: If level is not 1-6
+
+        Examples:
+            >>> self._create_markdown_header("Executive Summary", level=1)
+            '# Executive Summary\\n\\n'
+
+            >>> self._create_markdown_header("Key Findings", level=2)
+            '## Key Findings\\n\\n'
+
+            >>> self._create_markdown_header("Notes", level=3, add_spacing=False)
+            '### Notes\\n'
+        """
+        if not 1 <= level <= 6:
+            raise ValueError(f"Header level must be 1-6, got {level}")
+
+        # Create header with appropriate number of # symbols
+        header = f"{'#' * level} {text}\n"
+
+        # Add spacing if requested
+        if add_spacing:
+            header += "\n"
+
+        return header
+
+    def _format_markdown_list(
+        self,
+        items: List[Any],
+        ordered: bool = False,
+        indent_level: int = 0,
+        item_formatter: Optional[Callable[[Any], str]] = None,
+    ) -> str:
+        """Format a list of items as markdown bullet points or numbered list
+
+        This method eliminates ~80 lines of duplicate list formatting code
+        by providing a single interface for markdown lists across all reports.
+
+        Args:
+            items: List of items to format
+            ordered: If True, create numbered list; if False, bullet list (default: False)
+            indent_level: Number of spaces to indent (0, 2, 4, etc.) (default: 0)
+            item_formatter: Optional function to format each item (default: str())
+
+        Returns:
+            Formatted markdown list string
+
+        Examples:
+            >>> items = ["First item", "Second item", "Third item"]
+            >>> self._format_markdown_list(items)
+            '- First item\\n- Second item\\n- Third item\\n'
+
+            >>> self._format_markdown_list(items, ordered=True)
+            '1. First item\\n2. Second item\\n3. Third item\\n'
+
+            >>> self._format_markdown_list(items, indent_level=2)
+            '  - First item\\n  - Second item\\n  - Third item\\n'
+
+            >>> # With custom formatter
+            >>> def bold_formatter(item):
+            ...     return f"**{item}**"
+            >>> self._format_markdown_list(items, item_formatter=bold_formatter)
+            '- **First item**\\n- **Second item**\\n- **Third item**\\n'
+        """
+        if not items:
+            return ""
+
+        # Set default formatter if none provided
+        if item_formatter is None:
+            item_formatter = str
+
+        # Create indent string
+        indent = " " * indent_level
+
+        # Format each item
+        formatted_items = []
+        for i, item in enumerate(items, start=1):
+            # Apply custom formatter
+            formatted_item = item_formatter(item)
+
+            # Create list marker (bullet or number)
+            if ordered:
+                marker = f"{i}."
+            else:
+                marker = "-"
+
+            # Combine indent, marker, and content
+            formatted_items.append(f"{indent}{marker} {formatted_item}")
+
+        # Join with newlines and add trailing newline
+        return "\n".join(formatted_items) + "\n"
