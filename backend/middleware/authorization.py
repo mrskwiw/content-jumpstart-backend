@@ -300,3 +300,99 @@ def filter_user_clients(db: Session, current_user: User):
         return query
 
     return query.filter(Client.user_id == current_user.id)
+
+
+def filter_user_deliverables(db: Session, current_user: User):
+    """
+    Filter query to show only user's deliverables (via project ownership).
+
+    Apply this to list operations to ensure users only see their own data.
+
+    Deliverables are owned indirectly through project ownership.
+
+    NOTE: Requires user_id field on Project model
+    """
+    from backend.models import Deliverable, Project
+
+    # Superusers see all
+    if current_user.is_superuser:
+        return db.query(Deliverable)
+
+    # Regular users see only deliverables from their own projects
+    query = db.query(Deliverable).join(Project, Deliverable.project_id == Project.id)
+
+    # Check if Project model has user_id field
+    if not hasattr(Project, "user_id"):
+        logger.warning(
+            "Project model missing user_id field - returning all deliverables (INSECURE)"
+        )
+        return db.query(Deliverable)
+
+    return query.filter(Project.user_id == current_user.id)
+
+
+def filter_user_runs(db: Session, current_user: User):
+    """
+    Filter query to show only user's runs (via project ownership).
+
+    Apply this to list operations to ensure users only see their own data.
+
+    Runs are owned indirectly through project ownership.
+
+    NOTE: Requires user_id field on Project model
+    """
+    from backend.models import Run, Project
+
+    # Superusers see all
+    if current_user.is_superuser:
+        return db.query(Run)
+
+    # Regular users see only runs from their own projects
+    query = db.query(Run).join(Project, Run.project_id == Project.id)
+
+    # Check if Project model has user_id field
+    if not hasattr(Project, "user_id"):
+        logger.warning("Project model missing user_id field - returning all runs (INSECURE)")
+        return db.query(Run)
+
+    return query.filter(Project.user_id == current_user.id)
+
+
+# ==================== Brief Ownership (via Project) ====================
+
+
+async def verify_brief_ownership(
+    brief_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """
+    Verify user owns brief (via project ownership).
+
+    Briefs are owned indirectly through project ownership.
+
+    Raises:
+        HTTPException 404: Brief not found
+        HTTPException 403: User doesn't own brief's project
+
+    Returns:
+        Brief instance if authorized
+    """
+    from backend.services import crud
+
+    brief = crud.get_brief(db, brief_id)
+
+    if not brief:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brief not found")
+
+    # Get project to check ownership
+    project = crud.get_project(db, brief.project_id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Brief's project not found"
+        )
+
+    if not _check_ownership("Project", project, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You don't own this brief"
+        )
+
+    return brief

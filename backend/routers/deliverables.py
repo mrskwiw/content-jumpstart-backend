@@ -6,7 +6,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from backend.middleware.auth_dependency import get_current_user
-from backend.middleware.authorization import verify_deliverable_ownership  # TR-021: Authorization
+from backend.middleware.authorization import (
+    verify_deliverable_ownership,
+    filter_user_deliverables,
+)  # TR-021: Authorization
 from backend.schemas.deliverable import (
     DeliverableResponse,
     DeliverableDetailResponse,
@@ -38,8 +41,27 @@ async def list_deliverables(
     List deliverables with optional filters.
 
     Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User can only see deliverables from their own projects
     """
-    return crud.get_deliverables(db, skip=skip, limit=limit, status=status, client_id=client_id)
+    # TR-021: Filter to user's deliverables only (via project ownership)
+    from backend.models import Deliverable
+    from sqlalchemy.orm import joinedload
+
+    query = filter_user_deliverables(db, current_user)
+
+    # Eager load relationships to prevent N+1 queries
+    query = query.options(joinedload(Deliverable.project), joinedload(Deliverable.client))
+
+    # Apply additional filters
+    if status:
+        query = query.filter(Deliverable.status == status)
+    if client_id:
+        query = query.filter(Deliverable.client_id == client_id)
+
+    # Apply pagination
+    deliverables = query.offset(skip).limit(limit).all()
+
+    return deliverables
 
 
 @router.get("/{deliverable_id}", response_model=DeliverableResponse)

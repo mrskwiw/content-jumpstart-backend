@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from backend.middleware.auth_dependency import get_current_user
 from backend.middleware.authorization import (
     verify_run_ownership,
+    filter_user_runs,
 )  # TR-021: Authorization
 from backend.schemas.run import RunCreate, RunResponse, RunUpdate
 from backend.services import crud
@@ -28,8 +29,25 @@ async def list_runs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all runs with optional filters"""
-    runs = crud.get_runs(db, skip=skip, limit=limit, project_id=project_id, status=status)
+    """
+    List all runs with optional filters.
+
+    Authorization: TR-021 - Users can only see runs from their own projects
+    """
+    # TR-021: Filter to user's runs only (via project ownership)
+    from backend.models import Run
+
+    query = filter_user_runs(db, current_user)
+
+    # Apply additional filters
+    if project_id:
+        query = query.filter(Run.project_id == project_id)
+    if status:
+        query = query.filter(Run.status == status)
+
+    # Apply pagination
+    runs = query.offset(skip).limit(limit).all()
+
     return runs
 
 
@@ -39,13 +57,28 @@ async def create_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new run"""
+    """
+    Create a new run.
+
+    Authorization: TR-021 - User must own the project
+    """
     # Verify project exists
     project = crud.get_project(db, run.project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project {run.project_id} not found",
+        )
+
+    # TR-021: Verify user owns the project before creating run
+    if (
+        hasattr(project, "user_id")
+        and project.user_id != current_user.id
+        and not current_user.is_superuser
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
         )
 
     db_run = crud.create_run(db, project_id=run.project_id, is_batch=run.is_batch)

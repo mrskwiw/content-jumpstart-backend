@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.authorization import verify_brief_ownership  # TR-021: Authorization
 from backend.schemas.brief import BriefCreate, BriefResponse
 from backend.services import crud
 from sqlalchemy.orm import Session
@@ -33,11 +34,23 @@ async def create_brief_from_text(
     Create brief from pasted text.
 
     Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own the project
     """
     # Verify project exists
     project = crud.get_project(db, brief.project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    # TR-021: Verify user owns the project before creating brief
+    if (
+        hasattr(project, "user_id")
+        and project.user_id != current_user.id
+        and not current_user.is_superuser
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
+        )
 
     # Check if brief already exists for this project
     existing_brief = crud.get_brief_by_project(db, brief.project_id)
@@ -81,11 +94,23 @@ async def upload_brief_file(
     Upload brief file.
 
     Rate limit: 100/hour per IP+user (standard operation)
+    Authorization: TR-021 - User must own the project
     """
     # Verify project exists
     project = crud.get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    # TR-021: Verify user owns the project before uploading brief
+    if (
+        hasattr(project, "user_id")
+        and project.user_id != current_user.id
+        and not current_user.is_superuser
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
+        )
 
     # Check file extension
     file_ext = Path(file.filename).suffix.lower()
@@ -126,6 +151,7 @@ async def upload_brief_file(
 async def get_brief(
     request: Request,
     brief_id: str,
+    brief=Depends(verify_brief_ownership),  # TR-021: Authorization check
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -133,10 +159,9 @@ async def get_brief(
     Get brief by ID.
 
     Rate limit: 1000/hour (cheap read operation)
+    Authorization: TR-021 - User must own brief's project
     """
-    brief = crud.get_brief(db, brief_id)
-    if not brief:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brief not found")
+    # TR-021: brief already verified by dependency
     return brief
 
 
