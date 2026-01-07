@@ -21,11 +21,18 @@ from src.validators.prompt_injection_defense import sanitize_prompt_input
 # Will use Claude API directly for assistant conversations
 try:
     from src.utils.anthropic_client import get_default_client
+    from src.utils.response_cache import ResponseCache
 
     CLAUDE_AVAILABLE = True
 except ImportError:
     CLAUDE_AVAILABLE = False
     logger.warning("Claude API client not available for assistant")
+
+# Initialize chat response cache with 1-hour TTL (Phase 3: Performance optimization)
+chat_cache = ResponseCache(
+    ttl_seconds=3600,  # 1 hour cache for chat responses
+    enabled=CLAUDE_AVAILABLE,
+) if CLAUDE_AVAILABLE else None
 
 router = APIRouter()
 
@@ -213,17 +220,32 @@ async def chat_with_assistant(
             history=request.conversation_history,
         )
 
-        # Call Claude API
-        client = get_default_client()
-        response = client.create_message(
-            model="claude-3-5-sonnet-latest",
-            max_tokens=1024,
-            temperature=0.7,
-            system=system_prompt,
-            messages=[{"role": "user", "content": sanitized_message}],  # Use sanitized message
-        )
+        # PERFORMANCE (Phase 3): Check cache before calling Claude API
+        messages = [{"role": "user", "content": sanitized_message}]
+        cached_response = chat_cache.get(messages, system_prompt, 0.7) if chat_cache else None
 
-        assistant_message = response.content[0].text
+        if cached_response:
+            assistant_message = cached_response
+            logger.info(f"AI assistant cache hit for user {current_user.email} on page {page}")
+        else:
+            # Call Claude API
+            client = get_default_client()
+            response = client.create_message(
+                model="claude-3-5-sonnet-latest",
+                max_tokens=1024,
+                temperature=0.7,
+                system=system_prompt,
+                messages=messages,
+            )
+
+            assistant_message = response.content[0].text
+
+            # Cache the response for future requests
+            if chat_cache:
+                chat_cache.put(messages, system_prompt, 0.7, assistant_message)
+                logger.debug("AI assistant response cached")
+
+            logger.info(f"AI assistant API call for user {current_user.email} on page {page}")
 
         # Generate context-aware suggestions
         suggestions = generate_suggestions(page, request.context)

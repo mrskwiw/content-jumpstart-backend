@@ -4,12 +4,12 @@ Researches and recommends target keywords for content optimization.
 """
 
 import json
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
 from .base import ResearchTool
+from .validation_mixin import CommonValidationMixin
 from ..models.seo_models import (
     CompetitorKeywords,
     Keyword,
@@ -18,7 +18,6 @@ from ..models.seo_models import (
     KeywordStrategy,
     SearchIntent,
 )
-from ..utils.anthropic_client import get_default_client
 from ..utils.logger import logger
 from ..validators.research_input_validator import (
     ResearchInputValidator,
@@ -26,48 +25,12 @@ from ..validators.research_input_validator import (
 )
 
 
-def extract_json_from_response(response_text: str) -> str:
-    """
-    Extract JSON from Claude response, handling markdown code blocks.
-
-    Claude often wraps JSON in ```json ... ``` blocks. This function
-    extracts the JSON content, falling back to the raw response if no
-    code blocks are found.
-
-    Args:
-        response_text: Raw response from Claude API
-
-    Returns:
-        Extracted JSON string
-    """
-    if not response_text or not response_text.strip():
-        logger.warning("Empty response received, returning empty array")
-        return "[]"
-
-    # Try to extract JSON from markdown code blocks
-    json_match = re.search(r"```(?:json)?\s*(\[.*?\]|\{.*?\})\s*```", response_text, re.DOTALL)
-    if json_match:
-        return json_match.group(1)
-
-    # Try to find JSON array or object without code blocks
-    json_match = re.search(r"(\[.*\]|\{.*\})", response_text, re.DOTALL)
-    if json_match:
-        return json_match.group(1)
-
-    # If no JSON found, return empty array
-    logger.warning(
-        f"No JSON found in response, returning empty array. Response preview: {response_text[:200]}"
-    )
-    return "[]"
-
-
-class SEOKeywordResearcher(ResearchTool):
+class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
     """Automated SEO keyword research and strategy development"""
 
     def __init__(self, project_id: str, config: Dict[str, Any] = None):
         """Initialize SEO keyword researcher with input validator"""
         super().__init__(project_id=project_id, config=config)
-        self.client = get_default_client()
         self.validator = ResearchInputValidator(strict_mode=False)
 
     @property
@@ -87,28 +50,19 @@ class SEOKeywordResearcher(ResearchTool):
         - Prompt injection sanitization
         - Type validation
         - Field presence validation
+
+        Uses CommonValidationMixin for standard validations (Phase 3 deduplication)
         """
-        # SECURITY: Validate business description with sanitization
-        inputs["business_description"] = self.validator.validate_text(
-            inputs.get("business_description"),
-            field_name="business_description",
-            min_length=50,
-            max_length=5000,
-            required=True,
-            sanitize=True,
-        )
+        # Use mixin methods for standard validations
+        inputs["business_description"] = self.validate_business_description(inputs)
+        inputs["target_audience"] = self.validate_target_audience(inputs)
 
-        # SECURITY: Validate target audience
-        inputs["target_audience"] = self.validator.validate_text(
-            inputs.get("target_audience"),
-            field_name="target_audience",
-            min_length=10,
-            max_length=2000,
-            required=True,
-            sanitize=True,
-        )
+        # Optional fields via mixin
+        inputs["industry"] = self.validate_optional_industry(inputs)
+        if "competitors" in inputs and inputs["competitors"]:
+            inputs["competitors"] = self.validate_competitor_list(inputs)
 
-        # SECURITY: Validate main topics list (1-10 topics)
+        # Tool-specific validation: main topics list (1-10 topics)
         inputs["main_topics"] = self.validator.validate_list(
             inputs.get("main_topics"),
             field_name="main_topics",
@@ -124,24 +78,6 @@ class SEOKeywordResearcher(ResearchTool):
                 sanitize=True,
             ),
         )
-
-        # SECURITY: Validate optional competitors list
-        if "competitors" in inputs and inputs["competitors"]:
-            inputs["competitors"] = validate_competitor_list(
-                inputs["competitors"],
-                validator=self.validator,
-            )
-
-        # SECURITY: Validate optional industry
-        if "industry" in inputs and inputs["industry"]:
-            inputs["industry"] = self.validator.validate_text(
-                inputs["industry"],
-                field_name="industry",
-                min_length=2,
-                max_length=200,
-                required=False,
-                sanitize=True,
-            )
 
         return True
 
@@ -246,15 +182,18 @@ Return as JSON array of objects with keys:
 keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, long_tail, question_based, related_topics"""
 
         try:
-            response = self.client.create_message(
-                messages=[{"role": "user", "content": prompt}],
+            # Use base class API utility (Phase 3 deduplication)
+            keywords_data = self._call_claude_api(
+                prompt,
                 max_tokens=2000,
                 temperature=0.4,
+                extract_json=True,
+                fallback_on_error=[],  # Return empty list on error
             )
 
-            # Parse JSON response (extract from markdown if needed)
-            json_str = extract_json_from_response(response)
-            keywords_data = json.loads(json_str)
+            # Fallback already handled by _call_claude_api
+            if not keywords_data:
+                return self._generate_fallback_primary_keywords(main_topics)
             keywords = []
 
             for kw_data in keywords_data[:10]:  # Max 10 primary
@@ -309,15 +248,19 @@ Return as JSON array with same structure as before:
 keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, long_tail, question_based, related_topics"""
 
         try:
-            response = self.client.create_message(
-                messages=[{"role": "user", "content": prompt}],
+            # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+            keywords_data = self._call_claude_api(
+                prompt,
                 max_tokens=3000,
                 temperature=0.5,
+                extract_json=True,
+                fallback_on_error=[],
             )
 
-            # Parse JSON response (extract from markdown if needed)
-            json_str = extract_json_from_response(response)
-            keywords_data = json.loads(json_str)
+            if not keywords_data:
+                logger.warning("Claude returned empty data for secondary keywords")
+                return self._generate_fallback_secondary_keywords(primary_keywords)
+
             keywords = []
 
             for kw_data in keywords_data[:30]:  # Max 30 secondary
@@ -372,7 +315,9 @@ keyword, search_intent, difficulty, monthly_volume_estimate, relevance_score, lo
                 (
                     1
                     if kw.difficulty == KeywordDifficulty.LOW
-                    else 2 if kw.difficulty == KeywordDifficulty.MEDIUM else 3
+                    else 2
+                    if kw.difficulty == KeywordDifficulty.MEDIUM
+                    else 3
                 )
                 for kw in topic_keywords
             ) / len(topic_keywords)
@@ -457,13 +402,19 @@ Return as JSON with keys:
 estimated_keywords (list), gaps (list), overlaps (list)"""
 
             try:
-                response = self.client.create_message(
-                    messages=[{"role": "user", "content": prompt}],
+                # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+                data = self._call_claude_api(
+                    prompt,
                     max_tokens=1500,
                     temperature=0.4,
+                    extract_json=True,
+                    fallback_on_error={},
                 )
 
-                data = json.loads(response)
+                if not data:
+                    logger.warning(f"Claude returned empty data for competitor {competitor}")
+                    continue
+
                 analysis = CompetitorKeywords(
                     competitor_name=competitor,
                     estimated_keywords=data.get("estimated_keywords", [])[:15],

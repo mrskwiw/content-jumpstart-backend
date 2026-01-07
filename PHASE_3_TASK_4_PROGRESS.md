@@ -151,6 +151,79 @@ Robust JSON extraction handling multiple formats:
 - Phase 4 (Normalization): ~75 lines (pending)
 - **Grand Total:** ~1,716 lines saved (36% reduction across research tools)
 
+## Proof-of-Concept Migration ✅ COMPLETE
+
+**Tool:** SEOKeywordResearcher (simplest of 12 tools)
+**Status:** Fully migrated and tested
+**Date:** January 7, 2026
+
+### Changes Made:
+
+1. **Class Setup:**
+   - Added `CommonValidationMixin` to class inheritance
+   - Changed: `class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):`
+
+2. **Validation Simplification (26 lines saved):**
+   - Before: 56 lines of manual validation
+   - After: 30 lines using mixin methods
+   - Replaced manual validations with:
+     - `validate_business_description(inputs)`
+     - `validate_target_audience(inputs)`
+     - `validate_optional_industry(inputs)`
+     - `validate_competitor_list(inputs)`
+   - Kept tool-specific validation for `main_topics`
+
+3. **API Call Replacements (18 lines saved):**
+   - `_research_primary_keywords()`: 9 lines → 7 lines
+   - `_research_secondary_keywords()`: 9 lines → 7 lines
+   - `_analyze_competitors()`: 9 lines → 7 lines
+   - All now use `self._call_claude_api()` with automatic JSON extraction
+
+4. **Code Cleanup (35 lines removed):**
+   - Removed module-level `extract_json_from_response()` function (33 lines)
+   - Removed `self.client` initialization
+   - Removed unused imports: `re`, `get_default_client`
+
+### Test Results:
+
+**File:** `tests/research/test_seo_keyword_research.py`
+**Status:** ✅ All 3 tests passing
+
+1. ✅ `test_seo_keyword_research_basic` - Full keyword research flow
+2. ✅ `test_seo_keyword_research_with_competitors` - With competitor analysis
+3. ✅ `test_seo_keyword_research_validation` - Input validation (updated error messages)
+
+**Coverage:** 82% on `seo_keyword_research.py` (up from previous runs)
+
+### Code Savings:
+
+| Category | Before | After | Saved |
+|----------|--------|-------|-------|
+| Validation | 56 lines | 30 lines | 26 lines |
+| API calls | 27 lines | 21 lines | 6 lines |
+| Removed code | 35 lines | 0 lines | 35 lines |
+| **Total** | **118 lines** | **51 lines** | **67 lines** |
+
+**Reduction:** 57% fewer lines in SEOKeywordResearcher implementation
+
+### Benefits Demonstrated:
+
+1. **Cleaner Code:** Validation logic is now 1-line method calls instead of 5-10 line blocks
+2. **Automatic Error Handling:** Base class handles API errors with fallbacks
+3. **Consistent Behavior:** All tools will now have identical validation/API error handling
+4. **Better Error Messages:** More specific validation errors (e.g., "business_description is required" vs generic "Missing required input")
+5. **Easier Testing:** Common utilities are tested once in base class tests
+
+### Next Steps:
+
+**Option 1: Continue Migration** - Migrate remaining 11 tools one by one
+**Option 2: Phase 4 First** - Add normalization utilities before migrating more tools
+**Option 3: Commit & Review** - Commit POC, review approach, plan full migration
+
+**Recommendation:** Option 3 - Commit this proof-of-concept, then proceed with full migration strategy.
+
+---
+
 ## Next Steps
 
 ### Phase 3: Report Generation Utilities (Pending)

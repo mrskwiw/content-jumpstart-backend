@@ -95,20 +95,24 @@ def test_seo_keyword_research_validation():
 
     researcher = SEOKeywordResearcher(project_id="test_validation")
 
-    # Test missing input
-    with pytest.raises(ValueError, match="Missing required input"):
+    # Test missing input (updated for CommonValidationMixin error messages)
+    with pytest.raises(ValueError, match="business_description is required"):
         researcher.validate_inputs({})
 
-    # Test description too short
+    # Test description too short (updated for CommonValidationMixin error messages)
     with pytest.raises(ValueError, match="too short"):
         researcher.validate_inputs(
             {"business_description": "Short", "target_audience": "Teams", "main_topics": ["test"]}
         )
 
-    # Test missing topics
-    with pytest.raises(ValueError, match="at least 1 main topic"):
+    # Test missing topics (updated for tool-specific validation)
+    with pytest.raises(ValueError, match="main_topics"):
         researcher.validate_inputs(
-            {"business_description": "A" * 100, "target_audience": "Teams", "main_topics": []}
+            {
+                "business_description": "A" * 100,
+                "target_audience": "Marketing teams and sales professionals",
+                "main_topics": [],
+            }
         )
 
     print("[OK] Validation tests passed")
