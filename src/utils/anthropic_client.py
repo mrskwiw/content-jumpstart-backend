@@ -126,7 +126,7 @@ class AnthropicClient:
             self._prepare_system_with_caching(system, enable_prompt_caching) if system else None
         )
 
-        last_exception = None
+        last_exception: Optional[Exception] = None
 
         for attempt in range(self.max_retries):
             try:
@@ -149,7 +149,7 @@ class AnthropicClient:
 
                 # Extract text from response
                 if response.content and len(response.content) > 0:
-                    response_text = response.content[0].text
+                    response_text: str = response.content[0].text
 
                     # Track cost if project_id provided
                     if project_id and hasattr(response, "usage"):
@@ -176,7 +176,7 @@ class AnthropicClient:
 
                     return response_text
                 else:
-                    raise APIError("Empty response from API")
+                    raise RuntimeError("Empty response from API")
 
             except RateLimitError as e:
                 last_exception = e
@@ -204,7 +204,10 @@ class AnthropicClient:
 
         # If we get here, all retries failed
         log_error(f"All {self.max_retries} retries failed", exc_info=True)
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        else:
+            raise RuntimeError(f"All {self.max_retries} retries failed")
 
     async def create_message_async(
         self,
@@ -263,7 +266,7 @@ class AnthropicClient:
             self._prepare_system_with_caching(system, enable_prompt_caching) if system else None
         )
 
-        last_exception = None
+        last_exception: Optional[Exception] = None
 
         for attempt in range(self.max_retries):
             try:
@@ -286,7 +289,7 @@ class AnthropicClient:
 
                 # Extract text from response
                 if response.content and len(response.content) > 0:
-                    response_text = response.content[0].text
+                    response_text: str = response.content[0].text
 
                     # Track cost if project_id provided
                     if project_id and hasattr(response, "usage"):
@@ -313,7 +316,7 @@ class AnthropicClient:
 
                     return response_text
                 else:
-                    raise APIError("Empty response from API")
+                    raise RuntimeError("Empty response from API")
 
             except RateLimitError as e:
                 last_exception = e
@@ -341,7 +344,10 @@ class AnthropicClient:
 
         # If we get here, all retries failed
         log_error(f"All {self.max_retries} retries failed", exc_info=True)
-        raise last_exception
+        if last_exception is not None:
+            raise last_exception
+        else:
+            raise RuntimeError(f"All {self.max_retries} retries failed")
 
     def create_brief_analysis(self, brief_content: str, system_prompt: Optional[str] = None) -> str:
         """

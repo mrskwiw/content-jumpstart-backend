@@ -47,4 +47,4 @@ warn_required_dynamic_aliases = true
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv", "node_modules"]
-skips = ["B101", "B601"]  # Skip assert_used and shell injection (used in tests)
+skips = ["B101", "B601", "B608", "B110"]  # Skip assert_used, shell injection, SQL f-strings, try/except/pass

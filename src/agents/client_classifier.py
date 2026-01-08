@@ -60,7 +60,7 @@ class ClientClassifier:
         if not scores:
             return ClientType.UNKNOWN, 0.0
 
-        best_type = max(scores, key=scores.get)
+        best_type = max(scores, key=lambda x: scores[x])
         confidence = scores[best_type]
 
         # If confidence is too low, return UNKNOWN

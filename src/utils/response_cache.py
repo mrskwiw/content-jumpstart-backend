@@ -144,7 +144,8 @@ class ResponseCache:
                 return None
 
             logger.debug(f"Cache HIT (age: {age:.0f}s): {key[:8]}...")
-            return cached_data["response"]
+            response: str = cached_data["response"]
+            return response
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.warning(f"Corrupted cache file {cache_file}: {e}")

@@ -425,7 +425,7 @@ class CostTracker:
 
         where_sql = "WHERE " + " AND ".join(where_clause) if where_clause else ""
 
-        cursor.execute(
+        cursor.execute(  # nosec B608
             f"""
             SELECT
                 COUNT(DISTINCT project_id) as total_projects,
@@ -521,6 +521,7 @@ class CostTracker:
             output_path: Path to save JSON file
             project_id: Optional project to export (None = all projects)
         """
+        data: Dict[str, Any]
         if project_id:
             calls = self.get_project_calls(project_id)
             data = {

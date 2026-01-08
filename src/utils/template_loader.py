@@ -121,7 +121,8 @@ class TemplateLoader:
             requires_story = self._check_requires_story(structure, full_name)
             requires_data = self._check_requires_data(structure, full_name)
 
-            template = Template(
+            # TODO: Fix Template model Field() defaults for mypy compatibility
+            template = Template(  # type: ignore[call-arg]
                 template_id=template_id,
                 name=full_name,
                 template_type=template_type,
@@ -298,13 +299,13 @@ class TemplateLoader:
         boost_ids = set(boost_templates or [])
         avoid_ids = set(avoid_templates or [])
 
-        selected = []
+        selected: List[Template] = []
         remaining = self.templates.copy()
 
         # Pass 0: Prioritize boost templates from client memory (highest priority)
         if boost_ids:
-            boost_templates = [t for t in remaining if t.template_id in boost_ids]
-            for template in boost_templates:
+            boosted_templates = [t for t in remaining if t.template_id in boost_ids]
+            for template in boosted_templates:
                 can_fill, _ = template.can_be_filled(client_brief)
                 if can_fill and len(selected) < count:
                     selected.append(template)
@@ -368,6 +369,7 @@ class TemplateLoader:
 
 
 # Create default loader instance
+default_loader: Optional[TemplateLoader]
 try:
     default_loader = TemplateLoader()
 except FileNotFoundError as e:
