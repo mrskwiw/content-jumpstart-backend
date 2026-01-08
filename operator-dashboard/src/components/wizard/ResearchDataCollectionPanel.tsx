@@ -5,7 +5,7 @@ import { ContentAuditCollector } from './ContentAuditCollector';
 
 interface ResearchDataCollectionPanelProps {
   selectedTools: string[];
-  onContinue: (collectedData: Record<string, any>) => void;
+  onContinue: (collectedData: Record<string, unknown>) => void;
   onBack: () => void;
 }
 
@@ -121,7 +121,7 @@ export function ResearchDataCollectionPanel({
   onContinue,
   onBack
 }: ResearchDataCollectionPanelProps) {
-  const [collectedData, setCollectedData] = useState<Record<string, any>>({});
+  const [collectedData, setCollectedData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Get all required fields for selected tools
@@ -137,7 +137,8 @@ export function ResearchDataCollectionPanel({
   };
 
   const handleContentListChange = (key: string, index: number, value: string) => {
-    const currentList = collectedData[key] || [];
+    const current = collectedData[key];
+    const currentList = Array.isArray(current) ? current : [];
     const newList = [...currentList];
     newList[index] = value;
     setCollectedData(prev => ({ ...prev, [key]: newList }));
@@ -145,13 +146,15 @@ export function ResearchDataCollectionPanel({
   };
 
   const handleAddContentSample = (key: string) => {
-    const currentList = collectedData[key] || [];
+    const current = collectedData[key];
+    const currentList = Array.isArray(current) ? current : [];
     setCollectedData(prev => ({ ...prev, [key]: [...currentList, ''] }));
   };
 
   const handleRemoveContentSample = (key: string, index: number) => {
-    const currentList = collectedData[key] || [];
-    const newList = currentList.filter((_: any, i: number) => i !== index);
+    const current = collectedData[key];
+    const currentList = Array.isArray(current) ? current : [];
+    const newList = currentList.filter((_, i: number) => i !== index);
     setCollectedData(prev => ({ ...prev, [key]: newList }));
   };
 
@@ -201,7 +204,7 @@ export function ResearchDataCollectionPanel({
           }
         } else if (typeof processedValue === 'string') {
           // Check minimum length
-          if (field.min && value.length < field.min) {
+          if (field.min && processedValue.length < field.min) {
             newErrors[field.key] = `Minimum ${field.min} characters required`;
             isValid = false;
             return;
@@ -219,8 +222,9 @@ export function ResearchDataCollectionPanel({
       // Process text-list fields: convert strings to arrays
       const processedData = { ...collectedData };
       requiredFields.forEach(field => {
-        if (field.type === 'text-list' && typeof processedData[field.key] === 'string') {
-          processedData[field.key] = processedData[field.key]
+        const value = processedData[field.key];
+        if (field.type === 'text-list' && typeof value === 'string') {
+          processedData[field.key] = value
             .split(',')
             .map((item: string) => item.trim())
             .filter((item: string) => item.length > 0);
@@ -258,7 +262,7 @@ export function ResearchDataCollectionPanel({
                     {field.required && <span className="text-rose-500">*</span>}
                   </label>
                   <Input
-                    value={collectedData[field.key] || ''}
+                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
                     onChange={(e) => {
                       setCollectedData(prev => ({ ...prev, [field.key]: e.target.value }));
                       setErrors(prev => ({ ...prev, [field.key]: '' }));
@@ -282,7 +286,7 @@ export function ResearchDataCollectionPanel({
                     {field.required && <span className="text-rose-500">*</span>}
                   </label>
                   <Textarea
-                    value={collectedData[field.key] || ''}
+                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
                     onChange={(e) => {
                       setCollectedData(prev => ({ ...prev, [field.key]: e.target.value }));
                       setErrors(prev => ({ ...prev, [field.key]: '' }));
@@ -307,7 +311,7 @@ export function ResearchDataCollectionPanel({
                     {field.required && <span className="text-rose-500">*</span>}
                   </label>
                   <Textarea
-                    value={collectedData[field.key] || ''}
+                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
                     onChange={(e) => handleTextListChange(field.key, e.target.value)}
                     placeholder={field.placeholder}
                     rows={3}
@@ -332,7 +336,7 @@ export function ResearchDataCollectionPanel({
                   {/* Special handling for content_inventory (Content Audit) */}
                   {field.key === 'content_inventory' ? (
                     <ContentAuditCollector
-                      value={collectedData[field.key] || []}
+                      value={Array.isArray(collectedData[field.key]) ? collectedData[field.key] as never[] : []}
                       onChange={(pieces) => {
                         setCollectedData(prev => ({ ...prev, [field.key]: pieces }));
                         setErrors(prev => ({ ...prev, [field.key]: '' }));
@@ -348,7 +352,7 @@ export function ResearchDataCollectionPanel({
                       </label>
 
                       <div className="space-y-3">
-                        {(collectedData[field.key] || []).map((sample: string, index: number) => (
+                        {(Array.isArray(collectedData[field.key]) ? collectedData[field.key] as string[] : []).map((sample: string, index: number) => (
                           <div key={index} className="flex gap-2">
                             <Textarea
                               value={sample}
@@ -373,11 +377,11 @@ export function ResearchDataCollectionPanel({
                         variant="secondary"
                         size="sm"
                         onClick={() => handleAddContentSample(field.key)}
-                        disabled={!!(field.max && (collectedData[field.key] || []).length >= field.max)}
+                        disabled={!!(field.max && Array.isArray(collectedData[field.key]) && (collectedData[field.key] as unknown[]).length >= field.max)}
                         className="mt-3"
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Add Sample ({(collectedData[field.key] || []).length}/{field.max || '∞'})
+                        Add Sample ({Array.isArray(collectedData[field.key]) ? (collectedData[field.key] as unknown[]).length : 0}/{field.max || '∞'})
                       </Button>
 
                       {errors[field.key] && (

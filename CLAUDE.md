@@ -367,6 +367,8 @@ When testing or debugging multi-step UI flows (wizard, forms, navigation):
 - `../PHASE_2_COMPLETION.md` - Async generation implementation
 - `../PHASE_2_PROGRESS_SUMMARY.md` - Multi-platform implementation progress
 - `../PHASE_3_COMPLETION.md` - QA validation implementation
+- `PHASE_5_COMPLETION.md` - TypeScript/React code quality improvements (Jan 2026)
+- `PHASE_5_CODE_QUALITY_PLAN.md` - Phase 5 implementation plan
 - `../CROSS_PLATFORM_BLOG_LINKING_COMPLETE.md` - Cross-platform feature documentation
 - `../01_CLIENT_BRIEF_TEMPLATE.md` - Discovery form template
 - `../02_POST_TEMPLATE_LIBRARY.md` - 15 post templates
@@ -374,6 +376,8 @@ When testing or debugging multi-step UI flows (wizard, forms, navigation):
 
 **Technical documentation:**
 - `../SYSTEM_CAPABILITIES_REPORT.md` - Comprehensive system analysis
+- `SECURITY.md` - Security guidelines and threat model
+- `SECURITY_FIXES_2026-01-07.md` - Recent security improvements
 - `docs/platform_length_specifications_2025.md` - Platform length research
 - This directory's `README.md` - Quick start guide
 

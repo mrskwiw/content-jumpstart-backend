@@ -23,7 +23,7 @@ export default function Login() {
     try {
       await login({ email, password });
       navigate('/dashboard');
-    } catch (err: any) {
+    } catch (err: unknown) {
       const friendlyMessage = getAuthErrorMessage(err);
       setError(friendlyMessage);
       // Preserve a console trace for diagnostics without exposing internal errors to users

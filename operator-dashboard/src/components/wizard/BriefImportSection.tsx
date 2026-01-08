@@ -31,16 +31,16 @@ export function BriefImportSection({ onImport }: BriefImportSectionProps) {
     try {
       const parsed = await briefImportService.parseFile(file);
       onImport(parsed);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Determine if error is retryable
-      const message = err.message || 'Failed to parse brief';
+      const message = err instanceof Error ? err.message : 'Failed to parse brief';
       const isRetryable =
         message.includes('timed out') ||
         message.includes('Network error') ||
         message.includes('Failed to parse brief');
 
       setError({
-        code: err.code || 'UNKNOWN_ERROR',
+        code: (err && typeof err === 'object' && 'code' in err && typeof err.code === 'string') ? err.code : 'UNKNOWN_ERROR',
         message: message,
         retryable: isRetryable,
       });

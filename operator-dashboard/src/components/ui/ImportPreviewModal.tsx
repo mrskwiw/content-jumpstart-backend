@@ -12,7 +12,7 @@ interface ImportPreviewModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  currentData: any;
+  currentData: Record<string, unknown>;
   importedData: ParsedBriefResponse;
 }
 
@@ -49,7 +49,7 @@ export function ImportPreviewModal({
       .replace(/^./, (str) => str.toUpperCase());
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return '(empty)';
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value === 'string') {

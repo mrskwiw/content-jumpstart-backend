@@ -28,10 +28,10 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 /**
  * Check if an error is a chunk loading error
  */
-export function isChunkLoadError(error: any): boolean {
+export function isChunkLoadError(error: unknown): boolean {
   if (!error) return false;
 
-  const errorMessage = error.message || error.toString();
+  const errorMessage = error instanceof Error ? error.message : String(error);
 
   return (
     errorMessage.includes('Failed to fetch dynamically imported module') ||
@@ -74,13 +74,13 @@ export async function retryChunkImport<T>(
   options: RetryOptions = {}
 ): Promise<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < opts.maxRetries; attempt++) {
     try {
       // Try the import
       return await importFn();
-    } catch (error) {
+    } catch (error: unknown) {
       lastError = error;
 
       // Only retry if it's a chunk load error

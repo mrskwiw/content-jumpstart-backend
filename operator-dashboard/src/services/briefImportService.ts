@@ -1,7 +1,7 @@
 import api from '../api/client';
 
 export interface ParsedField {
-  value: any;
+  value: unknown;
   confidence: 'high' | 'medium' | 'low';
   source?: string;
 }
@@ -21,7 +21,7 @@ export interface ParsedBriefResponse {
 export interface ParseErrorResponse {
   code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export const briefImportService = {
@@ -49,14 +49,17 @@ export const briefImportService = {
       );
 
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle structured error responses from backend
-      if (error.response?.data?.detail) {
+      if (error && typeof error === 'object' && 'response' in error &&
+          error.response && typeof error.response === 'object' &&
+          'data' in error.response && error.response.data &&
+          typeof error.response.data === 'object' && 'detail' in error.response.data) {
         const detail = error.response.data.detail;
 
         // Backend returns structured error with code, message, details
-        if (typeof detail === 'object' && detail.code) {
-          throw new Error(detail.message || 'Failed to parse brief');
+        if (typeof detail === 'object' && detail && 'code' in detail && 'message' in detail) {
+          throw new Error(typeof detail.message === 'string' ? detail.message : 'Failed to parse brief');
         }
 
         // Fallback for string error messages
@@ -66,11 +69,11 @@ export const briefImportService = {
       }
 
       // Handle network errors
-      if (error.code === 'ECONNABORTED') {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ECONNABORTED') {
         throw new Error('Request timed out. Please try again.');
       }
 
-      if (error.message === 'Network Error') {
+      if (error instanceof Error && error.message === 'Network Error') {
         throw new Error('Network error. Please check your connection.');
       }
 

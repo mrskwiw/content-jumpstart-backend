@@ -37,9 +37,9 @@ interface AuditLog {
   ipAddress: string;
   status: 'success' | 'failed' | 'warning';
   metadata?: {
-    changes?: Record<string, { old: any; new: any }>;
+    changes?: Record<string, { old: unknown; new: unknown }>;
     reason?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

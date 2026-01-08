@@ -171,15 +171,18 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
       await onSave?.(validated);
 
       setIsSubmitting(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       setIsSubmitting(false);
 
-      // Handle validation errors
-      if (error.errors) {
+      // Handle validation errors (Zod errors have .errors array)
+      if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors)) {
         const fieldErrors: Record<string, string> = {};
-        error.errors.forEach((err: any) => {
-          const field = err.path[0];
-          fieldErrors[field] = err.message;
+        error.errors.forEach((err: unknown) => {
+          if (err && typeof err === 'object' && 'path' in err && Array.isArray(err.path) && 'message' in err) {
+            const field = String(err.path[0]);
+            const message = typeof err.message === 'string' ? err.message : 'Invalid value';
+            fieldErrors[field] = message;
+          }
         });
         setErrors(fieldErrors);
       } else {

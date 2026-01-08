@@ -12,7 +12,7 @@ import { ExportPanel } from '@/components/wizard/ExportPanel';
 import { postsApi } from '@/api/posts';
 import { runsApi } from '@/api/runs';
 import { projectsApi } from '@/api/projects';
-import { clientsApi } from '@/api/clients';
+import { clientsApi, type CreateClientInput, type UpdateClientInput } from '@/api/clients';
 import type { ClientBrief, PostDraft } from '@/types/domain';
 import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
@@ -67,25 +67,27 @@ export default function Wizard() {
 
   // Mutation to create client
   const createClientMutation = useMutation({
-    mutationFn: (data: any) => clientsApi.create(data),
+    mutationFn: (data: CreateClientInput) => clientsApi.create(data),
     onSuccess: (data) => {
       setClientId(data.id);
       qc.invalidateQueries({ queryKey: ['clients'] });
       console.log(`✅ Client created successfully: ${data.id} (${data.name})`);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('❌ Client creation failed:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-      });
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          message: 'message' in error ? error.message : undefined,
+          response: 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response ? error.response.data : undefined,
+          status: 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response ? error.response.status : undefined,
+        });
+      }
     },
   });
 
   // Mutation to update client
   const updateClientMutation = useMutation({
-    mutationFn: (data: { id: string } & any) => {
+    mutationFn: (data: { id: string } & UpdateClientInput) => {
       const { id, ...updateData } = data;
       return clientsApi.update(id, updateData);
     },
@@ -94,13 +96,15 @@ export default function Wizard() {
       qc.invalidateQueries({ queryKey: ['client', clientId] });
       console.log(`✅ Client updated successfully: ${data.id} (${data.name})`);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('❌ Client update failed:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-      });
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          message: 'message' in error ? error.message : undefined,
+          response: 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response ? error.response.data : undefined,
+          status: 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response ? error.response.status : undefined,
+        });
+      }
     },
   });
 
@@ -112,13 +116,15 @@ export default function Wizard() {
       qc.invalidateQueries({ queryKey: ['project', data.id] });
       console.log(`✅ Project created successfully: ${data.id} (${data.name})`);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('❌ Project creation failed:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        response: error?.response?.data,
-        status: error?.response?.status,
-      });
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          message: 'message' in error ? error.message : undefined,
+          response: 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response ? error.response.data : undefined,
+          status: 'response' in error && error.response && typeof error.response === 'object' && 'status' in error.response ? error.response.status : undefined,
+        });
+      }
     },
   });
 
@@ -222,9 +228,15 @@ export default function Wizard() {
           });
           finalClientId = client.id;
           console.log('✅ Client created:', finalClientId);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('❌ Client creation failed:', error);
-          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          const errorMsg =
+            (error && typeof error === 'object' && 'response' in error &&
+             error.response && typeof error.response === 'object' &&
+             'data' in error.response && error.response.data &&
+             typeof error.response.data === 'object' && 'detail' in error.response.data)
+              ? String(error.response.data.detail)
+              : (error instanceof Error ? error.message : 'Unknown error');
           alert(`Failed to create client: ${errorMsg}\n\nPlease check the console for details and try again.`);
           return; // Stop here - don't try to create project
         }
@@ -248,9 +260,15 @@ export default function Wizard() {
           });
           finalClientId = clientId;
           console.log('✅ Client updated:', finalClientId);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('❌ Client update failed:', error);
-          const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+          const errorMsg =
+            (error && typeof error === 'object' && 'response' in error &&
+             error.response && typeof error.response === 'object' &&
+             'data' in error.response && error.response.data &&
+             typeof error.response.data === 'object' && 'detail' in error.response.data)
+              ? String(error.response.data.detail)
+              : (error instanceof Error ? error.message : 'Unknown error');
           alert(`Failed to update client: ${errorMsg}\n\nPlease check the console for details and try again.`);
           return; // Stop here - don't try to create project
         }
@@ -278,9 +296,15 @@ export default function Wizard() {
       try {
         await createProjectMutation.mutateAsync(projectInput);
         console.log('✅ Project created successfully');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('❌ Project creation failed:', error);
-        const errorMsg = error?.response?.data?.detail || error?.message || 'Unknown error';
+        const errorMsg =
+          (error && typeof error === 'object' && 'response' in error &&
+           error.response && typeof error.response === 'object' &&
+           'data' in error.response && error.response.data &&
+           typeof error.response.data === 'object' && 'detail' in error.response.data)
+            ? String(error.response.data.detail)
+            : (error instanceof Error ? error.message : 'Unknown error');
         alert(`Client saved successfully, but project creation failed: ${errorMsg}\n\nThe client has been saved. You can try creating the project again from the client detail page.`);
         return; // Stop here - client is saved but project failed
       }
@@ -291,10 +315,11 @@ export default function Wizard() {
       // Move to next step
       console.log('✅ All save operations successful, advancing to research step');
       advanceToStep('research');
-    } catch (error: any) {
+    } catch (error: unknown) {
       // This catch should rarely be hit since we have specific catches above
       console.error('❌ Unexpected error in handleSaveProfile:', error);
-      alert(`An unexpected error occurred: ${error?.message || 'Unknown error'}\n\nPlease check the console for details.`);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      alert(`An unexpected error occurred: ${errorMsg}\n\nPlease check the console for details.`);
     }
   };
 
