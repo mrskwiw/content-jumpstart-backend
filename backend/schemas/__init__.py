@@ -20,6 +20,21 @@ from .deliverable import (
 )
 from .post import PostCreate, PostUpdate, PostResponse
 from .project import ProjectCreate, ProjectResponse, ProjectUpdate
+from .research_schemas import (
+    VoiceAnalysisParams,
+    SEOKeywordParams,
+    CompetitiveAnalysisParams,
+    ContentGapParams,
+    ContentAuditParams,
+    ContentPiece,
+    MarketTrendsParams,
+    PlatformStrategyParams,
+    ContentCalendarParams,
+    AudienceResearchParams,
+    ICPWorkshopParams,
+    StoryMiningParams,
+    BrandArchetypeParams,
+)
 from .run import RunCreate, RunUpdate, RunResponse
 
 __all__ = [
@@ -48,4 +63,18 @@ __all__ = [
     "RunCreate",
     "RunUpdate",
     "RunResponse",
+    # Research tool validation schemas
+    "VoiceAnalysisParams",
+    "SEOKeywordParams",
+    "CompetitiveAnalysisParams",
+    "ContentGapParams",
+    "ContentAuditParams",
+    "ContentPiece",
+    "MarketTrendsParams",
+    "PlatformStrategyParams",
+    "ContentCalendarParams",
+    "AudienceResearchParams",
+    "ICPWorkshopParams",
+    "StoryMiningParams",
+    "BrandArchetypeParams",
 ]

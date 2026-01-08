@@ -1,7 +1,7 @@
 """
 Research API endpoints.
 
-Handles research tool listing and execution.
+Handles research tool listing and execution with comprehensive input validation.
 """
 
 from typing import List, Dict, Any, Optional
@@ -202,14 +202,16 @@ async def run_research(
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {input.project_id} not found",
         )
 
     # Verify client exists
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Client {input.client_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Client {input.client_id} not found",
         )
 
     # Validate client has sufficient data for research
@@ -271,7 +273,8 @@ async def run_research(
     tool = next((t for t in RESEARCH_TOOLS if t.name == input.tool), None)
     if not tool:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Research tool '{input.tool}' not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Research tool '{input.tool}' not found",
         )
 
     # Check if tool is available
