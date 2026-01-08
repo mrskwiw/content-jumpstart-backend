@@ -16,8 +16,6 @@ class VoiceAnalysisParams(BaseModel):
 
     content_samples: List[str] = Field(
         ...,
-        min_length=5,
-        max_length=30,
         description="5-30 samples of client's existing writing (minimum 50 characters each)",
     )
 
@@ -53,8 +51,6 @@ class SEOKeywordParams(BaseModel):
 
     main_topics: List[str] = Field(
         ...,
-        min_length=1,
-        max_length=10,
         description="1-10 main topics for keyword research",
     )
 
@@ -87,8 +83,6 @@ class CompetitiveAnalysisParams(BaseModel):
 
     competitors: List[str] = Field(
         ...,
-        min_length=1,
-        max_length=5,
         description="1-5 competitor names to analyze",
     )
 
@@ -121,8 +115,6 @@ class ContentGapParams(BaseModel):
 
     current_content_topics: str = Field(
         ...,
-        min_length=10,
-        max_length=5000,
         description="Description of current content topics (10-5000 characters)",
     )
 
@@ -146,7 +138,7 @@ class ContentPiece(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    url: Optional[str] = Field(None, max_length=2000, description="URL of the content (optional)")
+    url: Optional[str] = Field(None, description="URL of the content (optional, max 2000 chars)")
     title: str = Field(..., min_length=3, max_length=500, description="Content title")
     type: Optional[str] = Field(None, max_length=50, description="Content type (blog, video, etc.)")
     publish_date: Optional[str] = Field(
@@ -184,8 +176,6 @@ class ContentAuditParams(BaseModel):
 
     content_inventory: List[ContentPiece] = Field(
         ...,
-        min_length=1,
-        max_length=100,
         description="1-100 content pieces to audit",
     )
 
@@ -211,7 +201,7 @@ class MarketTrendsParams(BaseModel):
     )
 
     focus_areas: Optional[List[str]] = Field(
-        None, max_length=10, description="Specific areas to emphasize (optional)"
+        None, description="Specific areas to emphasize (optional, max 10)"
     )
 
     @field_validator("industry")
@@ -262,13 +252,12 @@ class PlatformStrategyParams(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     current_platforms: Optional[List[str]] = Field(
-        None, max_length=10, description="Current platforms for content distribution"
+        None, description="Current platforms for content distribution (optional, max 10)"
     )
 
     content_goals: Optional[str] = Field(
         None,
-        max_length=1000,
-        description="Specific business objectives for content (optional)",
+        description="Specific business objectives for content (optional, max 1000 chars)",
     )
 
     @field_validator("current_platforms")
@@ -339,8 +328,7 @@ class AudienceResearchParams(BaseModel):
 
     additional_context: Optional[str] = Field(
         None,
-        max_length=2000,
-        description="Additional context about target audience (optional)",
+        description="Additional context about target audience (optional, max 2000 chars)",
     )
 
     @field_validator("additional_context")

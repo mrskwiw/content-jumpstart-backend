@@ -7,12 +7,26 @@ Handles research tool listing and execution with comprehensive input validation.
 from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user
 from backend.models import User
+from backend.schemas import (
+    VoiceAnalysisParams,
+    SEOKeywordParams,
+    CompetitiveAnalysisParams,
+    ContentGapParams,
+    ContentAuditParams,
+    MarketTrendsParams,
+    PlatformStrategyParams,
+    ContentCalendarParams,
+    AudienceResearchParams,
+    ICPWorkshopParams,
+    StoryMiningParams,
+    BrandArchetypeParams,
+)
 from backend.services import crud
 from backend.services.research_service import research_service
 from backend.utils.logger import logger
@@ -155,6 +169,72 @@ RESEARCH_TOOLS = [
 ]
 
 
+# Validation schema mapping for each research tool
+VALIDATION_SCHEMAS = {
+    "voice_analysis": VoiceAnalysisParams,
+    "seo_keyword_research": SEOKeywordParams,
+    "competitive_analysis": CompetitiveAnalysisParams,
+    "content_gap_analysis": ContentGapParams,
+    "content_audit": ContentAuditParams,
+    "market_trends_research": MarketTrendsParams,
+    "platform_strategy": PlatformStrategyParams,
+    "content_calendar": ContentCalendarParams,
+    "audience_research": AudienceResearchParams,
+    "icp_workshop": ICPWorkshopParams,
+    "story_mining": StoryMiningParams,
+    "brand_archetype": BrandArchetypeParams,
+}
+
+
+def validate_research_params(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Validate research tool parameters using appropriate Pydantic schema.
+
+    Args:
+        tool_name: Name of the research tool
+        params: Raw parameters dictionary from API request
+
+    Returns:
+        Validated parameters dictionary
+
+    Raises:
+        HTTPException: If validation fails with detailed error messages
+    """
+    # Check if tool has a validation schema
+    schema = VALIDATION_SCHEMAS.get(tool_name)
+    if not schema:
+        # No validation schema - allow any params (backward compatibility)
+        logger.warning(f"No validation schema found for tool '{tool_name}'")
+        return params
+
+    try:
+        # Validate params using Pydantic schema
+        validated = schema(**params)
+        # Convert back to dict for downstream processing
+        return validated.model_dump()
+    except ValidationError as e:
+        # Extract detailed error messages
+        error_details = []
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error["loc"])
+            message = error["msg"]
+            error_details.append(f"{field}: {message}")
+
+        error_message = f"Invalid parameters for {tool_name}: " + "; ".join(error_details)
+
+        logger.warning(f"Validation failed for {tool_name}: {error_message}")
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "validation_error",
+                "tool": tool_name,
+                "message": error_message,
+                "details": error_details,
+            },
+        )
+
+
 @router.get("/tools", response_model=List[ResearchTool])
 @lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def list_research_tools(
@@ -284,16 +364,27 @@ async def run_research(
             detail=f"Research tool '{input.tool}' is not yet available",
         )
 
-    logger.info(f"Executing research tool '{input.tool}' for project {input.project_id}")
+    # Validate research tool parameters using Pydantic schemas
+    # This provides comprehensive input validation with:
+    # - Length limits (prevent DoS)
+    # - Type checking (prevent type confusion)
+    # - List size limits (prevent resource exhaustion)
+    # - Whitespace stripping and sanitization
+    validated_params = validate_research_params(input.tool, input.params or {})
+
+    logger.info(
+        f"Executing research tool '{input.tool}' for project {input.project_id} "
+        f"with validated params"
+    )
 
     try:
-        # Execute research tool via service
+        # Execute research tool via service with validated params
         result = await research_service.execute_research_tool(
             db=db,
             project_id=input.project_id,
             client_id=input.client_id,
             tool_name=input.tool,
-            params=input.params or {},
+            params=validated_params,  # Use validated params instead of raw input
         )
 
         if not result["success"]:
