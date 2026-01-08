@@ -69,7 +69,13 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
         access_token=access_token,
         refresh_token=refresh_token,
         user=UserResponse(
-            id=user.id, email=user.email, full_name=user.full_name, is_active=user.is_active
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            is_superuser=user.is_superuser,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
         ),
     )
 
