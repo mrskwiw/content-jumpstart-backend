@@ -18,10 +18,10 @@ class HeadlineValidator:
     # Platform-specific minimum engagement elements
     PLATFORM_MIN_ELEMENTS = {
         Platform.LINKEDIN: 2,  # Professional but engaging hooks
-        Platform.TWITTER: 1,   # Brevity prioritized
+        Platform.TWITTER: 1,  # Brevity prioritized
         Platform.FACEBOOK: 1,  # Ultra-concise, emotion/visual focus
-        Platform.BLOG: 3,      # SEO-focused, click-through optimization
-        Platform.EMAIL: 2,     # Subject-line style, curiosity triggers
+        Platform.BLOG: 3,  # SEO-focused, click-through optimization
+        Platform.EMAIL: 2,  # Subject-line style, curiosity triggers
     }
 
     # Power words that trigger engagement
@@ -141,9 +141,9 @@ class HeadlineValidator:
         else:
             min_elements = self.min_elements
 
-        headline_scores = []
-        below_threshold = []
-        issues = []
+        headline_scores: List[Dict[str, Any]] = []
+        below_threshold: List[int] = []
+        issues: List[str] = []
 
         for idx, post in enumerate(posts):
             # Extract headline (first line)

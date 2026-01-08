@@ -18,10 +18,10 @@ class CTAValidator:
     # Platform-specific variety thresholds
     PLATFORM_VARIETY_THRESHOLDS = {
         Platform.LINKEDIN: 0.40,  # 40% max - more variety needed
-        Platform.TWITTER: 0.50,   # 50% max - fewer CTA types available
+        Platform.TWITTER: 0.50,  # 50% max - fewer CTA types available
         Platform.FACEBOOK: 0.50,  # 50% max - ultra-concise
-        Platform.BLOG: 0.60,      # 60% max - can repeat subscribe/download
-        Platform.EMAIL: 0.70,     # 70% max - campaign-focused, single CTA type
+        Platform.BLOG: 0.60,  # 60% max - can repeat subscribe/download
+        Platform.EMAIL: 0.70,  # 70% max - campaign-focused, single CTA type
     }
 
     # Common CTA patterns to detect
@@ -118,7 +118,7 @@ class CTAValidator:
             try:
                 return Platform(first_post.target_platform)
             except ValueError:
-                return None
+                pass
         return None
 
     def _extract_cta_types(self, posts: List[Post]) -> List[str]:

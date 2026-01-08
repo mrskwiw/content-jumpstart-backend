@@ -14,7 +14,7 @@ from ..models.post import Post
 
 # Optional: MinHash/LSH for performance optimization
 try:
-    from datasketch import MinHash, MinHashLSH
+    from datasketch import MinHash, MinHashLSH  # type: ignore[import-untyped]
 
     MINHASH_AVAILABLE = True
 except ImportError:
@@ -91,9 +91,7 @@ class HookValidator:
 
         # Add hook length issues
         for violation in hook_length_violations:
-            issues.append(
-                f"Post {violation['post_idx']+1}: {violation['violation']}"
-            )
+            issues.append(f"Post {violation['post_idx']+1}: {violation['violation']}")
 
         # Build metric string
         unique_count = len(posts) - len(duplicates)
@@ -211,7 +209,11 @@ class HookValidator:
                 # (if post is single line with no breaks)
                 if platform in [Platform.TWITTER, Platform.FACEBOOK]:
                     # Use entire post if it's shorter than arbitrary "first line" split
-                    hook = post.content.strip() if len(post.content.strip()) < len(first_line) + 50 else first_line
+                    hook = (
+                        post.content.strip()
+                        if len(post.content.strip()) < len(first_line) + 50
+                        else first_line
+                    )
                 else:
                     hook = first_line
 

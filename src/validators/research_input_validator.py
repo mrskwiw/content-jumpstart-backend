@@ -15,14 +15,13 @@ Security Features:
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .prompt_injection_defense import sanitize_prompt_input
 
 
 class ValidationError(ValueError):
     """Input validation failed"""
-
 
 
 class ResearchInputValidator:
@@ -125,7 +124,8 @@ class ResearchInputValidator:
             except ValueError as e:
                 raise ValidationError(f"{field_name} contains unsafe content: {str(e)}") from e
 
-        return value
+        result: str = value
+        return result
 
     def validate_list(
         self,
@@ -134,7 +134,7 @@ class ResearchInputValidator:
         min_items: Optional[int] = None,
         max_items: Optional[int] = None,
         required: bool = True,
-        item_validator: Optional[callable] = None,
+        item_validator: Optional[Callable[[Any], Any]] = None,
     ) -> List[Any]:
         """
         Validate list input
@@ -361,7 +361,8 @@ class ResearchInputValidator:
         if max_value is not None and value > max_value:
             raise ValidationError(f"{field_name} must be at most {max_value}, got {value}")
 
-        return value
+        result_int: int = value
+        return result_int
 
 
 # Convenience functions for common validations

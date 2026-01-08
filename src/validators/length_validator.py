@@ -17,10 +17,10 @@ class LengthValidator:
 
     def __init__(
         self,
-        min_words: int = None,
-        max_words: int = None,
-        optimal_min: int = None,
-        optimal_max: int = None,
+        min_words: Optional[int] = None,
+        max_words: Optional[int] = None,
+        optimal_min: Optional[int] = None,
+        optimal_max: Optional[int] = None,
         sameness_threshold: float = 0.70,
     ):
         """
@@ -129,7 +129,7 @@ class LengthValidator:
             return 0.0
 
         # Group by length buckets (±10 words)
-        buckets = Counter()
+        buckets: Counter[int] = Counter()
         for wc in word_counts:
             # Round to nearest 10
             bucket = round(wc / 10) * 10
