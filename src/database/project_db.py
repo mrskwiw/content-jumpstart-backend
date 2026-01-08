@@ -8,7 +8,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 from ..models.client_memory import ClientMemory, FeedbackTheme, VoiceSample
 from ..models.project import (
@@ -52,7 +52,7 @@ class ProjectDatabase:
             conn.commit()
 
     @contextmanager
-    def _get_connection(self):
+    def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
         """Context manager for database connections"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Return rows as dictionaries
@@ -717,7 +717,8 @@ class ProjectDatabase:
 
         memory = self.get_client_memory(client_name)
         if memory is None:
-            memory = ClientMemory(client_name=client_name)
+            # TODO: Fix ClientMemory model Field() defaults for mypy compatibility
+            memory = ClientMemory(client_name=client_name)  # type: ignore[call-arg]
             self.create_client_memory(memory)
         return memory
 
@@ -830,7 +831,7 @@ class ProjectDatabase:
             )
             conn.commit()
 
-            return cursor.lastrowid
+            return cursor.lastrowid or 0
 
     def get_voice_sample_uploads(
         self, client_name: str, limit: Optional[int] = None
@@ -894,7 +895,8 @@ class ProjectDatabase:
             """,
                 (client_name,),
             )
-            count = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            count: int = result[0] if result else 0
 
             # Delete samples
             cursor.execute(
@@ -1247,7 +1249,7 @@ class ProjectDatabase:
                 ),
             )
 
-            feedback_id = cursor.lastrowid
+            feedback_id = cursor.lastrowid or 0
             conn.commit()
             return feedback_id
 
@@ -1276,7 +1278,7 @@ class ProjectDatabase:
             cursor = conn.cursor()
 
             query = "SELECT * FROM post_feedback WHERE 1=1"
-            params = []
+            params: List[Any] = []
 
             if client_name:
                 query += " AND client_name = ?"
@@ -1420,7 +1422,7 @@ class ProjectDatabase:
                 ),
             )
 
-            satisfaction_id = cursor.lastrowid
+            satisfaction_id = cursor.lastrowid or 0
             conn.commit()
 
             # Update client_history with average satisfaction
@@ -1462,7 +1464,7 @@ class ProjectDatabase:
             cursor = conn.cursor()
 
             query = "SELECT * FROM client_satisfaction WHERE 1=1"
-            params = []
+            params: List[Any] = []
 
             if client_name:
                 query += " AND client_name = ?"
@@ -1614,7 +1616,7 @@ class ProjectDatabase:
             cursor = conn.cursor()
 
             query = "SELECT * FROM system_metrics WHERE 1=1"
-            params = []
+            params: List[Any] = []
 
             if metric_type:
                 query += " AND metric_type = ?"
@@ -1693,7 +1695,7 @@ class ProjectDatabase:
             rows = cursor.fetchall()
 
             # Group by metric type
-            summary = {}
+            summary: Dict[str, List[Dict[str, Any]]] = {}
             for row in rows:
                 metric_type = row[0]
                 if metric_type not in summary:
