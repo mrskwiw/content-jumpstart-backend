@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
 from backend.middleware.auth_dependency import get_current_user
-from backend.middleware.authorization import verify_project_ownership  # TR-021: Authorization
+from backend.middleware.authorization import (
+    verify_project_ownership,
+)  # TR-021: Authorization
 from backend.models import Project, User
 from backend.schemas.run import RunResponse, LogEntry
 from backend.schemas.deliverable import DeliverableResponse
@@ -106,14 +108,15 @@ async def run_generation_background(
 
         # Update run status to succeeded (use LogEntry format)
         from datetime import datetime
-        from schemas.run import LogEntry
+        from backend.schemas.run import LogEntry
 
         timestamp = datetime.now().isoformat()
         logs = [
             LogEntry(timestamp=timestamp, message="Generation started"),
             LogEntry(timestamp=timestamp, message="CLI execution completed"),
             LogEntry(
-                timestamp=timestamp, message=f"Created {result['posts_created']} post records"
+                timestamp=timestamp,
+                message=f"Created {result['posts_created']} post records",
             ),
             LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
         ]
@@ -162,7 +165,8 @@ async def generate_all(
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {input.project_id} not found",
         )
 
     # TR-021: Verify user owns the project
@@ -180,7 +184,8 @@ async def generate_all(
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Client {input.client_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Client {input.client_id} not found",
         )
 
     # Create Run record with status="pending"
@@ -226,7 +231,8 @@ async def regenerate(
     project = crud.get_project(db, input.project_id)
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Project {input.project_id} not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {input.project_id} not found",
         )
 
     # TR-021: Verify user owns the project
@@ -266,7 +272,10 @@ async def regenerate(
                 timestamp=timestamp,
                 message=f"Regenerated {result.get('posts_regenerated', 0)} posts",
             ),
-            LogEntry(timestamp=timestamp, message=f"Status: {result.get('status', 'completed')}"),
+            LogEntry(
+                timestamp=timestamp,
+                message=f"Status: {result.get('status', 'completed')}",
+            ),
         ]
 
         crud.update_run(
@@ -332,10 +341,10 @@ async def export_package(
         # For now, create a deliverable record with placeholder path
         # Future: Generate actual file from posts in database
 
-        from models import Deliverable
+        from backend.models import Deliverable
         import uuid
         from datetime import datetime
-        from utils.file_utils import calculate_file_size
+        from backend.utils.file_utils import calculate_file_size
 
         # Generate deliverable path based on project name and format
         # Path is relative to data/ directory (download endpoint will prepend data/outputs/)
@@ -369,5 +378,6 @@ async def export_package(
     except Exception as e:
         logger.error(f"Export failed: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Export failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}",
         )
