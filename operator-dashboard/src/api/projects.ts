@@ -86,7 +86,7 @@ export const projectsApi = {
 
   async update(projectId: string, input: UpdateProjectInput) {
     // Convert camelCase to snake_case for backend compatibility
-    const backendInput: Record<string, string | number | Record<string, number> | undefined> = {};
+    const backendInput: Record<string, string | number | string[] | Record<string, number> | undefined> = {};
     if (input.name !== undefined) backendInput.name = input.name;
     if (input.status !== undefined) backendInput.status = input.status;
     if (input.templates !== undefined) backendInput.templates = input.templates;

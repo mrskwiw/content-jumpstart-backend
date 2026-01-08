@@ -23,8 +23,18 @@ export type { CardProps } from './Card';
 export { Input, inputVariants } from './Input';
 export type { InputProps } from './Input';
 
-export { Select, selectVariants } from './Select';
-export type { SelectProps } from './Select';
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectScrollUpButton,
+  SelectScrollDownButton,
+} from './Select';
 
 export {
   Table,

@@ -24,10 +24,7 @@ export const authApi = {
       typeof data?.user === 'object';
 
     if (!hasTokens) {
-      const snippet =
-        typeof data === 'string'
-          ? data.slice(0, 120)
-          : JSON.stringify(data ?? {}, null, 0).slice(0, 120);
+      const snippet = JSON.stringify(data ?? {}, null, 0).slice(0, 120);
       throw new Error(
         `Login failed: unexpected response (status ${status}, content-type ${contentType}). Payload preview: ${snippet}`
       );
@@ -36,7 +33,7 @@ export const authApi = {
     // Map backend user model to frontend User type
     const backendUser = data.user;
     const user: LoginResponse['user'] = {
-      id: backendUser.id,
+      id: String(backendUser.id), // Convert number to string
       email: backendUser.email,
       name: backendUser.full_name || backendUser.email.split('@')[0], // Use full_name or fallback to email prefix
       role: 'operator', // Default role since backend doesn't return it yet

@@ -16,7 +16,7 @@ import { clientsApi } from '@/api/clients';
 import type { ClientBrief, PostDraft } from '@/types/domain';
 import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
-import { Button, Card, CardContent, Select } from '@/components/ui';
+import { Button, Card, CardContent, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
 
 type StepKey = 'profile' | 'research' | 'templates' | 'quality' | 'export';
 
@@ -346,19 +346,29 @@ export default function Wizard() {
 
               {/* Existing client selector */}
               {!isCreatingNewClient && (
-                <Select
-                  label="Select Existing Client"
-                  value={clientId || ''}
-                  onChange={(e) => setClientId(e.target.value || null)}
-                  helperText={!clientId ? "Select an existing client to continue" : undefined}
-                >
-                  <option value="">-- Select a client --</option>
-                  {(existingClients || []).map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </Select>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Select Existing Client
+                  </label>
+                  <Select value={clientId || ''} onValueChange={(value) => setClientId(value || null)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="-- Select a client --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">-- Select a client --</SelectItem>
+                      {(existingClients || []).map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!clientId && (
+                    <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                      Select an existing client to continue
+                    </p>
+                  )}
+                </div>
               )}
 
               {/* New client info */}
