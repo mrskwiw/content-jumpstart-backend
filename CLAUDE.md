@@ -378,6 +378,7 @@ When testing or debugging multi-step UI flows (wizard, forms, navigation):
 - `../SYSTEM_CAPABILITIES_REPORT.md` - Comprehensive system analysis
 - `SECURITY.md` - Security guidelines and threat model
 - `SECURITY_FIXES_2026-01-07.md` - Recent security improvements
+- `JWT_ROTATION_GUIDE.md` - JWT secret rotation implementation guide (Jan 2026)
 - `docs/platform_length_specifications_2025.md` - Platform length research
 - This directory's `README.md` - Quick start guide
 
