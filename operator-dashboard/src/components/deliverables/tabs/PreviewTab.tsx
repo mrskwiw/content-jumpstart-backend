@@ -31,7 +31,7 @@ function SyntaxHighlighterFallback() {
 
 // Lazy-loaded markdown preview component
 function MarkdownPreview({ content }: { content: string }) {
-  const [style, setStyle] = useState<any>(null);
+  const [style, setStyle] = useState<{ [key: string]: React.CSSProperties } | null>(null);
 
   useEffect(() => {
     vscDarkPlusLoader().then(setStyle);

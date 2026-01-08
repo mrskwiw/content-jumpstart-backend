@@ -55,7 +55,7 @@ export const clientsApi = {
 
   async update(clientId: string, input: UpdateClientInput) {
     // Convert camelCase to snake_case for backend compatibility
-    const backendInput: Record<string, any> = {};
+    const backendInput: Record<string, string | number | undefined> = {};
     if (input.name !== undefined) backendInput.name = input.name;
     if (input.email !== undefined) backendInput.email = input.email;
     if (input.businessDescription !== undefined) backendInput.business_description = input.businessDescription;

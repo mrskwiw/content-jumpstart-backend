@@ -1,9 +1,21 @@
 import apiClient from './client';
 import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/types/api';
 
+// Backend response type (may differ from frontend LoginResponse)
+interface BackendLoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: {
+    id: number;
+    email: string;
+    full_name?: string;
+  };
+}
+
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const { data, status, headers } = await apiClient.post<any>('/api/auth/login', credentials);
+    const { data, status, headers } = await apiClient.post<BackendLoginResponse>('/api/auth/login', credentials);
 
     const contentType = headers['content-type'] || headers['Content-Type'] || '';
     const hasTokens =

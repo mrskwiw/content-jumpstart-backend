@@ -6,7 +6,14 @@ global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder as typeof global.TextDecoder;
 
 // Shim Vite-style env for tests (consumed via import.meta.env fallback).
-(globalThis as any).__ENV__ = {
+interface TestEnv {
+  VITE_API_URL: string;
+  VITE_USE_MOCKS: string;
+  VITE_DEBUG_MODE: string;
+  MODE: string;
+}
+
+(globalThis as typeof globalThis & { __ENV__: TestEnv }).__ENV__ = {
   VITE_API_URL: 'http://localhost:8000',
   VITE_USE_MOCKS: 'false',
   VITE_DEBUG_MODE: 'false',
@@ -19,9 +26,13 @@ jest.mock('@/utils/env');
 // Mock react-syntax-highlighter to avoid ESM import issues
 jest.mock('react-syntax-highlighter', () => {
   const React = require('react');
+  interface MockHighlighterProps {
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }
   return {
-    Prism: ({ children, ...props }: any) => React.createElement('pre', props, children),
-    Light: ({ children, ...props }: any) => React.createElement('pre', props, children),
+    Prism: ({ children, ...props }: MockHighlighterProps) => React.createElement('pre', props, children),
+    Light: ({ children, ...props }: MockHighlighterProps) => React.createElement('pre', props, children),
   };
 });
 
