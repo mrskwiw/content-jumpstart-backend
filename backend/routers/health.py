@@ -1,10 +1,15 @@
 """
 Health and monitoring endpoints.
 """
+
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+
+from backend.middleware.auth_dependency import get_current_user
+from backend.models.user import User
 from backend.utils.db_monitor import get_pool_status, get_pool_events
+from backend.utils.logger import logger
 from backend.utils.query_cache import get_cache_info, clear_cache, reset_cache_stats
 from backend.utils.query_profiler import (
     get_query_statistics,
@@ -12,10 +17,37 @@ from backend.utils.query_profiler import (
     get_profiling_report,
     reset_statistics,
     SLOW_QUERY_THRESHOLD_MS,
-    VERY_SLOW_QUERY_THRESHOLD_MS
+    VERY_SLOW_QUERY_THRESHOLD_MS,
 )
 
 router = APIRouter()
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Dependency to verify user is an admin (superuser).
+
+    Health management operations (cache clear, stats reset) require admin privileges
+    to prevent performance degradation attacks.
+
+    Raises:
+        HTTPException 403: User is not an admin
+
+    Returns:
+        User instance if admin
+    """
+    from fastapi import HTTPException, status
+
+    if not current_user.is_superuser:
+        logger.warning(
+            f"Admin access denied: User {current_user.email} "
+            f"attempted health management operation without superuser privileges"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required for health management operations",
+        )
+    return current_user
 
 
 @router.get("/health")
@@ -110,11 +142,16 @@ async def cache_health(tier: str = Query(None, description="Cache tier (short, m
 async def clear_query_cache(
     tier: str = Query(None, description="Cache tier to clear (short, medium, long)"),
     key_prefix: str = Query(None, description="Key prefix to selectively clear (e.g., 'projects')"),
+    admin: User = Depends(require_admin),
 ):
     """
     Clear query cache.
 
+    **ADMIN ONLY**: Requires superuser privileges.
+
     Use this endpoint to manually invalidate caches when needed.
+
+    Security (TR-024): Admin-only to prevent performance degradation attacks.
 
     Query Parameters:
         tier: Optional cache tier to clear (if not specified, clears all tiers)
@@ -126,6 +163,11 @@ async def clear_query_cache(
         - Clear projects: POST /health/cache/clear?key_prefix=projects
         - Clear short projects: POST /health/cache/clear?tier=short&key_prefix=projects
     """
+    logger.info(
+        f"Admin {admin.email} clearing cache "
+        f"(tier={tier or 'all'}, key_prefix={key_prefix or 'none'})"
+    )
+
     before_info = get_cache_info(tier)
 
     clear_cache(ttl=tier, key_prefix=key_prefix)
@@ -141,15 +183,21 @@ async def clear_query_cache(
 
 
 @router.post("/health/cache/reset-stats")
-async def reset_statistics():
+async def reset_cache_statistics(admin: User = Depends(require_admin)):
     """
     Reset cache statistics counters.
+
+    **ADMIN ONLY**: Requires superuser privileges.
 
     This resets hit/miss/set/invalidation counters to zero
     without clearing the cached data.
 
+    Security (TR-024): Admin-only to prevent hiding evidence of attacks.
+
     Useful for measuring cache performance over a specific period.
     """
+    logger.info(f"Admin {admin.email} resetting cache statistics")
+
     reset_cache_stats()
 
     return {
@@ -207,7 +255,7 @@ async def profiling_overview():
     # Add threshold information
     report["thresholds"] = {
         "slow_query_ms": SLOW_QUERY_THRESHOLD_MS,
-        "very_slow_query_ms": VERY_SLOW_QUERY_THRESHOLD_MS
+        "very_slow_query_ms": VERY_SLOW_QUERY_THRESHOLD_MS,
     }
 
     return report
@@ -218,7 +266,7 @@ async def profiling_query_statistics(
     min_execution_count: int = Query(0, ge=0, description="Minimum execution count"),
     min_avg_time_ms: float = Query(0, ge=0, description="Minimum average time (ms)"),
     only_slow: bool = Query(False, description="Only show queries with slow executions"),
-    limit: int = Query(50, ge=1, le=500, description="Maximum number of results")
+    limit: int = Query(50, ge=1, le=500, description="Maximum number of results"),
 ):
     """
     Detailed query statistics.
@@ -241,7 +289,7 @@ async def profiling_query_statistics(
     stats = get_query_statistics(
         min_execution_count=min_execution_count,
         min_avg_time_ms=min_avg_time_ms,
-        only_slow=only_slow
+        only_slow=only_slow,
     )
 
     # Limit results
@@ -254,22 +302,24 @@ async def profiling_query_statistics(
         "filters": {
             "min_execution_count": min_execution_count,
             "min_avg_time_ms": min_avg_time_ms,
-            "only_slow": only_slow
+            "only_slow": only_slow,
         },
         "queries": [
             {
                 "query_hash": s.query_hash,
-                "query_sample": s.query_sample[:300] + "..." if len(s.query_sample) > 300 else s.query_sample,
+                "query_sample": (
+                    s.query_sample[:300] + "..." if len(s.query_sample) > 300 else s.query_sample
+                ),
                 "execution_count": s.execution_count,
                 "total_time_ms": round(s.total_time_ms, 2),
                 "avg_time_ms": round(s.avg_time_ms, 2),
                 "min_time_ms": round(s.min_time_ms, 2),
                 "max_time_ms": round(s.max_time_ms, 2),
                 "slow_count": s.slow_count,
-                "very_slow_count": s.very_slow_count
+                "very_slow_count": s.very_slow_count,
             }
             for s in stats
-        ]
+        ],
     }
 
 
@@ -277,7 +327,7 @@ async def profiling_query_statistics(
 async def profiling_slow_queries(
     limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
     since_minutes: int = Query(60, ge=1, le=1440, description="Show queries from last N minutes"),
-    very_slow_only: bool = Query(False, description="Only show very slow queries (>500ms)")
+    very_slow_only: bool = Query(False, description="Only show very slow queries (>500ms)"),
 ):
     """
     Recent slow query executions.
@@ -297,11 +347,7 @@ async def profiling_slow_queries(
     """
     since = datetime.utcnow() - timedelta(minutes=since_minutes)
 
-    queries = get_slow_queries(
-        limit=limit,
-        since=since,
-        very_slow_only=very_slow_only
-    )
+    queries = get_slow_queries(limit=limit, since=since, very_slow_only=very_slow_only)
 
     return {
         "count": len(queries),
@@ -310,7 +356,7 @@ async def profiling_slow_queries(
         "very_slow_only": very_slow_only,
         "thresholds": {
             "slow_query_ms": SLOW_QUERY_THRESHOLD_MS,
-            "very_slow_query_ms": VERY_SLOW_QUERY_THRESHOLD_MS
+            "very_slow_query_ms": VERY_SLOW_QUERY_THRESHOLD_MS,
         },
         "queries": [
             {
@@ -318,31 +364,34 @@ async def profiling_slow_queries(
                 "duration_ms": round(q["duration_ms"], 2),
                 "timestamp": q["timestamp"].isoformat(),
                 "endpoint": q["endpoint"],
-                "is_very_slow": q["is_very_slow"]
+                "is_very_slow": q["is_very_slow"],
             }
             for q in queries
-        ]
+        ],
     }
 
 
 @router.post("/health/profiling/reset")
-async def reset_profiling_statistics():
+async def reset_profiling_statistics(admin: User = Depends(require_admin)):
     """
     Reset query profiling statistics.
+
+    **ADMIN ONLY**: Requires superuser privileges.
 
     This clears all accumulated profiling data:
     - Query statistics
     - Slow query history
     - Performance metrics
 
+    Security (TR-024): Admin-only to prevent hiding evidence of attacks.
+
     Useful for:
     - Starting fresh profiling session
     - Clearing old data after optimization
     - Resetting after load testing
     """
+    logger.info(f"Admin {admin.email} resetting query profiling statistics")
+
     reset_statistics()
 
-    return {
-        "success": True,
-        "message": "Profiling statistics reset successfully"
-    }
+    return {"success": True, "message": "Profiling statistics reset successfully"}
