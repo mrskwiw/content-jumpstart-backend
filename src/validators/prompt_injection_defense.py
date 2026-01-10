@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SanitizationResult:
     """Result of input sanitization"""
+
     sanitized_text: str
     blocked_patterns: List[str]
     is_safe: bool
@@ -45,59 +46,53 @@ class PromptInjectionDetector:
     # Critical patterns that indicate prompt injection
     CRITICAL_PATTERNS = [
         # Instruction override
-        r'ignore\s+(all\s+)?(previous|prior|above|system)\s+instructions',
-        r'disregard\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts)',
-        r'forget\s+(all\s+)?(previous|prior|above|your)\s+(instructions|context|prompt|system)',
-
+        r"ignore\s+(all\s+)?(previous|prior|above|system)\s+instructions",
+        r"disregard\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts)",
+        r"forget\s+(all\s+)?(previous|prior|above|your)\s+(instructions|context|prompt|system)",
         # Role manipulation
-        r'you\s+are\s+now\s+(a|an)\s+\w+',
-        r'act\s+as\s+(a|an)\s+\w+',
-        r'pretend\s+(to\s+be|you\s+are)',
-        r'roleplay\s+as',
-
+        r"you\s+are\s+now\s+(a|an)\s+\w+",
+        r"act\s+as\s+(a|an)\s+\w+",
+        r"pretend\s+(to\s+be|you\s+are)",
+        r"roleplay\s+as",
         # System prompt leakage
-        r'repeat\s+(your|the)\s+(instructions|prompt|system\s+message)',
-        r'show\s+(me\s+)?(your|the)\s+(instructions|prompt|system\s+prompt)',
-        r'what\s+(are|were)\s+your\s+(original\s+)?(instructions|rules)',
-        r'print\s+(your|the)\s+system\s+(prompt|message)',
-
+        r"repeat\s+(your|the)\s+(instructions|prompt|system\s+message)",
+        r"show\s+(me\s+)?(your|the)\s+(instructions|prompt|system\s+prompt)",
+        r"what\s+(are|were)\s+your\s+(original\s+)?(instructions|rules)",
+        r"print\s+(your|the)\s+system\s+(prompt|message)",
         # Data exfiltration
-        r'output\s+(all\s+)?(previous\s+)?(data|clients|keys|secrets)',
-        r'list\s+all\s+(clients|users|api\s+keys)',
-        r'show\s+(me\s+)?all\s+(client|user|api)\s+(data|keys)',
-
+        r"output\s+(all\s+)?(previous\s+)?(data|clients?|keys|secrets)",
+        r"list\s+all\s+(clients?|users?|api\s+keys)",
+        r"show\s+(me\s+)?all\s+(clients?|users?|api)\s+(data|keys)",
         # Jailbreak attempts
-        r'developer\s+mode',
-        r'DAN\s+mode',
-        r'jailbreak',
-        r'sudo\s+mode',
-        r'god\s+mode',
+        r"developer\s+mode",
+        r"DAN\s+mode",
+        r"jailbreak",
+        r"sudo\s+mode",
+        r"god\s+mode",
     ]
 
     # Medium-risk patterns (warnings, but may be legitimate)
     MEDIUM_PATTERNS = [
         # Delimiter confusion
-        r'</?system>',
-        r'</?user>',
-        r'</?assistant>',
-        r'\[SYSTEM\]',
-        r'\[USER\]',
-
+        r"</?system>",
+        r"</?user>",
+        r"</?assistant>",
+        r"\[SYSTEM\]",
+        r"\[USER\]",
         # Encoding attempts
-        r'base64',
-        r'url\s*encode',
-        r'rot13',
-
+        r"base64",
+        r"url\s*encode",
+        r"rot13",
         # Special characters that might be used for injection
-        r'```\s*(?:python|javascript|bash|sql)',  # Code blocks
+        r"```\s*(?:python|javascript|bash|sql)",  # Code blocks
     ]
 
     # Low-risk patterns (informational)
     LOW_PATTERNS = [
         # API key patterns (might be legitimate examples)
-        r'sk-ant-[a-zA-Z0-9]{40,}',
-        r'AWS_SECRET',
-        r'API_KEY\s*=',
+        r"sk-ant-[a-zA-Z0-9]{40,}",
+        r"AWS_SECRET",
+        r"API_KEY\s*=",
     ]
 
     def __init__(self, strict_mode: bool = False):
@@ -169,10 +164,7 @@ class PromptInjectionDetector:
 
         if not is_malicious:
             return SanitizationResult(
-                sanitized_text=text,
-                blocked_patterns=[],
-                is_safe=True,
-                severity="safe"
+                sanitized_text=text, blocked_patterns=[], is_safe=True, severity="safe"
             )
 
         # Log security event
@@ -201,7 +193,7 @@ class PromptInjectionDetector:
             sanitized_text=sanitized,
             blocked_patterns=blocked_patterns,
             is_safe=False,  # Original input was malicious
-            severity=severity
+            severity=severity,
         )
 
 
@@ -212,23 +204,25 @@ class OutputValidator:
 
     # Patterns that indicate system prompt leakage
     LEAKAGE_PATTERNS = [
-        r'<system>.*?</system>',
-        r'You are an expert content strategist',  # Our system prompt
-        r'ANTHROPIC_API_KEY',
-        r'sk-ant-[a-zA-Z0-9]{40,}',
-        r'Template Structure:',  # Our prompt structure
+        r"<system>.*?</system>",
+        r"You are an expert content strategist",  # Our system prompt
+        r"ANTHROPIC_API_KEY",
+        r"sk-ant-[a-zA-Z0-9]{40,}",
+        r"Template Structure:",  # Our prompt structure
         r'Client Brief:.*?"company_name"',  # JSON leak
     ]
 
     # Sensitive data patterns
     SENSITIVE_PATTERNS = [
-        r'password\s*[:=]\s*\S+',
-        r'secret\s*[:=]\s*\S+',
-        r'token\s*[:=]\s*\S+',
+        r"password\s*[:=]\s*\S+",
+        r"secret\s*[:=]\s*\S+",
+        r"token\s*[:=]\s*\S+",
     ]
 
     def __init__(self):
-        self.leakage_regex = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.LEAKAGE_PATTERNS]
+        self.leakage_regex = [
+            re.compile(p, re.IGNORECASE | re.DOTALL) for p in self.LEAKAGE_PATTERNS
+        ]
         self.sensitive_regex = [re.compile(p, re.IGNORECASE) for p in self.SENSITIVE_PATTERNS]
 
     def validate_output(self, output: str) -> Tuple[bool, List[str]]:

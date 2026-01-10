@@ -235,6 +235,85 @@ def validate_research_params(tool_name: str, params: Dict[str, Any]) -> Dict[str
         )
 
 
+def sanitize_research_params(params: Dict[str, Any], strict: bool = False) -> Dict[str, Any]:
+    """
+    Sanitize research tool parameters to prevent prompt injection attacks.
+
+    This function recursively sanitizes all string values in the params dictionary,
+    protecting against malicious prompts that attempt to override system instructions,
+    leak sensitive data, or manipulate LLM behavior.
+
+    Security (TR-020): Prompt Injection Defense
+    - Blocks instruction override attempts ("ignore previous instructions...")
+    - Prevents role manipulation ("you are now a...")
+    - Stops system prompt leakage ("repeat your instructions")
+    - Filters data exfiltration attempts ("output all client data")
+    - Detects jailbreak attempts ("DAN mode", "developer mode")
+
+    Args:
+        params: Validated parameters dictionary
+        strict: If True, applies stricter sanitization (blocks medium-risk patterns)
+
+    Returns:
+        Sanitized parameters dictionary
+
+    Raises:
+        HTTPException: If prompt injection is detected
+    """
+    from src.validators.prompt_injection_defense import PromptInjectionDetector
+
+    detector = PromptInjectionDetector(strict_mode=strict)
+    sanitized = {}
+
+    for key, value in params.items():
+        if isinstance(value, str):
+            # Check for prompt injection before sanitization
+            is_malicious, blocked_patterns, severity = detector.detect_injection(value)
+
+            if is_malicious:
+                logger.error(
+                    f"Prompt injection detected in '{key}' (severity={severity}): {blocked_patterns[:3]}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Security validation failed: Parameter '{key}' contains suspicious content that may attempt to manipulate the AI system. Please rephrase your input.",
+                )
+
+            sanitized[key] = value
+        elif isinstance(value, list):
+            # Check each list item for prompt injection
+            sanitized_list = []
+            for i, item in enumerate(value):
+                if isinstance(item, str):
+                    # Detect prompt injection in list items
+                    is_malicious, blocked_patterns, severity = detector.detect_injection(item)
+
+                    if is_malicious:
+                        logger.error(
+                            f"Prompt injection detected in {key}[{i}] (severity={severity}): {blocked_patterns[:3]}"
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Security validation failed: Parameter '{key}[{i}]' contains suspicious content that may attempt to manipulate the AI system. Please rephrase your input.",
+                        )
+
+                    sanitized_list.append(item)
+                elif isinstance(item, dict):
+                    # Recursive sanitization for nested dicts in lists
+                    sanitized_list.append(sanitize_research_params(item, strict=strict))
+                else:
+                    sanitized_list.append(item)
+            sanitized[key] = sanitized_list
+        elif isinstance(value, dict):
+            # Recursive sanitization for nested dicts
+            sanitized[key] = sanitize_research_params(value, strict=strict)
+        else:
+            # Pass through non-string values (int, float, bool, None)
+            sanitized[key] = value
+
+    return sanitized
+
+
 @router.get("/tools", response_model=List[ResearchTool])
 @lenient_limiter.limit("1000/hour")  # TR-004: Cheap read operation
 async def list_research_tools(
@@ -264,19 +343,25 @@ async def run_research(
     """
     Execute a research tool.
 
-    Currently stubbed - will integrate with actual research tools:
-    - Voice Analysis
-    - Brand Archetype Assessment
-    - SEO Keyword Research
-    - Competitive Analysis
-    - Content Gap Analysis
-    - Market Trends Research
+    Integrates with 13 research tools:
+    - Voice Analysis, Brand Archetype Assessment, SEO Keyword Research
+    - Competitive Analysis, Content Gap Analysis, Market Trends Research
+    - Platform Strategy, Content Calendar, Audience Research
+    - ICP Workshop, Story Mining, Content Audit
 
     Rate limit: 5/hour per IP+user (prevents abuse of expensive AI operations)
 
-    SECURITY (TR-020): Prompt injection defense is handled by the research tool base class
-    (src.research.base.ResearchTool) via the validate_inputs() method called in execute().
-    Each research tool validates inputs before passing them to LLM prompts.
+    SECURITY (TR-020): Multi-layer prompt injection defense:
+    1. Pydantic validation (length limits, type checking, list size limits)
+    2. Prompt sanitization (sanitize_research_params) before LLM execution
+       - Blocks instruction override ("ignore previous instructions...")
+       - Prevents role manipulation ("you are now a...")
+       - Stops system prompt leakage ("repeat your instructions")
+       - Filters data exfiltration ("output all client data")
+       - Detects jailbreak attempts ("DAN mode", "developer mode")
+    3. Recursive sanitization of nested dicts and lists
+
+    All string parameters are sanitized before being passed to LLM prompts.
     """
     # Verify project exists
     project = crud.get_project(db, input.project_id)
@@ -372,19 +457,37 @@ async def run_research(
     # - Whitespace stripping and sanitization
     validated_params = validate_research_params(input.tool, input.params or {})
 
-    logger.info(
-        f"Executing research tool '{input.tool}' for project {input.project_id} "
-        f"with validated params"
-    )
+    # SECURITY (TR-020): Sanitize validated params to prevent prompt injection
+    # This protects against malicious prompts attempting to:
+    # - Override system instructions
+    # - Leak sensitive data or system prompts
+    # - Manipulate LLM behavior via jailbreak techniques
+    # All string values (including nested dicts and lists) are sanitized
+    try:
+        sanitized_params = sanitize_research_params(validated_params, strict=False)
+        logger.info(
+            f"Executing research tool '{input.tool}' for project {input.project_id} "
+            f"with validated and sanitized params"
+        )
+    except HTTPException:
+        # Re-raise HTTPExceptions from sanitization (prompt injection detected)
+        raise
+    except Exception as e:
+        # Unexpected error during sanitization
+        logger.error(f"Sanitization error for {input.tool}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Security validation failed: {str(e)}",
+        )
 
     try:
-        # Execute research tool via service with validated params
+        # Execute research tool via service with sanitized params
         result = await research_service.execute_research_tool(
             db=db,
             project_id=input.project_id,
             client_id=input.client_id,
             tool_name=input.tool,
-            params=validated_params,  # Use validated params instead of raw input
+            params=sanitized_params,  # Use sanitized params for LLM safety
         )
 
         if not result["success"]:
