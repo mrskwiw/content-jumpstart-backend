@@ -62,15 +62,24 @@ class ResponseCache:
             enabled: Whether caching is enabled (useful for dev/prod toggle)
         """
         if cache_dir is None:
-            cache_dir = Path(".cache/api_responses")
+            # On Render/production, use /tmp (writable), otherwise use local .cache
+            import os
+            if os.environ.get("RENDER") or not Path(".cache").exists() and not os.access(".", os.W_OK):
+                cache_dir = Path("/tmp/.cache/api_responses")
+            else:
+                cache_dir = Path(".cache/api_responses")
 
         self.cache_dir = Path(cache_dir)
         self.ttl_seconds = ttl_seconds
         self.enabled = enabled
 
         if self.enabled:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Response cache initialized: {self.cache_dir}")
+            try:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Response cache initialized: {self.cache_dir}")
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Failed to create cache directory {self.cache_dir}: {e}. Disabling cache.")
+                self.enabled = False
 
     def _get_cache_key(
         self, messages: List[Dict[str, str]], system: str, temperature: float

@@ -31,6 +31,7 @@ from backend.services import crud
 from backend.services.research_service import research_service
 from backend.utils.logger import logger
 from backend.utils.http_rate_limiter import strict_limiter, lenient_limiter
+from backend.middleware.authorization import _check_ownership  # TR-021: IDOR prevention
 
 router = APIRouter()
 
@@ -371,12 +372,26 @@ async def run_research(
             detail=f"Project {input.project_id} not found",
         )
 
+    # TR-021: Verify user owns the project (IDOR prevention)
+    if not _check_ownership("Project", project, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this project",
+        )
+
     # Verify client exists
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Client {input.client_id} not found",
+        )
+
+    # TR-021: Verify user owns the client (IDOR prevention)
+    if not _check_ownership("Client", client, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this client",
         )
 
     # Validate client has sufficient data for research
