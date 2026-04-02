@@ -20,13 +20,12 @@ import { Button, Card, CardContent, Select, SelectTrigger, SelectValue, SelectCo
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { stripeApi } from '@/api/stripe';
 
-type StepKey = 'profile' | 'research' | 'templates' | 'payment' | 'quality' | 'export';
+type StepKey = 'profile' | 'research' | 'templates' | 'quality' | 'export';
 
 const steps: { key: StepKey; label: string }[] = [
   { key: 'profile', label: 'Client Profile' },
   { key: 'research', label: 'Research' },
   { key: 'templates', label: 'Templates' },
-  { key: 'payment', label: 'Payment' },
   { key: 'quality', label: 'Quality Gate' },
   { key: 'export', label: 'Export' },
 ];
@@ -490,61 +489,6 @@ export default function Wizard() {
       )}
 
 
-      {activeStep === 'payment' && projectId && clientId && (
-        <div className="space-y-4">
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Payment</h2>
-            <div className="mb-6">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-                <strong>Total posts:</strong> {Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0)}
-              </p>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-2">
-                <strong>Estimated cost:</strong> {totalPrice > 0 ? `$${totalPrice.toLocaleString()}` : 'Calculated at checkout'}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={async () => {
-                  try {
-                    // Load first active package
-                    const origin = window.location.origin;
-                    const successUrl = `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`;
-                    const cancelUrl = `${origin}/dashboard/wizard`;
-                    // Fetch packages to find first active one
-                    const pkgRes = await fetch('/api/credits/packages');
-                    const packages = await pkgRes.json();
-                    const pkg = Array.isArray(packages) && packages.length > 0 ? packages[0] : null;
-                    if (!pkg) {
-                      alert('No credit packages available. Please contact support.');
-                      return;
-                    }
-                    sessionStorage.setItem('stripe_pending', JSON.stringify({ projectId, clientId }));
-                    const result = await stripeApi.createCheckoutSession({
-                      package_id: pkg.id,
-                      success_url: successUrl,
-                      cancel_url: cancelUrl,
-                      project_id: projectId,
-                    });
-                    window.location.href = result.checkout_url;
-                  } catch (err) {
-                    console.error('Stripe checkout error:', err);
-                    alert('Failed to start checkout. Please try again.');
-                  }
-                }}
-                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Proceed to Payment
-              </button>
-              <button
-                onClick={() => advanceToStep('quality')}
-                className="rounded-md border border-neutral-300 dark:border-neutral-600 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
-              >
-                Skip (Test Mode)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {activeStep === 'quality' && projectId && clientId && (
         <div className="space-y-4">
