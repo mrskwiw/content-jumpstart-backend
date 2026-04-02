@@ -67,7 +67,7 @@ class SEOKeywordParams(BaseModel):
         if v is None:
             return None
         if len(v) == 0:
-            raise ValueError("Must provide between 1-10 main topics")
+            return None  # treat empty list same as None — auto-generate from business profile
 
         if not 1 <= len(v) <= 10:
             raise ValueError("Must provide between 1-10 main topics")

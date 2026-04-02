@@ -231,29 +231,20 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     fetchCompletedResearch();
   }, [projectId]);
 
-  // Fetch dependencies for templates with quantity > 0
+  // Fetch dependencies for all templates on mount so prerequisites are visible before selection
   useEffect(() => {
-    const templatesWithQuantity = Object.keys(quantities)
-      .map(Number)
-      .filter((id) => quantities[id] > 0);
-
-    if (templatesWithQuantity.length === 0) {
-      setDependencies(new Map());
-      return;
-    }
-
     const fetchDependencies = async () => {
       setLoadingDeps(true);
       const newDeps = new Map<number, TemplateDependencies>();
 
       try {
         await Promise.all(
-          templatesWithQuantity.map(async (templateId) => {
+          TEMPLATES.map(async (template) => {
             try {
-              const response = await generatorApi.getTemplateDependencies(templateId);
-              newDeps.set(templateId, response.research_dependencies);
+              const response = await generatorApi.getTemplateDependencies(template.id);
+              newDeps.set(template.id, response.research_dependencies);
             } catch (error) {
-              console.error(`Failed to fetch dependencies for template ${templateId}:`, error);
+              console.error(`Failed to fetch dependencies for template ${template.id}:`, error);
             }
           })
         );
@@ -265,7 +256,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     };
 
     fetchDependencies();
-  }, [quantities]);
+  }, []);
   // Validate templates when quantities change
   useEffect(() => {
     const templatesWithQuantity = Object.keys(quantities)
@@ -751,8 +742,8 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                 </div>
               </div>
 
-              {/* Research Dependencies for this template */}
-              {hasQuantity && templateDeps && (hasRequiredDeps || hasRecommendedDeps) && (
+              {/* Research Dependencies for this template — always visible so users see requirements before selecting */}
+              {templateDeps && (hasRequiredDeps || hasRecommendedDeps) && (
                 <div className="mb-3 pt-2 border-t border-neutral-200 dark:border-neutral-700 space-y-1">
                   {hasRequiredDeps && (
                     <div className="text-xs">

@@ -383,7 +383,7 @@ export default function Wizard() {
                   <label className="mb-2 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
                     Select Existing Client
                   </label>
-                  <Select value={clientId ?? undefined} onValueChange={(value) => setClientId(value || null)}>
+                  <Select value={clientId ?? ""} onValueChange={(value) => setClientId(value || null)}>
                     <SelectTrigger>
                       <SelectValue placeholder="-- Select a client --" />
                     </SelectTrigger>
@@ -481,7 +481,7 @@ export default function Wizard() {
                   setTotalPrice(price);
                   setCustomTopics(topics);
                   setTargetPlatform(platform);
-                  advanceToStep('payment');
+                  advanceToStep('quality');
                 }}
               />
             </CardContent>

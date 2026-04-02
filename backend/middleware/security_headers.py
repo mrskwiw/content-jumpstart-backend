@@ -40,8 +40,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
 
         # Prevent clickjacking attacks
-        # Page cannot be embedded in <iframe>, <frame>, etc.
-        response.headers["X-Frame-Options"] = "SAMEORIGIN"  # Allow same-origin framing
+        # Page cannot be embedded in any <iframe>, <frame>, etc.
+        response.headers["X-Frame-Options"] = "DENY"
 
         # Enable browser XSS protection
         # Deprecated in modern browsers but harmless to include
