@@ -99,8 +99,12 @@ class CompetitiveAnalysisParams(BaseModel):
 
     @field_validator("competitors")
     @classmethod
-    def validate_competitors(cls, v: List[str]) -> List[str]:
+    def validate_competitors(cls, v: List[str]) -> Optional[List[str]]:
         """Validate competitors list."""
+        if v is None:
+            return None
+        if len(v) == 0:
+            return None  # treat empty list same as None — auto-populate from client profile
         if not 1 <= len(v) <= 5:
             raise ValueError("Must provide between 1-5 competitors")
 

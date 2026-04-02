@@ -71,6 +71,15 @@ def is_web_search_configured(db: Session, user_id: int) -> Tuple[bool, str]:
             )
         return True, "tavily"
 
+    elif provider == "serpapi":
+        api_key = config.get("serpapi_api_key") or os.getenv("SERPAPI_API_KEY")
+        if not api_key:
+            return (
+                False,
+                "SerpAPI selected but no API key configured. Please add your SerpAPI key in Settings.",
+            )
+        return True, "serpapi"
+
     # Unknown provider
     return False, f"Unknown web search provider: {provider}"
 

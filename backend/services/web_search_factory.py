@@ -30,6 +30,8 @@ def get_user_search_client(db: Session, user_id: int) -> WebSearchClient:
         api_key = config["brave_api_key"]
     elif provider == "tavily" and config["tavily_api_key"]:
         api_key = config["tavily_api_key"]
+    elif provider == "serpapi" and config["serpapi_api_key"]:
+        api_key = config["serpapi_api_key"]
 
     # If no key in database, check environment variables
     if not api_key and provider != "stub":
@@ -37,6 +39,8 @@ def get_user_search_client(db: Session, user_id: int) -> WebSearchClient:
             api_key = os.getenv("BRAVE_API_KEY")
         elif provider == "tavily":
             api_key = os.getenv("TAVILY_API_KEY")
+        elif provider == "serpapi":
+            api_key = os.getenv("SERPAPI_API_KEY")
 
     # If still no key, fall back to stub mode
     if not api_key:
