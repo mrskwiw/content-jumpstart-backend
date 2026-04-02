@@ -19,7 +19,7 @@ interface RetryOptions {
 }
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
-  maxRetries: 3,
+  maxRetries: 1,
   initialDelay: 1000, // 1 second
   maxDelay: 5000, // 5 seconds
   shouldReload: true, // Reload page on final failure (gets fresh HTML)

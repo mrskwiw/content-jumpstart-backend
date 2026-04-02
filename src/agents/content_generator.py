@@ -1323,21 +1323,26 @@ Think: billboard, not paragraph. Punchy, not explanatory.
         elif platform == Platform.FACEBOOK:
             prompt += """
 
-🚨 FACEBOOK ULTRA-BRIEF REQUIREMENTS (STRICTLY ENFORCE):
+📘 FACEBOOK POST REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. MAXIMUM 15 words total (HARD LIMIT - will FAIL if exceeded)
-2. Single punchy sentence only
-3. Assume a strong visual/image accompanies this text
-4. Focus on emotion/intrigue, NOT explanation
-5. NO details, NO context, NO multi-sentence explanations
+TARGET: 50-100 words (complete, standalone post)
 
-EXAMPLES OF CORRECT LENGTH (10-15 words):
-✓ "Tool chaos kills productivity. Here's what top teams do differently." (11 words)
-✓ "Most engineering teams waste 12 hours weekly on this mistake." (10 words)
-✗ "Engineering teams lose productivity when they have too many tools..." (WRONG - too long)
+CRITICAL: Write a COMPLETE, self-contained post.
+Do NOT write a teaser or headline that implies more content follows.
+❌ WRONG: "Here's what top teams do differently." (implies explanation never arrives)
+❌ WRONG: "Most teams make this mistake. Here's the fix." (teaser with no follow-through)
+✓ RIGHT: Deliver the actual insight, story, or value IN the post itself.
 
-CRITICAL: 10-15 words MAXIMUM. Period. No exceptions.
-Think: Facebook caption with image, not standalone post.
+STRUCTURE:
+1. Hook (1 sentence) — relatable observation or bold statement
+2. Core insight or story (2-3 sentences) — the actual point, not a promise of it
+3. CTA (1 sentence) — question, invitation to comment, or soft next step
+
+EXAMPLE:
+"Most content teams burn time on the wrong posts.
+They plan by volume — 30 posts per month — instead of planning by impact.
+The fix is simple: identify the 3 topics your audience actually asks about, then write 10 posts on those. Everything else is noise.
+What's the #1 topic your clients keep asking you about? Drop it below."
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 

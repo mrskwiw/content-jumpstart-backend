@@ -116,9 +116,10 @@ export function QualityGatePanel({ posts, projectId, onRegenerated }: Props) {
                           </div>
                         )}
                       </div>
-                      <p className="line-clamp-2 text-xs text-amber-800 dark:text-amber-200">{post.content}</p>
+                      <p className="line-clamp-4 text-xs text-amber-800 dark:text-amber-200">{post.content}</p>
                       <div className="mt-1 flex gap-3 text-xs text-amber-700 dark:text-amber-300">
                         {post.wordCount && <span>{post.wordCount} words</span>}
+                        {post.targetPlatform && <span className="capitalize">{post.targetPlatform}</span>}
                         {post.readabilityScore !== undefined && (
                           <span>Readability: {(post?.readabilityScore ?? 0).toFixed(1)}</span>
                         )}
@@ -165,9 +166,10 @@ export function QualityGatePanel({ posts, projectId, onRegenerated }: Props) {
                         <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                         <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Post {post.id}</span>
                       </div>
-                      <p className="line-clamp-2 text-xs text-neutral-700 dark:text-neutral-300">{post.content}</p>
+                      <p className="line-clamp-4 text-xs text-neutral-700 dark:text-neutral-300">{post.content}</p>
                       <div className="mt-1 flex gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                         {post.wordCount && <span>{post.wordCount} words</span>}
+                        {post.targetPlatform && <span className="capitalize">{post.targetPlatform}</span>}
                         {post.readabilityScore !== undefined && (
                           <span>Readability: {(post?.readabilityScore ?? 0).toFixed(1)}</span>
                         )}

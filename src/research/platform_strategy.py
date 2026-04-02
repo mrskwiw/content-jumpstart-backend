@@ -312,59 +312,95 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
         audience_behavior: List[AudienceBehavior],
         content_goals: str,
     ) -> List[PlatformRecommendation]:
-        """Generate detailed recommendations for each relevant platform"""
+        """Generate detailed recommendations for all relevant platforms in a single API call"""
         # Filter to platforms where audience is present
         active_platforms = [b for b in audience_behavior if b.audience_present]
 
-        recommendations = []
+        if not active_platforms:
+            return []
 
-        for behavior in active_platforms:
-            prompt = f"""Create a detailed platform recommendation for {behavior.platform.value}.
+        # Build a summary of audience behaviors for all platforms
+        behaviors_summary = []
+        for b in active_platforms:
+            behaviors_summary.append(
+                f"""Platform: {b.platform.value}
+- Activity Level: {b.activity_level}
+- Consumption: {b.content_consumption_pattern}
+- Engagement: {b.engagement_style}
+- Decision Makers: {b.decision_maker_presence}"""
+            )
+
+        behaviors_text = "\n\n".join(behaviors_summary)
+        platform_names = ", ".join(b.platform.value for b in active_platforms)
+
+        prompt = f"""Create detailed platform recommendations for ALL of these platforms: {platform_names}
 
 Business: {business_description}
 Target Audience: {target_audience}
 Content Goals: {content_goals}
 
-Audience Behavior on {behavior.platform.value}:
-- Activity Level: {behavior.activity_level}
-- Consumption: {behavior.content_consumption_pattern}
-- Engagement: {behavior.engagement_style}
-- Decision Makers: {behavior.decision_maker_presence}
+Audience Behavior Data:
+{behaviors_text}
 
-Provide a comprehensive recommendation with:
+For EACH platform, provide a recommendation with:
 1. Fit level (essential/recommended/optional/not_recommended)
 2. Priority (High/Medium/Low)
-3. Why use this platform (3-5 reasons)
+3. Why use (3-5 reasons)
 4. Why not use / concerns (2-3 items)
-5. Best content formats for this platform
-6. Posting frequency recommendation
+5. Best content formats (short_form/long_form/video/audio/visual/carousel/live)
+6. Posting frequency
 7. Content approach
 8. Primary goal (awareness/leads/community/etc)
-9. Success metrics to track
+9. Success metrics (3-5)
 10. Estimated effort (Small/Medium/Large)
 11. Expected ROI (High/Medium/Low)
 
-Return JSON object with these fields:
-- fit_level: string
-- priority: string
-- why_use: array of strings
-- why_not_use: array of strings
-- recommended_formats: array of format types
-- posting_frequency: string
-- content_approach: string
-- primary_goal: string
-- success_metrics: array of strings
-- estimated_effort: string
-- expected_roi: string"""
+Return a JSON array with one object per platform:
+[
+  {{
+    "platform": "platform_name",
+    "fit_level": "essential|recommended|optional|not_recommended",
+    "priority": "High|Medium|Low",
+    "why_use": ["reason1", "reason2"],
+    "why_not_use": ["concern1", "concern2"],
+    "recommended_formats": ["short_form", "video"],
+    "posting_frequency": "3x per week",
+    "content_approach": "description",
+    "primary_goal": "awareness",
+    "success_metrics": ["metric1", "metric2"],
+    "estimated_effort": "Medium",
+    "expected_roi": "High"
+  }}
+]"""
 
-            response = client.create_message(
-                messages=[{"role": "user", "content": prompt}], max_tokens=3000
-            )
+        response = client.create_message(
+            messages=[{"role": "user", "content": prompt}], max_tokens=6000
+        )
 
-            # Parse response
-            rec_data = self._extract_json_from_response(response)
+        # Parse response — expect an array
+        recs_data = self._extract_json_from_response(response)
+        if isinstance(recs_data, dict):
+            # Some models wrap array in a key
+            recs_data = recs_data.get("recommendations", recs_data.get("platforms", [recs_data]))
 
+        # Build a map from platform name to behavior for lookup
+        behavior_map = {b.platform.value.lower(): b for b in active_platforms}
+
+        recommendations = []
+        for rec_data in recs_data:
             try:
+                platform_str = rec_data.get("platform", "").lower()
+                # Look up the behavior to get the PlatformName enum
+                behavior = behavior_map.get(platform_str)
+                if behavior is None:
+                    # Try mapping the string to a platform name
+                    try:
+                        platform = self._map_platform_name(platform_str)
+                    except Exception:  # nosec B112
+                        continue
+                else:
+                    platform = behavior.platform
+
                 # Map formats
                 formats = []
                 for fmt in rec_data.get("recommended_formats", []):
@@ -374,7 +410,7 @@ Return JSON object with these fields:
                         pass
 
                 recommendation = PlatformRecommendation(
-                    platform=behavior.platform,
+                    platform=platform,
                     fit_level=self._map_platform_fit(rec_data.get("fit_level", "optional")),
                     priority=rec_data.get("priority", "Medium"),
                     why_use=rec_data.get("why_use", []),
@@ -391,7 +427,7 @@ Return JSON object with these fields:
                 recommendations.append(recommendation)
 
             except Exception as e:
-                print(f"Warning: Failed to create recommendation for {behavior.platform}: {e}")
+                print(f"Warning: Failed to create recommendation: {e}")
                 continue
 
         return recommendations

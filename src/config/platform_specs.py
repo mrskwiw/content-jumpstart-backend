@@ -35,14 +35,14 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
         "thread_max_posts": 8,
     },
     Platform.FACEBOOK: {
-        "min_words": 8,
-        "optimal_min_words": 10,
-        "optimal_max_words": 15,
-        "max_words": 25,
-        "min_chars": 40,
-        "optimal_min_chars": 40,
-        "optimal_max_chars": 80,
-        "max_chars": 125,  # Business recommendation
+        "min_words": 30,
+        "optimal_min_words": 50,
+        "optimal_max_words": 100,
+        "max_words": 150,
+        "min_chars": 180,
+        "optimal_min_chars": 300,
+        "optimal_max_chars": 600,
+        "max_chars": 900,
     },
     Platform.BLOG: {
         "min_words": 300,
@@ -83,10 +83,10 @@ PLATFORM_HOOK_SPECS: Dict[Platform, Dict[str, Any]] = {
         "description": "Entire post is the hook - punchy and direct",
     },
     Platform.FACEBOOK: {
-        "hook_max_chars": 80,  # Entire post often IS the hook
+        "hook_max_chars": 120,  # First sentence grabs attention
         "hook_critical": True,
         "hook_must_contain_key_message": True,
-        "description": "Entire post is the hook - ultra-concise",
+        "description": "First sentence hooks; full post delivers complete insight",
     },
     Platform.BLOG: {
         "hook_max_words": 50,  # Introduction paragraph
@@ -132,17 +132,18 @@ Guidelines:
 - Direct CTAs work well
 """,
     Platform.FACEBOOK: """
-Target length: 10-15 words (40-80 characters).
+Target length: 50-100 words (300-600 characters).
 
-Ultra-concise. Assume this accompanies a strong visual.
+Complete, self-contained post. Does NOT rely on an image to make sense.
 
 Guidelines:
-- Every word must earn its place
-- Visual content is critical (this is just caption)
+- Write a COMPLETE post — do NOT write a teaser or headline that implies more content follows
 - Conversational and relatable tone
-- Questions drive engagement
-- Emoji usage OK (but not excessive)
-- Keep under 80 characters for maximum engagement
+- Short paragraphs (2-3 sentences max)
+- Questions or relatable observations drive engagement
+- Include one clear point or insight — no cliffhangers
+- Emoji usage OK (1-2 max, if appropriate to brand voice)
+- End with a CTA: a question, invitation to comment, or soft call-to-action
 """,
     Platform.BLOG: """
 Target length: 1,500-2,000 words.
