@@ -51,9 +51,10 @@ TEMPLATE_PREREQUISITES = {
     },
     "inside_look": {
         "required_client_fields": ["business_description"],
+        "recommended_research_tools": ["story_mining"],
         "risk_level": RiskLevel.CRITICAL,
         "block_generation": True,
-        "error_message": "Inside Look requires real internal processes.",
+        "error_message": "Inside Look requires real internal processes. Run Story Mining first.",
     },
     "milestone": {
         "required_client_fields": ["business_description"],

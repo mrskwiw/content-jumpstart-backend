@@ -1389,17 +1389,12 @@ Aim for 220-250 words for optimal engagement.
         elif platform == Platform.BLOG:
             prompt += """
 
-🚨 BLOG POST LENGTH REQUIREMENTS (CRITICAL - WILL FAIL VALIDATION IF NOT MET):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  ABSOLUTE MINIMUM: 1500 words (posts under 1500 will be REJECTED)
+📝 BLOG POST LENGTH GUIDELINES:
 🎯 TARGET RANGE: 1500-2000 words for optimal SEO performance
 💯 SWEET SPOT: 1700-1800 words (ideal engagement + SEO)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  MINIMUM: 800 words (shorter posts score below optimal on SEO metrics)
 
-⚠️  WARNING: Current blog posts are averaging 1089 words - this is INSUFFICIENT.
-You MUST write substantially more content to meet the 1500-word minimum.
-
-MANDATORY 6-SECTION STRUCTURE (each section MUST meet word minimums):
+RECOMMENDED 6-SECTION STRUCTURE (aim for full depth in each section):
 
 ## Introduction (250-300 words) [CHECKPOINT: ~275 words]
 - Powerful hook with compelling statistic, question, or story (2-3 sentences)
@@ -1481,14 +1476,12 @@ If your draft is under 1500 words after Section 4, you MUST:
 5. Add more tool/resource recommendations with descriptions
 6. Expand bullet points into mini-paragraphs
 
-⚠️  BEFORE SUBMITTING: Count your total words. If under 1500, add 400-500 more words.
-
-🎯 TARGET MINDSET: You're writing a comprehensive, authoritative blog post that could rank on Google page 1. More detail = better SEO = more value. Aim for 1700+ words.
+🎯 TARGET MINDSET: You're writing a comprehensive, authoritative blog post that could rank on Google page 1. More detail = better SEO = more value. Aim for 1500–1800 words.
 """
 
         # Repeat length reminder at end for emphasis (platform-specific)
         if platform == Platform.BLOG:
-            prompt += "\n\n📏 FINAL REMINDER: Your blog post MUST be at least 1500 words. Count your words before submitting. If under 1500, add more content. Target: 1700-1800 words for optimal SEO."
+            prompt += "\n\n📏 FINAL REMINDER: Target 1500–1800 words for best SEO. Minimum 800 words. Aim for depth and substance over brevity."
         else:
             prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
 

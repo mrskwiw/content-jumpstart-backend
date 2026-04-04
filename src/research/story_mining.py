@@ -640,6 +640,7 @@ Available templates and their criteria:
 - personal_story: deeply personal narrative with vulnerability, transformation arc, or identity shift
 - things_i_got_wrong: a mistake, failure, wrong assumption, or lesson learned the hard way
 - milestone: a concrete achievement, specific metric reached, or clear before/after comparison
+- inside_look: behind-the-scenes process, how something works internally, day-in-the-life reveal
 
 Return ONLY a valid JSON array of matching template names.
 Example: ["personal_story", "milestone"]
@@ -650,7 +651,7 @@ No markdown. No explanation."""
             prompt, max_tokens=200, temperature=0.2, extract_json=True, fallback_on_error=[]
         )
         if isinstance(result, list):
-            valid = {"personal_story", "things_i_got_wrong", "milestone"}
+            valid = {"personal_story", "things_i_got_wrong", "milestone", "inside_look"}
             return [t for t in result if t in valid]
         return []
 

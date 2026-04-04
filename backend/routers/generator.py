@@ -528,9 +528,14 @@ async def validate_templates(
         input.template_quantities, client_data, completed_research_tools
     )
 
-    # Add available story counts for story-based templates (6, 8, 15)
+    # Add available story counts for story-based templates (6, 8, 12, 15)
     story_counts: dict = {}
-    _STORY_TEMPLATE_MAP = {6: "personal_story", 8: "things_i_got_wrong", 15: "milestone"}
+    _STORY_TEMPLATE_MAP = {
+        6: "personal_story",
+        8: "things_i_got_wrong",
+        12: "inside_look",
+        15: "milestone",
+    }
     try:
         from backend.services.story_service import story_service as _ss
 

@@ -16,6 +16,26 @@ from backend.models.post import Post
 from backend.models.project import Project
 from backend.utils.logger import logger
 
+# Human-readable display names for platform enum values stored in the database
+_PLATFORM_DISPLAY_NAMES: dict = {
+    "generic": "Blog",
+    "blog": "Blog",
+    "linkedin": "LinkedIn",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "twitter": "Twitter / X",
+    "email": "Email Newsletter",
+    "medium": "Medium",
+    "substack": "Substack",
+    "wordpress": "WordPress",
+    "multi": "Multi-Platform",
+}
+
+
+def _platform_display_name(raw: str) -> str:
+    """Convert a raw platform enum value to a human-readable label."""
+    return _PLATFORM_DISPLAY_NAMES.get((raw or "").lower(), raw or "")
+
 
 async def generate_export_file(
     posts: List[Post],
@@ -94,7 +114,7 @@ async def _generate_txt(
         if post.template_name:
             lines.append(f"Template: {post.template_name}")
         if post.target_platform:
-            lines.append(f"Platform: {post.target_platform}")
+            lines.append(f"Platform: {_platform_display_name(post.target_platform)}")
         lines.append(f"Word Count: {post.word_count or 'N/A'}")
         lines.append(f"Has CTA: {'Yes' if post.has_cta else 'No'}")
         if post.readability_score:
@@ -177,7 +197,9 @@ async def _generate_markdown(
     lines.append("")
     for i, post in enumerate(posts, 1):
         template_name = post.template_name or "Custom"
-        platform = f" ({post.target_platform})" if post.target_platform else ""
+        platform = (
+            f" ({_platform_display_name(post.target_platform)})" if post.target_platform else ""
+        )
         lines.append(f"{i}. [Post {i}: {template_name}{platform}](#post-{i})")
     lines.append("")
     lines.append("---")
@@ -197,7 +219,7 @@ async def _generate_markdown(
         lines.append("| Property | Value |")
         lines.append("|----------|-------|")
         if post.target_platform:
-            lines.append(f"| **Platform** | {post.target_platform} |")
+            lines.append(f"| **Platform** | {_platform_display_name(post.target_platform)} |")
         lines.append(f'| **Word Count** | {post.word_count or "N/A"} |')
         lines.append(f'| **Has CTA** | {"✅ Yes" if post.has_cta else "❌ No"} |')
         if post.readability_score:
@@ -347,7 +369,7 @@ async def _generate_docx(
         # Metadata
         metadata_parts = [f"Words: {post.word_count or 'N/A'}"]
         if post.target_platform:
-            metadata_parts.insert(0, f"Platform: {post.target_platform}")
+            metadata_parts.insert(0, f"Platform: {_platform_display_name(post.target_platform)}")
         metadata_parts.append(f"Has CTA: {'Yes' if post.has_cta else 'No'}")
         if post.readability_score:
             metadata_parts.append(f"Readability: {post.readability_score:.1f}")

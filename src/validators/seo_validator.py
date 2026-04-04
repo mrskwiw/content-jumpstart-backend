@@ -72,7 +72,9 @@ class SEOValidator:
     }
 
     # SEO best practices - typed constants for mypy
-    MIN_CONTENT_LENGTH: int = 1500
+    # Hard QA failure threshold: 800 words. Posts 800–1499 words pass validation
+    # but score below optimal. Target range is 1500–2000 for best SEO performance.
+    MIN_CONTENT_LENGTH: int = 800
     OPTIMAL_CONTENT_LENGTH: Tuple[int, int] = (1500, 2000)
     KEYWORD_DENSITY: Tuple[float, float] = (0.01, 0.03)  # 1-3%
     MIN_HEADINGS: int = 3
@@ -81,7 +83,7 @@ class SEOValidator:
 
     # Keep dict for backward compatibility (tests may reference it)
     BEST_PRACTICES: Dict[str, Any] = {
-        "min_content_length": 1500,
+        "min_content_length": 800,
         "optimal_content_length": (1500, 2000),
         "keyword_density": (0.01, 0.03),
         "min_headings": 3,

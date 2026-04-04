@@ -151,6 +151,7 @@ const FIELD_LABELS: Record<string, string> = {
 const STORY_TEMPLATE_SLUGS: Record<number, string> = {
   6: 'personal_story',
   8: 'things_i_got_wrong',
+  12: 'inside_look',
   15: 'milestone',
 };
 
@@ -166,7 +167,7 @@ const TEMPLATE_STATIC_PREREQS: Record<number, { fields: string[]; tools: string[
   9:  { fields: ['business_description', 'main_problem_solved'], tools: [] },
   10: { fields: ['industry'], tools: [] },
   11: { fields: ['business_description'], tools: [] },
-  12: { fields: ['business_description'], tools: [] },
+  12: { fields: ['business_description'], tools: ['story_mining'] },
   13: { fields: ['industry', 'business_description'], tools: [] },
   14: { fields: ['customer_questions'], tools: [] },
   15: { fields: ['business_description'], tools: ['story_mining'] },
@@ -639,6 +640,31 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
             </div>
           </div>
         )}
+      {/* Legend / Key */}
+      <div className="mb-3 rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 px-4 py-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Legend</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-neutral-600 dark:text-neutral-400">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">⚡ Fast</span>
+            <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">⏱️ Medium</span>
+            <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-xs font-medium text-rose-700 dark:text-rose-300">🕐 Slow</span>
+            <span className="text-neutral-400">— AI generation time</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-200">Field</span>
+            <span className="text-neutral-400">— required client profile field</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-xs font-medium text-violet-800 dark:text-violet-200">Tool</span>
+            <span className="text-neutral-400">— required research tool</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">3 stories</span>
+            <span className="text-neutral-400">— available mined stories (green = ok, red = none)</span>
+          </div>
+        </div>
+      </div>
+
       {/* Template Grid */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {TEMPLATES.map((template) => {
