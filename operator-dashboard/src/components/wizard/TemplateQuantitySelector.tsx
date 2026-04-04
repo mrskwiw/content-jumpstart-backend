@@ -2,7 +2,7 @@ import { useState, useMemo, memo, useEffect } from 'react';
 import { Plus, Minus, Coins, FileText, Calculator, TrendingUp, HelpCircle, AlertCircle, X, CheckCircle2, Sparkles, Link2 } from 'lucide-react';
 import { PlatformSelector } from './PlatformSelector';
 import { generatorApi, type TemplateDependencies } from '@/api/generator';
-import { researchApi } from '@/api/research';
+import { researchApi, type ResearchResultListResponse } from '@/api/research';
 
 interface Template {
   id: number;
@@ -221,14 +221,23 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     missingTools: string[];
   }>>(new Map());
 
-  // Fetch completed research tools
+  // Fetch completed research tools — union of current project + client history
   useEffect(() => {
     if (!projectId) return;
 
     const fetchCompletedResearch = async () => {
       try {
-        const response = await researchApi.getProjectResearchResults(projectId);
-        const toolNames = new Set(response.results.map((r) => r.toolName));
+        const emptyList: ResearchResultListResponse = { results: [], total: 0 };
+        const [projectRes, clientRes] = await Promise.all([
+          researchApi.getProjectResearchResults(projectId),
+          clientId
+            ? researchApi.getClientResearchResults(clientId)
+            : Promise.resolve(emptyList),
+        ]);
+        const toolNames = new Set([
+          ...projectRes.results.filter((r) => r.status === 'completed').map((r) => r.toolName),
+          ...clientRes.results.filter((r) => r.status === 'completed').map((r) => r.toolName),
+        ]);
         setCompletedTools(toolNames);
       } catch (error) {
         console.error('Failed to fetch research results:', error);
@@ -236,7 +245,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     };
 
     fetchCompletedResearch();
-  }, [projectId]);
+  }, [projectId, clientId]);
 
   // Fetch dependencies for all templates on mount so prerequisites are visible before selection
   useEffect(() => {

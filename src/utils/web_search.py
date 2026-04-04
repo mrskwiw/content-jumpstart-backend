@@ -370,6 +370,20 @@ class WebSearchClient:
 _default_client: Optional[WebSearchClient] = None
 
 
+def set_default_client(client: WebSearchClient) -> None:
+    """Override the global default search client.
+
+    Called by the backend service layer to inject a user-configured client
+    (with DB-stored API keys) before executing a research tool, so that
+    tools calling ``get_search_client()`` pick up the correct provider and key.
+
+    Args:
+        client: Configured WebSearchClient instance to use as the default
+    """
+    global _default_client
+    _default_client = client
+
+
 def get_search_client(provider: Optional[str] = None) -> WebSearchClient:
     """Get or create default web search client
 

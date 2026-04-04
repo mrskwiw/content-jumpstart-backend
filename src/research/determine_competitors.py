@@ -61,7 +61,7 @@ class CompetitorDeterminer(ResearchTool, CommonValidationMixin):
         """Execute competitor discovery using Claude AI"""
 
         business_desc = inputs["business_description"]
-        industry = inputs.get("industry") or "Technology"
+        industry = inputs.get("industry") or "General business"
         business_name = inputs.get("business_name") or "Client"
         location = inputs.get("location")
 

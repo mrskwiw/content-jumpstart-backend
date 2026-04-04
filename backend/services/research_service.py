@@ -526,6 +526,15 @@ class ResearchService:
                 inputs["current_content_topics"] = current_topics
 
         try:
+            # Inject user-configured search client so tools that call
+            # get_search_client() internally pick up the DB-stored API key
+            # rather than falling back to env-var lookup (which may be unset).
+            if SystemPrerequisiteType.WEB_SEARCH in system_prereqs:
+                from backend.services.web_search_factory import get_user_search_client
+                from src.utils.web_search import set_default_client
+
+                set_default_client(get_user_search_client(db, project.user_id))
+
             # Instantiate and execute tool
             tool = ToolClass(project_id=project_id)
             result = tool.execute(inputs)
@@ -1028,24 +1037,14 @@ class ResearchService:
 
         elif tool_name == "seo_keyword_research":  # Fixed: was "seo_keyword"
             # SEO keyword research needs industry/niche
-            inputs["industry"] = (
-                params.get("industry")
-                or client.industry
-                or client.business_description
-                or "General business"
-            )
+            inputs["industry"] = params.get("industry") or client.industry or "General business"
             inputs["target_keywords"] = params.get("target_keywords", [])
             inputs["main_topics"] = params.get("main_topics", [])  # Required by tool
 
         elif tool_name == "competitive_analysis":
             # Competitive analysis needs competitor list and industry
             inputs["competitors"] = params.get("competitors") or client.competitors or []
-            inputs["industry"] = (
-                params.get("industry")
-                or client.industry
-                or client.business_description
-                or "Not specified"
-            )
+            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
 
         elif tool_name == "content_gap_analysis":
             # Content gap needs current topics - will auto-populate after prerequisite merge if empty
@@ -1053,24 +1052,14 @@ class ResearchService:
 
         elif tool_name == "market_trends":
             # Market trends needs industry context
-            inputs["industry"] = (
-                params.get("industry")
-                or client.industry
-                or client.business_description
-                or "General business"
-            )
+            inputs["industry"] = params.get("industry") or client.industry or "General business"
 
         elif tool_name == "audience_research":
             # Audience research needs business name and industry
             inputs["business_name"] = (
                 params.get("business_name") or client.name or "Client Business"
             )
-            inputs["industry"] = (
-                params.get("industry")
-                or client.industry
-                or client.business_description
-                or "General"
-            )
+            inputs["industry"] = params.get("industry") or client.industry or "General"
 
         elif tool_name == "platform_strategy":
             # Platform strategy needs current platforms - fallback to client.platforms

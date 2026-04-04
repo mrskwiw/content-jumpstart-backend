@@ -103,7 +103,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
                   {creditCost.toLocaleString()} credits
                 </span>
                 <span className="text-neutral-500 dark:text-neutral-400">
-                  ({totalPosts} {totalPosts === 1 ? 'post' : 'posts'} × 40 credits)
+                  ({totalPosts} {totalPosts === 1 ? 'post' : 'posts'} × 20 credits)
                 </span>
               </div>
               {creditBalance && (

@@ -160,8 +160,7 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
 
         # Auto-populate industry if not provided (should come from DB)
         if not industry:
-            # Fallback: extract from business description
-            industry = inputs.get("industry_from_db") or "Technology"
+            industry = inputs.get("industry_from_db") or "General business"
             logger.info(f"Using industry from database: {industry}")
 
         # Auto-generate focus areas from SEO keywords if available and not provided
@@ -954,8 +953,10 @@ Return ONLY a valid JSON array. Each object has: topic, timing, description, pre
         for category in categories:
             for trend in category.trends[:2]:  # Top 2 per category
                 for driver in trend.key_drivers[:1]:  # Top driver
-                    if len(driver) > 10:  # Skip short/generic drivers
-                        themes.add(driver)
+                    # Coerce to str — API may return dicts instead of strings
+                    driver_str = driver if isinstance(driver, str) else str(driver)
+                    if len(driver_str) > 10:  # Skip short/generic drivers
+                        themes.add(driver_str)
 
         # From conversations
         for conv in conversations[:2]:

@@ -124,8 +124,13 @@ class CommonValidationMixin:
         if "industry" not in inputs or not inputs["industry"]:
             return None
 
+        # Truncate silently — industry is optional and a truncated label beats a hard failure
+        value = inputs["industry"]
+        if isinstance(value, str) and len(value) > max_length:
+            value = value[:max_length]
+
         return self.validator.validate_text(  # type: ignore[attr-defined, no-any-return]
-            inputs["industry"],
+            value,
             field_name="industry",
             min_length=min_length,
             max_length=max_length,
