@@ -83,6 +83,7 @@ def export_client_data(client_id: str, db: Session) -> Dict:
         "client": {"id": client.id, "name": client.name, "email": client.email},
         "projects": [],
         "export_metadata": {
+            "client_id": client_id,
             "exported_at": datetime.utcnow().isoformat(),
             "format": "json",
             "version": "1.0",
@@ -97,6 +98,10 @@ def restore_soft_deleted_client(client_id: str, db: Session) -> Dict:
     client = db.query(Client).filter(Client.id == client_id, Client.is_deleted.is_(True)).first()
     if not client:
         raise ValueError(f"Client {client_id} not in deleted records")
+    if client.deleted_at and (datetime.utcnow() - client.deleted_at).days > 90:
+        raise ValueError(
+            f"Client {client_id} was deleted more than 90 days ago and cannot be restored"
+        )
     client.restore()
     for p in (
         db.query(Project).filter(Project.client_id == client_id, Project.is_deleted.is_(True)).all()

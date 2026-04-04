@@ -107,7 +107,7 @@ async def _generate_txt(
 
     # Research results (if requested)
     if include_research and db:
-        research_sections = _generate_research_section(project.id, db)
+        research_sections = _generate_research_section(project.id, project.client_id, db)
         if research_sections:
             lines.append("")
             lines.append("=" * 60)
@@ -218,7 +218,7 @@ async def _generate_markdown(
 
     # Research results (if requested)
     if include_research and db:
-        research_sections = _generate_research_section(project.id, db)
+        research_sections = _generate_research_section(project.id, project.client_id, db)
         if research_sections:
             lines.append("---")
             lines.append("")
@@ -366,7 +366,7 @@ async def _generate_docx(
 
     # Research results (if requested)
     if include_research and db:
-        research_sections = _generate_research_section(project.id, db)
+        research_sections = _generate_research_section(project.id, project.client_id, db)
         if research_sections:
             doc.add_page_break()
             doc.add_heading("Research Results", level=1)
@@ -434,12 +434,16 @@ def _generate_audit_section(project_id: str, db: Session) -> List[str]:
     return lines
 
 
-def _generate_research_section(project_id: str, db: Session) -> dict:
+def _generate_research_section(project_id: str, client_id: str, db: Session) -> dict:
     """
     Generate research results section for deliverables.
 
+    Queries by project_id first; falls back to client_id if no project-level
+    results exist (handles research run under a different project for the same client).
+
     Args:
         project_id: Project ID
+        client_id: Client ID (fallback)
         db: Database session
 
     Returns:
@@ -448,6 +452,9 @@ def _generate_research_section(project_id: str, db: Session) -> dict:
     from backend.services import crud
 
     results = crud.get_research_results_by_project(db, project_id, status="completed")
+    if not results:
+        # Fall back to most recent completed results for this client across all projects
+        results = crud.get_research_results_by_client(db, client_id, status="completed")
     if not results:
         return {}
 

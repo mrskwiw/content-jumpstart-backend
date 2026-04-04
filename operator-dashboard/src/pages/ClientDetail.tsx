@@ -248,10 +248,13 @@ export default function ClientDetail() {
   // Research tool mutation
   const runResearchMutation = useMutation({
     mutationFn: ({ tool, params }: { tool: string; params?: Record<string, any> }) => {
-      // Create a dummy project for client research (research not tied to specific project)
-      const dummyProjectId = `client-research-${clientId}`;
+      // Use the most recent active project for this client
+      const activeProject = clientProjects.find(p => p.status !== 'delivered' && p.status !== 'exported') ?? clientProjects[0];
+      if (!activeProject) {
+        return Promise.reject(new Error('No project found for this client. Create a project using the Wizard first.'));
+      }
       return researchApi.run({
-        projectId: dummyProjectId,
+        projectId: activeProject.id,
         clientId: clientId!,
         tool,
         params: params || {},

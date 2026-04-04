@@ -90,7 +90,7 @@ class ProjectBase(BaseModel):
     # Configuration - None defaults so actual DB values are not overridden
     platforms: Optional[List[Platform]] = None
     target_platform: Optional[Platform] = Field(  # type: ignore[assignment]
-        default="generic",
+        default="blog",
         validation_alias=AliasChoices("targetPlatform", "target_platform"),
         description="Single target platform for generation optimization",
     )
@@ -435,7 +435,7 @@ class ProjectResponse(BaseModel):
     # Configuration
     platforms: Optional[List[Platform]] = None
     target_platform: Optional[Platform] = Field(  # type: ignore[assignment]
-        default="generic", serialization_alias="targetPlatform"
+        default="blog", serialization_alias="targetPlatform"
     )
     tone: Optional[str] = None
 

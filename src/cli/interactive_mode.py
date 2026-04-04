@@ -274,7 +274,24 @@ class InteractiveMode:
             current_value = current_data.get(field_name)
 
             # Determine how to update based on field type
-            if isinstance(current_value, list):
+            if field_name == "brand_personality":
+                # Special handling for enum list — must come before generic list check
+                personalities = self._parse_list_input(value)
+                tone_prefs = []
+                invalid = []
+                for p in personalities:
+                    try:
+                        tone_prefs.append(TonePreference(p.lower().replace(" ", "_")))
+                    except ValueError:
+                        invalid.append(p)
+                        logger.warning(f"Unknown tone preference: {p}")
+                if invalid:
+                    console.print(
+                        f"[red]Error updating field: unknown tone preference(s): {', '.join(invalid)}[/red]"
+                    )
+                current_data[field_name] = tone_prefs
+
+            elif isinstance(current_value, list):
                 # List field - parse as comma-separated or line-separated
                 new_items = self._parse_list_input(value)
 
@@ -282,17 +299,6 @@ class InteractiveMode:
                     current_data[field_name] = current_value + new_items
                 else:
                     current_data[field_name] = new_items
-
-            elif field_name == "brand_personality":
-                # Special handling for enum list
-                personalities = self._parse_list_input(value)
-                tone_prefs = []
-                for p in personalities:
-                    try:
-                        tone_prefs.append(TonePreference(p.lower().replace(" ", "_")))
-                    except ValueError:
-                        logger.warning(f"Unknown tone preference: {p}")
-                current_data[field_name] = tone_prefs
 
             elif field_name == "target_platforms":
                 # Special handling for platform enum list
@@ -457,7 +463,7 @@ class InteractiveMode:
         )
 
         if self.brief.brand_personality:
-            personalities = ", ".join([p.value for p in self.brief.brand_personality])
+            personalities = ", ".join(self.brief.brand_personality)
             lines.append(f"Personality: {personalities}")
 
         if self.brief.key_phrases:

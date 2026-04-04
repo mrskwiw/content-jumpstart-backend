@@ -266,7 +266,7 @@ def init_db():
                 ("price_per_post", "REAL DEFAULT 40.0"),  # Base price per post
                 ("research_price_per_post", "REAL DEFAULT 0.0"),  # Research add-on per post
                 ("total_price", "REAL"),  # Total calculated price
-                ("target_platform", "VARCHAR DEFAULT 'generic'"),  # Target platform for generation
+                ("target_platform", "VARCHAR DEFAULT 'blog'"),  # Target platform for generation
             ]
 
             # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)

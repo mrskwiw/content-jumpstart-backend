@@ -133,8 +133,11 @@ class KeywordRefinementAgent:
             console.print(f"  - {kw.keyword} [dim]({kw.intent.value}, {kw.difficulty.value})[/dim]")
 
         console.print("\n[bold]Secondary Keywords:[/bold]")
-        for kw in strategy.secondary_keywords:  # Show first 5
+        for kw in strategy.secondary_keywords[:5]:  # Show first 5
             console.print(f"  - {kw.keyword} [dim]({kw.intent.value})[/dim]")
+        if len(strategy.secondary_keywords) > 5:
+            remaining = len(strategy.secondary_keywords) - 5
+            console.print(f"  ... and {remaining} more")
 
         console.print("\n[bold]Long-tail Keywords:[/bold]")
         for kw in strategy.longtail_keywords:  # Show first 5

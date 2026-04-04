@@ -48,8 +48,8 @@ class Project(Base, SoftDeleteMixin):
     # Configuration
     platforms = Column(JSON)  # Array of platform names (legacy - multiple platforms)
     target_platform = Column(
-        String, default="generic"
-    )  # NEW: Single target platform for generation optimization
+        String, default="blog"
+    )  # Single target platform for generation optimization
     tone = Column(String)  # professional, casual, etc.
 
     # Timestamps

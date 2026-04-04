@@ -873,7 +873,10 @@ def get_research_results_by_project(
     """
     from backend.models import ResearchResult
 
-    query = db.query(ResearchResult).filter(ResearchResult.project_id == project_id)
+    query = db.query(ResearchResult).filter(
+        ResearchResult.project_id == project_id,
+        ResearchResult.is_deleted.is_(False),
+    )
 
     if tool_name:
         query = query.filter(ResearchResult.tool_name == tool_name)
@@ -887,6 +890,7 @@ def get_research_results_by_client(
     db: Session,
     client_id: str,
     tool_name: Optional[str] = None,
+    status: Optional[str] = None,
 ) -> List[ResearchResult]:
     """
     Get all research results for a client.
@@ -895,15 +899,21 @@ def get_research_results_by_client(
         db: Database session
         client_id: Client ID
         tool_name: Optional filter by tool name
+        status: Optional filter by status (completed, failed)
 
     Returns:
         List of ResearchResult instances
     """
     from backend.models import ResearchResult
 
-    query = db.query(ResearchResult).filter(ResearchResult.client_id == client_id)
+    query = db.query(ResearchResult).filter(
+        ResearchResult.client_id == client_id,
+        ResearchResult.is_deleted.is_(False),
+    )
     if tool_name:
         query = query.filter(ResearchResult.tool_name == tool_name)
+    if status:
+        query = query.filter(ResearchResult.status == status)
 
     return query.order_by(ResearchResult.created_at.desc()).all()
 

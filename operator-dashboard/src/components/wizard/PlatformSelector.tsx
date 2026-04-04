@@ -1,10 +1,10 @@
-import { Linkedin, Twitter, Facebook, Instagram, Mail, FileText, Globe, BookOpen, Database } from 'lucide-react';
+import { Linkedin, Twitter, Facebook, Instagram, Mail, FileText, PenLine } from 'lucide-react';
 
 interface PlatformTarget {
   id: string;
   name: string;
   description: string;
-  category: 'social' | 'publishing' | 'productivity' | 'generic';
+  category: 'social' | 'longform';
   icon: typeof Linkedin;
   charLimit?: number;
   recommended?: boolean;
@@ -46,52 +46,20 @@ const platforms: PlatformTarget[] = [
     charLimit: 2200,
   },
 
-  // Publishing Platforms
+  // Long-form
   {
-    id: 'medium',
-    name: 'Medium',
-    description: 'Long-form blogging',
-    category: 'publishing',
-    icon: BookOpen,
+    id: 'blog',
+    name: 'Blog',
+    description: 'Long-form blog articles',
+    category: 'longform',
+    icon: PenLine,
   },
   {
-    id: 'substack',
-    name: 'Substack',
-    description: 'Email newsletters',
-    category: 'publishing',
+    id: 'email',
+    name: 'Email Newsletter',
+    description: 'Direct audience newsletter',
+    category: 'longform',
     icon: Mail,
-  },
-  {
-    id: 'wordpress',
-    name: 'WordPress',
-    description: 'Blog posts',
-    category: 'publishing',
-    icon: Globe,
-  },
-  {
-    id: 'ghost',
-    name: 'Ghost',
-    description: 'Professional publishing',
-    category: 'publishing',
-    icon: FileText,
-  },
-
-  // Productivity
-  {
-    id: 'notion',
-    name: 'Notion',
-    description: 'Documentation & wikis',
-    category: 'productivity',
-    icon: Database,
-  },
-
-  // Generic
-  {
-    id: 'generic',
-    name: 'Generic',
-    description: 'Multi-platform content',
-    category: 'generic',
-    icon: FileText,
   },
 ];
 
@@ -103,9 +71,7 @@ interface PlatformSelectorProps {
 export function PlatformSelector({ selected, onChange }: PlatformSelectorProps) {
   const categories = [
     { id: 'social', label: 'Social Media', platforms: platforms.filter(p => p.category === 'social') },
-    { id: 'publishing', label: 'Publishing', platforms: platforms.filter(p => p.category === 'publishing') },
-    { id: 'productivity', label: 'Productivity', platforms: platforms.filter(p => p.category === 'productivity') },
-    { id: 'generic', label: 'Generic', platforms: platforms.filter(p => p.category === 'generic') },
+    { id: 'longform', label: 'Long-form', platforms: platforms.filter(p => p.category === 'longform') },
   ];
 
   return (

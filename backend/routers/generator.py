@@ -47,7 +47,7 @@ class GenerateAllInput(BaseModel):
         None  # Optional template quantities from frontend
     )
     custom_topics: Optional[list[str]] = None  # NEW: topic override for content generation
-    target_platform: Optional[str] = "generic"  # NEW: target platform for generation optimization
+    target_platform: Optional[str] = "blog"  # Target platform for generation optimization
 
     @field_validator("num_posts")
     @classmethod
@@ -664,8 +664,8 @@ async def generate_all(
     else:
         num_posts = input.num_posts or project.num_posts or 30
 
-    # Determine target_platform: input > project setting > default 'generic'
-    target_platform = input.target_platform or project.target_platform or "generic"
+    # Determine target_platform: input > project setting > default 'blog'
+    target_platform = input.target_platform or project.target_platform or "blog"
 
     # CREDIT DEDUCTION: Calculate and deduct credits before generation
     credit_cost = num_posts * get_content_cost("blog_post")
