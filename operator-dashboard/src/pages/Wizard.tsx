@@ -13,7 +13,7 @@ import { postsApi } from '@/api/posts';
 import { runsApi } from '@/api/runs';
 import { projectsApi } from '@/api/projects';
 import { clientsApi, type CreateClientInput, type UpdateClientInput } from '@/api/clients';
-import type { ClientBrief, PostDraft, Platform } from '@/types/domain';
+import type { ClientBrief, PostDraft, Platform, Run } from '@/types/domain';
 import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
 import { Button, Card, CardContent, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
@@ -124,6 +124,7 @@ export default function Wizard() {
   const flagged = posts.filter((p) => p.status === 'flagged' || (p.flags && p.flags.length > 0));
   // Track if generation has completed so quality gate shows immediately
   const [generationCompleted, setGenerationCompleted] = useState(false);
+  const [generationFailed, setGenerationFailed] = useState(false);
   const [postPollTimedOut, setPostPollTimedOut] = useState(false);
   const qcRef = useRef(qc);
   useEffect(() => { qcRef.current = qc; }, [qc]);
@@ -131,18 +132,20 @@ export default function Wizard() {
   useEffect(() => { refetchPostsRef.current = refetchPosts; }, [refetchPosts]);
 
   // Poll for posts every 2s after generation completes until they arrive.
-  // Generation can take 60-120s; use a 5-minute cap to match GenerationPanel safety.
+  // Use a short timeout for known failures (posts won't appear); 5-min cap for success.
   useEffect(() => {
     if (!generationCompleted || posts.length > 0) return;
     setPostPollTimedOut(false);
     const interval = setInterval(() => { refetchPostsRef.current(); }, 2000);
+    const timeoutMs = generationFailed ? 15 * 1000 : 5 * 60 * 1000;
     const timeout = setTimeout(() => {
       clearInterval(interval);
       setPostPollTimedOut(true);
-    }, 5 * 60 * 1000);
+    }, timeoutMs);
     return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [generationCompleted, posts.length]);
-  const handleGenerationStarted = useCallback(() => {
+  }, [generationCompleted, generationFailed, posts.length]);
+  const handleGenerationStarted = useCallback((run: Run) => {
+    if (run.status === 'failed') setGenerationFailed(true);
     setGenerationCompleted(true);
     qcRef.current.invalidateQueries({ queryKey: ['runs', { projectId }] });
     refetchPostsRef.current();
@@ -520,13 +523,15 @@ export default function Wizard() {
             <Card>
               <CardContent className="p-6 text-center space-y-3">
                 <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">
-                  Generation completed but no posts were found.
+                  {generationFailed ? 'Generation failed — no posts were saved.' : 'Generation completed but no posts were found.'}
                 </p>
                 <p className="text-xs text-neutral-500">
-                  The run succeeded but posts may not have been saved. Check server logs or try generating again.
+                  {generationFailed
+                    ? 'The run encountered errors. Try generating again.'
+                    : 'The run succeeded but posts may not have been saved. Check server logs or try generating again.'}
                 </p>
                 <button
-                  onClick={() => { setGenerationCompleted(false); setPostPollTimedOut(false); }}
+                  onClick={() => { setGenerationCompleted(false); setPostPollTimedOut(false); setGenerationFailed(false); }}
                   className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
                 >
                   Try Again

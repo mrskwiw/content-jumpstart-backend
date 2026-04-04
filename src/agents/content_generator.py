@@ -899,6 +899,7 @@ class ContentGeneratorAgent:
         cached_system_prompt: Optional[str] = None,
         base_context: Optional[Dict[str, Any]] = None,
         platform: Platform = Platform.LINKEDIN,
+        quality_feedback: Optional[str] = None,
     ) -> Post:
         """
         Generate a single post from a template (async version)
@@ -920,6 +921,14 @@ class ContentGeneratorAgent:
         # Use cached system prompt if available, otherwise build it
         # Note: When using cached prompt, platform info is already embedded from the cache
         system_prompt = cached_system_prompt or self._build_system_prompt(client_brief, platform)
+
+        # On retries, append specific feedback so the model knows what to fix
+        if quality_feedback:
+            system_prompt = (
+                system_prompt
+                + f"\n\nREVISION REQUIRED: Your previous draft was rejected for this reason: {quality_feedback}\n"
+                + "Write a completely new version. Do not reuse the flagged word or phrase."
+            )
 
         # For blog posts, use a minimal template structure to allow full-length content
         # LinkedIn templates constrain length to 200-300 words, which kills blogs
@@ -1001,7 +1010,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
         cached_system_prompt: Optional[str] = None,
         base_context: Optional[Dict[str, Any]] = None,
         platform: Platform = Platform.LINKEDIN,
-        max_attempts: int = 10,
+        max_attempts: int = 5,
     ) -> Post:
         """
         Generate a single post with quality-based retry logic.
@@ -1017,15 +1026,16 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
             cached_system_prompt: Pre-built system prompt
             base_context: Pre-built base context
             platform: Target platform
-            max_attempts: Maximum generation attempts (default 10)
+            max_attempts: Maximum generation attempts (default 5)
 
         Returns:
             Generated Post object (either first adequate or best of attempts)
         """
         attempts: list[dict[str, Any]] = []
+        last_review_reason: Optional[str] = None
 
         for attempt in range(max_attempts):
-            # Generate post
+            # Generate post — pass quality feedback from previous attempt on retries
             post = await self._generate_single_post_async(
                 template=template,
                 client_brief=client_brief,
@@ -1034,6 +1044,7 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
                 cached_system_prompt=cached_system_prompt,
                 base_context=base_context,
                 platform=platform,
+                quality_feedback=last_review_reason,
             )
 
             # Calculate quality score based on flags and metrics
@@ -1056,6 +1067,9 @@ Focus on providing deep value and comprehensive coverage of the topic. This is a
                     f"(quality score: {quality_score:.2%})"
                 )
                 return post
+
+            # Capture reason for next attempt's feedback
+            last_review_reason = post.review_reason
 
             # Log retry
             logger.info(
@@ -1581,6 +1595,16 @@ IMPORTANT: Do NOT explicitly mention the research tools or insights in your cont
 Instead, let them inform your writing style, topic selection, and messaging naturally.
 Think of research insights as your secret knowledge about the client - use them subtly.
 """
+
+        # Add banned word list — these trigger automatic QA failure and retry
+        banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
+        prompt += f"""
+
+BANNED WORDS AND PHRASES (posts containing these will fail validation — never use them):
+{banned_words_str}
+
+These are the most common AI-sounding phrases. Use plain, direct language instead.
+Say what you mean in concrete terms — avoid corporate buzzwords and marketing clichés."""
 
         return prompt
 

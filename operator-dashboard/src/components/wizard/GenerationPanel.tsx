@@ -4,7 +4,7 @@ import { generatorApi } from '@/api/generator';
 import { runsApi } from '@/api/runs';
 import { creditsApi } from '@/api/credits';
 import type { GenerateAllInput, Run } from '@/types/domain';
-import { Play, Loader2, CheckCircle2, XCircle, Coins, AlertTriangle } from 'lucide-react';
+import { Play, Loader2, CheckCircle2, Coins, AlertTriangle } from 'lucide-react';
 import { getApiErrorMessage } from '@/utils/apiError';
 import { TokenUsageDisplay } from '@/components/costs';
 
@@ -67,12 +67,10 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
 
   // Handle status changes — use ref for onStarted to avoid effect loop when parent re-renders
   useEffect(() => {
-    if (runStatus?.status === 'succeeded' && !onStartedCalledRef.current) {
+    if ((runStatus?.status === 'succeeded' || runStatus?.status === 'failed') && !onStartedCalledRef.current) {
       onStartedCalledRef.current = true;
       setPollingEnabled(false);
       onStartedRef.current?.(runStatus);
-    } else if (runStatus?.status === 'failed') {
-      setPollingEnabled(false);
     }
   }, [runStatus]);
 
@@ -140,22 +138,15 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : isSucceeded ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : runStatus?.status === 'failed' ? (
-            <XCircle className="h-4 w-4" />
           ) : (
             <Play className="h-4 w-4" />
           )}
-          {isGenerating ? statusMessage : isSucceeded ? 'Loading results...' : runStatus?.status === 'failed' ? 'Failed' : 'Generate All'}
+          {isGenerating ? statusMessage : isSucceeded ? 'Loading results...' : 'Generate All'}
         </button>
       </div>
       {generate.error && (
         <div className="mt-3 rounded-md bg-rose-50 dark:bg-rose-900/20 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
           {(generate.error as Error).message || 'Failed to queue generation'}
-        </div>
-      )}
-      {runStatus?.status === 'failed' && runStatus.errorMessage && (
-        <div className="mt-3 rounded-md bg-rose-50 dark:bg-rose-900/20 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">
-          Generation failed: {runStatus.errorMessage}
         </div>
       )}
       {isSucceeded && (

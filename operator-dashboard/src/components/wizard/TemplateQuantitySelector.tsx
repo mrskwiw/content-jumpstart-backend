@@ -147,6 +147,13 @@ const FIELD_LABELS: Record<string, string> = {
   customer_questions: 'customer questions',
 };
 
+// Story-dependent templates: template ID → story count slug from validation.story_counts
+const STORY_TEMPLATE_SLUGS: Record<number, string> = {
+  6: 'personal_story',
+  8: 'things_i_got_wrong',
+  15: 'milestone',
+};
+
 const TEMPLATE_STATIC_PREREQS: Record<number, { fields: string[]; tools: string[] }> = {
   1:  { fields: ['customer_pain_points', 'ideal_customer'], tools: [] },
   2:  { fields: ['industry', 'business_description'], tools: [] },
@@ -321,6 +328,27 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     validateTemplates();
   }, [quantities, clientId]);
 
+  // Auto-cap story template quantities when story counts are known
+  useEffect(() => {
+    if (Object.keys(storyCounts).length === 0) return;
+    setQuantities((prev) => {
+      let changed = false;
+      const updated = { ...prev };
+      Object.entries(STORY_TEMPLATE_SLUGS).forEach(([idStr, slug]) => {
+        const id = Number(idStr);
+        const limit = storyCounts[slug] ?? 0;
+        if ((updated[id] ?? 0) > limit) {
+          if (limit === 0) {
+            delete updated[id];
+          } else {
+            updated[id] = limit;
+          }
+          changed = true;
+        }
+      });
+      return changed ? updated : prev;
+    });
+  }, [storyCounts]);
 
   // Calculate totals
   const { totalPosts, totalCredits, creditsPerPost } = useMemo(() => {
@@ -336,15 +364,17 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   }, [quantities, includeResearch]);
 
   const updateQuantity = (templateId: number, delta: number) => {
+    const slug = STORY_TEMPLATE_SLUGS[templateId];
+    const storyLimit = slug !== undefined ? (storyCounts[slug] ?? undefined) : undefined;
     setQuantities((prev) => {
       const current = prev[templateId] || 0;
-      const newValue = Math.max(0, current + delta);
+      let newValue = Math.max(0, current + delta);
+      if (storyLimit !== undefined) newValue = Math.min(newValue, storyLimit);
 
       if (newValue === 0) {
         const { [templateId]: _, ...rest } = prev;
         return rest;
       }
-
       return { ...prev, [templateId]: newValue };
     });
   };
@@ -410,13 +440,6 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   const hasBlockedTemplates = useMemo(() => {
     return Array.from(validationResults.values()).some((v) => v.blocked);
   }, [validationResults]);
-
-  // Story template ID -> slug mapping for story count display
-  const STORY_TEMPLATE_SLUGS: Record<number, string> = {
-    6: 'personal_story',
-    8: 'things_i_got_wrong',
-    15: 'milestone',
-  };
 
   return (
     <div className="space-y-8">
@@ -616,6 +639,10 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           const validation = validationResults.get(template.id);
           const hasRequiredDeps = templateDeps?.required && templateDeps.required.length > 0;
           const hasRecommendedDeps = templateDeps?.recommended && templateDeps.recommended.length > 0;
+          const storySlug = STORY_TEMPLATE_SLUGS[template.id];
+          const storyCount = storySlug !== undefined ? storyCounts[storySlug] : undefined;
+          const noStories = storyCount === 0;
+          const storyLimitReached = storyCount !== undefined && quantity >= storyCount;
 
           return (
             <div
@@ -786,6 +813,16 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                 </div>
               )}
 
+              {/* Story count warning */}
+              {noStories && (
+                <div className="mb-2 rounded p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 flex items-center gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-xs text-red-700 dark:text-red-300">
+                    No stories available — run Story Mining first.
+                  </p>
+                </div>
+              )}
+
               {/* Quantity Controls */}
               <div className="flex items-center gap-2">
                 <button
@@ -800,15 +837,17 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                 <input
                   type="number"
                   min="0"
-                  max="100"
+                  max={storyCount !== undefined ? storyCount : 100}
                   value={quantity}
+                  disabled={noStories}
                   onChange={(e) => setQuantity(template.id, parseInt(e.target.value) || 0)}
-                  className="h-8 w-16 rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-center text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                  className="h-8 w-16 rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-center text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
                 />
 
                 <button
                   onClick={() => updateQuantity(template.id, 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  disabled={noStories || storyLimitReached}
+                  className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Increase quantity"
                 >
                   <Plus className="h-4 w-4" />

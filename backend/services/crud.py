@@ -891,15 +891,17 @@ def get_research_results_by_client(
     client_id: str,
     tool_name: Optional[str] = None,
     status: Optional[str] = None,
+    limit: int = 100,
 ) -> List[ResearchResult]:
     """
-    Get all research results for a client.
+    Get research results for a client, most recent first.
 
     Args:
         db: Database session
         client_id: Client ID
         tool_name: Optional filter by tool name
         status: Optional filter by status (completed, failed)
+        limit: Maximum results to return (default 100 — more than enough for 12 tools)
 
     Returns:
         List of ResearchResult instances
@@ -915,7 +917,7 @@ def get_research_results_by_client(
     if status:
         query = query.filter(ResearchResult.status == status)
 
-    return query.order_by(ResearchResult.created_at.desc()).all()
+    return query.order_by(ResearchResult.created_at.desc()).limit(limit).all()
 
 
 def delete_research_result(db: Session, result_id: str) -> bool:

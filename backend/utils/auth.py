@@ -17,18 +17,31 @@ logger = logging.getLogger(__name__)
 
 # Global secret manager instance (singleton pattern)
 _secret_manager: Optional[SecretManager] = None
+# Tracks whether the fallback warning has been emitted at startup
+_fallback_warned: bool = False
 
 
 def get_secret_manager() -> SecretManager:
     """
     Get or create singleton SecretManager instance.
 
+    Emits a single startup log if no secrets are configured (i.e. fallback to
+    settings.SECRET_KEY is in effect). The message is intentionally INFO, not
+    WARNING, because the fallback is correct behaviour for deployments that
+    don't use secret rotation.
+
     Returns:
         SecretManager instance
     """
-    global _secret_manager
+    global _secret_manager, _fallback_warned
     if _secret_manager is None:
         _secret_manager = SecretManager()
+        if not _secret_manager.get_active_secrets() and not _fallback_warned:
+            logger.info(
+                "SecretManager: no secrets configured — using settings.SECRET_KEY. "
+                "Secret rotation is disabled. This is expected on deployments without a secrets store."
+            )
+            _fallback_warned = True
     return _secret_manager
 
 
@@ -69,8 +82,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     primary_secret = secret_manager.get_primary_secret()
 
     if not primary_secret:
-        # Fallback to settings.SECRET_KEY if no secrets configured
-        logger.warning("No primary secret found in SecretManager, using settings.SECRET_KEY")
         primary_secret = settings.SECRET_KEY
 
     encoded_jwt = jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
@@ -96,8 +107,6 @@ def create_refresh_token(data: dict) -> str:
     primary_secret = secret_manager.get_primary_secret()
 
     if not primary_secret:
-        # Fallback to settings.SECRET_KEY if no secrets configured
-        logger.warning("No primary secret found in SecretManager, using settings.SECRET_KEY")
         primary_secret = settings.SECRET_KEY
 
     encoded_jwt = jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
@@ -121,8 +130,6 @@ def decode_token(token: str) -> Optional[dict]:
     active_secrets = secret_manager.get_active_secrets()
 
     if not active_secrets:
-        # Fallback to settings.SECRET_KEY if no secrets configured
-        logger.warning("No active secrets found in SecretManager, using settings.SECRET_KEY")
         active_secrets = [settings.SECRET_KEY]
 
     # Try each active secret in order (primary first)

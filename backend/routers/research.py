@@ -1019,14 +1019,25 @@ async def get_client_research_results(
     if not _check_ownership("Client", client, current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    results = crud.get_research_results_by_client(db, client_id, tool_name=tool_name)
-
-    return ResearchResultListResponse(
-        results=[ResearchResultResponse.model_validate(r) for r in results],
-        total=len(results),
-        client_id=client_id,
-        project_id=None,
-    )
+    try:
+        results = crud.get_research_results_by_client(db, client_id, tool_name=tool_name)
+        serialized = []
+        for r in results:
+            try:
+                serialized.append(ResearchResultResponse.model_validate(r))
+            except Exception as e:
+                logger.warning(f"Skipping malformed research result {r.id}: {e}")
+        return ResearchResultListResponse(
+            results=serialized,
+            total=len(serialized),
+            client_id=client_id,
+            project_id=None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching research results for client {client_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve research results")
 
 
 @router.delete("/results/{result_id}", status_code=204)
