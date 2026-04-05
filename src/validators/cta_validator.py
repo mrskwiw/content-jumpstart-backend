@@ -36,6 +36,8 @@ class CTAValidator:
         (r"download|get (?:the |your )", "download"),
         (r"learn more|find out", "learn_more"),
         (r"(?:tell|share) me (?:in|about)", "share_request"),
+        (r"what'?s your (?:take|thought|opinion)", "question_take"),
+        (r"what'?s your (?:biggest|main|top) (?:challenge|struggle|pain)", "question_biggest"),
         # Action verbs that indicate clear imperatives
         (r"(?:read|watch|listen to|try|start|begin|explore)", "action_verb"),
         (r"(?:visit|follow|connect|register|apply)", "engagement"),
