@@ -626,6 +626,7 @@ async def run_research(
     # All tools now use 70 character minimum for consistency with wizard validation
     TOOL_REQUIREMENTS = {
         "brand_archetype": {"business_description": 70},
+        "determine_competitors": {"business_description": 70},
         "content_audit": {"business_description": 50},
         "content_gap_analysis": {"business_description": 50},
         "platform_strategy": {"business_description": 50, "target_audience": 20},

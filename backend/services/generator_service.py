@@ -8,6 +8,7 @@ Handles:
 - Run status tracking
 """
 
+import asyncio
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -410,16 +411,26 @@ class GeneratorService:
             )
 
             try:
-                posts = await generator.generate_posts_async(
-                    client_brief=brief,
-                    template_quantities=template_quantities,
-                    platform=platform_enum,
-                    randomize=True,
-                    max_concurrent=5,
-                    use_client_memory=False,  # Not using client memory for now
+                expected_posts = sum(template_quantities.values()) if template_quantities else 0
+                # Hard timeout: 5s per post × max 5 retry attempts × concurrency cap, minimum 120s
+                generation_timeout = max(120, expected_posts * 5 * 5)
+                logger.info(
+                    f"Starting generation of {expected_posts} posts "
+                    f"(timeout: {generation_timeout}s)"
+                )
+                posts = await asyncio.wait_for(
+                    generator.generate_posts_async(
+                        client_brief=brief,
+                        template_quantities=template_quantities,
+                        platform=platform_enum,
+                        randomize=True,
+                        max_concurrent=5,
+                        use_client_memory=False,
+                    ),
+                    timeout=generation_timeout,
                 )
                 logger.info(
-                    f"Successfully generated {len(posts)} posts (expected: {sum(template_quantities.values()) if template_quantities else 'unknown'})"
+                    f"Successfully generated {len(posts)} posts (expected: {expected_posts})"
                 )
 
                 if len(posts) == 0:
@@ -428,6 +439,16 @@ class GeneratorService:
                         f"Expected posts based on template_quantities: {sum(template_quantities.values())}"
                     )
 
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Content generation timed out after {generation_timeout}s "
+                    f"(expected {expected_posts} posts). "
+                    "Reduce post count or check API latency."
+                )
+                raise RuntimeError(
+                    f"Content generation timed out after {generation_timeout} seconds. "
+                    "The AI is taking too long — please try again with fewer posts or contact support."
+                )
             except Exception as e:
                 logger.error(f"Failed to generate posts: {str(e)}", exc_info=True)
                 raise
@@ -476,17 +497,18 @@ class GeneratorService:
                 db.rollback()
                 raise
 
-            # Verify posts were saved
+            # Verify posts were saved — filter by run_id to avoid counting prior-run posts
             from services import crud
 
-            saved_posts = crud.get_posts(db, project_id=project.id, limit=100)
+            saved_posts = crud.get_posts(db, project_id=project.id, run_id=run_id, limit=100)
             logger.info(
-                f"Verification: Found {len(saved_posts)} posts in database for project {project.id}"
+                f"Verification: Found {len(saved_posts)} posts for run {run_id} in database"
             )
 
             if len(saved_posts) != posts_created:
                 logger.warning(
-                    f"⚠️ Mismatch: Created {posts_created} posts but found {len(saved_posts)} in database"
+                    f"⚠️ Mismatch: Created {posts_created} posts but only {len(saved_posts)} "
+                    f"found for run {run_id} — some posts may not have committed correctly"
                 )
 
             # Sync token usage from cost_tracker.db to database
