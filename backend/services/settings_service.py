@@ -189,6 +189,17 @@ def get_web_search_config(db: Session, user_id: int) -> dict:
     tavily_key = get_setting(db, user_id, "tavily_api_key") or os.getenv("TAVILY_API_KEY") or ""
     serpapi_key = get_setting(db, user_id, "serpapi_api_key") or os.getenv("SERPAPI_API_KEY") or ""
 
+    # Auto-detect provider from available keys when provider is unset.
+    # Handles the case where keys are in .env but WEB_SEARCH_PROVIDER was never written
+    # (e.g. keys pre-date this feature, or DB was restored without the env entry).
+    if provider == "stub":
+        if tavily_key:
+            provider = "tavily"
+        elif brave_key:
+            provider = "brave"
+        elif serpapi_key:
+            provider = "serpapi"
+
     return {
         "provider": provider,
         "brave_api_key": brave_key,
