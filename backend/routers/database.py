@@ -250,6 +250,11 @@ async def restore_database_from_backup(
                 "restored_from": file.filename,
                 "target": "in-memory",
                 "timestamp": timestamp,
+                "warning": (
+                    "User settings (API keys, web search provider) have been restored from "
+                    "this backup. If those settings were configured after the backup was "
+                    "created, please re-enter them in Settings → API Keys."
+                ),
             }
 
         else:
@@ -284,6 +289,11 @@ async def restore_database_from_backup(
                         "migration_applied": False,
                         "backup_version": backup_version,
                         "current_version": current_version,
+                        "warning": (
+                            "User settings (API keys, web search provider) have been restored "
+                            "from this backup. If those settings were configured after the "
+                            "backup was created, please re-enter them in Settings → API Keys."
+                        ),
                     }
 
                 except Exception as e:
@@ -325,6 +335,11 @@ async def restore_database_from_backup(
                         "changes": result.get("changes", []),
                         "rows_migrated": result.get("row_count", 0),
                         "migration_log": result.get("log", []),
+                        "warning": (
+                            "User settings (API keys, web search provider) have been restored "
+                            "from this backup. If those settings were configured after the "
+                            "backup was created, please re-enter them in Settings → API Keys."
+                        ),
                     }
 
                 except Exception as e:

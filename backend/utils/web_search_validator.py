@@ -43,13 +43,14 @@ def is_web_search_configured(db: Session, user_id: int) -> Tuple[bool, str]:
         if not (has_brave or has_tavily):
             return (
                 False,
-                "No web search API key configured. Please add BRAVE_API_KEY or TAVILY_API_KEY in Settings.",
+                "No web search API key found. Please configure a provider (Brave, Tavily, or SerpAPI) "
+                "in Settings → API Keys. Note: a database restore may have cleared previously saved keys.",
             )
 
         # Has keys but provider set to stub - still not configured for real use
         return (
             False,
-            "Web search provider set to 'stub'. Please select a real provider (Brave or Tavily) in Settings.",
+            "Web search provider is set to 'stub'. Please select Brave, Tavily, or SerpAPI in Settings → API Keys.",
         )
 
     # Check that the selected provider has an API key

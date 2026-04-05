@@ -1,11 +1,31 @@
 """Service for managing user settings and encrypted API keys"""
 
 import os
+from pathlib import Path
 from typing import Optional
 from cryptography.fernet import Fernet
 from sqlalchemy.orm import Session
+from dotenv import set_key as dotenv_set_key
 
 from ..models.setting import Setting
+
+# Resolve backend/.env path relative to this file (backend/services/settings_service.py → backend/.env)
+_ENV_FILE = Path(__file__).parent.parent / ".env"
+
+
+def _persist_to_env(env_key: str, value: str) -> None:
+    """Write a key/value to os.environ and to backend/.env for DB-restore resilience.
+
+    Plaintext only — never write encrypted ciphertext here.
+    If the .env file does not exist, only os.environ is updated.
+    """
+    os.environ[env_key] = value
+    if _ENV_FILE.exists():
+        try:
+            dotenv_set_key(str(_ENV_FILE), env_key, value, quote_mode="never")
+        except Exception:
+            pass  # env persistence is best-effort; DB is the primary store
+
 
 # Get encryption key from environment or generate one
 # In production, this should be stored securely (e.g., AWS Secrets Manager)
@@ -157,10 +177,14 @@ def get_web_search_config(db: Session, user_id: int) -> dict:
     Returns:
         dict with keys: provider, brave_api_key, tavily_api_key, serpapi_api_key
     """
-    # Get provider (user setting or default to stub)
-    provider = get_setting(db, user_id, "web_search_provider", decrypt=False) or "stub"
+    # Get provider: user DB setting → env fallback (survives DB restore) → default stub
+    provider = (
+        get_setting(db, user_id, "web_search_provider", decrypt=False)
+        or os.getenv("WEB_SEARCH_PROVIDER")
+        or "stub"
+    )
 
-    # Get API keys: check user settings first, then environment variables
+    # Get API keys: DB setting → env fallback (survives DB restore) → empty
     brave_key = get_setting(db, user_id, "brave_api_key") or os.getenv("BRAVE_API_KEY") or ""
     tavily_key = get_setting(db, user_id, "tavily_api_key") or os.getenv("TAVILY_API_KEY") or ""
     serpapi_key = get_setting(db, user_id, "serpapi_api_key") or os.getenv("SERPAPI_API_KEY") or ""
@@ -197,24 +221,31 @@ def set_web_search_config(
     """
     # Set provider
     set_setting(db, user_id, "web_search_provider", provider, encrypt=False)
+    _persist_to_env("WEB_SEARCH_PROVIDER", provider)
 
     # Set API keys if provided
     if brave_api_key is not None:
         if brave_api_key:
             set_setting(db, user_id, "brave_api_key", brave_api_key, encrypt=True)
+            _persist_to_env("BRAVE_API_KEY", brave_api_key)
         else:
             delete_setting(db, user_id, "brave_api_key")
+            _persist_to_env("BRAVE_API_KEY", "")
 
     if tavily_api_key is not None:
         if tavily_api_key:
             set_setting(db, user_id, "tavily_api_key", tavily_api_key, encrypt=True)
+            _persist_to_env("TAVILY_API_KEY", tavily_api_key)
         else:
             delete_setting(db, user_id, "tavily_api_key")
+            _persist_to_env("TAVILY_API_KEY", "")
 
     if serpapi_api_key is not None:
         if serpapi_api_key:
             set_setting(db, user_id, "serpapi_api_key", serpapi_api_key, encrypt=True)
+            _persist_to_env("SERPAPI_API_KEY", serpapi_api_key)
         else:
             delete_setting(db, user_id, "serpapi_api_key")
+            _persist_to_env("SERPAPI_API_KEY", "")
 
     return get_web_search_config(db, user_id)

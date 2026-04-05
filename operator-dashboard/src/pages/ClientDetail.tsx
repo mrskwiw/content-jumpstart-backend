@@ -15,7 +15,6 @@ import {
   DollarSign,
   MessageSquare,
   CheckCircle2,
-  Clock,
   Download,
   ExternalLink,
   Calendar,
@@ -35,7 +34,6 @@ import { deliverablesApi } from '@/api/deliverables';
 import { researchApi } from '@/api/research';
 import { storiesApi, type Story } from '@/api/stories';
 import { communicationsApi, type Communication, type CreateCommunicationInput } from '@/api/communications';
-import { CopyButton } from '@/components/ui/CopyButton';
 import { ResearchResultsDrawer } from '@/components/research/ResearchResultsDrawer';
 import { StoryDetailsDrawer } from '@/components/stories/StoryDetailsDrawer';
 import { AddStoryDialog } from '@/components/stories/AddStoryDialog';
@@ -59,7 +57,7 @@ export default function ClientDetail() {
   // Research tool state
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [showDataDialog, setShowDataDialog] = useState(false);
-  const [researchResults, setResearchResults] = useState<Map<string, any>>(new Map());
+  const [researchResults, setResearchResults] = useState<Map<string, unknown>>(new Map());
   const [isExporting, setIsExporting] = useState(false);
 
   // Research results drawer state
@@ -247,7 +245,7 @@ export default function ClientDetail() {
 
   // Research tool mutation
   const runResearchMutation = useMutation({
-    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, any> }) => {
+    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, unknown> }) => {
       // Use the most recent active project for this client
       const activeProject = clientProjects.find(p => p.status !== 'delivered' && p.status !== 'exported') ?? clientProjects[0];
       if (!activeProject) {
@@ -297,7 +295,7 @@ export default function ClientDetail() {
     if (!inputConfig) return;
 
     // Build params with the collected data
-    const params: Record<string, any> = {};
+    const params: Record<string, unknown> = {};
     if (dialogInputValue.trim()) {
       params[inputConfig.paramKey] = dialogInputValue.trim();
     }
@@ -374,17 +372,7 @@ export default function ClientDetail() {
   const activeProjects = clientProjects.filter(
     (p) => p.status !== 'delivered' && p.status !== 'exported'
   ).length;
-  const completedProjects = clientProjects.filter(
-    (p) => p.status === 'delivered' || p.status === 'exported'
-  ).length;
-  const totalRevenue = completedProjects * 1800; // Mock calculation
-  const packageTier = completedProjects > 5 ? 'Premium' : completedProjects > 2 ? 'Professional' : 'Starter';
 
-  // Mock data for tabs (would come from API)
-  const mockInvoices = [
-    { id: '1', date: '2024-01-15', amount: 1800, status: 'paid', project: clientProjects[0]?.name || 'Project 1' },
-    { id: '2', date: '2024-02-01', amount: 1800, status: 'pending', project: clientProjects[1]?.name || 'Project 2' },
-  ];
 
   const communications: Communication[] = communicationsData ?? [];
 
@@ -431,11 +419,6 @@ export default function ClientDetail() {
             {/* Client Info */}
             <div>
               <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{client.name}</h1>
-              <div className="mt-2 flex items-center gap-3">
-                <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-2.5 py-0.5 text-xs font-medium text-primary-800 dark:text-primary-300">
-                  {packageTier}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -581,10 +564,6 @@ export default function ClientDetail() {
                       {client.email || 'No email provided'}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Phone</p>
-                    <p className="mt-1 font-medium text-neutral-500 dark:text-neutral-400 italic">No phone on file</p>
-                  </div>
                 </div>
               </div>
 
@@ -610,65 +589,6 @@ export default function ClientDetail() {
                 </div>
               </div>
 
-              {/* Package Details */}
-              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                  <FileText className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-                  Package Details
-                </h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Current Tier</p>
-                    <p className="mt-1">
-                      <span className="inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/20 px-3 py-1 text-sm font-medium text-primary-800 dark:text-primary-300">
-                        {packageTier}
-                      </span>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Pricing</p>
-                    <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-100">
-                      ${packageTier === 'Premium' ? '2,500' : packageTier === 'Professional' ? '1,800' : '1,200'} per project
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Features</p>
-                    <ul className="mt-1 space-y-1 text-sm text-neutral-700 dark:text-neutral-300">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        30 posts per project
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        Multi-platform support
-                      </li>
-                      {packageTier !== 'Starter' && (
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                          Priority support
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              {/* Account Manager */}
-              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
-                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-                  <User className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
-                  Account Manager
-                </h3>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600 dark:bg-purple-500 text-sm font-semibold text-white">
-                    SM
-                  </div>
-                  <div>
-                    <p className="font-medium text-neutral-900 dark:text-neutral-100">Sarah Martinez</p>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">sarah@company.com</p>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Custom Notes */}
@@ -1336,92 +1256,10 @@ export default function ClientDetail() {
 
         {/* Tab 7: Billing & Payments */}
         {activeTab === 'billing' && (
-          <div className="space-y-6">
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Outstanding</p>
-                <p className="mt-2 text-3xl font-semibold text-amber-600 dark:text-amber-400">
-                  ${mockInvoices.filter(i => i.status === 'pending').reduce((sum, i) => sum + i.amount, 0).toLocaleString()}
-                </p>
-              </div>
-              <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">Paid This Month</p>
-                <p className="mt-2 text-3xl font-semibold text-emerald-600 dark:text-emerald-400">
-                  ${mockInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            {/* Invoices Table */}
-            <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-              <div className="border-b border-neutral-200 dark:border-neutral-700 px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Invoices</h3>
-                  <button className="rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600">
-                    Generate Invoice
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-700">
-                  <thead className="bg-neutral-50 dark:bg-neutral-800">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Invoice #
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Project
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Amount
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700 bg-white dark:bg-neutral-900">
-                    {mockInvoices.map((invoice) => (
-                      <tr key={invoice.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                          INV-{invoice.id.padStart(4, '0')}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-900 dark:text-neutral-100">
-                          {invoice.project}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-600 dark:text-neutral-400">
-                          {format(new Date(invoice.date), 'MMM d, yyyy')}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                          ${invoice.amount.toLocaleString()}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              invoice.status === 'paid'
-                                ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300'
-                                : 'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
-                            }`}
-                          >
-                            {invoice.status}
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
-                          <button className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">View PDF</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-12 text-center">
+            <DollarSign className="mx-auto h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+            <p className="mt-4 font-medium text-neutral-700 dark:text-neutral-300">Billing not yet available</p>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Invoice tracking will be available in a future update.</p>
           </div>
         )}
 
