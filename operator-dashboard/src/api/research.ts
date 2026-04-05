@@ -54,8 +54,8 @@ const ResearchHistoryResponseSchema = z.object({
 const ResearchResultListResponseSchema = z.object({
   results: z.array(ResearchResultSchema),
   total: z.number(),
-  clientId: z.string().optional(),
-  projectId: z.string().optional(),
+  clientId: z.string().nullish(),
+  projectId: z.string().nullish(),
 });
 
 export interface ResearchRunResult {
