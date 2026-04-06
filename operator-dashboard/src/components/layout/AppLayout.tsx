@@ -27,11 +27,17 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // Fetch credit balance
+  // Fetch credit balance — only when authenticated; don't retry on 401 (token expired)
   const { data: creditBalance } = useQuery({
     queryKey: ['credits', 'balance'],
     queryFn: () => creditsApi.getBalance(),
-    refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: !!user,
+    refetchInterval: 30000,
+    retry: (failureCount, error) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) return false;
+      return failureCount < 2;
+    },
   });
 
   const handleLogout = async () => {
