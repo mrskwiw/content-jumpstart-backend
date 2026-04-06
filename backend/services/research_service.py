@@ -459,9 +459,10 @@ class ResearchService:
                 }
             logger.info(f"Web search configured for {tool_name}: using {message}")
 
-        # Check prerequisites
-        can_run, missing_required, missing_recommended = self.check_prerequisites(
-            db, project_id, tool_name
+        # Check prerequisites — client-scoped so tools completed in any prior
+        # project for this client count (prevents false "missing prerequisite" errors)
+        can_run, missing_required, missing_recommended = self.check_client_prerequisites(
+            db, client_id, tool_name
         )
 
         if not can_run:
@@ -781,9 +782,12 @@ class ResearchService:
                 f"Executing {tool_name} ({ordered_tools.index(tool_name) + 1}/{len(ordered_tools)})"
             )
 
-            # Check prerequisites considering tools completed in this batch
-            can_run, missing_required, missing_recommended = self.check_prerequisites(
-                db, project_id, tool_name, planned_tools=list(completed_in_batch)
+            # Check prerequisites — combine client-wide history with tools already
+            # completed in this batch so cross-project and within-batch deps both resolve
+            completed_for_client = self._get_completed_tools_for_client(db, client_id)
+            completed_for_client.update(completed_in_batch)
+            can_run, missing_required, missing_recommended = (
+                self.prerequisites.check_prerequisites_met(tool_name, completed_for_client)
             )
 
             if not can_run:

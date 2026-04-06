@@ -19,7 +19,7 @@ const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: stri
   competitive_analysis: { required: [], recommended: ['determine_competitors'] },
 
   // Tier 2 - Analysis
-  content_gap_analysis: { required: [], recommended: ['competitive_analysis', 'seo_keyword_research'] },
+  content_gap_analysis: { required: ['competitive_analysis'], recommended: ['seo_keyword_research'] },
   market_trends_research: { required: [], recommended: ['seo_keyword_research'] },
   icp_workshop: { required: [], recommended: ['audience_research'] },
   content_audit: { required: [], recommended: [] },
