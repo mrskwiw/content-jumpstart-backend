@@ -284,7 +284,11 @@ export function ResearchDataCollectionPanel({
         if (value !== undefined && value !== null && value !== '') {
           // Handle array → string conversion for text-list fields
           if (Array.isArray(value)) {
-            updates[targetField] = value.join(', ');
+            // Cap to field max to prevent backend validation errors (Bug #99 fix)
+            const allFields = TOOL_DATA_REQUIREMENTS[toolId]?.fields || [];
+            const fieldDef = allFields.find(f => f.key === targetField);
+            const capped = fieldDef?.max ? value.slice(0, fieldDef.max) : value;
+            updates[targetField] = capped.join(', ');
           } else {
             updates[targetField] = value;
           }
@@ -423,13 +427,21 @@ export function ResearchDataCollectionPanel({
         if (field.type === 'text-list') {
           if (typeof value === 'string') {
             // Convert comma-separated string to array (Bug #38 fix)
-            processedData[field.key] = value
+            let items = value
               .split(',')
               .map((item: string) => item.trim())
               .filter((item: string) => item.length > 0);
+            // Cap to field max to prevent backend validation errors (Bug #99 fix)
+            if (field.max && items.length > field.max) {
+              items = items.slice(0, field.max);
+            }
+            processedData[field.key] = items;
           } else if (!value || value === '') {
             // Convert null/undefined/empty to empty array (Bug #38 fix)
             processedData[field.key] = [];
+          } else if (Array.isArray(value) && field.max && (value as unknown[]).length > field.max) {
+            // Cap array values to field max (Bug #99 fix)
+            processedData[field.key] = (value as unknown[]).slice(0, field.max);
           }
         }
       });

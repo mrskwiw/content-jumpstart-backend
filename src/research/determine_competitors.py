@@ -145,7 +145,7 @@ class CompetitorDeterminer(ResearchTool, CommonValidationMixin):
 {maps_data}
 """
 
-        prompt = f"""Based on the web search results and local business data below, analyze this business and identify its top 5-7 market competitors.
+        prompt = f"""Based on the web search results and local business data below, analyze this business and identify its top 3-5 market competitors.
 
 **Business:** {business_name}
 **Industry:** {industry}{location_context}
@@ -157,7 +157,7 @@ class CompetitorDeterminer(ResearchTool, CommonValidationMixin):
 CRITICAL INSTRUCTIONS:
 - Use ONLY the companies/information found in the search results above
 - Prioritize LOCAL competitors from Google Maps when available (they have verified reviews/ratings)
-- Identify 5-7 PRIMARY competitors (direct and adjacent)
+- Identify 3-5 PRIMARY competitors (direct and adjacent) — maximum 5
 - Identify 0-2 EMERGING competitors if found in search results
 - Do NOT invent or hallucinate companies not in the search results
 - Include Google Maps rating and review count in your analysis when available
