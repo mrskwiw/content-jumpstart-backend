@@ -114,6 +114,7 @@ class PostSummary(BaseModel):
     readability_score: Optional[float] = Field(default=None, serialization_alias="readabilityScore")
     status: str
     flags: Optional[List[str]] = None
+    content: str = ""  # Full post content
     content_preview: str = Field(..., serialization_alias="contentPreview")  # First 150 chars
 
     model_config = ConfigDict(

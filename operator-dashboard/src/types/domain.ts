@@ -165,6 +165,7 @@ export const PostSummarySchema = z.object({
   readabilityScore: z.number().nullish(),
   status: z.string(),
   flags: z.array(z.string()).nullish(),
+  content: z.string().optional().default(''),
   contentPreview: z.string(),
 });
 export type PostSummary = z.infer<typeof PostSummarySchema>;

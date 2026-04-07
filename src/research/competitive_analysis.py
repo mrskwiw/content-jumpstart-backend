@@ -341,7 +341,12 @@ Use "Unknown — not found in search results" for string fields with no data. Us
                     strengths=data.get("strengths", [])[:5],
                     weaknesses=data.get("weaknesses", [])[:5],
                     estimated_reach=data.get("estimated_reach", "Unknown"),
-                    engagement_level=CompetitorStrength(data.get("engagement_level", "moderate")),
+                    engagement_level=CompetitorStrength(
+                        data.get("engagement_level", "moderate").lower()
+                        if data.get("engagement_level", "").lower()
+                        in {v.value for v in CompetitorStrength}
+                        else "moderate"
+                    ),
                 )
                 profiles.append(profile)
 

@@ -158,6 +158,7 @@ def get_deliverable_details(
                 readability_score=p.readability_score,
                 status=p.status,
                 flags=p.flags,
+                content=p.content,
                 content_preview=p.content[:150] + "..." if len(p.content) > 150 else p.content,
             )
             for p in run_posts

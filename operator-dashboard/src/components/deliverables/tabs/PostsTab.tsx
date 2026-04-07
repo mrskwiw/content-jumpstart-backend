@@ -130,7 +130,7 @@ export function PostsTab({ deliverable }: Props) {
                   {post.status}
                 </span>
                 <CopyButton
-                  text={post.contentPreview}
+                  text={post.content}
                   variant="button"
                   size="sm"
                   label="Copy"
