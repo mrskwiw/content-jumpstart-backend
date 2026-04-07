@@ -854,11 +854,17 @@ async def run_research(
                 primary_competitors = data.get("primary_competitors", [])
 
                 if primary_competitors:
-                    # Extract just the competitor names
+                    # Extract competitor names, filtering out any null/empty values
                     competitor_names = [
-                        comp.get("name") if isinstance(comp, dict) else comp
-                        for comp in primary_competitors[:5]  # Max 5
-                    ]
+                        name
+                        for name in (
+                            comp.get("name") if isinstance(comp, dict) else comp
+                            for comp in primary_competitors
+                        )
+                        if name and isinstance(name, str) and name.strip()
+                    ][
+                        :5
+                    ]  # Max 5 after filtering
 
                     if competitor_names:
                         client = crud.get_client(db, input.client_id)
