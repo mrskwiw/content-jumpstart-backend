@@ -1,7 +1,7 @@
 import apiClient from './client';
-import type { LoginRequest, LoginResponse, RefreshTokenResponse } from '@/types/api';
+import type { User, LoginRequest, LoginResponse, RefreshTokenResponse } from '@/types/api';
 
-// Backend response type (matches backend UserResponse schema)
+// Backend response type — backend UserResponse uses alias_generator (camelCase)
 interface BackendLoginResponse {
   access_token: string;
   refresh_token: string;
@@ -9,11 +9,11 @@ interface BackendLoginResponse {
   user: {
     id: string;
     email: string;
-    full_name: string;
-    is_active: boolean;
-    is_superuser: boolean;
-    created_at: string;
-    updated_at?: string;
+    fullName: string;
+    isActive: boolean;
+    isSuperuser: boolean;
+    createdAt: string;
+    updatedAt?: string;
   };
 }
 
@@ -34,19 +34,16 @@ export const authApi = {
       );
     }
 
-    // Map backend user model to frontend User type
     const backendUser = data.user;
-    const user = {
-
+    const user: User = {
       id: backendUser.id,
       email: backendUser.email,
-      fullName: (backendUser as any).fullName || (backendUser as any).full_name,
-      isSuperuser: (backendUser as any).isSuperuser || (backendUser as any).is_superuser,
-      isActive: (backendUser as any).isActive || (backendUser as any).is_active,
-      createdAt: (backendUser as any).createdAt || (backendUser as any).created_at,
-      updatedAt: (backendUser as any).updatedAt || (backendUser as any).updated_at,
-
-    } as unknown as LoginResponse['user'];
+      fullName: backendUser.fullName,
+      isSuperuser: backendUser.isSuperuser,
+      isActive: backendUser.isActive,
+      createdAt: backendUser.createdAt,
+      updatedAt: backendUser.updatedAt,
+    };
 
     return {
       access_token: data.access_token,

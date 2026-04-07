@@ -89,8 +89,8 @@ export default function AppLayout() {
             </Button>
             <ThemeToggle />
             <div className="text-right">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{user?.name || user?.email}</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">{user?.fullName || user?.email}</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">{user?.isSuperuser ? 'Admin' : 'Operator'}</p>
             </div>
             <button
               onClick={handleLogout}

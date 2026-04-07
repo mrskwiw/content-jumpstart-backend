@@ -21,11 +21,11 @@ export interface GrantCreditsResponse {
 export interface User {
   id: string;
   email: string;
-  full_name: string;
-  is_active: boolean;
-  is_superuser: boolean;
-  created_at: string;
-  updated_at: string | null;
+  fullName: string;
+  isActive: boolean;
+  isSuperuser: boolean;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 export const adminApi = {

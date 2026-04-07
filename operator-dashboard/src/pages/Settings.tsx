@@ -179,7 +179,7 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
   const { user } = useAuth();
-  const isAdmin = user?.is_superuser === true;
+  const isAdmin = user?.isSuperuser === true;
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'integrations' | 'workflows' | 'notifications' | 'preferences' | 'security' | 'database' | 'credits' | 'users'>('integrations');
 
@@ -1594,14 +1594,14 @@ function GrantCreditsModal({
               <option value="">-- Select a user --</option>
               {users.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.email} - {user.full_name}
+                  {user.email} - {user.fullName}
                 </option>
               ))}
             </select>
             {selectedUser && (
               <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                Active: {selectedUser.is_active ? '✅ Yes' : '❌ No'} •
-                Admin: {selectedUser.is_superuser ? '👑 Yes' : 'No'}
+                Active: {selectedUser.isActive ? '✅ Yes' : '❌ No'} •
+                Admin: {selectedUser.isSuperuser ? '👑 Yes' : 'No'}
               </p>
             )}
           </div>

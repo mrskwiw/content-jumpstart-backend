@@ -22,9 +22,9 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <div className="text-sm">
                 <span className="text-neutral-600 dark:text-neutral-400">Welcome,</span>{' '}
-                <span className="font-medium text-neutral-900 dark:text-neutral-100">{user?.name || user?.email}</span>
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">{user?.fullName || user?.email}</span>
               </div>
-              <Badge variant="info">{user?.role}</Badge>
+              <Badge variant="info">{user?.isSuperuser ? 'Admin' : 'Operator'}</Badge>
               <Button variant="ghost" onClick={handleLogout}>
                 Logout
               </Button>

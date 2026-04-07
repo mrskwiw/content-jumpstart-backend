@@ -26,7 +26,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   }
 
   // Check role if required
-  if (requiredRole && user?.role !== requiredRole && user?.role !== 'admin') {
+  if (requiredRole && !user?.isSuperuser) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
