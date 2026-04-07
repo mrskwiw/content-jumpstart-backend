@@ -739,6 +739,10 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                 logger.warning("Claude returned empty data for secondary keywords")
                 return self._generate_fallback_secondary_keywords(primary_keywords)
 
+            # Unwrap if Claude returned {"keywords": [...]} instead of bare array
+            if isinstance(keywords_data, dict):
+                keywords_data = next((v for v in keywords_data.values() if isinstance(v, list)), [])
+
             keywords = []
 
             for kw_data in keywords_data[:30]:  # Max 30 secondary
