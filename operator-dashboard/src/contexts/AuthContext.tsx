@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User, LoginRequest } from '@/types/api';
 import { authApi } from '@/api/auth';
 
@@ -12,9 +12,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Proactively refresh the access token on user activity so it never expires
+// during an active session. Fires at most once every 15 minutes.
+const ACTIVITY_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const lastRefreshRef = useRef<number>(Date.now());
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -34,6 +39,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     loadUser();
+  }, []);
+
+  // Silently refresh token on user activity (click or keydown).
+  // Debounced to ACTIVITY_REFRESH_INTERVAL_MS so it fires at most once per interval.
+  // Keeps the token alive for active users without any perceptible delay.
+  useEffect(() => {
+    const handleActivity = async () => {
+      const now = Date.now();
+      if (now - lastRefreshRef.current < ACTIVITY_REFRESH_INTERVAL_MS) return;
+
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) return;
+
+      try {
+        const data = await authApi.refresh(refreshToken);
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+        lastRefreshRef.current = now;
+      } catch {
+        // Refresh failed silently — the 401 interceptor in client.ts will handle
+        // it on the next actual API call and redirect to login if needed.
+      }
+    };
+
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    return () => {
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+    };
   }, []);
 
   const login = async (credentials: LoginRequest) => {
