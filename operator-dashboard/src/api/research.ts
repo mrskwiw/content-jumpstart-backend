@@ -82,8 +82,8 @@ export interface ResearchHistoryResponse {
 export interface ResearchResultListResponse {
   results: ResearchResult[];
   total: number;
-  clientId?: string;
-  projectId?: string;
+  clientId?: string | null;
+  projectId?: string | null;
 }
 
 const NextBundleSuggestionSchema = z.object({
