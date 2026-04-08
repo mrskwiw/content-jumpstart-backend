@@ -1,8 +1,11 @@
 import { useState, useMemo, memo, useEffect } from 'react';
 import { Plus, Minus, Coins, FileText, Calculator, TrendingUp, HelpCircle, AlertCircle, X, CheckCircle2, Sparkles, Link2 } from 'lucide-react';
 import { PlatformSelector } from './PlatformSelector';
+import { TemplateDetailPanel } from './TemplateDetailPanel';
+import type { TemplatePrereqs } from './TemplateDetailPanel';
 import { generatorApi, type TemplateDependencies } from '@/api/generator';
 import { researchApi, type ResearchResultListResponse } from '@/api/research';
+import type { Client } from '@/types/domain';
 
 interface Template {
   id: number;
@@ -155,32 +158,35 @@ const STORY_TEMPLATE_SLUGS: Record<number, string> = {
   15: 'milestone',
 };
 
-const TEMPLATE_STATIC_PREREQS: Record<number, { fields: string[]; tools: string[] }> = {
-  1:  { fields: ['customer_pain_points', 'ideal_customer'], tools: [] },
-  2:  { fields: ['industry', 'business_description'], tools: [] },
-  3:  { fields: ['industry'], tools: [] },
-  4:  { fields: ['industry'], tools: [] },
-  5:  { fields: ['ideal_customer'], tools: [] },
-  6:  { fields: ['business_description'], tools: ['story_mining'] },
-  7:  { fields: ['industry'], tools: [] },
-  8:  { fields: ['business_description'], tools: ['story_mining'] },
-  9:  { fields: ['business_description', 'main_problem_solved'], tools: [] },
-  10: { fields: ['industry'], tools: [] },
-  11: { fields: ['business_description'], tools: [] },
-  12: { fields: ['business_description'], tools: ['story_mining'] },
-  13: { fields: ['industry', 'business_description'], tools: [] },
-  14: { fields: ['customer_questions'], tools: [] },
-  15: { fields: ['business_description'], tools: ['story_mining'] },
+// Full prerequisite map — synced with backend/services/template_prerequisites.py
+// Story templates (6, 8, 12, 15) show story mining via the Stories section, not recommendedTools
+const TEMPLATE_FULL_PREREQS: Record<number, TemplatePrereqs> = {
+  1:  { requiredFields: ['customer_pain_points', 'ideal_customer'], recommendedFields: ['industry'],             requiredTools: [], recommendedTools: [] },
+  2:  { requiredFields: ['industry', 'business_description'],       recommendedFields: [],                       requiredTools: [], recommendedTools: ['market_trends_research'] },
+  3:  { requiredFields: ['industry'],                               recommendedFields: ['business_description'], requiredTools: [], recommendedTools: [] },
+  4:  { requiredFields: ['industry'],                               recommendedFields: [],                       requiredTools: [], recommendedTools: ['market_trends_research'] },
+  5:  { requiredFields: ['ideal_customer'],                         recommendedFields: ['customer_pain_points'], requiredTools: [], recommendedTools: [] },
+  6:  { requiredFields: ['business_description'],                   recommendedFields: [],                       requiredTools: [], recommendedTools: [] },
+  7:  { requiredFields: ['industry'],                               recommendedFields: ['business_description'], requiredTools: [], recommendedTools: [] },
+  8:  { requiredFields: ['business_description'],                   recommendedFields: [],                       requiredTools: [], recommendedTools: [] },
+  9:  { requiredFields: ['business_description', 'main_problem_solved'], recommendedFields: ['customer_pain_points'], requiredTools: [], recommendedTools: [] },
+  10: { requiredFields: ['industry'],                               recommendedFields: [],                       requiredTools: [], recommendedTools: ['competitive_analysis'] },
+  11: { requiredFields: ['business_description'],                   recommendedFields: [],                       requiredTools: [], recommendedTools: ['story_mining'] },
+  12: { requiredFields: ['business_description'],                   recommendedFields: [],                       requiredTools: [], recommendedTools: [] },
+  13: { requiredFields: ['industry', 'business_description'],       recommendedFields: [],                       requiredTools: [], recommendedTools: ['market_trends_research'] },
+  14: { requiredFields: ['customer_questions'],                     recommendedFields: ['business_description'], requiredTools: [], recommendedTools: [] },
+  15: { requiredFields: ['business_description'],                   recommendedFields: [],                       requiredTools: [], recommendedTools: [] },
 };
 
 interface Props {
   initialQuantities?: Record<number, number>;
   initialIncludeResearch?: boolean;
-  initialTopics?: string[];  // NEW: custom topics for generation
-  initialTargetPlatform?: string;  // NEW: target platform
-  projectId?: string;  // NEW: for fetching research results
-  clientId?: string;  // NEW: for fetching research results
-  onNavigateToResearch?: () => void;  // NEW: navigate to research step
+  initialTopics?: string[];
+  initialTargetPlatform?: string;
+  projectId?: string;
+  clientId?: string;
+  clientData?: Client;
+  onNavigateToResearch?: () => void;
   onContinue?: (
     quantities: Record<number, number>,
     includeResearch: boolean,
@@ -188,7 +194,7 @@ interface Props {
     customTopics: string[],
     targetPlatform: string
   ) => void;
-  onEditClient?: () => void;  // Navigate to client edit
+  onEditClient?: () => void;
 }
 
 const CREDITS_PER_POST = 20;  // $40/post ÷ $2/credit = 20 credits
@@ -197,18 +203,20 @@ const CREDITS_PER_POST = 20;  // $40/post ÷ $2/credit = 20 credits
 export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   initialQuantities = {},
   initialIncludeResearch = false,
-  initialTopics = [],  // NEW
-  initialTargetPlatform = 'generic',  // NEW
-  projectId,  // NEW
-  clientId,  // NEW
-  onNavigateToResearch,  // NEW
+  initialTopics = [],
+  initialTargetPlatform = 'generic',
+  projectId,
+  clientId,
+  clientData,
+  onNavigateToResearch,
   onContinue,
   onEditClient,
 }: Props) {
   const [quantities, setQuantities] = useState<Record<number, number>>(initialQuantities);
   const [includeResearch, setIncludeResearch] = useState(initialIncludeResearch);
-  const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);  // NEW: topic override state
-  const [targetPlatform, setTargetPlatform] = useState<string>(initialTargetPlatform);  // NEW: target platform state
+  const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);
+  const [targetPlatform, setTargetPlatform] = useState<string>(initialTargetPlatform);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [dependencies, setDependencies] = useState<Map<number, TemplateDependencies>>(new Map());
   const [completedTools, setCompletedTools] = useState<Set<string>>(new Set());
   const [loadingDeps, setLoadingDeps] = useState(false);
@@ -665,8 +673,10 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
         </div>
       </div>
 
-      {/* Template Grid */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Template Grid + Detail Panel */}
+      <div className="relative">
+        {/* Dim grid when panel is open */}
+        <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-3 transition-opacity duration-150 ${selectedTemplateId !== null ? 'opacity-30 pointer-events-none select-none' : ''}`}>
         {TEMPLATES.map((template) => {
           const quantity = quantities[template.id] || 0;
           const hasQuantity = quantity > 0;
@@ -682,10 +692,13 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           return (
             <div
               key={template.id}
-              className={`group relative rounded-lg border-2 p-4 transition-all ${
-                hasQuantity
+              onClick={() => setSelectedTemplateId(template.id)}
+              className={`group relative rounded-lg border-2 p-4 transition-all cursor-pointer ${
+                selectedTemplateId === template.id
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md ring-2 ring-blue-400 dark:ring-blue-600'
+                  : hasQuantity
                   ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md'
-                  : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600'
+                  : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm'
               }`}
             >
               {/* Template Header */}
@@ -718,10 +731,10 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
 
               {/* Static Prerequisites Chip — always visible before selection */}
               {(() => {
-                const sp = TEMPLATE_STATIC_PREREQS[template.id];
+                const sp = TEMPLATE_FULL_PREREQS[template.id];
                 if (!sp) return null;
-                const fieldLabels = sp.fields.map((f) => FIELD_LABELS[f] ?? f);
-                const toolLabels = sp.tools.map((t) => TOOL_LABELS[t] ?? t);
+                const fieldLabels = sp.requiredFields.map((f) => FIELD_LABELS[f] ?? f);
+                const toolLabels = sp.requiredTools.map((t) => TOOL_LABELS[t] ?? t);
                 const allLabels = [...fieldLabels, ...toolLabels];
                 if (allLabels.length === 0) return null;
                 return (
@@ -897,7 +910,32 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
             </div>
           );
         })}
-      </div>
+        </div>{/* end inner grid */}
+
+        {/* Detail Panel overlay */}
+        {selectedTemplateId !== null && (() => {
+          const tpl = TEMPLATES.find((t) => t.id === selectedTemplateId);
+          if (!tpl) return null;
+          return (
+            <div className="absolute inset-0 z-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl overflow-hidden flex flex-col" style={{ minHeight: '400px' }}>
+              <TemplateDetailPanel
+                template={tpl}
+                prereqs={TEMPLATE_FULL_PREREQS[selectedTemplateId]}
+                clientData={clientData}
+                completedTools={completedTools}
+                storyCounts={storyCounts}
+                storySlug={STORY_TEMPLATE_SLUGS[selectedTemplateId]}
+                quantity={quantities[selectedTemplateId] ?? 0}
+                onQuantityChange={(delta) => updateQuantity(selectedTemplateId, delta)}
+                onClose={() => setSelectedTemplateId(null)}
+                onEditClient={onEditClient}
+                onNavigateToResearch={onNavigateToResearch}
+                validationResult={validationResults.get(selectedTemplateId)}
+              />
+            </div>
+          );
+        })()}
+      </div>{/* end relative wrapper */}
 
       {/* Footer */}
       <div className="mt-6 flex items-center justify-between border-t border-neutral-200 dark:border-neutral-700 pt-4">

@@ -475,6 +475,7 @@ export default function Wizard() {
                 initialTargetPlatform={targetPlatform}
                 projectId={projectId || undefined}
                 clientId={clientId || undefined}
+                clientData={selectedClient ?? undefined}
                 onNavigateToResearch={() => setActiveStep('research')}
                 onEditClient={() => setActiveStep('profile')}
                 onContinue={(quantities, research, price, topics, platform) => {
