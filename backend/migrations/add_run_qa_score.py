@@ -16,37 +16,30 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from sqlalchemy import inspect, text  # noqa: E402
+
 from backend.database import engine  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-
-
-def _column_exists(conn, table: str, column: str) -> bool:
-    result = conn.execute(
-        text(
-            "SELECT COUNT(*) FROM information_schema.columns "
-            "WHERE table_name = :table AND column_name = :column"
-        ),
-        {"table": table, "column": column},
-    )
-    return result.scalar() > 0
 
 
 def run_migration() -> bool:
     print("Starting migration: add_run_qa_score")
 
     try:
-        with engine.connect() as conn:
-            if _column_exists(conn, "runs", "qa_score"):
-                print("  Column 'qa_score' already exists — skipping.")
-            else:
+        inspector = inspect(engine)
+        existing_columns = [c["name"] for c in inspector.get_columns("runs")]
+
+        if "qa_score" in existing_columns:
+            print("  Column 'qa_score' already exists — skipping.")
+        else:
+            with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE runs ADD COLUMN qa_score FLOAT"))
-                print("  Added column 'qa_score' (FLOAT) to runs.")
-            conn.commit()
+                conn.commit()
+            print("  Added column 'qa_score' (FLOAT) to runs.")
     except Exception as exc:
         print(f"ERROR: {exc}")
         return False
 
-    print("\nMigration add_run_qa_score completed successfully!")
+    print("Migration add_run_qa_score completed successfully!")
     return True
 
 

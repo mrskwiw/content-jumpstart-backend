@@ -123,6 +123,15 @@ async def lifespan(app: FastAPI):
     init_db()
     print(">> Database initialized")
 
+    # Run pending migrations (idempotent — safe to run on every startup)
+    from backend.migrations.add_run_qa_score import run_migration as migrate_qa_score
+    from backend.migrations.add_deletion_audit_log import (
+        run as migrate_deletion_audit_log,
+    )
+
+    migrate_qa_score()
+    migrate_deletion_audit_log()
+
     # Auto-seed admin users if database is empty or forced reset
     from backend.database import SessionLocal
     from backend.models.user import User
