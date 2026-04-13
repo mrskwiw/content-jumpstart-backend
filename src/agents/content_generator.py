@@ -930,17 +930,15 @@ class ContentGeneratorAgent:
                 + "Write a completely new version. Do not reuse the flagged word or phrase."
             )
 
-        # For blog posts, use a minimal template structure to allow full-length content
-        # LinkedIn templates constrain length to 200-300 words, which kills blogs
+        # For blog posts, use a minimal template structure (LinkedIn templates constrain to 200-300 words)
         if platform == Platform.BLOG:
             blog_template_structure = """Write a comprehensive, in-depth blog post that thoroughly explores the topic.
 Your blog post should include:
-- A compelling introduction that hooks readers
-- Multiple detailed sections (H2 headers) exploring different aspects
-- Concrete examples, data, and actionable insights throughout
-- A strong conclusion with clear next steps
+- A compelling introduction that hooks readers and states the problem (200-300 words)
+- 3-5 main sections (H2 headers) with concrete examples, data, and actionable insights
+- A strong conclusion with key takeaways and an imperative CTA (1500-2000 words total, MINIMUM 800)
 
-Focus on providing deep value and comprehensive coverage of the topic. This is a blog post, not a social media post - depth and thoroughness matter more than brevity."""
+This is a blog post, not a social media post — depth and thoroughness matter. Cover the topic comprehensively."""
             template_structure_to_use = blog_template_structure
         else:
             template_structure_to_use = template.structure
@@ -1392,96 +1390,66 @@ Aim for 220-250 words for optimal engagement.
 📝 BLOG POST LENGTH GUIDELINES:
 🎯 TARGET RANGE: 1500-2000 words for optimal SEO performance
 💯 SWEET SPOT: 1700-1800 words (ideal engagement + SEO)
-⚠️  MINIMUM: 800 words (shorter posts score below optimal on SEO metrics)
+⚠️  MINIMUM: 800 words (posts under 800 fail validation)
 
-RECOMMENDED 6-SECTION STRUCTURE (aim for full depth in each section):
+RECOMMENDED 5-SECTION STRUCTURE (aim for full depth in each section):
 
-## Introduction (250-300 words) [CHECKPOINT: ~275 words]
-- Powerful hook with compelling statistic, question, or story (2-3 sentences)
+## Introduction (200-300 words) [CHECKPOINT: ~250 words]
+- Powerful hook: a compelling statistic, question, or relatable scenario (2-3 sentences)
 - Clearly state the problem your audience faces (1 paragraph)
 - Preview the specific value/solutions readers will learn (1 paragraph)
 - Include a concrete example or real data point to build credibility
-- Set up why this topic matters NOW
 
-## Section 1: [Core Concept/Problem Deep-Dive] (350-450 words) [CHECKPOINT: ~650 words total]
+## Section 1: [Core Concept/Problem Deep-Dive] (300-400 words) [CHECKPOINT: ~600 words total]
 - H2 header clearly describing this section
-- 3-4 substantial paragraphs breaking down the problem
-- Include 2-3 specific examples with real numbers/names
+- 3-4 substantial paragraphs breaking down the problem or concept
+- Include 2-3 specific examples with real numbers or names
 - Add bullet points or numbered lists to structure information
 - Cite relevant data/statistics (at least 1-2 data points)
-- Explain WHY this matters to your specific audience
 
-## Section 2: [Framework/Approach] (350-450 words) [CHECKPOINT: ~1050 words total]
+## Section 2: [Framework/Approach] (300-400 words) [CHECKPOINT: ~1000 words total]
 - H2 header describing your solution framework
 - Break down complex concepts with step-by-step explanations
 - Use real-world examples from recognizable companies/situations
 - Address common objections or questions preemptively
 - Include actionable insights, not just theory
-- Add specific metrics or outcomes to demonstrate effectiveness
 
-## Section 3: [Implementation/How-To] (350-450 words) [CHECKPOINT: ~1450 words total]
+## Section 3: [Implementation/How-To] (300-400 words) [CHECKPOINT: ~1400 words total]
 - H2 header focused on practical application
 - Provide detailed "how-to" steps (numbered list of 3-5 steps)
 - Each step should have 2-3 sentences of explanation
 - Include specific tools, resources, or templates
 - Add "what to avoid" warnings or common mistakes
-- Make this immediately actionable for readers
 
-## Section 4: [Advanced Tactics/Case Study] (250-350 words) [CHECKPOINT: ~1700 words total]
-- H2 header describing advanced application or results
-- Share a brief case study or example of success
-- Include specific metrics (percentages, time saved, revenue impact)
-- Explain what made it work (2-3 key factors)
-- Connect back to your audience's situation
-
-## Section 5: [Common Mistakes/FAQs] (200-300 words) [OPTIONAL if over 1500, MANDATORY if under]
-- H2 header: "Common Mistakes to Avoid" or "Frequently Asked Questions"
-- List 3-5 mistakes/questions with explanations
-- Keep each item concise but valuable
-- Use this section to reach 1500+ words if needed
-
-## Conclusion (250-300 words) [FINAL CHECKPOINT: 1500-2000 words total]
-- Summarize key takeaways (3-5 bullet points, each with 1 sentence explanation)
+## Conclusion (200-300 words) [FINAL CHECKPOINT: 1500-2000 words total]
+- Summarize 3-5 key takeaways (each with 1 sentence of explanation)
 - Reinforce the main benefit and transformation available
-- Clear, specific call-to-action using IMPERATIVE form (command, not question)
+- Clear, specific CTA using IMPERATIVE form (command, not question)
   Examples: "Subscribe now", "Download the guide", "Book your call today"
   NOT questions like: "Want to learn more?" or "Ready to get started?"
-- End with forward-looking statement about what's possible
+- End with a forward-looking statement about what's possible
 
 🚨 CRITICAL WRITING REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ MINIMUM 1500 words total (count your words before submitting)
-✓ Include 5-6 H2 headers (## format) - use ALL sections above
-✓ Each H2 section MUST be 250-450 words (NO exceptions)
+✓ Include 4-5 H2 headers (## format)
 ✓ Use concrete examples with specific numbers/names/companies
-✓ Include data/statistics in at least 4 sections
+✓ Include data/statistics in at least 3 sections
 ✓ Front-load key message in first 2 paragraphs for SEO
 ✓ Write for search intent + readability (not just engagement)
-✓ Add subheadings (H3 ###) within longer sections for scannability
 ✓ Use bullet points and numbered lists to break up text
+✓ Short paragraphs — 2-3 sentences max
 
-WORD COUNT CHECKPOINTS (verify as you write):
-- After Introduction: ~275 words
-- After Section 1: ~650 words
-- After Section 2: ~1050 words
-- After Section 3: ~1450 words
-- After Section 4: ~1700 words
-- After Conclusion: 1500-2000 words ✓
-
-If your draft is under 1500 words after Section 4, you MUST:
-1. Add Section 5 (Common Mistakes/FAQs) - 200-300 words
-2. Expand each section with more examples/data
-3. Add more step-by-step breakdowns with explanations
-4. Include more "what to avoid" warnings
-5. Add more tool/resource recommendations with descriptions
-6. Expand bullet points into mini-paragraphs
-
-🎯 TARGET MINDSET: You're writing a comprehensive, authoritative blog post that could rank on Google page 1. More detail = better SEO = more value. Aim for 1500–1800 words.
+PRE-OUTPUT LENGTH CHECK (MANDATORY):
+Before returning your blog post, count the words mentally:
+- If under 1500 words → DO NOT OUTPUT YET. Add one of: a Section 4 with a case study or FAQ (200-300 words), expand each section with one more concrete example, or add "what to avoid" warnings. Then recount.
+- If over 2000 words → trim redundant paragraphs, shorten examples to 2-3 sentences, cut any section that does not add new information.
+A post that is under 800 words FAILS quality validation and will be regenerated.
 """
 
         # Repeat length reminder at end for emphasis (platform-specific)
         if platform == Platform.BLOG:
-            prompt += "\n\n📏 FINAL REMINDER: Target 1500–1800 words for best SEO. Minimum 800 words. Aim for depth and substance over brevity."
+            prompt += "\n\n📏 FINAL REMINDER: Target 1500–2000 words for best SEO. MINIMUM 800 words — if under 1500, add a case study section or expand examples before submitting. Aim for depth and substance."
         else:
             prompt += f"\n\n📏 REMINDER: Target length is {target_length}. DO NOT EXCEED THIS."
 

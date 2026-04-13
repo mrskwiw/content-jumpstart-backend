@@ -45,14 +45,14 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
         "max_chars": 900,
     },
     Platform.BLOG: {
-        "min_words": 300,
+        "min_words": 800,
         "optimal_min_words": 1500,
-        "optimal_max_words": 2500,
-        "max_words": 5000,  # For pillar content
-        "min_chars": 1800,
+        "optimal_max_words": 2000,
+        "max_words": 3000,
+        "min_chars": 4800,
         "optimal_min_chars": 9000,
-        "optimal_max_chars": 15000,
-        "max_chars": 30000,
+        "optimal_max_chars": 12000,
+        "max_chars": 18000,
     },
     Platform.EMAIL: {
         # Email newsletters - similar to LinkedIn
@@ -146,20 +146,18 @@ Guidelines:
 - End with a CTA: a question, invitation to comment, or soft call-to-action
 """,
     Platform.BLOG: """
-Target length: 1,500-2,000 words.
+Target length: 1,500-2,000 words (MINIMUM 800 words — posts under 800 will fail validation).
 
-SEO-optimized, comprehensive, well-structured with headers.
+SEO-optimized, well-structured blog post with headers and actionable insights.
 
 Guidelines:
-- Answer search intent fully
-- Use headers (H2, H3) for structure
-- Include examples, data, actionable insights
+- Answer search intent fully with depth and examples
+- Use H2 headers (##) for 4-6 main sections
+- Include concrete examples, data, and actionable insights throughout
 - Short paragraphs (2-3 sentences)
 - Bullet points for scannability
-- Images, charts, or visuals
-- Clear introduction and conclusion
-- Internal/external links
-- Meta description friendly opening
+- Strong introduction (hook + problem + preview) and conclusion (takeaways + CTA)
+- Depth and thoroughness matter — cover the topic comprehensively
 """,
     Platform.EMAIL: """
 Target length: 150-250 words.

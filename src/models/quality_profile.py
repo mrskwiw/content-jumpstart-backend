@@ -202,11 +202,11 @@ DEFAULT_PROFILES = {
     ),
     "blog": QualityProfile(
         profile_name="blog",
-        description="Long-form blog content with depth",
+        description="Long-form blog content with depth — 1500-2000 words",
         min_readability=50.0,
         max_readability=70.0,
         min_words=800,
-        max_words=2000,
+        max_words=2500,
         min_engagement_score=2,
         require_cta=True,
         max_attempts=2,
