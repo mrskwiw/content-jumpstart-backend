@@ -116,6 +116,7 @@ export const RunSchema = z.object({
   totalCacheReadTokens: z.number().int().nullish(),
   totalCostUsd: z.number().nullish(),
   estimatedCostUsd: z.number().nullish(),
+  qaScore: z.number().nullish(),
 });
 export type Run = z.infer<typeof RunSchema>;
 
@@ -257,14 +258,6 @@ export const ExportTargetSchema = z.enum([
   'twitter',
   'twitter-threads',
   'facebook',
-  'instagram',
-  // Publishing Platforms
-  'substack',
-  'medium',
-  'wordpress',
-  'ghost',
-  // Productivity
-  'notion',
   // Standard Formats
   'docx',
   'markdown',

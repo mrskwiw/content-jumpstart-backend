@@ -6,6 +6,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from backend.middleware.auth_dependency import get_current_user
+from backend.services.export_service import generate_export_file
+from backend.utils.logger import logger
 from backend.middleware.authorization import (
     verify_deliverable_ownership,
     filter_user_deliverables,
@@ -150,11 +152,37 @@ async def download_deliverable(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid file path: {str(e)}"
         )
 
-    # Check if file exists
+    # Check if file exists — if not, regenerate from DB posts (handles ephemeral storage loss)
     if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"File not found: {deliverable.path}"
-        )
+        logger.warning(f"Deliverable file missing, regenerating: {deliverable.path}")
+        try:
+            project = crud.get_project(db, deliverable.project_id)
+            client = crud.get_client(db, deliverable.client_id)
+            posts = crud.get_posts(
+                db, project_id=deliverable.project_id, run_id=deliverable.run_id, limit=500
+            )
+            if not project or not client or not posts:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="File is missing and cannot be regenerated: project, client, or posts not found",
+                )
+            await generate_export_file(
+                posts=posts,
+                client=client,
+                project=project,
+                format=deliverable.format,
+                relative_path=deliverable.path,
+                db=db,
+            )
+            logger.info(f"Regenerated deliverable file: {deliverable.path}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to regenerate deliverable {deliverable.id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="File is missing and could not be regenerated",
+            )
 
     # Determine media type based on file extension
     media_types = {

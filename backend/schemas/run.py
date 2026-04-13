@@ -89,6 +89,7 @@ class RunResponse(BaseModel):
     estimated_cost_usd: Optional[float] = Field(
         default=None, serialization_alias="estimatedCostUsd"
     )
+    qa_score: Optional[float] = Field(default=None, serialization_alias="qaScore")
 
     model_config = ConfigDict(
         from_attributes=True,

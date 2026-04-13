@@ -110,6 +110,10 @@ export const clientsApi = {
     await apiClient.delete(`/api/clients/${clientId}`);
   },
 
+  async permanentDelete(clientId: string): Promise<void> {
+    await apiClient.delete(`/api/clients/${clientId}?force=true`);
+  },
+
   async archive(clientId: string): Promise<void> {
     await apiClient.post(`/api/clients/${clientId}/archive`);
   },

@@ -40,6 +40,7 @@ class Run(Base):
     total_cache_read_tokens = Column(Integer, nullable=True)
     total_cost_usd = Column(Float, nullable=True)  # Actual cost after completion
     estimated_cost_usd = Column(Float, nullable=True)  # Estimated cost before/during execution
+    qa_score = Column(Float, nullable=True)  # Composite QA quality score (0.0–1.0)
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     project = relationship("backend.models.project.Project", back_populates="runs")

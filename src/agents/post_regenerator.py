@@ -110,6 +110,47 @@ class PostRegenerator:
         if self.profile.require_cta and not post.has_cta:
             reasons.append(RegenerationReason("missing_cta", "Post lacks clear call-to-action"))
 
+        # Check CTA placement and form
+        if post.content:
+            lines = [ln.strip() for ln in post.content.strip().split("\n") if ln.strip()]
+            if lines:
+                last_line = lines[-1]
+                body = "\n".join(lines[:-1]).lower()
+                cta_patterns = [
+                    r"(?:drop|share|leave) (?:your|a) comment",
+                    r"(?:dm|message|reach out|contact) me",
+                    r"reply (?:with|below)",
+                    r"(?:click|tap|check out) (?:the )?link",
+                    r"(?:book|schedule|set up) (?:a )?(?:call|meeting|demo)",
+                    r"sign up|subscribe|join",
+                    r"download|get (?:the |your )",
+                    r"learn more|find out",
+                    r"(?:tell|share) me (?:in|about)",
+                    r"\b(?:read|watch|listen to|try|start|begin|explore)",
+                    r"\b(?:visit|follow|connect|register|apply)",
+                ]
+                import re as _re
+
+                for pat in cta_patterns:
+                    if _re.search(pat, body, _re.IGNORECASE):
+                        reasons.append(
+                            RegenerationReason(
+                                "cta_not_last",
+                                "CTA appears mid-post — must be the final line",
+                            )
+                        )
+                        break
+                for pat in cta_patterns:
+                    if _re.search(pat, last_line, _re.IGNORECASE):
+                        if last_line.rstrip().endswith("?"):
+                            reasons.append(
+                                RegenerationReason(
+                                    "cta_is_question",
+                                    "CTA is a question — must be a statement",
+                                )
+                            )
+                        break
+
         # Check headline engagement (if available from review reason)
         if post.needs_review and post.review_reason:
             reason = post.review_reason
@@ -266,8 +307,22 @@ class PostRegenerator:
 
             elif reason.reason_type == "missing_cta":
                 guidance_parts.append(
-                    "- Add clear CTA: End with a specific question or invitation. Examples: "
-                    "'What's your experience with [topic]?' or 'Try [specific action] and let me know how it goes.'"
+                    "- Add a statement CTA as the final line. Must be an imperative, not a question. "
+                    "Examples: 'Book a free call at [link].' or 'Download the guide at [link].' or "
+                    "'Reply with your biggest challenge and I'll share what worked for us.'"
+                )
+
+            elif reason.reason_type == "cta_not_last":
+                guidance_parts.append(
+                    "- Move the CTA to the very last line of the post. Nothing should follow it. "
+                    "Remove or merge any CTA that appears mid-post."
+                )
+
+            elif reason.reason_type == "cta_is_question":
+                guidance_parts.append(
+                    "- Rewrite the CTA as a statement, not a question. "
+                    "Instead of 'What do you think?' use 'Share your take in the comments.' "
+                    "Instead of 'Have you tried this?' use 'Try this today and let me know how it goes.'"
                 )
 
             elif reason.reason_type == "weak_headline":

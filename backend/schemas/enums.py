@@ -14,12 +14,6 @@ class Platform(str, Enum):
     TWITTER = "twitter"
     TWITTER_THREADS = "twitter-threads"
     FACEBOOK = "facebook"
-    INSTAGRAM = "instagram"
-    MEDIUM = "medium"
-    SUBSTACK = "substack"
-    WORDPRESS = "wordpress"
-    GHOST = "ghost"
-    NOTION = "notion"
     BLOG = "blog"
     EMAIL = "email"
     GENERIC = "generic"  # Generic/multi-platform content

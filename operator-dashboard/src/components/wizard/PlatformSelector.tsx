@@ -1,4 +1,4 @@
-import { Linkedin, Twitter, Facebook, Instagram, Mail, FileText, PenLine } from 'lucide-react';
+import { Linkedin, Twitter, Facebook, Mail, PenLine } from 'lucide-react';
 
 interface PlatformTarget {
   id: string;
@@ -37,15 +37,6 @@ const platforms: PlatformTarget[] = [
     icon: Facebook,
     charLimit: 63206,
   },
-  {
-    id: 'instagram',
-    name: 'Instagram',
-    description: 'Visual captions with hashtags',
-    category: 'social',
-    icon: Instagram,
-    charLimit: 2200,
-  },
-
   // Long-form
   {
     id: 'blog',

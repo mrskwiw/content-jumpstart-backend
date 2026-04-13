@@ -182,7 +182,7 @@ export default function ClientDetail() {
     },
   });
 
-  // Delete client mutation
+  // Delete client mutation (kept for backward compat — dialog now uses archive for soft delete)
   const deleteClientMutation = useMutation({
     mutationFn: () => clientsApi.delete(clientId!),
     onSuccess: () => {
@@ -190,6 +190,17 @@ export default function ClientDetail() {
     },
     onError: (error) => {
       alert(`Failed to delete client: ${getApiErrorMessage(error)}`);
+    },
+  });
+
+  // Permanent (hard) delete — GDPR right-to-erasure, force=true cascades all child records
+  const permanentDeleteMutation = useMutation({
+    mutationFn: () => clientsApi.permanentDelete(clientId!),
+    onSuccess: () => {
+      navigate('/clients');
+    },
+    onError: (error) => {
+      alert(`Permanent deletion failed: ${getApiErrorMessage(error)}`);
     },
   });
 
@@ -1512,7 +1523,8 @@ export default function ClientDetail() {
           onOpenChange={setDeleteDialogOpen}
           clientId={client.id}
           clientName={client.name}
-          onConfirmDelete={() => deleteClientMutation.mutateAsync()}
+          onConfirmDelete={() => archiveClientMutation.mutateAsync()}
+          onConfirmPermanentDelete={() => permanentDeleteMutation.mutateAsync()}
           onExportData={handleExportProfile}
         />
       )}

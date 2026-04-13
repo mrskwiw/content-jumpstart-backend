@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, Button, Input, Textarea } from '@/components/ui';
 import { AlertCircle, Plus, X, FileText, CheckCircle2 } from 'lucide-react';
 import { ContentAuditCollector } from './ContentAuditCollector';
+import { researchApi } from '@/api/research';
 import type { Client } from '@/types/domain';
 
 interface ResearchDataCollectionPanelProps {
@@ -26,10 +28,12 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     location: 'location'
   },
   platform_strategy: {
-    platforms: 'current_platforms'
+    platforms: 'current_platforms',
+    mainProblemSolved: 'content_goals',
   },
   content_calendar_strategy: {
-    platforms: 'primary_platforms'
+    platforms: 'primary_platforms',
+    mainProblemSolved: 'content_goals',
   },
   business_report: {
     name: 'company_name',
@@ -83,23 +87,23 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       helperText: '✨ Auto-populates from your client profile. Override if needed (e.g., "B2B SaaS", "Healthcare").'
     }, {
       key: 'location',
-      label: 'Geographic Market (Optional)',
+      label: 'Geographic Market (Optional — Auto-Populated)',
       type: 'text',
       required: false,
       placeholder: 'e.g., United States, Global, EMEA',
-      helperText: 'Optional. Specify if you want to focus on a specific geographic market.'
+      helperText: '✨ Auto-populates from your client profile location if set. Override to focus on a different geographic market.'
     }]
   },
   competitive_analysis: {
     fields: [{
       key: 'competitors',
-      label: 'Competitor Names (Optional - Auto-Populated)',
+      label: 'Competitor Names (Recommended — Auto-Populated)',
       type: 'text-list',
       required: false,
       min: 1,
       max: 5,
-      placeholder: 'Leave empty to use competitors from client profile',
-      helperText: '✨ Auto-populates from your client profile if left empty. Or manually add 1-5 competitor names to analyze their positioning, content strategy, strengths, and weaknesses.'
+      placeholder: 'Leave empty to use competitors from client profile or Determine Competitors results',
+      helperText: '⚠️ Required in practice — auto-populates from Determine Competitors results or client profile. If neither has data this tool will fail. Run Determine Competitors first, or add 1–5 names here.'
     }]
   },
   content_gap_analysis: {
@@ -142,11 +146,11 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       helperText: '✨ Auto-generates from SEO keywords and business profile if left empty. Or manually add 1-10 custom focus areas.'
     }, {
       key: 'location',
-      label: 'Location (Optional - Enables Review Analysis)',
+      label: 'Location (Optional — Auto-Populated, Enables Review Analysis)',
       type: 'text',
       required: false,
       placeholder: 'e.g., San Francisco, CA',
-      helperText: '🗺️ Add location to analyze Google Maps reviews from industry businesses in your market for real customer insights.'
+      helperText: '✨ Auto-populates from client profile. When set, also pulls Google Maps reviews from industry businesses in your market for real customer insights.'
     }]
   },
   platform_strategy: {
@@ -159,21 +163,21 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       helperText: 'Platforms you currently use for content distribution.'
     }, {
       key: 'content_goals',
-      label: 'Content Goals (Optional)',
+      label: 'Content Goals (Optional — Auto-Populated)',
       type: 'text',
       required: false,
       placeholder: 'e.g., awareness and leads, thought leadership, customer education',
-      helperText: 'Specific business objectives for your content.'
+      helperText: '✨ Auto-populates from the main problem your client solves. Override with specific content objectives.'
     }]
   },
   content_calendar_strategy: {
     fields: [{
       key: 'content_goals',
-      label: 'Content Goals (Optional)',
+      label: 'Content Goals (Optional — Auto-Populated)',
       type: 'text',
       required: false,
       placeholder: 'e.g., brand awareness, lead generation, thought leadership',
-      helperText: 'Specific business objectives for your content calendar (10-1000 characters).'
+      helperText: '✨ Auto-populates from the main problem your client solves. Override with specific calendar objectives (10-1000 characters).'
     }, {
       key: 'primary_platforms',
       label: 'Primary Platforms (Optional)',
@@ -261,47 +265,97 @@ export function ResearchDataCollectionPanel({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
 
-  // Auto-populate fields from client data based on selected tools
+  // Fetch prior research results for cross-tool auto-populate
+  const { data: priorResearch } = useQuery({
+    queryKey: ['research-results', projectId],
+    queryFn: () => researchApi.getProjectResearchResults(projectId!),
+    enabled: !!projectId,
+    staleTime: 30_000,
+  });
+
+  // Auto-populate fields from client data and prior research results
   useEffect(() => {
     if (!clientData) return;
 
     const updates: Record<string, any> = {};
     const autoFilled = new Set<string>();
 
-    // Process each selected tool
+    // Helper: set a field only if not already populated by the user
+    const maybeSet = (targetField: string, value: unknown) => {
+      if (collectedData[targetField]) return;
+      if (value === undefined || value === null || value === '') return;
+      if (Array.isArray(value) && value.length === 0) return;
+      updates[targetField] = value;
+      autoFilled.add(targetField);
+    };
+
+    // 1. Client profile → tool field mappings
     selectedTools.forEach(toolId => {
       const mapping = CLIENT_TO_TOOL_FIELD_MAPPINGS[toolId];
       if (!mapping) return;
 
-      // Apply each field mapping
       Object.entries(mapping).forEach(([sourceField, targetField]) => {
-        // Skip if field already has data
-        if (collectedData[targetField]) return;
-
-        // Get value from client
         const value = clientData[sourceField as keyof Client];
+        if (value === undefined || value === null || value === '') return;
 
-        if (value !== undefined && value !== null && value !== '') {
-          // Handle array → string conversion for text-list fields
-          if (Array.isArray(value)) {
-            // Cap to field max to prevent backend validation errors (Bug #99 fix)
-            const allFields = TOOL_DATA_REQUIREMENTS[toolId]?.fields || [];
-            const fieldDef = allFields.find(f => f.key === targetField);
-            const capped = fieldDef?.max ? value.slice(0, fieldDef.max) : value;
-            updates[targetField] = capped.join(', ');
-          } else {
-            updates[targetField] = value;
-          }
-          autoFilled.add(targetField);
+        if (Array.isArray(value)) {
+          const allFields = TOOL_DATA_REQUIREMENTS[toolId]?.fields || [];
+          const fieldDef = allFields.find(f => f.key === targetField);
+          const capped = fieldDef?.max ? value.slice(0, fieldDef.max) : value;
+          maybeSet(targetField, capped.join(', '));
+        } else {
+          maybeSet(targetField, value);
         }
       });
     });
+
+    // 2. Cross-tool populate from prior research results
+    const completedResults = priorResearch?.results?.filter(r => r.status === 'completed') ?? [];
+
+    if (selectedTools.includes('competitive_analysis')) {
+      // Populate competitors from determine_competitors results if available
+      const dcResult = completedResults.find(r => r.toolName === 'determine_competitors');
+      if (dcResult?.data) {
+        const primary = (dcResult.data as any).primary_competitors ?? [];
+        const names: string[] = primary
+          .map((c: any) => (typeof c === 'string' ? c : c?.name))
+          .filter(Boolean)
+          .slice(0, 5);
+        if (names.length > 0) maybeSet('competitors', names.join(', '));
+      }
+    }
+
+    if (selectedTools.includes('market_trends_research')) {
+      // Populate focus_areas from seo_keyword_research if available
+      const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
+      if (seoResult?.data) {
+        const keywords = (seoResult.data as any).primary_keywords ?? (seoResult.data as any).keywords ?? [];
+        const topKeywords: string[] = keywords
+          .slice(0, 8)
+          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
+          .filter(Boolean);
+        if (topKeywords.length > 0) maybeSet('focus_areas', topKeywords.join(', '));
+      }
+    }
+
+    if (selectedTools.includes('content_gap_analysis')) {
+      // Populate current_content_topics from seo_keyword_research if available
+      const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
+      if (seoResult?.data) {
+        const keywords = (seoResult.data as any).primary_keywords ?? (seoResult.data as any).keywords ?? [];
+        const topKeywords: string[] = keywords
+          .slice(0, 10)
+          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
+          .filter(Boolean);
+        if (topKeywords.length > 0) maybeSet('current_content_topics', topKeywords.join(', '));
+      }
+    }
 
     if (Object.keys(updates).length > 0) {
       setCollectedData(prev => ({ ...prev, ...updates }));
       setAutoFilledFields(autoFilled);
     }
-  }, [clientData, selectedTools]);
+  }, [clientData, selectedTools, priorResearch]);
 
   // Get all required fields for selected tools
   const requiredFields = selectedTools.flatMap(tool =>

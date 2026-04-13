@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { projectsApi } from '@/api/projects';
 import { deliverablesApi } from '@/api/deliverables';
 import { runsApi } from '@/api/runs';
-import { postsApi } from '@/api/posts';
 import { clientsApi } from '@/api/clients';
 import { costsApi } from '@/api/costs';
 import type { Project, Deliverable, Run, Client } from '@/types/domain';
@@ -89,11 +88,6 @@ export default function Overview() {
     queryFn: () => runsApi.list({}),
   });
 
-  const { data: recentPostsResponse } = useQuery({
-    queryKey: ['posts', 'overview-quality'],
-    queryFn: () => postsApi.list({ page_size: 100 }),
-  });
-
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
@@ -138,14 +132,13 @@ export default function Overview() {
   ).length;
   const pendingDeliverables = deliverables.filter(d => d.status === 'ready').length;
 
-  // Quality score: average readabilityScore from recent posts (posts carry QA data, runs do not)
-  const recentPosts = recentPostsResponse?.items ?? [];
-  const scoredPosts = recentPosts.filter(p => p.readabilityScore != null);
-  const avgQualityScore = scoredPosts.length > 0
+  // Quality score: average QA composite score across all runs (0.0–1.0 → display as %)
+  const scoredRuns = runs.filter(r => r.qaScore != null);
+  const avgQualityScore = scoredRuns.length > 0
     ? Math.round(
-        (scoredPosts.reduce((sum, p) => sum + (p.readabilityScore ?? 0), 0) / scoredPosts.length) * 10
-      ) / 10
-    : 0;
+        (scoredRuns.reduce((sum, r) => sum + (r.qaScore ?? 0), 0) / scoredRuns.length) * 100
+      )
+    : null;
 
   // Client metrics
   const totalClients = clients.length;
@@ -263,10 +256,10 @@ export default function Overview() {
         />
         <StatCard
           title="Quality Score"
-          value={avgQualityScore ? `${avgQualityScore}%` : 'N/A'}
+          value={avgQualityScore != null ? `${avgQualityScore}%` : 'N/A'}
           icon={Star}
           color="purple"
-          trend="Average across recent projects"
+          trend="Composite QA score across all runs"
         />
       </div>
 

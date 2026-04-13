@@ -3623,7 +3623,7 @@ export interface components {
          * @description Social media and publishing platforms
          * @enum {string}
          */
-        Platform: "linkedin" | "twitter" | "facebook" | "instagram" | "medium" | "substack" | "wordpress" | "ghost" | "notion" | "blog" | "email" | "multi" | "generic";
+        Platform: "linkedin" | "twitter" | "facebook" | "blog" | "email" | "generic";
         /**
          * PostCostBreakdown
          * @description Post cost breakdown.

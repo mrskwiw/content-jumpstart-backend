@@ -21,6 +21,7 @@ from .trends import (
     TrendsKeywordInsight,
 )
 from .stripe_payment import StripeCustomer, StripePayment
+from .deletion_audit_log import DeletionAuditLog
 
 __all__ = [
     "User",
@@ -42,4 +43,5 @@ __all__ = [
     "CreditPackage",
     "StripeCustomer",
     "StripePayment",
+    "DeletionAuditLog",
 ]

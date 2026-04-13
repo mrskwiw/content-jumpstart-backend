@@ -337,6 +337,10 @@ For each segment provide:
 - content_preferences: Content preferences (3-5 items)
 - messaging_recommendations: How to message this segment
 
+For key_characteristics and content_preferences: if you have no data for a specific sub-field, include one string item explaining why (e.g. ["Insufficient data — no public behavioral signals found for this segment"]). Never return an empty array for any field.
+
+If segments cannot be meaningfully distinguished given the available data, return one segment with segment_name "General audience — insufficient data to segment" and description explaining what additional information would be needed.
+
 Return ONLY valid JSON array:
 [
   {{
@@ -387,6 +391,8 @@ Provide strategic recommendations:
 5. KEY INSIGHTS: Key strategic insights (5-7 items)
 
 6. WHAT TO AVOID: What to avoid (3-5 items)
+
+For any array field where you have insufficient data, include one string item explaining why — e.g. ["No platform engagement data available — recommend running a customer survey to determine content preferences"]. Never return an empty array []. Never omit a field.
 
 Return ONLY valid JSON:
 {{

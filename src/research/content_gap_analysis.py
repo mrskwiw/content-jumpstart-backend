@@ -443,15 +443,21 @@ Identify 10-15 specific content gaps. For each gap:
 - gap_title: What's missing
 - gap_type: "topic", "format", "depth", "freshness", "stage", or "audience_segment"
 - priority: "critical", "high", "medium", or "low"
-- description: Why this matters
+- description: Why this matters — cite which competitor(s) already cover this or why none do
 - search_volume: Estimate (e.g., "High: 5K/mo", "Medium: 1K/mo", "Low: 200/mo")
-- competition: How many competitors cover this
-- business_impact: How this helps business
+- competition: How many competitors cover this (name them if possible)
+- business_impact: Specific business outcome, not generic (e.g. "Reduces sales-cycle objection about pricing" not "Helps business grow")
 - target_audience: Who needs this
 - buyer_stage: "Awareness", "Consideration", or "Decision"
-- content_angle: Recommended approach
-- example_topics: 3-5 specific topics
+- content_angle: Recommended format and angle — MUST cite the specific gap being filled (e.g. "Comparison post: Competitor X has no pricing page; own the '{{topic}} pricing' search" — not just "write a blog post")
+- example_topics: 3-5 specific, publish-ready topic titles (not categories)
 - estimated_effort: "Small", "Medium", or "Large"
+
+Rules:
+- description and content_angle MUST reference the specific competitor data provided above, not generic advice
+- example_topics must be specific enough to assign to a writer today (e.g. "How [Product] integrates with Salesforce in 3 steps" not "Integration content")
+
+If you have insufficient data for any gap's field, include a brief explanation in that field rather than leaving it empty. If no topic gaps can be identified at all, return one object with gap_title "Insufficient data to identify gaps", priority "low", and description explaining exactly what data was missing and why gaps could not be determined.
 
 Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
 
@@ -517,6 +523,8 @@ For each format:
 - topics_to_cover: 3-5 topics that work well in this format
 - estimated_impact: "High", "Medium", or "Low"
 
+If no format gaps are identifiable (e.g. the business already covers all major formats), return one object with format_name "No format gaps identified" and why_needed explaining why — e.g. "This business already uses blog, video, and email; no significant format gaps were found given the available data." Never return an empty array.
+
 Return ONLY a valid JSON array of format gap objects. No markdown. No explanation."""
 
         gaps_data = self._call_claude_api(
@@ -559,6 +567,8 @@ For each stage (Awareness, Consideration, Decision):
 - gap_description: What's missing
 - recommended_content: 3-5 specific content pieces to create
 - priority: "critical", "high", "medium", or "low"
+
+For any stage where current_coverage is genuinely unclear, set current_coverage to a plain-English description of why it could not be determined (e.g. "Could not assess — no public content inventory available"). For gap_description, never leave it empty; if there is no gap, write "No gap identified — [reason]." Never return an empty array.
 
 Return ONLY a valid JSON array of buyer journey gap objects. No markdown. No explanation."""
 

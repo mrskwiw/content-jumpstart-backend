@@ -16,10 +16,21 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from backend.models import Post, Project
+from backend.models import Post, Project, Run
 from backend.services import crud
 from backend.utils.cli_executor import cli_executor
 from backend.utils.logger import logger
+
+
+def _calculate_readability(content: str) -> float:
+    """Flesch Reading Ease score (0–100) for a post."""
+    words = len(content.split())
+    if words == 0:
+        return 0.0
+    sentences = max(1, len([s for s in content.split(".") if s.strip()]))
+    syllables = sum(max(1, len(word) // 3) for word in content.split())
+    score = 206.835 - 1.015 * (words / sentences) - 84.6 * (syllables / words)
+    return max(0.0, min(100.0, round(score, 1)))
 
 
 class GeneratorService:
@@ -476,6 +487,7 @@ class GeneratorService:
                         variant=post.variant,
                         word_count=post.word_count,
                         has_cta=post.has_cta,
+                        readability_score=_calculate_readability(post.content),
                         status="approved",  # Template quantities are deliberate choices
                         created_at=datetime.utcnow(),
                     )
@@ -496,6 +508,23 @@ class GeneratorService:
                 logger.error(f"Failed to commit posts to database: {str(e)}", exc_info=True)
                 db.rollback()
                 raise
+
+            # Run QA validation and persist the composite score on the Run record
+            if run_id and posts:
+                try:
+                    from src.agents.qa_agent import QAAgent
+
+                    qa_report = QAAgent().validate_posts(posts, client.name or "")
+                    run_record = db.get(Run, run_id)
+                    if run_record:
+                        run_record.qa_score = qa_report.quality_score
+                        db.commit()
+                    logger.info(
+                        f"QA score for run {run_id}: {qa_report.quality_score:.1%} "
+                        f"({'PASSED' if qa_report.overall_passed else 'NEEDS REVIEW'})"
+                    )
+                except Exception as e:
+                    logger.warning(f"QA scoring failed (non-critical): {e}")
 
             # Verify posts were saved — filter by run_id to avoid counting prior-run posts
             from services import crud
@@ -610,10 +639,11 @@ Client ID: {client.id}
         for post_data in posts_data:
             try:
                 # Create Post model
+                content = post_data.get("content", "")
                 post = Post(
                     id=f"post-{uuid.uuid4().hex[:12]}",
                     project_id=project_id,
-                    content=post_data.get("content", ""),
+                    content=content,
                     platform=post_data.get("target_platform", "linkedin"),
                     template_id=str(post_data.get("template_id", "")),
                     template_name=post_data.get("template_name", ""),
@@ -623,6 +653,7 @@ Client ID: {client.id}
                     needs_review=post_data.get("needs_review", False),
                     review_reasons=post_data.get("review_reasons", []),
                     keywords_used=post_data.get("keywords_used", []),
+                    readability_score=_calculate_readability(content),
                     status="approved",  # Default to approved, QA can flag
                     created_at=datetime.utcnow(),
                 )

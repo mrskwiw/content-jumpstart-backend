@@ -12,6 +12,7 @@ Options:
     --clear-only    Only clear existing demo data without seeding
     --force         Force run even in production environment (use with caution!)
 """
+
 import io
 import os
 import sys
@@ -20,8 +21,8 @@ from pathlib import Path
 
 # Force UTF-8 encoding on Windows
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Add parent directory to path to import backend modules
 sys.path.insert(0, str(Path(__file__).parent))
@@ -133,7 +134,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=3),
             updated_at=base_time - timedelta(hours=12),
         ),
-
         # TechVision AI Projects
         Project(
             id="project-4",
@@ -157,7 +157,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=2),
             updated_at=base_time - timedelta(minutes=10),
         ),
-
         # GrowthLab Marketing Projects
         Project(
             id="project-5",
@@ -181,7 +180,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(hours=8),
             updated_at=base_time - timedelta(hours=6),
         ),
-
         # FinanceFlow Solutions Projects
         Project(
             id="project-6",
@@ -205,7 +203,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=4),
             updated_at=base_time - timedelta(days=1),
         ),
-
         # HealthTech Innovations Projects
         Project(
             id="project-7",
@@ -229,7 +226,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(hours=24),
             updated_at=base_time - timedelta(hours=20),
         ),
-
         # EduPro Learning Projects
         Project(
             id="project-8",
@@ -248,12 +244,11 @@ def seed_projects(db):
             name="Student Success Stories",
             status="ready",
             templates=["Personal Story", "Milestone"],
-            platforms=["facebook", "instagram"],
+            platforms=["facebook"],
             tone="motivational",
             created_at=base_time - timedelta(days=5),
             updated_at=base_time - timedelta(days=2),
         ),
-
         # SecureNet Cybersecurity Projects
         Project(
             id="project-9",
@@ -277,7 +272,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=3),
             updated_at=base_time - timedelta(hours=10),
         ),
-
         # WanderLust Travel Projects
         Project(
             id="project-10",
@@ -285,7 +279,7 @@ def seed_projects(db):
             name="Travel Destination Guides",
             status="ready",
             templates=["Personal Story", "Inside Look"],
-            platforms=["instagram", "blog"],
+            platforms=["blog"],
             tone="inspirational",
             created_at=base_time - timedelta(days=8),
             updated_at=base_time - timedelta(days=3),
@@ -301,7 +295,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(hours=16),
             updated_at=base_time - timedelta(hours=12),
         ),
-
         # CloudScale Infrastructure Projects
         Project(
             id="project-11",
@@ -325,7 +318,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(hours=6),
             updated_at=base_time - timedelta(minutes=15),
         ),
-
         # RetailBoost POS Projects
         Project(
             id="project-12",
@@ -349,7 +341,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(hours=30),
             updated_at=base_time - timedelta(hours=24),
         ),
-
         # ContentCraft Agency Projects
         Project(
             id="project-13",
@@ -373,7 +364,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=4),
             updated_at=base_time - timedelta(hours=8),
         ),
-
         # FitWell Wellness Projects
         Project(
             id="project-14",
@@ -381,7 +371,7 @@ def seed_projects(db):
             name="Wellness Tips Series",
             status="ready",
             templates=["How-To", "Myth Busting"],
-            platforms=["instagram", "facebook"],
+            platforms=["facebook"],
             tone="motivational",
             created_at=base_time - timedelta(days=6),
             updated_at=base_time - timedelta(days=2),
@@ -392,12 +382,11 @@ def seed_projects(db):
             name="Fitness Transformation Stories",
             status="draft",
             templates=["Personal Story", "Before/After"],
-            platforms=["blog", "instagram"],
+            platforms=["blog"],
             tone="empathetic",
             created_at=base_time - timedelta(hours=20),
             updated_at=base_time - timedelta(hours=16),
         ),
-
         # DataSense Analytics Project
         Project(
             id="project-15",
@@ -410,7 +399,6 @@ def seed_projects(db):
             created_at=base_time - timedelta(days=22),
             updated_at=base_time - timedelta(days=21),
         ),
-
         # UrbanSpace Real Estate Project
         Project(
             id="project-16",
@@ -445,9 +433,18 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=3, hours=1),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=3)).isoformat(), "message": "Generation started"},
-                {"timestamp": (base_time - timedelta(days=3, hours=-0.5)).isoformat(), "message": "Generated 15/30 posts"},
-                {"timestamp": (base_time - timedelta(days=3, hours=-1)).isoformat(), "message": "Generation completed successfully"},
+                {
+                    "timestamp": (base_time - timedelta(days=3)).isoformat(),
+                    "message": "Generation started",
+                },
+                {
+                    "timestamp": (base_time - timedelta(days=3, hours=-0.5)).isoformat(),
+                    "message": "Generated 15/30 posts",
+                },
+                {
+                    "timestamp": (base_time - timedelta(days=3, hours=-1)).isoformat(),
+                    "message": "Generation completed successfully",
+                },
             ],
         ),
         Run(
@@ -458,8 +455,14 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=12, hours=1, minutes=15),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=12)).isoformat(), "message": "Batch generation initiated"},
-                {"timestamp": (base_time - timedelta(days=12, hours=-1)).isoformat(), "message": "All posts generated"},
+                {
+                    "timestamp": (base_time - timedelta(days=12)).isoformat(),
+                    "message": "Batch generation initiated",
+                },
+                {
+                    "timestamp": (base_time - timedelta(days=12, hours=-1)).isoformat(),
+                    "message": "All posts generated",
+                },
             ],
         ),
         Run(
@@ -470,7 +473,10 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=20, hours=0, minutes=45),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=20)).isoformat(), "message": "Single post generation"},
+                {
+                    "timestamp": (base_time - timedelta(days=20)).isoformat(),
+                    "message": "Single post generation",
+                },
             ],
         ),
         Run(
@@ -481,8 +487,14 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=12, hours=1, minutes=5),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=12)).isoformat(), "message": "Educational content generation"},
-                {"timestamp": (base_time - timedelta(days=12, hours=-1)).isoformat(), "message": "Completed successfully"},
+                {
+                    "timestamp": (base_time - timedelta(days=12)).isoformat(),
+                    "message": "Educational content generation",
+                },
+                {
+                    "timestamp": (base_time - timedelta(days=12, hours=-1)).isoformat(),
+                    "message": "Completed successfully",
+                },
             ],
         ),
         Run(
@@ -493,7 +505,10 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=16, hours=1, minutes=20),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=16)).isoformat(), "message": "Security content generation"},
+                {
+                    "timestamp": (base_time - timedelta(days=16)).isoformat(),
+                    "message": "Security content generation",
+                },
             ],
         ),
         Run(
@@ -504,7 +519,10 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=9, hours=1, minutes=10),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=9)).isoformat(), "message": "Technical content generated"},
+                {
+                    "timestamp": (base_time - timedelta(days=9)).isoformat(),
+                    "message": "Technical content generated",
+                },
             ],
         ),
         Run(
@@ -515,7 +533,10 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=18, hours=1),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=18)).isoformat(), "message": "Workshop content complete"},
+                {
+                    "timestamp": (base_time - timedelta(days=18)).isoformat(),
+                    "message": "Workshop content complete",
+                },
             ],
         ),
         Run(
@@ -526,7 +547,10 @@ def seed_runs(db):
             completed_at=base_time - timedelta(days=22, hours=0, minutes=30),
             status="succeeded",
             logs=[
-                {"timestamp": (base_time - timedelta(days=22)).isoformat(), "message": "Analytics post generated"},
+                {
+                    "timestamp": (base_time - timedelta(days=22)).isoformat(),
+                    "message": "Analytics post generated",
+                },
             ],
         ),
         Run(
@@ -537,8 +561,14 @@ def seed_runs(db):
             completed_at=None,
             status="running",
             logs=[
-                {"timestamp": (base_time - timedelta(minutes=20)).isoformat(), "message": "AI innovation series started"},
-                {"timestamp": (base_time - timedelta(minutes=15)).isoformat(), "message": "Processing template 1 of 3"},
+                {
+                    "timestamp": (base_time - timedelta(minutes=20)).isoformat(),
+                    "message": "AI innovation series started",
+                },
+                {
+                    "timestamp": (base_time - timedelta(minutes=15)).isoformat(),
+                    "message": "Processing template 1 of 3",
+                },
             ],
         ),
         Run(
@@ -549,7 +579,10 @@ def seed_runs(db):
             completed_at=None,
             status="running",
             logs=[
-                {"timestamp": (base_time - timedelta(minutes=10)).isoformat(), "message": "Infrastructure optimization started"},
+                {
+                    "timestamp": (base_time - timedelta(minutes=10)).isoformat(),
+                    "message": "Infrastructure optimization started",
+                },
             ],
         ),
     ]
@@ -839,7 +872,6 @@ def seed_deliverables(db):
             proof_notes="Client used content for their workshop",
             checksum="content654pqr",
         ),
-
         # Ready deliverables (not yet delivered)
         Deliverable(
             id="deliv-6",
@@ -939,7 +971,6 @@ def seed_deliverables(db):
             proof_notes=None,
             checksum="invest345hij",
         ),
-
         # Draft deliverable
         Deliverable(
             id="deliv-8",
@@ -1004,6 +1035,7 @@ def main():
         # Create demo deliverable files
         print("\n📁 Creating demo deliverable files...")
         from create_demo_files import create_demo_files
+
         create_demo_files()
 
         print("\n" + "=" * 60)

@@ -26,23 +26,11 @@ class TonePreference(str, Enum):
 class Platform(str, Enum):
     """Social media and publishing platforms"""
 
-    # Social media
     LINKEDIN = "linkedin"
     TWITTER = "twitter"
     FACEBOOK = "facebook"
-    INSTAGRAM = "instagram"
-
-    # Publishing platforms
-    MEDIUM = "medium"
-    SUBSTACK = "substack"
-    WORDPRESS = "wordpress"
-    GHOST = "ghost"
-    NOTION = "notion"
-
-    # Legacy/utility
     BLOG = "blog"
     EMAIL = "email"
-    MULTI = "multi"  # Generate for all platforms
     GENERIC = "generic"  # Platform-agnostic content
 
     @classmethod

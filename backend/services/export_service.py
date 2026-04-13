@@ -22,13 +22,8 @@ _PLATFORM_DISPLAY_NAMES: dict = {
     "blog": "Blog",
     "linkedin": "LinkedIn",
     "facebook": "Facebook",
-    "instagram": "Instagram",
     "twitter": "Twitter / X",
     "email": "Email Newsletter",
-    "medium": "Medium",
-    "substack": "Substack",
-    "wordpress": "WordPress",
-    "multi": "Multi-Platform",
 }
 
 

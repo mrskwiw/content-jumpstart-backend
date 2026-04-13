@@ -56,7 +56,7 @@ CRITICAL GUIDELINES:
 2. **Be specific, not generic** - Use real examples and concrete details
 3. **Write for humans** - Sound natural, conversational, and authentic
 4. **Strong hooks** - First line must grab attention immediately
-5. **Clear CTAs** - End with specific, actionable calls-to-action
+5. **Clear CTAs** - End with a specific, actionable statement CTA on the final line (not a question)
 6. **Optimal length** - Follow platform-specific length targets exactly (will be specified)
 7. **No AI tells** - Avoid phrases like "in today's world", "dive deep", "unlock", "game-changer"
 8. **Paragraph breaks** - Use short paragraphs (2-3 lines max) for social posts
@@ -104,9 +104,10 @@ FIELD-BY-FIELD GENERATION CHECKLIST:
 
 6. **Call-to-Action:**
    - Use client's preferred CTA if specified
-   - Make it specific and actionable
+   - Must be a statement, never a question (not "What do you think?" — use "Share your take below.")
+   - Must be the final line of the post — nothing comes after it
+   - Make it specific and actionable with a clear next step
    - Match the post tone (formal vs casual)
-   - Include clear next step
 
 7. **Length Optimization:**
    - LinkedIn: 150-200 words (3-4 paragraphs)

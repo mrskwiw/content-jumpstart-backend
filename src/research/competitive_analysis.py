@@ -506,7 +506,9 @@ Focus on gaps where:
 - We could establish thought leadership
 
 Return as JSON array with keys:
-topic, description, opportunity_score, competitors_missing (array), suggested_content (array)"""
+topic, description, opportunity_score, competitors_missing (array), suggested_content (array)
+
+If you cannot identify enough gaps due to insufficient competitor data, still return at least one item with opportunity_score 0 and a description that explains why — e.g. "Competitor content data was too limited to identify specific gaps; suggest running a deeper competitor audit." Never return an empty array."""
 
         try:
             response = self.client.create_message(
@@ -563,16 +565,15 @@ Content Gaps:
 
 For each strategy:
 1. Strategy name (clear, concise)
-2. Description (how to implement)
+2. Description — MUST cite a specific named competitor from the list above and the exact weakness or gap being exploited. No generic advice. BAD: "post more consistently". GOOD: "Competitor X posts once a month with no engagement — publishing weekly how-to content will own that gap."
 3. Difficulty (Low/Medium/High)
 4. Potential impact (Low/Medium/High)
-5. 2-3 specific examples
+5. 2-3 specific examples tied to the named competitor or gap
 
-Focus on strategies that:
-- Leverage our unique strengths
-- Exploit competitor weaknesses
-- Are feasible to implement
-- Have high impact potential
+Rules:
+- Every strategy MUST reference a specific named competitor or a specific content gap from the data above
+- Every example MUST be concrete and actionable in the next 30 days
+- No generic best-practice advice that would apply to any business
 
 Return as JSON array with keys:
 strategy_name, description, difficulty, potential_impact, examples (array)"""
@@ -630,10 +631,14 @@ Differentiation Strategies:
 {strat_summary}
 
 Provide:
-1. Positioning statement (1-2 sentences, clear and memorable)
-2. 3-5 unique angles to emphasize
-3. 3-5 competitive advantages we have
-4. 3-5 areas we need to improve
+1. Positioning statement (1-2 sentences, clear and memorable — must contrast with at least one named competitor)
+2. 3-5 unique angles to emphasize — each must name the competitor(s) that lack this angle (e.g. "Deep implementation case studies — Competitor X and Y only publish high-level thought leadership")
+3. 3-5 competitive advantages — each must cite which specific competitor(s) do NOT have this advantage
+4. 3-5 areas to improve — each must name the competitor that already does this well (e.g. "Video content — Competitor Z publishes 2 videos/week")
+
+Rules:
+- Every bullet in unique_angles, competitive_advantages, and areas_to_improve MUST include a named competitor as supporting evidence
+- No generic observations (e.g. "be more consistent" without a named comparison)
 
 Return as JSON with keys:
 positioning_statement, unique_angles (array), competitive_advantages (array), areas_to_improve (array)"""

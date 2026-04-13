@@ -24,8 +24,8 @@ class CTAValidator:
         Platform.EMAIL: 0.70,  # 70% max - campaign-focused, single CTA type
     }
 
-    # Common CTA patterns to detect (IMPERATIVES ONLY - Bug #58 fix)
-    # Questions ending with '?' are NOT CTAs and should be filtered out
+    # Statement-only CTA patterns. Questions are not valid CTAs -- CTAs must be
+    # imperative statements placed on the final line of the post.
     CTA_PATTERNS = [
         (r"(?:drop|share|leave) (?:your|a) comment", "comment_request"),
         (r"(?:dm|message|reach out|contact) me", "direct_contact"),
@@ -36,8 +36,6 @@ class CTAValidator:
         (r"download|get (?:the |your )", "download"),
         (r"learn more|find out", "learn_more"),
         (r"(?:tell|share) me (?:in|about)", "share_request"),
-        (r"what'?s your (?:take|thought|opinion)", "question_take"),
-        (r"what'?s your (?:biggest|main|top) (?:challenge|struggle|pain)", "question_biggest"),
         # Action verbs that indicate clear imperatives
         (r"(?:read|watch|listen to|try|start|begin|explore)", "action_verb"),
         (r"(?:visit|follow|connect|register|apply)", "engagement"),
@@ -99,6 +97,10 @@ class CTAValidator:
         if missing_cta > 0:
             issues.append(f"{missing_cta} post(s) missing clear CTA")
 
+        # Check CTA placement and form per-post
+        for post in posts:
+            issues.extend(self._check_post_cta_placement(post))
+
         return {
             "passed": len(issues) == 0,
             "cta_distribution": dict(cta_counts),
@@ -146,6 +148,38 @@ class CTAValidator:
             cta_types.append(cta_type)
 
         return cta_types
+
+    def _check_post_cta_placement(self, post: "Post") -> List[str]:
+        """Check that this post's CTA is on the final line and is a statement.
+
+        Returns a list of issue strings (empty = no placement issues).
+        """
+        issues: List[str] = []
+        lines = [ln.strip() for ln in post.content.strip().splitlines() if ln.strip()]
+        if not lines:
+            return issues
+
+        last_line = lines[-1].lower()
+        body = " ".join(lines[:-1]).lower()
+
+        # CTA found in body (not last line) = wrong placement
+        for pattern, _ in self.CTA_PATTERNS:
+            if re.search(pattern, body, re.IGNORECASE):
+                issues.append(
+                    f"CTA found mid-post in '{post.template_name or 'post'}': move to final line"
+                )
+                break
+
+        # CTA on last line but ends with ? = question, not a statement
+        for pattern, _ in self.CTA_PATTERNS:
+            if re.search(pattern, last_line, re.IGNORECASE):
+                if last_line.rstrip().endswith("?"):
+                    issues.append(
+                        f"CTA is a question in '{post.template_name or 'post'}': rewrite as a statement"
+                    )
+                break
+
+        return issues
 
     def _calculate_variety_score(self, cta_counts: Counter, total_posts: int) -> float:
         """

@@ -15,7 +15,7 @@ export function ExportPanel({ projectId, clientId, onExported }: Props) {
   const [format, setFormat] = useState<'txt' | 'md' | 'docx'>('docx');
   // Auto-set export target based on format (no UI selection needed)
   const [includeAuditLog, setIncludeAuditLog] = useState(false);
-  const [includeResearch, setIncludeResearch] = useState(false);
+  const [includeResearch, setIncludeResearch] = useState(true);
 
   // Fetch research results for preview
   // IMPORTANT: Query by projectId to match what will be included in export

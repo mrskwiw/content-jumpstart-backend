@@ -138,8 +138,10 @@ async def delete_client(
     # TR-021: client already verified by dependency
 
     # Lazy imports — all used below for GDPR cascade delete
+    import uuid
     from backend.models import (
         Brief,
+        DeletionAuditLog,
         Deliverable,
         MinedStory,
         Post,
@@ -244,6 +246,19 @@ async def delete_client(
         synchronize_session=False
     )
     # Communications are handled by SQL-level ondelete="CASCADE" on the FK
+
+    # Write audit log entry before commit (same transaction — rolls back together if commit fails)
+    db.add(
+        DeletionAuditLog(
+            id=f"del-{uuid.uuid4().hex[:12]}",
+            deleted_by_user_id=current_user.id,
+            resource_type="client",
+            resource_id=client_id,
+            resource_name=client.name,
+            deletion_type="hard",
+            projects_deleted=len(projects),
+        )
+    )
 
     db.delete(client)
     db.commit()
