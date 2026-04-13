@@ -27,28 +27,34 @@ Client Context:
 - Voice: Approachable, warm
 - Pain Point: Dental anxiety
 - Target Platform: LinkedIn
-- Length Target: 150-200 words
+- Length Target: 220-280 words
 
 Generated Post:
 "You know that feeling when you cancel your dentist appointment for the third time?
 
-Most of our new patients haven't been to the dentist in 3-5 years. Not because they don't care about their teeth. Because walking into a dental office feels overwhelming.
+Most of our new patients haven't been to the dentist in 3-5 years. Not because they don't care about their teeth. Because walking into a dental office feels genuinely overwhelming.
 
-Here's what we changed:
+The bright lights. The sounds. The vulnerability of lying back while someone works in your mouth. For a lot of people, just scheduling the appointment takes months of self-convincing.
 
-→ First appointments are 15 minutes longer (no rushing)
-→ You control the pace (raise your hand, we pause)
-→ We explain everything BEFORE we start
-→ Noise-canceling headphones available
-→ You can bring a friend or family member
+We started asking every new patient: what made you finally come in?
 
-Last month, a patient told us: 'I haven't felt this calm at the dentist since I was a kid.'
+The answer surprised us. It wasn't a promotion or a reminder card. It was a friend saying, "they actually let you stop whenever you need to."
 
-That's the whole point.
+So we changed how we run first appointments:
 
-If you've been putting off that checkup, let's make it easier. Book a relaxed-pace appointment → [link]"
+→ They run 15 minutes longer (no rushing, no feeling like a number)
+→ You control the pace — raise your hand, we stop immediately
+→ We explain every step before we start it
+→ Noise-canceling headphones if you want them
+→ You can bring someone with you
 
-Rationale: Addresses pain point directly, uses warm/approachable voice, specific details (not generic), clear structure, actionable CTA.
+One patient told us last month: 'I haven't felt this calm at the dentist since I was a kid.'
+
+That's what we're here for.
+
+If dental anxiety has kept you from getting the care you need, let's make your first visit different. Book a relaxed-pace appointment at [link]."
+
+Rationale: ~240 words. Addresses pain point directly with a specific story, uses warm/approachable voice, concrete details (not generic), clear structure with supporting evidence before the list, actionable statement CTA on the final line.
 
 CRITICAL GUIDELINES:
 
@@ -110,10 +116,10 @@ FIELD-BY-FIELD GENERATION CHECKLIST:
    - Match the post tone (formal vs casual)
 
 7. **Length Optimization:**
-   - LinkedIn: 150-200 words (3-4 paragraphs)
+   - LinkedIn: 220-280 words (MINIMUM 200 — posts under 200 words will be rejected)
    - Twitter: 240-280 characters (leave room for link)
-   - Facebook: 100-150 words (shorter for feed)
-   - Count words/characters and adjust
+   - Facebook: 50-100 words (complete, self-contained)
+   - Count words/characters before finishing — if under the minimum, expand
 
 8. **Quality Validation:**
    - Re-read for AI phrases (remove them)
@@ -125,7 +131,7 @@ PLATFORM-SPECIFIC GUIDELINES:
 
 **LinkedIn:**
 - Professional but conversational
-- Longer form (150-200 words)
+- 220-280 words (MINIMUM 200 — never submit under 200 words)
 - Use line breaks generously
 - Thought leadership angle
 
@@ -147,6 +153,15 @@ PLATFORM-SPECIFIC GUIDELINES:
 - Emoji use acceptable if matches voice
 - Strong first line (preview)
 
+PRE-OUTPUT LENGTH CHECK (MANDATORY):
+
+Before returning your post, count the words mentally:
+- LinkedIn / Email: If under 200 words → DO NOT OUTPUT YET. Add one of: a specific supporting example, a relevant data point, a brief story or scenario, or a "what this looks like in practice" paragraph. Then recount.
+- Facebook: If under 50 words → add a sentence of context or a supporting detail.
+- Twitter: If over 20 words → cut ruthlessly.
+
+A post that is too short FAILS quality validation and will be regenerated. It is faster to write it correctly now than to be asked to fix it.
+
 OUTPUT FORMAT:
 
 Return ONLY the post content. No metadata, no explanations, no titles.
@@ -158,8 +173,9 @@ FINAL REMINDERS:
 - Match voice EXACTLY
 - Be SPECIFIC not generic
 - Strong HOOK
-- Clear CTA
-- No AI phrases"""
+- Clear CTA (statement, never a question, always the final line)
+- No AI phrases
+- MINIMUM WORD COUNT: LinkedIn 200 words, Facebook 50 words"""
 
     BRIEF_PARSER = """You are an expert content strategist analyzing client briefs.
 

@@ -11,9 +11,9 @@ from ..models.client_brief import Platform
 # Platform length specifications
 PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
     Platform.LINKEDIN: {
-        "min_words": 130,
-        "optimal_min_words": 200,
-        "optimal_max_words": 300,
+        "min_words": 200,
+        "optimal_min_words": 220,
+        "optimal_max_words": 280,
         "max_words": 300,
         "min_chars": 800,
         "optimal_min_chars": 1200,
@@ -106,7 +106,7 @@ PLATFORM_HOOK_SPECS: Dict[Platform, Dict[str, Any]] = {
 # Platform-specific writing guidelines
 PLATFORM_WRITING_GUIDELINES: Dict[Platform, str] = {
     Platform.LINKEDIN: """
-Target length: 200-300 words (1,200-1,800 characters).
+Target length: 220-280 words (MINIMUM 200 words — posts under 200 will fail validation).
 
 CRITICAL: First 140 characters must contain your key message (mobile cutoff).
 

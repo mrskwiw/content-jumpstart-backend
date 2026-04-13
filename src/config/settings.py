@@ -69,10 +69,10 @@ class Settings(BaseSettings):
     BRIEF_PARSING_TEMPERATURE: float = 0.3  # Lower temperature for accurate extraction
 
     # Quality thresholds
-    MIN_POST_WORD_COUNT: int = 75  # LinkedIn/Twitter minimum for engagement
+    MIN_POST_WORD_COUNT: int = 200  # LinkedIn minimum — posts under 200 fail and regenerate
     MAX_POST_WORD_COUNT: int = 350  # LinkedIn character limit consideration
-    OPTIMAL_POST_MIN_WORDS: int = 150  # Sweet spot minimum
-    OPTIMAL_POST_MAX_WORDS: int = 250  # Sweet spot maximum
+    OPTIMAL_POST_MIN_WORDS: int = 220  # Sweet spot minimum
+    OPTIMAL_POST_MAX_WORDS: int = 280  # Sweet spot maximum
 
     # Paths (relative to /project/ directory)
     TEMPLATE_LIBRARY_PATH: str = "02_POST_TEMPLATE_LIBRARY.md"
