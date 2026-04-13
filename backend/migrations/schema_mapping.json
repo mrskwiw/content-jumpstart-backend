@@ -1,5 +1,5 @@
 {
-  "current_version": 5,
+  "current_version": 6,
   "version_migrations": {
     "1": {
       "description": "Add file_size_bytes to deliverables table",
@@ -122,6 +122,19 @@
     "5": {
       "description": "Add mined_stories and story_usage tables for Story Mining feature",
       "note": "New tables created automatically by SQLAlchemy - no column additions needed for existing tables"
+    },
+    "6": {
+      "description": "Add qa_score column to runs table",
+      "runs": {
+        "add_columns": [
+          {
+            "name": "qa_score",
+            "type": "FLOAT",
+            "nullable": true,
+            "default": null
+          }
+        ]
+      }
     }
   }
 }

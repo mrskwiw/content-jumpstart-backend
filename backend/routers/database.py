@@ -281,20 +281,6 @@ async def restore_database_from_backup(
                     shutil.copy2(db_path, pre_restore_backup)
                     shutil.move(str(temp_path), str(db_path))
 
-                    # Re-apply column migrations that track schema changes outside of
-                    # PRAGMA user_version (e.g. qa_score). The backup may pre-date these
-                    # columns even when schema versions match, so always run them after
-                    # any restore to keep the live DB in sync with the ORM models.
-                    from backend.migrations.add_run_qa_score import (
-                        run_migration as migrate_qa_score,
-                    )
-                    from backend.migrations.add_deletion_audit_log import (
-                        run as migrate_deletion_audit_log,
-                    )
-
-                    migrate_qa_score()
-                    migrate_deletion_audit_log()
-
                     return {
                         "message": "Database restored successfully",
                         "backup_created": str(pre_restore_backup),
@@ -338,17 +324,6 @@ async def restore_database_from_backup(
                 # Execute migration
                 try:
                     result = migrator.migrate()
-
-                    # Re-apply column migrations that may not be tracked by the migrator
-                    from backend.migrations.add_run_qa_score import (
-                        run_migration as migrate_qa_score,
-                    )
-                    from backend.migrations.add_deletion_audit_log import (
-                        run as migrate_deletion_audit_log,
-                    )
-
-                    migrate_qa_score()
-                    migrate_deletion_audit_log()
 
                     return {
                         "message": f"Database restored and migrated successfully from v{backup_version} to v{current_version}",
