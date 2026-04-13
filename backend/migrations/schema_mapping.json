@@ -129,7 +129,7 @@
         "add_columns": [
           {
             "name": "qa_score",
-            "type": "FLOAT",
+            "type": "REAL",
             "nullable": true,
             "default": null
           }
