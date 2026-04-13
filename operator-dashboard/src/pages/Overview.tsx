@@ -4,22 +4,16 @@ import { projectsApi } from '@/api/projects';
 import { deliverablesApi } from '@/api/deliverables';
 import { runsApi } from '@/api/runs';
 import { clientsApi } from '@/api/clients';
-import { costsApi } from '@/api/costs';
 import type { Project, Deliverable, Run, Client } from '@/types/domain';
 import type { PaginatedResponse } from '@/types/pagination';
-import { getUseMocksEnabled } from '@/utils/env';
 import {
   FolderKanban,
   CheckCircle2,
   Clock,
-  TrendingUp,
   Sparkles,
   FileText,
   Activity,
-  Users,
-  AlertCircle,
   Star,
-  DollarSign,
   Calendar,
   FileSearch,
   ArrowRight,
@@ -68,8 +62,6 @@ function StatCard({
 
 export default function Overview() {
   const navigate = useNavigate();
-  const mocksEnabled = getUseMocksEnabled();
-
   const { data: projectsResponse } = useQuery<PaginatedResponse<Project>>({
     queryKey: ['projects'],
     queryFn: () => projectsApi.list({}),
@@ -91,26 +83,6 @@ export default function Overview() {
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
-  });
-
-  // Fetch user cost summary
-  const { data: costSummary = {
-    userId: '',
-    periodDays: 30,
-    totalCostUsd: 0,
-    totalProjects: 0,
-    totalRuns: 0,
-    totalInputTokens: 0,
-    totalOutputTokens: 0,
-    totalGenerationCostUsd: 0,
-    totalResearchTools: 0,
-    totalResearchCostUsd: 0,
-    topProjects: [],
-    costTrend: [],
-  } } = useQuery({
-    queryKey: ['user-cost-summary', 30],
-    queryFn: () => costsApi.getUserCostSummary(30),
-    retry: 1,
   });
 
   // Helper to get client name from client ID
@@ -333,70 +305,6 @@ export default function Overview() {
           </button>
         </div>
       </div>
-
-      {/* API Cost Summary */}
-      {costSummary && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">API Cost Summary</h2>
-            </div>
-            <span className="text-sm text-neutral-600 dark:text-neutral-400">Last 30 days</span>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4 border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-600 dark:text-blue-400 mb-1">Total API Spending</p>
-              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                ${(costSummary?.totalCostUsd ?? 0).toFixed(2)}
-              </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                {costSummary?.totalProjects ?? 0} projects • {costSummary?.totalRuns ?? 0} runs
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-purple-50 dark:bg-purple-900/20 p-4 border border-purple-200 dark:border-purple-800">
-              <p className="text-sm text-purple-600 dark:text-purple-400 mb-1">Generation Cost</p>
-              <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                ${(costSummary?.totalGenerationCostUsd ?? 0).toFixed(2)}
-              </p>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                {(((costSummary?.totalInputTokens ?? 0) + (costSummary?.totalOutputTokens ?? 0)) / 1_000_000).toFixed(2)}M tokens
-              </p>
-            </div>
-
-            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-4 border border-emerald-200 dark:border-emerald-800">
-              <p className="text-sm text-emerald-600 dark:text-emerald-400 mb-1">Research Cost</p>
-              <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                ${(costSummary?.totalResearchCostUsd ?? 0).toFixed(2)}
-              </p>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                {costSummary?.totalResearchTools ?? 0} tools executed
-              </p>
-            </div>
-          </div>
-
-          {(costSummary?.topProjects?.length ?? 0) > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">Top Projects by Cost</h3>
-              <div className="space-y-2">
-                {costSummary.topProjects.slice(0, 5).map((project: { projectId: string; projectName: string; costUsd: number }) => (
-                  <div
-                    key={project.projectId}
-                    className="flex items-center justify-between rounded-lg bg-neutral-50 dark:bg-neutral-800/50 px-3 py-2"
-                  >
-                    <span className="text-sm text-neutral-900 dark:text-neutral-100">{project.projectName}</span>
-                    <span className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-                      ${(project?.costUsd ?? 0).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Active Projects - Top 5 with details */}
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">
