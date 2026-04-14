@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from fastapi.concurrency import run_in_threadpool
+
 from sqlalchemy.orm import Session
 
 # Add src directory to path for imports
@@ -536,9 +538,12 @@ class ResearchService:
 
                 set_default_client(get_user_search_client(db, project.user_id))
 
-            # Instantiate and execute tool
+            # Instantiate and execute tool.
+            # tool.execute() is synchronous and blocks for ~60s (Claude API calls).
+            # Run it in a thread pool so the event loop stays free to handle other
+            # requests (e.g. login, health checks) while the tool is running.
             tool = ToolClass(project_id=project_id)
-            result = tool.execute(inputs)
+            result = await run_in_threadpool(tool.execute, inputs)
 
             # Get tool metadata for database storage
             from backend.routers.research import RESEARCH_TOOLS

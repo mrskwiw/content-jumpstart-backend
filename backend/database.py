@@ -30,7 +30,13 @@ if database_url.drivername.startswith("sqlite"):
             connect_args=connect_args,
             echo_pool=settings.DB_ECHO_POOL,
         )
-        print(">> DEBUG: SQLite engine created successfully")
+        # Enable WAL mode so readers (e.g. login) are not blocked by concurrent
+        # writers. Without WAL, SQLite serialises all reads during any write,
+        # causing login to hang while a 60s research tool holds an open session.
+        with engine.connect() as _wal_conn:
+            _wal_conn.execute(text("PRAGMA journal_mode=WAL"))
+            _wal_conn.execute(text("PRAGMA busy_timeout=5000"))
+        print(">> DEBUG: SQLite engine created successfully (WAL mode enabled)")
     except Exception as e:
         print(f">> ERROR: Failed to create SQLite engine: {e}")
         raise
@@ -216,7 +222,15 @@ def init_db():
             ]
 
             # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)
-            ALLOWED_TYPES = {"TEXT", "VARCHAR", "INTEGER", "REAL", "JSON", "BOOLEAN", "TIMESTAMP"}
+            ALLOWED_TYPES = {
+                "TEXT",
+                "VARCHAR",
+                "INTEGER",
+                "REAL",
+                "JSON",
+                "BOOLEAN",
+                "TIMESTAMP",
+            }
 
             for col_name, col_type in new_columns:
                 if col_name not in columns:
@@ -264,14 +278,28 @@ def init_db():
                 ("template_quantities", "JSON"),  # Dict mapping template_id -> quantity
                 ("num_posts", "INTEGER"),  # Total post count
                 ("price_per_post", "REAL DEFAULT 40.0"),  # Base price per post
-                ("research_price_per_post", "REAL DEFAULT 0.0"),  # Research add-on per post
+                (
+                    "research_price_per_post",
+                    "REAL DEFAULT 0.0",
+                ),  # Research add-on per post
                 ("total_price", "REAL"),  # Total calculated price
-                ("target_platform", "VARCHAR DEFAULT 'blog'"),  # Target platform for generation
+                (
+                    "target_platform",
+                    "VARCHAR DEFAULT 'blog'",
+                ),  # Target platform for generation
             ]
 
             # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)
             # Reuse same whitelist from clients table migration
-            ALLOWED_TYPES = {"TEXT", "VARCHAR", "INTEGER", "REAL", "JSON", "BOOLEAN", "TIMESTAMP"}
+            ALLOWED_TYPES = {
+                "TEXT",
+                "VARCHAR",
+                "INTEGER",
+                "REAL",
+                "JSON",
+                "BOOLEAN",
+                "TIMESTAMP",
+            }
 
             for col_name, col_type in new_project_columns:
                 if col_name not in columns:
@@ -324,7 +352,8 @@ def init_db():
                         projects = (
                             session.query(Project)
                             .filter(
-                                Project.templates.isnot(None), Project.template_quantities.is_(None)
+                                Project.templates.isnot(None),
+                                Project.template_quantities.is_(None),
                             )
                             .all()
                         )
@@ -652,7 +681,13 @@ def init_db():
 
         # Soft delete migration (GDPR/CCPA compliance - TR-XXX)
         # Add deleted_at and is_deleted columns to tables containing PII
-        soft_delete_tables = ["clients", "projects", "users", "posts", "research_results"]
+        soft_delete_tables = [
+            "clients",
+            "projects",
+            "users",
+            "posts",
+            "research_results",
+        ]
 
         for table_name in soft_delete_tables:
             if table_name in inspector.get_table_names():
