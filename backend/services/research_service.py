@@ -1053,6 +1053,9 @@ class ResearchService:
         elif tool_name == "content_gap_analysis":
             # Content gap needs current topics - will auto-populate after prerequisite merge if empty
             inputs["current_content_topics"] = params.get("current_content_topics", "")
+            # Inject competitors and industry from client so web search fires correctly
+            inputs["competitors"] = params.get("competitors") or client.competitors or []
+            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
 
         elif tool_name == "market_trends":
             # Market trends needs industry context

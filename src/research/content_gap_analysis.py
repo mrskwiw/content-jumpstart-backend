@@ -178,7 +178,7 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         # Step 2: Research competitor content
         logger.info("Step 2: Researching competitor content...")
         competitor_analysis = self._analyze_competitor_content(
-            business_description, target_audience, competitors
+            business_description, target_audience, competitors, industry
         )
 
         # Step 3: Identify topic gaps
@@ -343,21 +343,65 @@ Return ONLY valid JSON with these exact keys: coverage_areas, depth_assessment, 
             logger.warning(f"Web search failed for {competitor}: {e}. Using AI inference instead.")
             return []
 
+    def _discover_competitors_via_search(
+        self, business_description: str, industry: str
+    ) -> List[str]:
+        """Use web search to discover competitors when none are provided."""
+        try:
+            web_client = WebSearchClient()
+            query = f"top competitors {industry} content marketing"
+            search_response = web_client.search(query, max_results=5, search_type="web")
+
+            if not search_response.results:
+                return []
+
+            # Ask Claude to extract competitor names from search snippets
+            snippets = "\n".join(f"- {r.title}: {r.snippet}" for r in search_response.results[:5])
+            prompt = f"""From these search results about competitors in {industry}, extract 3-5 competitor brand or company names.
+
+Business context: {business_description}
+
+Search results:
+{snippets}
+
+Return ONLY a JSON array of competitor name strings (e.g. ["CompanyA", "CompanyB"]). No markdown."""
+
+            result = self._call_claude_api(
+                prompt, max_tokens=200, temperature=0.3, extract_json=True, fallback_on_error=[]
+            )
+
+            if isinstance(result, list):
+                competitors = [c for c in result if isinstance(c, str)]
+                logger.info(f"Discovered {len(competitors)} competitors via web search")
+                return competitors[:5]
+        except Exception as e:
+            logger.warning(f"Competitor discovery via web search failed: {e}")
+        return []
+
     def _analyze_competitor_content(
-        self, business_description: str, target_audience: str, competitors: List[str]
+        self,
+        business_description: str,
+        target_audience: str,
+        competitors: List[str],
+        industry: str = "business",
     ) -> List[CompetitorContentAnalysis]:
         """Analyze competitor content strategies"""
+        # Discover competitors via web search if none were provided
+        if not competitors:
+            logger.info("No competitors provided — searching web to discover them...")
+            competitors = self._discover_competitors_via_search(business_description, industry)
+
         if not competitors:
             return []
 
         analyses = []
 
-        # Extract industry for better web search
-        industry = self.config.get("industry", "business") if self.config else "business"
-
         for competitor in competitors[:5]:  # Max 5 competitors
-            # Try web search for real data
-            web_results = self._search_competitor_content(competitor, industry)
+            # Search for real competitor content data
+            effective_industry = (
+                industry if industry and industry != "Not specified" else "business"
+            )
+            web_results = self._search_competitor_content(competitor, effective_industry)
 
             # Build web context
             web_context = ""
@@ -421,14 +465,25 @@ Return ONLY valid JSON with keys: content_strengths, popular_topics, formats_use
     ) -> List[ContentGap]:
         """Identify specific topic gaps"""
 
-        # Build competitor context
+        # Build competitor context — include gaps in their content for differentiation angles
         competitor_topics = []
+        competitor_gaps_context_lines = []
         for comp in competitor_analysis:
             competitor_topics.extend(comp.popular_topics)
+            if comp.gaps_in_their_content:
+                gaps_str = self._safe_join(comp.gaps_in_their_content[:3])
+                competitor_gaps_context_lines.append(
+                    f"  {comp.competitor_name} is missing: {gaps_str}"
+                )
 
         # Bug #36 fix - handle dicts in competitor_topics
         competitor_context = (
             self._safe_join(competitor_topics[:15]) if competitor_topics else "Not analyzed"
+        )
+        differentiation_context = (
+            "\n".join(competitor_gaps_context_lines)
+            if competitor_gaps_context_lines
+            else "Not available — run with competitor data for differentiation angles"
         )
 
         prompt = f"""Identify content gaps for this business:
@@ -438,6 +493,8 @@ Target Audience: {target_audience}
 
 Current Coverage: {json.dumps(current_coverage, indent=2)}
 Competitor Topics: {competitor_context}
+Differentiation Opportunities (topics competitors are missing):
+{differentiation_context}
 
 Identify 10-15 specific content gaps. For each gap:
 - gap_title: What's missing
