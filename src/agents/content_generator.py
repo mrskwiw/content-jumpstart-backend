@@ -2047,7 +2047,7 @@ REQUIREMENTS:
 3. Tease the value without giving everything away
 4. Target length: {target_length}
 
-For Twitter: Hook + key insight teaser + link + 1-2 hashtags (max 280 chars total)
+For Twitter: Hook + key insight teaser + link + 1-2 hashtags. Target 160-180 characters total. HARD FAIL at 200 characters — count before outputting and rewrite if over 200.
 For Facebook: Ultra-short teaser + link (under 80 chars total)
 
 Example Twitter format:

@@ -527,8 +527,6 @@ class GeneratorService:
                     logger.warning(f"QA scoring failed (non-critical): {e}")
 
             # Verify posts were saved — filter by run_id to avoid counting prior-run posts
-            from services import crud
-
             saved_posts = crud.get_posts(db, project_id=project.id, run_id=run_id, limit=100)
             logger.info(
                 f"Verification: Found {len(saved_posts)} posts for run {run_id} in database"

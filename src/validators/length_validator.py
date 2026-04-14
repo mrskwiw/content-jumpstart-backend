@@ -90,6 +90,22 @@ class LengthValidator:
                     f"Post {post_num} too long: {word_count} words (max: {max_words} for {platform.value if platform else 'default'})"
                 )
 
+        # Twitter: enforce character-based hard fail (200 char limit)
+        if platform == Platform.TWITTER:
+            max_chars = specs.get("max_chars", 200)
+            optimal_min_chars = specs.get("optimal_min_chars", 160)
+            optimal_max_chars = specs.get("optimal_max_chars", 180)
+            for i, p in enumerate(posts):
+                char_count = len(p.content)
+                if char_count > max_chars:
+                    issues.append(
+                        f"Post {i + 1} HARD FAIL: {char_count} characters exceeds Twitter hard limit of {max_chars} chars"
+                    )
+                elif char_count < optimal_min_chars:
+                    issues.append(
+                        f"Post {i + 1} too short: {char_count} chars (target {optimal_min_chars}-{optimal_max_chars} chars for Twitter)"
+                    )
+
         # Check for lack of variety (too many posts same length)
         sameness_ratio = self._check_sameness(word_counts)
         if sameness_ratio > self.sameness_threshold:

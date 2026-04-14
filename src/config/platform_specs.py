@@ -25,11 +25,11 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
         "min_words": 8,
         "optimal_min_words": 12,
         "optimal_max_words": 18,
-        "max_words": 50,  # Free account limit
-        "min_chars": 40,
-        "optimal_min_chars": 70,
-        "optimal_max_chars": 100,
-        "max_chars": 280,  # Free account limit
+        "max_words": 50,
+        "min_chars": 80,
+        "optimal_min_chars": 160,
+        "optimal_max_chars": 180,
+        "max_chars": 200,  # Hard fail — posts over 200 chars fail validation
         "thread_mode": True,  # Can split into threads
         "thread_min_posts": 4,
         "thread_max_posts": 8,
@@ -119,16 +119,21 @@ Guidelines:
 - Can include data/statistics
 """,
     Platform.TWITTER: """
-Target length: 12-18 words (70-100 characters) for maximum engagement.
+Target length: 160-180 characters (HARD FAIL at 200 characters — posts over 200 chars fail validation and will be regenerated).
 
 Make every word count. Punchy and direct.
 
+PRE-OUTPUT CHARACTER CHECK (MANDATORY):
+Before returning your tweet, count the characters:
+- If under 160 characters → expand slightly: add a concrete detail, a number, or a sharper CTA
+- If over 180 characters → cut ruthlessly: remove filler words, shorten phrases, drop a hashtag
+- If over 200 characters → DO NOT OUTPUT. Rewrite from scratch. This is a hard failure.
+
 Guidelines:
-- Ultra-concise - no filler words
+- Ultra-concise — no filler words
 - One clear idea per tweet
-- Can use threads for longer topics (4-8 tweets)
-- 1-2 hashtags maximum (~6 characters each)
-- Hooks matter - grab attention immediately
+- 1-2 hashtags maximum (count their characters toward the 200 limit)
+- Hooks matter — grab attention in the first 5 words
 - Direct CTAs work well
 """,
     Platform.FACEBOOK: """

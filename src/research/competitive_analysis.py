@@ -475,49 +475,49 @@ Use "Unknown — not found in search results" for string fields with no data. Us
         # Format trend search results
         trend_data = self._format_trend_search_results(trend_results)
 
-        competitor_list = "\n".join(
-            [f"- {c.name}: {', '.join(c.content_topics)}" for c in competitors]
+        competitor_detail = "\n".join(
+            [
+                f"- {c.name}:\n"
+                f"    Topics: {', '.join(c.content_topics) or 'Unknown'}\n"
+                f"    Weaknesses: {', '.join(c.weaknesses) or 'Unknown'}\n"
+                f"    Brand voice: {c.brand_voice}"
+                for c in competitors
+            ]
         )
 
-        prompt = f"""Identify 5-7 content gap opportunities based on this competitive analysis and current market trends.
+        prompt = f"""Identify 5-7 content gap opportunities based on the competitor analysis below and current market trends.
 
 **CURRENT MARKET TRENDS (from web search):**
 {trend_data}
-
-**CRITICAL INSTRUCTION:** Use the market trends data above to identify gaps that align with what's currently trending and in-demand.
 
 Our Business: {business_desc}
 
 Target Audience: {target_audience}
 
-Competitors and their topics:
-{competitor_list}
+Competitor analysis (use this as the primary source):
+{competitor_detail}
 
-For each gap, provide:
-1. Topic/area with gap
-2. Description of the opportunity
-3. Opportunity score (1-10, how valuable this gap is)
-4. Which competitors are missing this (names)
-5. 3 suggested content ideas to fill the gap
+For each gap:
+1. topic — specific topic area that is missing or underserved
+2. description — MUST name the specific competitor(s) whose weaknesses or missing topics reveal this gap. Reference the competitor data above directly.
+3. opportunity_score — 1-10, how valuable this gap is
+4. competitors_missing — array of competitor names from the list above who don't cover this
+5. suggested_content — 3 specific, publish-ready content titles (not categories)
 
-Focus on gaps where:
-- Multiple competitors are weak or missing content
-- The topic is highly relevant to target audience
-- We could establish thought leadership
+Focus on gaps where competitors are explicitly weak or missing coverage per the data above.
 
-Return as JSON array with keys:
-topic, description, opportunity_score, competitors_missing (array), suggested_content (array)
+Return ONLY a valid JSON array. No markdown. No explanation.
 
-If you cannot identify enough gaps due to insufficient competitor data, still return at least one item with opportunity_score 0 and a description that explains why — e.g. "Competitor content data was too limited to identify specific gaps; suggest running a deeper competitor audit." Never return an empty array."""
+If competitor data is too sparse, return one item with opportunity_score 0 and description explaining what data was missing."""
 
         try:
             response = self.client.create_message(
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2500,  # Increased for detailed gap analysis
-                temperature=0.3,  # Lowered from 0.5 for factual extraction
+                max_tokens=2500,
+                temperature=0.3,
             )
 
-            gaps_data = json.loads(response)
+            gaps_data = json.loads(extract_json_from_response(response))
             gaps = []
 
             for gap_data in gaps_data[:7]:  # Max 7 gaps
@@ -544,39 +544,51 @@ If you cannot identify enough gaps due to insufficient competitor data, still re
         content_gaps: List[ContentGap],
     ) -> List[DifferentiationStrategy]:
         """Generate ways to differentiate from competitors"""
-        competitor_summary = "\n".join(
+        competitor_detail = "\n".join(
             [
-                f"- {c.name}: Strengths: {', '.join(c.strengths[:3])}, Weaknesses: {', '.join(c.weaknesses[:3])}"
+                f"- {c.name}:\n"
+                f"    Positioning: {c.positioning}\n"
+                f"    Brand voice: {c.brand_voice}\n"
+                f"    Strengths: {', '.join(c.strengths[:3]) or 'Unknown'}\n"
+                f"    Weaknesses: {', '.join(c.weaknesses[:3]) or 'Unknown'}\n"
+                f"    Content topics: {', '.join(c.content_topics[:5]) or 'Unknown'}"
                 for c in competitors
             ]
         )
 
-        gap_summary = "\n".join([f"- {g.topic}: {g.description}" for g in content_gaps[:5]])
+        gap_summary = (
+            "\n".join(
+                [
+                    f"- {g.topic} (missing from: {', '.join(g.competitors_missing)}): {g.description}"
+                    for g in content_gaps[:5]
+                ]
+            )
+            or "No gaps identified"
+        )
 
-        prompt = f"""Generate 5 differentiation strategies to stand out from competitors.
+        prompt = f"""Generate 5 differentiation strategies based on the specific competitor data below.
 
 Our Business: {business_desc}
 
-Competitors:
-{competitor_summary}
+Competitor profiles:
+{competitor_detail}
 
-Content Gaps:
+Content gaps already identified:
 {gap_summary}
 
 For each strategy:
-1. Strategy name (clear, concise)
-2. Description — MUST cite a specific named competitor from the list above and the exact weakness or gap being exploited. No generic advice. BAD: "post more consistently". GOOD: "Competitor X posts once a month with no engagement — publishing weekly how-to content will own that gap."
-3. Difficulty (Low/Medium/High)
-4. Potential impact (Low/Medium/High)
-5. 2-3 specific examples tied to the named competitor or gap
+1. strategy_name — clear, concise name
+2. description — MUST cite a specific named competitor from the profiles above and the exact weakness or gap being exploited. Reference the competitor's actual positioning, brand voice, or content topics. BAD: "post more consistently". GOOD: "CompanyX uses a formal/technical voice with no personality — own the approachable expert angle they've left open."
+3. difficulty — Low / Medium / High
+4. potential_impact — Low / Medium / High
+5. examples — 2-3 specific, actionable content ideas executable in the next 30 days, each tied to the named competitor or gap
 
 Rules:
-- Every strategy MUST reference a specific named competitor or a specific content gap from the data above
-- Every example MUST be concrete and actionable in the next 30 days
-- No generic best-practice advice that would apply to any business
+- Every strategy MUST reference a specific named competitor from the data above
+- Every example MUST be a concrete content title or campaign idea, not a category
+- No generic best-practice advice
 
-Return as JSON array with keys:
-strategy_name, description, difficulty, potential_impact, examples (array)"""
+Return ONLY a valid JSON array with keys: strategy_name, description, difficulty, potential_impact, examples (array). No markdown."""
 
         try:
             response = self.client.create_message(
@@ -585,7 +597,7 @@ strategy_name, description, difficulty, potential_impact, examples (array)"""
                 temperature=0.6,
             )
 
-            strategies_data = json.loads(response)
+            strategies_data = json.loads(extract_json_from_response(response))
             strategies = []
 
             for strat_data in strategies_data[:5]:  # Max 5 strategies
