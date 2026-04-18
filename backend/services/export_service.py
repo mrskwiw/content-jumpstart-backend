@@ -116,6 +116,14 @@ async def _generate_txt(
         lines.append("")
         lines.append(post.content)
         lines.append("")
+        if (
+            post.twitter_share_copy
+            and post.target_platform
+            and post.target_platform.lower() == "blog"
+        ):
+            lines.append("--- TWITTER/X SHARE COPY ---")
+            lines.append(post.twitter_share_copy)
+            lines.append("")
         lines.append("=" * 60)
         lines.append("")
 
@@ -227,6 +235,19 @@ async def _generate_markdown(
         for line in post.content.split("\n"):
             lines.append(f"> {line}")
         lines.append("")
+
+        # Twitter/X share copy for blog posts
+        if (
+            post.twitter_share_copy
+            and post.target_platform
+            and post.target_platform.lower() == "blog"
+        ):
+            lines.append("#### Twitter/X Share Copy")
+            lines.append("")
+            lines.append("```")
+            lines.append(post.twitter_share_copy)
+            lines.append("```")
+            lines.append("")
 
         # Separator
         lines.append("---")
@@ -372,6 +393,19 @@ async def _generate_docx(
         metadata_para.runs[0].font.size = Pt(9)
         metadata_para.runs[0].font.italic = True
         metadata_para.runs[0].font.color.rgb = RGBColor(127, 140, 141)
+
+        # Twitter/X share copy for blog posts
+        if (
+            post.twitter_share_copy
+            and post.target_platform
+            and post.target_platform.lower() == "blog"
+        ):
+            twitter_heading = doc.add_paragraph("Twitter/X Share Copy")
+            twitter_heading.runs[0].font.size = Pt(10)
+            twitter_heading.runs[0].font.bold = True
+            twitter_para = doc.add_paragraph(post.twitter_share_copy)
+            twitter_para.runs[0].font.size = Pt(10)
+            twitter_para.runs[0].font.color.rgb = RGBColor(29, 161, 242)  # Twitter blue
 
         # Separator
         doc.add_paragraph("_" * 80)

@@ -43,7 +43,7 @@ python agent_cli_enhanced.py chat
 # IMPORTANT: Run tests FROM project/ directory, targeting ../tests/
 cd project
 
-pytest ../tests                  # All tests (2,284 tests, 92.93% coverage)
+pytest ../tests                  # All tests (4,743 tests, 95% coverage)
 pytest ../tests/unit/            # Unit tests only
 pytest ../tests/integration/     # Integration tests only
 pytest ../tests -q               # Quick run without verbose output
@@ -232,7 +232,7 @@ If issues persist, ensure the frontend is built (`cd operator-dashboard && npm r
 - `test_router_trends.py` - 29 tests (Google Trends integration)
 - `test_router_assistant.py` - 18 tests (AI assistant chat)
 
-**Test Suite Status:** 2,284 passing tests, **92.93% coverage achieved** ✅ (target: 90%)
+**Test Suite Status:** 4,743 passing tests, **95% coverage achieved** ✅ (target: 90%)
 
 ## Operator Dashboard
 

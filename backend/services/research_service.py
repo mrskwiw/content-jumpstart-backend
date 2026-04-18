@@ -1067,11 +1067,13 @@ class ResearchService:
             inputs["industry"] = params.get("industry") or client.industry or "General business"
 
         elif tool_name == "audience_research":
-            # Audience research needs business name and industry
+            # Audience research needs business name, industry, and optional location for Census lookup
             inputs["business_name"] = (
                 params.get("business_name") or client.name or "Client Business"
             )
             inputs["industry"] = params.get("industry") or client.industry or "General"
+            if not inputs.get("location"):
+                inputs["location"] = client.location or ""
 
         elif tool_name == "platform_strategy":
             # Platform strategy needs current platforms - fallback to client.platforms

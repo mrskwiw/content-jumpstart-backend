@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     API_VERSION: str = "1.0.0"
     DEBUG_MODE: bool = True
     DEBUG_CREDITS: int = 100000  # Credits granted to new users in debug/dev mode
+    STARTING_CREDITS: int = 1000  # Credits granted to new accounts on registration (production)
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174,http://localhost:3000"
@@ -200,6 +201,10 @@ class Settings(BaseSettings):
     STRIPE_SECRET_KEY: str = ""
     STRIPE_PUBLISHABLE_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+
+    # U.S. Census Bureau API (optional — enhances Audience Research with real demographic data)
+    # Free key at: https://api.census.gov/data/key_signup.html
+    CENSUS_API_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, case_sensitive=True, extra="ignore")
 

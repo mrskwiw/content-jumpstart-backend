@@ -51,6 +51,20 @@ except ImportError:
     build_research_context = None
     get_story_context_for_template = None
 
+try:
+    from ..utils.web_search_context import (
+        TEMPLATE_WEB_SEARCH_CONFIG,
+        MAX_SEARCHES_PER_RUN,
+        build_web_search_context,
+    )
+
+    WEB_SEARCH_CONTEXT_AVAILABLE = True
+except ImportError:
+    WEB_SEARCH_CONTEXT_AVAILABLE = False
+    TEMPLATE_WEB_SEARCH_CONFIG = {}
+    MAX_SEARCHES_PER_RUN = 5
+    build_web_search_context = None
+
 
 class ContentGeneratorAgent:
     """
@@ -736,6 +750,28 @@ class ContentGeneratorAgent:
         cached_system_prompt = self._build_system_prompt(sanitized_brief, platform, client_memory)
         base_context = sanitized_brief.to_context_dict()
 
+        # Pre-fetch web search results for data-driven templates (max MAX_SEARCHES_PER_RUN per run)
+        # Done before parallel generation to avoid concurrent duplicate searches.
+        # Falls back silently — never blocks generation.
+        web_search_cache: Dict[int, Optional[str]] = {}
+        if WEB_SEARCH_CONTEXT_AVAILABLE and build_web_search_context is not None:
+            search_count = 0
+            industry = getattr(sanitized_brief, "industry", None)
+            for tid in template_quantities:
+                if tid not in TEMPLATE_WEB_SEARCH_CONFIG or tid in web_search_cache:
+                    continue
+                if search_count >= MAX_SEARCHES_PER_RUN:
+                    logger.info(
+                        f"Web search cap ({MAX_SEARCHES_PER_RUN}) reached — "
+                        f"remaining templates will generate without live data"
+                    )
+                    break
+                result = build_web_search_context(tid, industry)
+                web_search_cache[tid] = result
+                if result:
+                    search_count += 1
+                    logger.info(f"Web search context ready for template {tid}")
+
         # Build list of post generation tasks
         tasks = []
         post_number = 1
@@ -748,6 +784,13 @@ class ContentGeneratorAgent:
                 logger.warning(f"Template ID {template_id} not found, skipping {quantity} posts")
                 continue
 
+            # Build a template-specific base context when web search results are available.
+            # _build_context() copies base_context, so this is safe to share across variants.
+            web_results = web_search_cache.get(template_id)
+            template_base_ctx = (
+                {**base_context, "web_search_results": web_results} if web_results else base_context
+            )
+
             # Create tasks for specified quantity
             for variant in range(1, quantity + 1):
                 tasks.append(
@@ -756,7 +799,7 @@ class ContentGeneratorAgent:
                         "variant": variant,
                         "post_number": post_number,
                         "cached_system_prompt": cached_system_prompt,
-                        "base_context": base_context,
+                        "base_context": template_base_ctx,
                     }
                 )
                 post_number += 1
@@ -850,6 +893,10 @@ class ContentGeneratorAgent:
                 client_name=client_brief.company_name,
                 target_platform=platform,
             )
+
+            # Generate Twitter/X share copy for blog posts
+            if platform == Platform.BLOG:
+                post.twitter_share_copy = self._generate_twitter_share_copy(content)
 
             # Check if post needs review
             self._check_quality_flags(post, template, client_brief)
@@ -1247,6 +1294,41 @@ This is a blog post, not a social media post — depth and thoroughness matter. 
                 "YES - incorporate the results listed above into your content"
             )
 
+        # Web search guidance: explicit per-template instruction covering both
+        # the "data present" and "data absent" cases so the model always knows
+        # what to do rather than relying only on the system-prompt guidance.
+        _WEB_SEARCH_TEMPLATE_GUIDANCE: Dict[int, str] = {
+            2: (  # Statistic + Insight
+                "WEB SEARCH GUIDANCE (Template 2 — Statistic + Insight): "
+                "If web_search_results are present above, open with one specific, "
+                "citable statistic from those results and cite the source naturally. "
+                "If NO web search results are present, anchor to a concrete number "
+                "from the client's own measurable_results (the 'results' field above) "
+                "or state 'industry data shows' with a plausible directional claim — "
+                "never fabricate a precise percentage or dollar figure."
+            ),
+            3: (  # Contrarian Take
+                "WEB SEARCH GUIDANCE (Template 3 — Contrarian Take): "
+                "If web_search_results are present above, open with a REAL mainstream "
+                "claim or conventional wisdom pulled from those results — quote or "
+                "paraphrase it, then challenge it with the client's experience. "
+                "If NO web search results are present, state a commonly-held belief "
+                "in the client's industry as the foil (e.g., 'Everyone says X…') "
+                "and challenge it using data or stories from the brief."
+            ),
+            13: (  # Future Thinking
+                "WEB SEARCH GUIDANCE (Template 13 — Future Thinking): "
+                "If web_search_results are present above, ground your predictions in "
+                "one or two specific trends named in those results and cite them. "
+                "If NO web search results are present, use the market_trends research "
+                "data above (if available) or make directional predictions tied to "
+                "observable patterns the client describes — avoid specific year-over-year "
+                "figures you cannot verify."
+            ),
+        }
+        if template.template_id in _WEB_SEARCH_TEMPLATE_GUIDANCE:
+            context["web_search_guidance"] = _WEB_SEARCH_TEMPLATE_GUIDANCE[template.template_id]
+
         # FIX (Bug #42): Add competitors for comparison template (Template 10)
         if template.template_id == 10 and context.get("competitors"):
             context["comparison_guidance"] = (
@@ -1557,6 +1639,22 @@ Instead, let them inform your writing style, topic selection, and messaging natu
 Think of research insights as your secret knowledge about the client - use them subtly.
 """
 
+        # Add web search data guidance when the feature is active
+        if WEB_SEARCH_CONTEXT_AVAILABLE:
+            prompt += """
+
+WEB SEARCH DATA GUIDANCE:
+The context may include a "web_search_results" block containing live web data fetched at generation time.
+If web_search_results are present:
+- Use ONLY specific statistics, claims, or trends from those results — do not fabricate data
+- Cite the source naturally ("According to [source]..." or "Recent data shows...")
+- Prefer data points that are surprising, specific, or counterintuitive
+- If the data does not directly match the client's situation, adapt the insight conceptually
+
+If web_search_results are NOT present in the context, do not invent statistics.
+Use the client's own measurable results and data from their brief instead.
+"""
+
         # Add banned word list — these trigger automatic QA failure and retry
         banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
         prompt += f"""
@@ -1793,6 +1891,50 @@ Say what you mean in concrete terms — avoid corporate buzzwords and marketing 
         content = re.sub(r"\n{3,}", "\n\n", content)
 
         return content.strip()
+
+    @staticmethod
+    def _generate_twitter_share_copy(content: str) -> str:
+        """
+        Build a ready-to-post tweet to drive traffic to a blog post.
+
+        Strategy:
+        - Extract the first sentence (up to 180 chars) as the hook
+        - Append the [YOUR_BLOG_URL] placeholder
+        - Keep total ≤ 240 chars (Twitter counts t.co URLs as 23 chars,
+          but we leave extra room for the real URL)
+
+        Returns a non-empty string always (falls back to a generic prompt).
+        """
+        import re
+
+        MAX_HOOK_CHARS = 180
+        URL_PLACEHOLDER = "[YOUR_BLOG_URL]"
+
+        # Extract first sentence — split on ". " or ".\n" or end of string
+        sentences = re.split(r"(?<=\.)\s+|\n", content.strip())
+        hook = ""
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) >= 20:  # skip very short fragments
+                hook = sentence
+                break
+
+        if not hook:
+            hook = content.strip()
+
+        # Truncate hook to MAX_HOOK_CHARS
+        if len(hook) > MAX_HOOK_CHARS:
+            # Try to cut at the last word boundary
+            truncated = hook[:MAX_HOOK_CHARS].rsplit(" ", 1)[0]
+            hook = truncated.rstrip(".,;:") + "..."
+
+        tweet = f"{hook}\n\n{URL_PLACEHOLDER}"
+
+        # Final safety truncation (should never trigger with MAX_HOOK_CHARS=180)
+        if len(tweet) > 280:
+            tweet = tweet[:276] + "..."
+
+        return tweet
 
     def _check_quality_flags(
         self, post: Post, template: Template, client_brief: ClientBrief

@@ -333,6 +333,7 @@ async def list_templates():
                     "required": prereqs.get("required", []),  # P0 - Critical
                     "recommended": prereqs.get("recommended", []),  # P1 - Recommended
                     "optional": prereqs.get("optional", []),  # P2 - Optional
+                    "requiresWebSearch": prereqs.get("requires_web_search", False),
                 }
             )
 

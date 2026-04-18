@@ -490,6 +490,7 @@ class GeneratorService:
                         readability_score=_calculate_readability(post.content),
                         status="approved",  # Template quantities are deliberate choices
                         created_at=datetime.utcnow(),
+                        twitter_share_copy=getattr(post, "twitter_share_copy", None),
                     )
                     db.add(db_post)
                     posts_created += 1

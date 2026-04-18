@@ -450,6 +450,7 @@ def init_db():
                 ("output_tokens", "INTEGER"),
                 ("cache_read_tokens", "INTEGER"),
                 ("cost_usd", "REAL"),
+                ("twitter_share_copy", "VARCHAR"),
             ]
 
             for col_name, col_type in new_post_columns:

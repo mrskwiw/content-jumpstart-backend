@@ -196,7 +196,7 @@ class SecretManager:
 
         self.save_secrets()
 
-        print("✅ Secret rotated successfully")
+        print("[OK] Secret rotated successfully")
         print(f"   New secret ID: {new_secret.id}")
         print(f"   Grace period: {grace_period_days} days")
         print(

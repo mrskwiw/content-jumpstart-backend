@@ -139,6 +139,7 @@ export const PostDraftSchema = z.object({
   outputTokens: z.number().int().nullish(),
   cacheReadTokens: z.number().int().nullish(),
   costUsd: z.number().nullish(),
+  twitterShareCopy: z.string().nullish(),
 });
 export type PostDraft = z.infer<typeof PostDraftSchema>;
 

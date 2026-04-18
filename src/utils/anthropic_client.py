@@ -783,15 +783,16 @@ Generate a post following this template structure, customized for this client's 
             "problem_solved",
             "brand_voice",
             "research_insights",
+            "web_search_results",
         ]
         for field_name in priority_fields:
             if field_name in context and context[field_name]:
                 value = context[field_name]
                 if isinstance(value, str) and value.strip():
-                    # Research insights formatted as standalone block
-                    if field_name == "research_insights":
+                    # Research insights and web search results formatted as standalone blocks
+                    if field_name in ("research_insights", "web_search_results"):
                         lines.append("")  # Blank line before
-                        lines.append(value)  # Already formatted by research_context_builder
+                        lines.append(value)  # Already formatted by context builder
                         lines.append("")  # Blank line after
                     else:
                         lines.append(f"{field_name}: {value}")

@@ -3,7 +3,9 @@ Simple logging configuration for backend API.
 
 Provides basic logging without Rich dependency to keep backend lightweight.
 """
+
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -52,9 +54,11 @@ def setup_logger(
     return logger
 
 
-# Default logger instance
+# Default logger instance — skip file handler during test runs to prevent
+# pytest capture system conflicts (ValueError: I/O operation on closed file)
+_testing = os.environ.get("TESTING") == "1"
 logger = setup_logger(
     name="backend",
     level=logging.INFO,
-    log_file=Path("logs/backend.log"),
+    log_file=None if _testing else Path("logs/backend.log"),
 )

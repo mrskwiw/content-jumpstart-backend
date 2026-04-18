@@ -100,6 +100,9 @@ class PostResponse(BaseModel):
     cache_read_tokens: Optional[int] = Field(default=None, serialization_alias="cacheReadTokens")
     cost_usd: Optional[float] = Field(default=None, serialization_alias="costUsd")
 
+    # Twitter/X share copy for blog posts
+    twitter_share_copy: Optional[str] = Field(default=None, serialization_alias="twitterShareCopy")
+
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,  # Allow both snake_case and camelCase

@@ -36,6 +36,11 @@ class Post(BaseModel):
     )
     blog_title: Optional[str] = Field(None, description="Title of related blog post")
 
+    # Twitter/X share copy (blog posts only, ≤280 chars with [YOUR_BLOG_URL] placeholder)
+    twitter_share_copy: Optional[str] = Field(
+        None, description="Ready-to-post tweet to drive traffic to this blog post"
+    )
+
     # Context
     client_name: str = Field(..., description="Client name")
     generated_at: datetime = Field(default_factory=datetime.now, description="Generation timestamp")

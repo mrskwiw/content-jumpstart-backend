@@ -4,7 +4,7 @@ Maps each post template to recommended and required research tools.
 This helps users understand which research tools enhance specific template types.
 """
 
-from typing import Dict, List
+from typing import Any, Dict, List  # noqa: F401 — List used in TEMPLATE_PREREQUISITES values
 
 # Template ID to research tool mapping
 # Template IDs correspond to templates in 02_POST_TEMPLATE_LIBRARY.md
@@ -14,10 +14,14 @@ from typing import Dict, List
 # - P1 (recommended): Significantly improves quality, but brief CAN provide this data
 # - P2 (optional): Marginal improvement, nice-to-have
 #
+# requires_web_search: True means the generator pre-fetches live web data before
+# generation and injects it into the prompt. Templates without this flag never
+# receive web search results (even when a provider is configured).
+#
 # NOTE: Prerequisites reassigned based on analysis of actual prompt usage in
 # content_generator.py. Only research tools that provide data actually used by
 # AI prompts are classified as required (P0).
-TEMPLATE_PREREQUISITES: Dict[int, Dict[str, List[str]]] = {
+TEMPLATE_PREREQUISITES: Dict[int, Dict[str, Any]] = {
     # Template 1: Problem Recognition Post
     # P1: audience_research validates pain points (brief already provides customer_pain_points)
     # P2: SEO keywords for search terms, voice_analysis for hook patterns
@@ -29,19 +33,23 @@ TEMPLATE_PREREQUISITES: Dict[int, Dict[str, List[str]]] = {
     # Template 2: Statistic + Insight Post
     # P0: market_trends CRITICAL - brief has NO statistics field, requires data
     # P2: story_mining, competitive_analysis provide supporting context
+    # Web search: pre-fetches latest industry stats at generation time
     2: {
         "required": ["market_trends_research"],  # P0: CRITICAL for credible statistics
         "recommended": [],  # P1: None
         "optional": ["story_mining", "competitive_analysis"],  # P2
+        "requires_web_search": True,
     },
     # Template 3: Contrarian Post
     # P1: competitive_analysis shows "conventional wisdom to challenge"
     # P1: market_trends provides trend data to contradict
     # P2: SEO keywords for search optimization
+    # Web search: fetches mainstream claims/conventional wisdom to push back against
     3: {
         "required": [],  # P0: None
         "recommended": ["competitive_analysis", "market_trends_research"],  # P1
         "optional": ["seo_keyword_research"],  # P2
+        "requires_web_search": True,
     },
     # Template 4: Evolution Post
     # P0: story_mining CRITICAL - requires transformation stories with before/after arc
@@ -119,10 +127,12 @@ TEMPLATE_PREREQUISITES: Dict[int, Dict[str, List[str]]] = {
     # Template 13: Future-Thinking Post
     # P0: market_trends CRITICAL - cannot make credible predictions without trend data
     # P2: competitive_analysis for industry direction
+    # Web search: fetches emerging trends and predictions to ground forward-looking claims
     13: {
         "required": ["market_trends_research"],  # P0: CRITICAL for predictions
         "recommended": [],  # P1: None
         "optional": ["competitive_analysis"],  # P2
+        "requires_web_search": True,
     },
     # Template 14: Q&A Post
     # P1: audience_research validates questions (brief provides customer_questions)
@@ -143,13 +153,14 @@ TEMPLATE_PREREQUISITES: Dict[int, Dict[str, List[str]]] = {
 }
 
 
-def get_template_prerequisites(template_id: int) -> Dict[str, List[str]]:
+def get_template_prerequisites(template_id: int) -> Dict[str, Any]:
     """Get prerequisites for a specific template.
 
     Args:
         template_id: Template ID (1-15)
 
     Returns:
-        Dict with 'required' and 'recommended' tool lists
+        Dict with 'required', 'recommended', 'optional' tool lists and
+        optional 'requires_web_search' boolean flag.
     """
     return TEMPLATE_PREREQUISITES.get(template_id, {"required": [], "recommended": []})

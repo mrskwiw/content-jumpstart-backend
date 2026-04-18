@@ -204,7 +204,7 @@ async def register_user(request: Request, user_data: UserCreate, db: Session = D
 
     # TR-023: In production, users start INACTIVE (requires admin activation).
     # In DEBUG_MODE, activate immediately and grant extra credits for testing.
-    starting_credits = settings.DEBUG_CREDITS if settings.DEBUG_MODE else None
+    starting_credits = settings.DEBUG_CREDITS if settings.DEBUG_MODE else settings.STARTING_CREDITS
     user = crud.create_user(
         db,
         email=user_data.email,

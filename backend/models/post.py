@@ -47,6 +47,9 @@ class Post(Base, SoftDeleteMixin):
     cache_read_tokens = Column(Integer, nullable=True)
     cost_usd = Column(Float, nullable=True)  # Cost for this specific post
 
+    # Twitter/X share copy for blog posts (≤280 chars, [YOUR_BLOG_URL] placeholder)
+    twitter_share_copy = Column(String(280), nullable=True)
+
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     project = relationship("backend.models.project.Project", back_populates="posts")
     run = relationship("backend.models.run.Run", back_populates="posts")

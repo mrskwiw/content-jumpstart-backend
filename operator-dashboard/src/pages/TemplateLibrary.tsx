@@ -13,6 +13,7 @@ import {
   Info,
   X,
   ChevronRight,
+  Globe,
 } from 'lucide-react';
 import apiClient from '@/api/client';
 import { clientsApi } from '@/api';
@@ -25,9 +26,10 @@ interface Template {
   description: string;
   bestFor: string;
   difficulty: 'fast' | 'medium' | 'slow';
-  required: string[];     // P0 — blocks generation
-  recommended: string[];  // P1 — recommended
-  optional: string[];     // P2 — optional
+  required: string[];          // P0 — blocks generation
+  recommended: string[];       // P1 — recommended
+  optional: string[];          // P2 — optional
+  requiresWebSearch?: boolean; // live data fetched at generation time
 }
 
 // Templates that require mined stories to generate authentic content
@@ -69,6 +71,7 @@ export default function TemplateLibrary() {
   const [difficultyFilter, setDifficultyFilter] = useState<string>('');
   const [storyFilter, setStoryFilter] = useState<string>('');
   const [prereqFilter, setPrereqFilter] = useState<string>('');
+  const [webSearchFilter, setWebSearchFilter] = useState<string>('');
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [clientPrereqMode, setClientPrereqMode] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -121,16 +124,19 @@ export default function TemplateLibrary() {
     if (storyFilter === 'none' && STORY_REQUIRED_TEMPLATES.has(t.id)) return false;
     if (prereqFilter === 'none' && (t.required.length > 0 || t.recommended.length > 0)) return false;
     if (prereqFilter === 'has' && t.required.length === 0 && t.recommended.length === 0) return false;
+    if (webSearchFilter === 'yes' && !t.requiresWebSearch) return false;
+    if (webSearchFilter === 'no' && t.requiresWebSearch) return false;
     return true;
   });
 
-  const hasFilters = searchQuery || difficultyFilter || storyFilter || prereqFilter;
+  const hasFilters = searchQuery || difficultyFilter || storyFilter || prereqFilter || webSearchFilter;
 
   const clearFilters = () => {
     setSearchQuery('');
     setDifficultyFilter('');
     setStoryFilter('');
     setPrereqFilter('');
+    setWebSearchFilter('');
   };
 
   const handleUseInWizard = (template: Template) => {
@@ -228,6 +234,13 @@ export default function TemplateLibrary() {
               <span className="inline-flex rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs font-medium text-neutral-600 dark:text-neutral-400">P2 Optional</span>
               <span className="text-primary-800 dark:text-primary-200">Adds extra context</span>
             </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/30 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400">
+                <Globe className="h-3 w-3" />
+                Live Web Data
+              </span>
+              <span className="text-primary-800 dark:text-primary-200">Fetches live stats at generation time</span>
+            </span>
           </div>
         </div>
       </div>
@@ -285,6 +298,19 @@ export default function TemplateLibrary() {
               <option value="">All prerequisites</option>
               <option value="none">No prerequisites</option>
               <option value="has">Has prerequisites</option>
+            </select>
+          </div>
+
+          {/* Web search filter */}
+          <div className="sm:w-44">
+            <select
+              value={webSearchFilter}
+              onChange={e => setWebSearchFilter(e.target.value)}
+              className="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 appearance-none"
+            >
+              <option value="">All web search</option>
+              <option value="yes">Uses live web data</option>
+              <option value="no">No web search</option>
             </select>
           </div>
 
@@ -433,6 +459,34 @@ export default function TemplateLibrary() {
                   <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
                     <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     No story required
+                  </div>
+                )}
+              </div>
+
+              {/* Web search */}
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-2">
+                  Live web data
+                </h3>
+                {selectedTemplate.requiresWebSearch ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 p-3">
+                    <Globe className="h-4 w-4 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-sky-800 dark:text-sky-200">
+                        Fetches live web data at generation time
+                      </p>
+                      <p className="text-sky-700 dark:text-sky-300 mt-0.5">
+                        When a web search provider (Brave, Tavily, or SerpAPI) is configured, the
+                        generator will run a targeted search before writing this post and inject the
+                        top results as grounding data. Without a provider, generation falls back to
+                        the client brief and research tools.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    No live web search needed
                   </div>
                 )}
               </div>
@@ -648,11 +702,20 @@ function TemplateCard({
           </span>
         )}
 
+        {/* Web search badge */}
+        {template.requiresWebSearch && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/20 px-2 py-0.5 text-xs font-medium text-sky-700 dark:text-sky-400">
+            <Globe className="h-3 w-3" />
+            Live Web Data
+          </span>
+        )}
+
         {/* No prerequisites */}
         {template.required.length === 0 &&
           template.recommended.length === 0 &&
           !storyRequired &&
-          !storyRecommended && (
+          !storyRecommended &&
+          !template.requiresWebSearch && (
             <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
               <CheckCircle2 className="h-3 w-3 text-emerald-500" />
               No prerequisites

@@ -68,6 +68,7 @@ TEMPLATE_PREREQUISITES = {
         "recommended_research_tools": ["market_trends_research"],
         "risk_level": RiskLevel.HIGH,
         "block_generation": False,
+        "requires_web_search": True,
         "warning_message": "This template works best with current industry statistics. Consider running Market Trends Research first.",
     },
     "what_i_learned": {
@@ -82,6 +83,7 @@ TEMPLATE_PREREQUISITES = {
         "recommended_research_tools": ["market_trends_research"],
         "risk_level": RiskLevel.HIGH,
         "block_generation": False,
+        "requires_web_search": True,
         "warning_message": "Future predictions need industry context. Consider running Market Trends Research for credible insights.",
     },
     # LOW RISK - Can generate with minimal data
@@ -96,6 +98,7 @@ TEMPLATE_PREREQUISITES = {
         "recommended_client_fields": ["business_description"],
         "risk_level": RiskLevel.LOW,
         "block_generation": False,
+        "requires_web_search": True,
     },
     "whats_changed": {
         "required_client_fields": ["industry"],

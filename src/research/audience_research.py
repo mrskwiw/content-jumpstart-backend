@@ -28,6 +28,7 @@ from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
 from ..utils.web_search import get_search_client
+from ..utils.census_client import fetch_zip_demographics
 
 
 class AudienceResearcher(ResearchTool, CommonValidationMixin):
@@ -70,6 +71,12 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
         inputs["business_name"] = self.validate_optional_business_name(inputs)
         inputs["industry"] = self.validate_optional_industry(inputs)
 
+        # Optional: location — used for Census API zip-code lookup
+        location = inputs.get("location", "")
+        if isinstance(location, str) and len(location) > 200:
+            location = location[:200]
+        inputs["location"] = location
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> AudienceResearch:
@@ -80,10 +87,31 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
         target_audience = inputs["target_audience"]
         business_name = inputs.get("business_name", "Client Business")
         industry = inputs.get("industry", "General")
+        location = inputs.get("location", "")
 
         # Multi-step analysis
 
-        # Step 0: Fetch current audience behavior data via web search (Bug #47 Fix)
+        # Step 0a: Fetch Census Bureau demographic data when zip code + API key are present
+        census_data: Optional[str] = None
+        try:
+            import os
+
+            # Prefer backend settings if available; fall back to env var
+            try:
+                from backend.config import settings
+
+                census_api_key = settings.CENSUS_API_KEY
+            except Exception:
+                census_api_key = os.getenv("CENSUS_API_KEY", "")
+
+            if census_api_key and location:
+                census_data = fetch_zip_demographics(location, census_api_key)
+                if census_data:
+                    logger.info(f"Census data fetched for location: {location!r}")
+        except Exception as _ce:
+            logger.warning(f"Census data fetch skipped: {_ce}")
+
+        # Step 0b: Fetch current audience behavior data via web search (Bug #47 Fix)
         logger.info(f"Fetching current audience behavior data for {industry}")
         search_client = get_search_client()
         web_audience_data = self._fetch_web_audience_data(
@@ -93,7 +121,7 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
 
         print("[Step 1/4] Analyzing demographics and psychographics...")
         demographics_psycho = self._analyze_demographics_psychographics(
-            business_desc, target_audience, industry
+            business_desc, target_audience, industry, census_data=census_data
         )
 
         print("[Step 2/4] Analyzing behaviors and pain points...")
@@ -186,16 +214,30 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
         return web_results
 
     def _analyze_demographics_psychographics(
-        self, business_desc: str, target_audience: str, industry: str
+        self,
+        business_desc: str,
+        target_audience: str,
+        industry: str,
+        census_data: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Step 1: Analyze demographics and psychographics"""
+        census_section = (
+            (
+                f"\n\nCENSUS BUREAU DATA (real demographic data for this area):\n{census_data}\n"
+                "Use the above Census data to anchor your demographic estimates — "
+                "treat it as ground truth for population size, income, and education level."
+            )
+            if census_data
+            else ""
+        )
+
         prompt = f"""Analyze the target audience for this business and provide demographics and psychographics.
 
 BUSINESS: {business_desc}
 
 TARGET AUDIENCE: {target_audience}
 
-INDUSTRY: {industry}
+INDUSTRY: {industry}{census_section}
 
 Provide a detailed JSON analysis with:
 
