@@ -117,6 +117,28 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
                 sanitize=True,
             )
 
+        # SECURITY: Validate optional posting frequency
+        if "posting_frequency" in inputs and inputs["posting_frequency"]:
+            inputs["posting_frequency"] = self.validator.validate_text(
+                inputs.get("posting_frequency"),
+                field_name="posting_frequency",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional main CTA
+        if "main_cta" in inputs and inputs["main_cta"]:
+            inputs["main_cta"] = self.validator.validate_text(
+                inputs.get("main_cta"),
+                field_name="main_cta",
+                min_length=2,
+                max_length=500,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> CalendarStrategy:
@@ -143,6 +165,8 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         platforms = inputs.get("primary_platforms", ["LinkedIn"])
         content_goals = inputs.get("content_goals", "Brand awareness and engagement")
         start_date_str = inputs.get("start_date", self._get_next_monday().strftime("%Y-%m-%d"))
+        posting_frequency = inputs.get("posting_frequency", "")
+        main_cta = inputs.get("main_cta", "")
 
         print("[Step 1/6] Analyzing business and audience for calendar planning...")
         # Step 1: Determine content pillars
@@ -159,13 +183,19 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         print("[Step 3/6] Building 13-week detailed calendar...")
         # Step 3: Generate weekly calendar
         weekly_calendar = self._generate_weekly_calendar(
-            self.client, start_date_str, themes, pillars, business_description, target_audience
+            self.client,
+            start_date_str,
+            themes,
+            pillars,
+            business_description,
+            target_audience,
+            main_cta=main_cta,
         )
 
         print("[Step 4/6] Determining platform-specific schedules...")
         # Step 4: Create platform calendars
         platform_calendars = self._create_platform_calendars(
-            self.client, platforms, business_description, target_audience
+            self.client, platforms, business_description, target_audience, posting_frequency
         )
 
         print("[Step 5/6] Generating implementation guidance...")
@@ -420,6 +450,7 @@ Return JSON array with 3 themes:
         pillars: List[Dict[str, Any]],
         business_description: str,
         target_audience: str,
+        main_cta: str = "",
     ) -> List[CalendarWeek]:
         """Generate 13 weeks of detailed content calendar"""
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -442,10 +473,11 @@ Return JSON array with 3 themes:
                 "\n".join(theme_context) if theme_context else "General content planning"
             )
 
+            cta_context = f"\nPrimary CTA: {main_cta}" if main_cta else ""
             prompt = f"""Create detailed weekly content plans for weeks {weeks_in_batch[0]}-{weeks_in_batch[-1]} of a 90-day calendar.
 
 Business: {business_description}
-Target Audience: {target_audience}
+Target Audience: {target_audience}{cta_context}
 
 Theme Context:
 {theme_context_str}
@@ -516,15 +548,25 @@ Return JSON array for weeks {weeks_in_batch}:
         return sorted(weekly_calendar, key=lambda w: w.week_number)
 
     def _create_platform_calendars(
-        self, client: Any, platforms: List[str], business_description: str, target_audience: str
+        self,
+        client: Any,
+        platforms: List[str],
+        business_description: str,
+        target_audience: str,
+        posting_frequency: str = "",
     ) -> List[PlatformCalendar]:
         """Create platform-specific schedules"""
         platforms_str = ", ".join(platforms)
+        frequency_context = (
+            f"\nClient's Preferred Posting Frequency: {posting_frequency}"
+            if posting_frequency
+            else ""
+        )
 
         prompt = f"""Create platform-specific posting schedules for: {platforms_str}
 
 Business: {business_description}
-Target Audience: {target_audience}
+Target Audience: {target_audience}{frequency_context}
 
 For each platform, determine:
 1. Optimal posting frequency

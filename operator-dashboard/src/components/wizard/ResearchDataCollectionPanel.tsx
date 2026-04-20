@@ -34,6 +34,14 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   content_calendar_strategy: {
     platforms: 'primary_platforms',
     mainProblemSolved: 'content_goals',
+    postingFrequency: 'posting_frequency',
+    mainCta: 'main_cta',
+  },
+  content_gap_analysis: {
+    misconceptions: 'known_misconceptions',
+  },
+  story_mining: {
+    stories: 'existing_stories',
   },
   business_report: {
     name: 'company_name',
@@ -115,6 +123,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       min: 0,
       placeholder: 'Leave empty to auto-generate from SEO keywords, or describe your current content topics',
       helperText: '✨ Auto-generates from SEO keyword research if available, or from your business profile. Or manually describe your current content topics (minimum 10 characters if provided).'
+    }, {
+      key: 'known_misconceptions',
+      label: 'Known Industry Misconceptions (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., "People think we\'re only for enterprise, but we serve SMBs too"',
+      helperText: '✨ Auto-populates from client profile. Misconceptions the client wants to correct make high-value gap content — they\'re underserved topics their audience is confused about.'
     }]
   },
   content_audit: {
@@ -185,6 +200,20 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'e.g., LinkedIn, Twitter, Blog',
       helperText: 'Platforms where you plan to publish content. Leave empty to get recommendations.'
+    }, {
+      key: 'posting_frequency',
+      label: 'Posting Frequency (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., 3x per week, daily, twice weekly',
+      helperText: '✨ Auto-populates from client profile if set. Guides platform schedule recommendations.'
+    }, {
+      key: 'main_cta',
+      label: 'Primary Call to Action (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Book a discovery call, Download free guide',
+      helperText: '✨ Auto-populates from client profile. Used to align weekly CTA focus across the calendar.'
     }]
   },
   audience_research: {
@@ -216,6 +245,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'Paste interview transcript, customer quotes, or detailed notes from conversations...',
       helperText: 'Optional. Add detailed interview notes or customer quotes to enrich the story (0-10000 characters).'
+    }, {
+      key: 'existing_stories',
+      label: 'Existing Client Stories (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'Leave empty to use stories from client profile, or paste additional story material...',
+      helperText: '✨ Auto-populates from client profile stories. Used to seed the analysis with narratives the client has already shared.'
     }]
   },
   brand_archetype: {

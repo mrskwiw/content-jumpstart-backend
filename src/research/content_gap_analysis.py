@@ -155,6 +155,31 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
                 # Validator doesn't have validate_competitor_list method, just use the list directly
                 inputs["competitors"] = competitors
 
+        # SECURITY: Validate optional known misconceptions (pre-seeded from client brief)
+        known_misconceptions = inputs.get("known_misconceptions")
+        if known_misconceptions:
+            if isinstance(known_misconceptions, list):
+                inputs["known_misconceptions"] = [
+                    self.validator.validate_text(
+                        m,
+                        field_name="misconception",
+                        min_length=2,
+                        max_length=500,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for m in known_misconceptions[:10]
+                ]
+            elif isinstance(known_misconceptions, str):
+                inputs["known_misconceptions"] = self.validator.validate_text(
+                    known_misconceptions,
+                    field_name="known_misconceptions",
+                    min_length=2,
+                    max_length=2000,
+                    required=False,
+                    sanitize=True,
+                )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> ContentGapAnalysis:
@@ -168,6 +193,7 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         current_content_topics = inputs["current_content_topics"]
         industry = inputs.get("industry", "Not specified")
         competitors = inputs.get("competitors", [])
+        known_misconceptions = inputs.get("known_misconceptions", [])
 
         # Step 1: Analyze current content coverage
         logger.info("Step 1: Analyzing current content coverage...")
@@ -184,7 +210,11 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         # Step 3: Identify topic gaps
         logger.info("Step 3: Identifying topic gaps...")
         topic_gaps = self._identify_topic_gaps(
-            business_description, target_audience, current_coverage, competitor_analysis
+            business_description,
+            target_audience,
+            current_coverage,
+            competitor_analysis,
+            known_misconceptions=known_misconceptions,
         )
 
         # Step 4: Identify format gaps
@@ -462,6 +492,7 @@ Return ONLY valid JSON with keys: content_strengths, popular_topics, formats_use
         target_audience: str,
         current_coverage: Dict,
         competitor_analysis: List[CompetitorContentAnalysis],
+        known_misconceptions: "list | str | None" = None,
     ) -> List[ContentGap]:
         """Identify specific topic gaps"""
 
@@ -486,6 +517,17 @@ Return ONLY valid JSON with keys: content_strengths, popular_topics, formats_use
             else "Not available — run with competitor data for differentiation angles"
         )
 
+        # Build misconceptions context if provided
+        misconceptions_context = ""
+        if known_misconceptions:
+            if isinstance(known_misconceptions, list) and known_misconceptions:
+                mc_str = "\n".join(f"  - {m}" for m in known_misconceptions)
+                misconceptions_context = f"\nKnown Industry Misconceptions (client-reported, high-value content opportunities):\n{mc_str}"
+            elif isinstance(known_misconceptions, str) and known_misconceptions.strip():
+                misconceptions_context = (
+                    f"\nKnown Industry Misconceptions (client-reported):\n  {known_misconceptions}"
+                )
+
         prompt = f"""Identify content gaps for this business:
 
 Business: {business_description}
@@ -494,7 +536,7 @@ Target Audience: {target_audience}
 Current Coverage: {json.dumps(current_coverage, indent=2)}
 Competitor Topics: {competitor_context}
 Differentiation Opportunities (topics competitors are missing):
-{differentiation_context}
+{differentiation_context}{misconceptions_context}
 
 Identify 10-15 specific content gaps. For each gap:
 - gap_title: What's missing

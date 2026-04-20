@@ -82,6 +82,31 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
                 sanitize=True,
             )
 
+        # SECURITY: Validate optional existing stories pre-seeded from client brief
+        existing_stories = inputs.get("existing_stories")
+        if existing_stories:
+            if isinstance(existing_stories, list):
+                inputs["existing_stories"] = [
+                    self.validator.validate_text(
+                        s,
+                        field_name="story",
+                        min_length=2,
+                        max_length=2000,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for s in existing_stories[:20]
+                ]
+            elif isinstance(existing_stories, str):
+                inputs["existing_stories"] = self.validator.validate_text(
+                    existing_stories,
+                    field_name="existing_stories",
+                    min_length=2,
+                    max_length=5000,
+                    required=False,
+                    sanitize=True,
+                )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> StoryMiningAnalysis:
@@ -90,6 +115,19 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
         business_name = inputs.get("business_name", "Client")
         customer_context = inputs["customer_context"]
         interview_notes = inputs.get("interview_notes", "")
+
+        # Prepend pre-seeded stories from client brief as additional context
+        existing_stories = inputs.get("existing_stories")
+        if existing_stories:
+            if isinstance(existing_stories, list) and existing_stories:
+                stories_text = "\n".join(f"- {s}" for s in existing_stories)
+                seed_block = f"[Pre-seeded client stories for context]\n{stories_text}"
+            elif isinstance(existing_stories, str) and existing_stories.strip():
+                seed_block = f"[Pre-seeded client stories for context]\n{existing_stories}"
+            else:
+                seed_block = ""
+            if seed_block:
+                interview_notes = f"{seed_block}\n\n{interview_notes}".strip()
 
         print("[Story Mining] Starting customer story extraction...")
         print("[1/7] Gathering customer background...")
