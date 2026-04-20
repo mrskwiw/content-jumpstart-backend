@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db, engine
 from backend.middleware.auth_dependency import get_current_user
 from backend.models.user import User
+from backend.services.database_merger import DatabaseMerger
 from backend.services.database_migrator import DatabaseMigrator
 from backend.services.schema_inspector import get_schema_version
 from backend.utils.logger import logger
@@ -354,6 +355,116 @@ async def restore_database_from_backup(
     finally:
         # Clean up temp file if it still exists (file-based path moves it away).
         # On Windows, sqlite3 may briefly hold a lock; ignore cleanup errors.
+        try:
+            if temp_path.exists():
+                temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+@router.post("/merge")
+async def merge_database_from_backup(
+    file: UploadFile = File(...),
+    dry_run: bool = False,
+    admin: User = Depends(require_admin),
+) -> dict:
+    """
+    Merge content records from an uploaded SQLite backup into the live database.
+
+    **ADMIN ONLY**: Requires superuser privileges.
+
+    Unlike a full restore, this operation **does not replace existing data**.
+    It imports clients, projects, runs, posts, briefs, research_results,
+    deliverables, communications, mined_stories, and story_usage.
+
+    The following are **never overwritten**: users, credit_transactions,
+    credit_packages, settings, stripe_payments, deletion_audit_log.
+
+    - Primary and foreign keys are remapped to avoid conflicts.
+    - Source users are matched to target users by email; unmatched source
+      users are assigned to the admin user.
+    - Duplicate records (same client name, same project/client, etc.) are
+      skipped automatically.
+
+    Args:
+        file: Uploaded SQLite .db backup file to merge from
+        dry_run: If True, return a preview of what would be merged without
+            writing any data (the full merge logic runs inside a rolled-back
+            transaction, so counts are accurate)
+        admin: Authenticated admin user (verified by require_admin dependency)
+
+    Returns:
+        dict: Per-table merged/skipped counts, user mapping, and warnings
+
+    Raises:
+        HTTPException 400: Invalid file
+        HTTPException 403: Not an admin
+        HTTPException 500: Merge failed
+    """
+    logger.info(
+        f"Admin {admin.email} initiating database merge "
+        f"from {file.filename} (dry_run={dry_run})"
+    )
+
+    if not file.filename or not file.filename.endswith(".db"):
+        raise HTTPException(status_code=400, detail="Invalid file type. Must be a .db file")
+
+    contents = await file.read()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    backup_dir = Path("data/backups")
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    temp_path = backup_dir / f"temp_merge_{timestamp}.db"
+
+    try:
+        temp_path.write_bytes(contents)
+
+        # Validate the uploaded file is a readable SQLite database
+        validation_error = None
+        check_conn = None
+        try:
+            check_conn = sqlite3.connect(str(temp_path))
+            tables = check_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table';"
+            ).fetchall()
+            if not tables:
+                validation_error = ValueError("Backup contains no tables")
+        except Exception as e:
+            validation_error = e
+        finally:
+            if check_conn is not None:
+                check_conn.close()
+        if validation_error is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid SQLite backup file: {validation_error}",
+            )
+
+        merger = DatabaseMerger(temp_path, engine)
+        result = merger.merge(dry_run=dry_run)
+
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "message": (
+                "Merge preview complete — no data was written"
+                if dry_run
+                else "Database merge completed successfully"
+            ),
+            "merged": result.merged,
+            "skipped": result.skipped,
+            "total_merged": result.total_merged,
+            "total_skipped": result.total_skipped,
+            "user_mapping": result.user_mapping,
+            "warnings": result.warnings,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Database merge failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Database merge failed: {e}")
+    finally:
         try:
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)

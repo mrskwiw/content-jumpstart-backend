@@ -43,6 +43,7 @@ import {
   Search,
   UserPlus,
   Gift,
+  GitMerge,
 } from 'lucide-react';
 
 // Interfaces
@@ -76,6 +77,18 @@ interface WorkflowRule {
     daysDelay?: number;
     minScore?: number;
   };
+}
+
+interface MergePreviewResult {
+  success: boolean;
+  dry_run: boolean;
+  message: string;
+  merged: Record<string, number>;
+  skipped: Record<string, number>;
+  total_merged: number;
+  total_skipped: number;
+  user_mapping: Record<string, string>;
+  warnings: string[];
 }
 
 // Mock data
@@ -196,6 +209,9 @@ export default function Settings() {
   const [workflowConfigs, setWorkflowConfigs] = useState<Record<string, WorkflowRule['config']>>({});
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
+  const [mergeFile, setMergeFile] = useState<File | null>(null);
+  const [showMergeConfirm, setShowMergeConfirm] = useState(false);
+  const [mergePreview, setMergePreview] = useState<MergePreviewResult | null>(null);
   const [showConfigureModal, setShowConfigureModal] = useState<Integration | null>(null);
 
   // Grant credits state (super admin only)
@@ -451,6 +467,64 @@ export default function Settings() {
     },
     onError: (error: Error) => {
       alert(`Restore failed: ${error.message}`);
+    },
+  });
+
+  // Database merge — dry-run preview
+  const previewMergeMutation = useMutation({
+    mutationFn: async (file: File): Promise<MergePreviewResult> => {
+      const token = localStorage.getItem('access_token');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/database/merge?dry_run=true', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Preview failed');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setMergePreview(data);
+    },
+    onError: (error: Error) => {
+      alert(`Merge preview failed: ${error.message}`);
+    },
+  });
+
+  // Database merge — execute
+  const executeMergeMutation = useMutation({
+    mutationFn: async (file: File): Promise<MergePreviewResult> => {
+      const token = localStorage.getItem('access_token');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/database/merge', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Merge failed');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries();
+      setShowMergeConfirm(false);
+      setMergeFile(null);
+      setMergePreview(null);
+      alert(
+        `Merge complete: ${data.total_merged} records imported` +
+        (data.total_skipped > 0 ? `, ${data.total_skipped} duplicates skipped` : '') +
+        '.'
+      );
+    },
+    onError: (error: Error) => {
+      alert(`Merge failed: ${error.message}`);
     },
   });
 
@@ -1329,6 +1403,136 @@ export default function Settings() {
             </div>
           </div>
 
+          {/* Merge section */}
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-1">Merge from Backup</h3>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+              Import clients, projects, posts, and related content from another database backup
+              without replacing your current users, credits, or settings. Duplicate records are
+              skipped automatically.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                  Select Backup File (.db)
+                </label>
+                <input
+                  type="file"
+                  accept=".db"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setMergeFile(file);
+                    setMergePreview(null);
+                  }}
+                  className="block w-full text-sm text-neutral-500 dark:text-neutral-400
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-medium
+                    file:bg-primary-50 dark:file:bg-primary-900/20 file:text-primary-700 dark:file:text-primary-400
+                    hover:file:bg-primary-100 dark:hover:file:bg-primary-900/30
+                    cursor-pointer"
+                />
+              </div>
+
+              {mergeFile && (
+                <div className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-neutral-500 dark:text-neutral-400" />
+                    <span className="text-sm text-neutral-700 dark:text-neutral-300">{mergeFile.name}</span>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      ({(mergeFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setMergeFile(null); setMergePreview(null); }}
+                    className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => mergeFile && previewMergeMutation.mutate(mergeFile)}
+                disabled={!mergeFile || previewMergeMutation.isPending || executeMergeMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {previewMergeMutation.isPending ? (
+                  <><RefreshCw className="h-4 w-4 animate-spin" />Analyzing...</>
+                ) : (
+                  <><GitMerge className="h-4 w-4" />Preview Merge</>
+                )}
+              </button>
+
+              {/* Preview results */}
+              {mergePreview && (
+                <div className="rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 p-4 space-y-3">
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                    Preview: {mergePreview.total_merged} records to import,{' '}
+                    {mergePreview.total_skipped} duplicates to skip
+                  </p>
+
+                  {Object.keys(mergePreview.merged).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Will import:</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        {Object.entries(mergePreview.merged).map(([table, count]) => (
+                          <div key={table} className="flex justify-between text-xs text-blue-700 dark:text-blue-400">
+                            <span className="capitalize">{table.replace('_', ' ')}</span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Object.keys(mergePreview.skipped).length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Will skip (duplicates):</p>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                        {Object.entries(mergePreview.skipped).map(([table, count]) => (
+                          <div key={table} className="flex justify-between text-xs text-blue-600 dark:text-blue-500">
+                            <span className="capitalize">{table.replace('_', ' ')}</span>
+                            <span>{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {mergePreview.warnings.length > 0 && (
+                    <div className="space-y-1">
+                      {mergePreview.warnings.map((w, i) => (
+                        <div key={i} className="flex gap-2 text-xs text-amber-700 dark:text-amber-400">
+                          <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                          <span>{w}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {mergePreview.total_merged > 0 && (
+                    <button
+                      onClick={() => setShowMergeConfirm(true)}
+                      disabled={executeMergeMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 dark:bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
+                    >
+                      <GitMerge className="h-4 w-4" />
+                      Confirm Merge
+                    </button>
+                  )}
+
+                  {mergePreview.total_merged === 0 && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Nothing to import — all records already exist in the current database.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
             <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Database Information</h3>
             <div className="space-y-2 text-sm">
@@ -1398,6 +1602,59 @@ export default function Settings() {
                     <Upload className="h-4 w-4" />
                     Restore Database
                   </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Confirmation Modal */}
+      {showMergeConfirm && mergeFile && mergePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="rounded-full bg-blue-100 dark:bg-blue-900/20 p-3">
+                <GitMerge className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Confirm Database Merge</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  This will import {mergePreview.total_merged} records from{' '}
+                  <span className="font-medium">{mergeFile.name}</span>.
+                  Your current users and credits will not be affected.
+                </p>
+              </div>
+            </div>
+
+            {mergePreview.warnings.length > 0 && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 mb-6 space-y-1">
+                {mergePreview.warnings.map((w, i) => (
+                  <div key={i} className="flex gap-2 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                    <span>{w}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowMergeConfirm(false)}
+                disabled={executeMergeMutation.isPending}
+                className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeMergeMutation.mutate(mergeFile)}
+                disabled={executeMergeMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 dark:bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
+              >
+                {executeMergeMutation.isPending ? (
+                  <><RefreshCw className="h-4 w-4 animate-spin" />Merging...</>
+                ) : (
+                  <><GitMerge className="h-4 w-4" />Merge Database</>
                 )}
               </button>
             </div>
