@@ -151,7 +151,7 @@ class Settings(BaseSettings):
 
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = 10
-    ALLOWED_BRIEF_EXTENSIONS: str = ".txt,.md"
+    ALLOWED_BRIEF_EXTENSIONS: str = ".txt,.md,.docx"
 
     @property
     def allowed_extensions_list(self) -> List[str]:

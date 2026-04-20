@@ -100,12 +100,12 @@ export function BriefImportSection({ onImport }: BriefImportSectionProps) {
       {isOpen && (
         <div className="mt-4 space-y-4">
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Upload a client brief file (.txt or .md) to auto-populate form fields.
+            Upload a client brief file (.txt, .md, or .docx) to auto-populate form fields.
           </p>
 
           <FileUpload
-            accept=".txt,.md"
-            maxSizeMB={0.05}
+            accept=".txt,.md,.docx"
+            maxSizeMB={5}
             onFileSelect={setFile}
             disabled={isUploading}
           />

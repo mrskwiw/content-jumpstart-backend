@@ -1,9 +1,13 @@
 """Briefs router"""
 
 import asyncio
+import io
 import sys
 import time
 from pathlib import Path
+from typing import Literal
+
+import docx  # python-docx
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from backend.middleware.auth_dependency import get_current_user
@@ -21,6 +25,52 @@ from backend.utils.http_rate_limiter import standard_limiter, lenient_limiter
 from src.validators.prompt_injection_defense import sanitize_prompt_input
 
 router = APIRouter()
+
+# Maximum raw file sizes for brief uploads/parsing
+_MAX_TEXT_BYTES = 51_200  # 50 KB for .txt / .md
+_MAX_DOCX_BYTES = 5_242_880  # 5 MB for .docx (binary container; text content is small)
+
+
+def _extract_brief_text(content: bytes, file_ext: str) -> str:
+    """
+    Extract plain text from a brief file.
+
+    For .txt and .md files the bytes are decoded as UTF-8.
+    For .docx files python-docx is used to extract paragraph and table text.
+
+    Args:
+        content:  Raw file bytes.
+        file_ext: Lowercase file extension including the dot (e.g. ".docx").
+
+    Returns:
+        Extracted plain-text string.
+
+    Raises:
+        ValueError: If the file cannot be decoded or parsed.
+    """
+    if file_ext == ".docx":
+        try:
+            document = docx.Document(io.BytesIO(content))
+        except Exception as exc:
+            raise ValueError(f"Could not read .docx file: {exc}") from exc
+
+        lines: list[str] = []
+        for para in document.paragraphs:
+            text = para.text.strip()
+            if text:
+                lines.append(text)
+        for table in document.tables:
+            for row in table.rows:
+                row_text = "\t".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                if row_text:
+                    lines.append(row_text)
+        return "\n".join(lines)
+
+    # .txt / .md — plain UTF-8
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"File must be UTF-8 encoded: {exc}") from exc
 
 
 @router.post("/create", response_model=BriefResponse, status_code=status.HTTP_201_CREATED)
@@ -114,16 +164,22 @@ async def upload_brief_file(
         )
 
     # Check file extension
-    file_ext = Path(file.filename).suffix.lower()
+    file_ext = Path(file.filename or "").suffix.lower()
     if file_ext not in settings.allowed_extensions_list:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid file type. Allowed: {settings.ALLOWED_BRIEF_EXTENSIONS}",
         )
 
-    # Read file content
+    # Read and extract file content
     content = await file.read()
-    text_content = content.decode("utf-8")
+    try:
+        text_content = _extract_brief_text(content, file_ext)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
     # SECURITY (TR-020): Sanitize uploaded brief content before saving
     try:
@@ -180,29 +236,30 @@ async def parse_brief_file(
     """
     start_time = time.time()
 
-    # Validate file extension (.txt, .md only)
-    file_ext = Path(file.filename).suffix.lower()
-    if file_ext not in [".txt", ".md"]:
+    # Validate file extension (.txt, .md, .docx)
+    file_ext = Path(file.filename or "").suffix.lower()
+    if file_ext not in [".txt", ".md", ".docx"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": "INVALID_FILE_TYPE",
-                "message": "Only .txt and .md files are supported",
+                "message": "Only .txt, .md, and .docx files are supported",
                 "details": {"filename": file.filename, "extension": file_ext},
             },
         )
 
-    # Validate file size (< 50KB)
+    # Validate file size — .docx is a binary container so its raw size is larger
     content = await file.read()
     file_size = len(content)
-    max_size = 51200  # 50KB
+    max_size = _MAX_DOCX_BYTES if file_ext == ".docx" else _MAX_TEXT_BYTES
+    max_label = "5MB" if file_ext == ".docx" else "50KB"
 
     if file_size > max_size:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": "FILE_TOO_LARGE",
-                "message": "File must be less than 50KB",
+                "message": f"File must be less than {max_label}",
                 "details": {
                     "filename": file.filename,
                     "sizeBytes": file_size,
@@ -211,16 +268,16 @@ async def parse_brief_file(
             },
         )
 
-    # Decode UTF-8
+    # Extract plain text from the file
     try:
-        text_content = content.decode("utf-8")
-    except UnicodeDecodeError as e:
+        text_content = _extract_brief_text(content, file_ext)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": "ENCODING_ERROR",
-                "message": "File must be UTF-8 encoded",
-                "details": {"filename": file.filename, "error": str(e)},
+                "message": str(e),
+                "details": {"filename": file.filename},
             },
         )
 
@@ -338,6 +395,8 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
 
     for field_name, field_value in field_mapping.items():
         # Determine confidence based on field completeness
+        confidence: Literal["high", "medium", "low"]
+        value: str | None
         if field_value is None or field_value == "" or field_value == []:
             confidence = "low"
             value = None
@@ -358,7 +417,7 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
                 confidence = "medium"
             else:
                 confidence = "low"
-            value = field_value if field_value else None
+            value = ", ".join(str(item) for item in field_value) if field_value else None
         else:
             # Other types (enums, etc.)
             confidence = "high" if field_value else "low"
