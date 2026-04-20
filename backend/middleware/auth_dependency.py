@@ -1,6 +1,7 @@
 """
 Authentication dependency for protected routes.
 """
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from backend.services import crud
@@ -13,9 +14,10 @@ from backend.utils.auth import decode_token
 
 class HTTPBearerWith401(HTTPBearer):
     """Custom HTTPBearer that returns 401 instead of 403 for missing credentials"""
+
     async def __call__(self, request: Request) -> HTTPAuthorizationCredentials:
         try:
-            return await super().__call__(request)
+            result = await super().__call__(request)
         except HTTPException as e:
             # Convert 403 to 401 for missing/invalid credentials
             if e.status_code == status.HTTP_403_FORBIDDEN:
@@ -25,6 +27,15 @@ class HTTPBearerWith401(HTTPBearer):
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             raise
+        if result is None:
+            # auto_error=True (default) always raises before returning None,
+            # but the parent's return type is Optional — guard for mypy.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return result
 
 
 security = HTTPBearerWith401()
@@ -43,6 +54,7 @@ async def get_current_user(
             return {"user": current_user.email}
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     token = credentials.credentials

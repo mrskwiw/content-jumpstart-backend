@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -94,9 +95,15 @@ def _backup_in_memory_db(backup_path: Path) -> None:
     """
     raw_conn = engine.raw_connection()
     try:
+        # raw_connection() returns a PoolProxiedConnection; unwrap to the real
+        # sqlite3.Connection so we can call its backup() method.
+        actual_src = cast(
+            sqlite3.Connection,
+            getattr(raw_conn, "driver_connection", None) or raw_conn,
+        )
         dest = sqlite3.connect(str(backup_path))
         try:
-            raw_conn.backup(dest)
+            actual_src.backup(dest)
         finally:
             dest.close()
     finally:
@@ -201,7 +208,7 @@ async def restore_database_from_backup(
         temp_path.write_bytes(contents)
 
         # Validate it is a readable SQLite database with at least one table
-        validation_error = None
+        validation_error: Exception | None = None
         check_conn = None
         try:
             check_conn = sqlite3.connect(str(temp_path))
@@ -237,8 +244,10 @@ async def restore_database_from_backup(
                 # engine.raw_connection() returns a _ConnectionFairy (SQLAlchemy proxy).
                 # sqlite3.Connection.backup() requires a real sqlite3.Connection as
                 # target — unwrap via driver_connection (SA 2.0) or connection (SA 1.4).
-                actual_dest = (
-                    getattr(dest_fairy, "driver_connection", None) or dest_fairy.connection
+                actual_dest = cast(
+                    sqlite3.Connection,
+                    getattr(dest_fairy, "driver_connection", None)
+                    or getattr(dest_fairy, "connection", dest_fairy),
                 )
                 src_conn.backup(actual_dest)
                 dest_fairy.commit()
@@ -420,7 +429,7 @@ async def merge_database_from_backup(
         temp_path.write_bytes(contents)
 
         # Validate the uploaded file is a readable SQLite database
-        validation_error = None
+        validation_error: Exception | None = None
         check_conn = None
         try:
             check_conn = sqlite3.connect(str(temp_path))
