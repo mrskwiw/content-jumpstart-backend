@@ -11,7 +11,9 @@ import docx  # python-docx
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from backend.middleware.auth_dependency import get_current_user
-from backend.middleware.authorization import verify_brief_ownership  # TR-021: Authorization
+from backend.middleware.authorization import (
+    verify_brief_ownership,
+)  # TR-021: Authorization
 from backend.schemas.brief import BriefCreate, BriefResponse
 from backend.services import crud
 from sqlalchemy.orm import Session
@@ -107,7 +109,8 @@ async def create_brief_from_text(
     existing_brief = crud.get_brief_by_project(db, brief.project_id)
     if existing_brief:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Brief already exists for this project"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Brief already exists for this project",
         )
 
     # SECURITY (TR-020): Sanitize brief content before saving (will be passed to LLM later)
@@ -396,7 +399,7 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
             else []
         ),
         "postingFrequency": parsed_brief.posting_frequency,
-        "dataUsage": parsed_brief.data_usage.value if parsed_brief.data_usage else "moderate",
+        "dataUsage": (parsed_brief.data_usage.value if parsed_brief.data_usage else "moderate"),
         "customerPainPoints": parsed_brief.customer_pain_points,
         "customerQuestions": parsed_brief.customer_questions,
         "mainCta": parsed_brief.main_cta,
@@ -408,7 +411,7 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
     for field_name, field_value in field_mapping.items():
         # Determine confidence based on field completeness
         confidence: Literal["high", "medium", "low"]
-        value: str | None
+        value: str | list | None
         if field_value is None or field_value == "" or field_value == []:
             confidence = "low"
             value = None
@@ -422,20 +425,21 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
                 confidence = "low"
             value = field_value if field_value else None
         elif isinstance(field_value, list):
-            # List fields: high if 2+ items, medium if 1 item, low if empty
+            # List fields: keep as list so the frontend can spread them correctly.
+            # high if 2+ items, medium if 1 item, low if empty.
             if len(field_value) >= 2:
                 confidence = "high"
             elif len(field_value) == 1:
                 confidence = "medium"
             else:
                 confidence = "low"
-            value = ", ".join(str(item) for item in field_value) if field_value else None
+            value = field_value if field_value else None
         else:
             # Other types (enums, etc.)
             confidence = "high" if field_value else "low"
             value = field_value
 
-        # Try to find source line number (approximate)
+        # Try to find source line number (approximate) — only for string values
         source = None
         if value and isinstance(value, str):
             lines = original_text.split("\n")
