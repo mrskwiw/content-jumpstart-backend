@@ -315,6 +315,15 @@ export const ClientBriefSchema = z.object({
   keywords: z.array(z.string()).optional(),
   competitors: z.array(z.string()).optional(),
   location: z.string().optional(),
+  founderName: z.string().optional(),
+  brandPersonality: z.array(z.string()).optional(),
+  toneToAvoid: z.string().optional(),
+  dataUsage: z.string().optional(),
+  stories: z.array(z.string()).optional(),
+  misconceptions: z.array(z.string()).optional(),
+  measurableResults: z.string().optional(),
+  postingFrequency: z.string().optional(),
+  mainCta: z.string().optional(),
 });
 export type ClientBrief = z.infer<typeof ClientBriefSchema>;
 
