@@ -14,17 +14,26 @@ interface Props {
 export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: _projectId, initialData, onSave }: Props) {
   const [formData, setFormData] = useState<Partial<ClientBrief>>({
     companyName: initialData?.companyName || '',
+    founderName: initialData?.founderName || '',
     industry: initialData?.industry || '',
     location: initialData?.location || '',
     businessDescription: initialData?.businessDescription || '',
     idealCustomer: initialData?.idealCustomer || '',
     mainProblemSolved: initialData?.mainProblemSolved || '',
     tonePreference: initialData?.tonePreference || 'professional',
+    toneToAvoid: initialData?.toneToAvoid || '',
+    brandPersonality: initialData?.brandPersonality || [],
+    dataUsage: initialData?.dataUsage || 'moderate',
     platforms: initialData?.platforms || [],
     customerPainPoints: initialData?.customerPainPoints || [],
     customerQuestions: initialData?.customerQuestions || [],
     keywords: initialData?.keywords || [],
     competitors: initialData?.competitors || [],
+    stories: initialData?.stories || [],
+    misconceptions: initialData?.misconceptions || [],
+    measurableResults: initialData?.measurableResults || '',
+    postingFrequency: initialData?.postingFrequency || '',
+    mainCta: initialData?.mainCta || '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -34,6 +43,9 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
   const [answer, setAnswer] = useState('');
   const [keyword, setKeyword] = useState('');
   const [competitor, setCompetitor] = useState('');
+  const [personalityTrait, setPersonalityTrait] = useState('');
+  const [story, setStory] = useState('');
+  const [misconception, setMisconception] = useState('');
 
   // Brief import state
   const [showPreview, setShowPreview] = useState(false);
@@ -44,16 +56,26 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
     if (initialData) {
       setFormData({
         companyName: initialData.companyName || '',
+        founderName: initialData.founderName || '',
         industry: initialData.industry || '',
+        location: initialData.location || '',
         businessDescription: initialData.businessDescription || '',
         idealCustomer: initialData.idealCustomer || '',
         mainProblemSolved: initialData.mainProblemSolved || '',
         tonePreference: initialData.tonePreference || 'professional',
+        toneToAvoid: initialData.toneToAvoid || '',
+        brandPersonality: initialData.brandPersonality || [],
+        dataUsage: initialData.dataUsage || 'moderate',
         platforms: initialData.platforms || [],
         customerPainPoints: initialData.customerPainPoints || [],
         customerQuestions: initialData.customerQuestions || [],
         keywords: initialData.keywords || [],
         competitors: initialData.competitors || [],
+        stories: initialData.stories || [],
+        misconceptions: initialData.misconceptions || [],
+        measurableResults: initialData.measurableResults || '',
+        postingFrequency: initialData.postingFrequency || '',
+        mainCta: initialData.mainCta || '',
       });
     }
   }, [initialData]);
@@ -142,6 +164,39 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
   };
 
 
+  const addPersonalityTrait = () => {
+    if (personalityTrait.trim()) {
+      setFormData({ ...formData, brandPersonality: [...(formData.brandPersonality || []), personalityTrait.trim()] });
+      setPersonalityTrait('');
+    }
+  };
+
+  const removePersonalityTrait = (index: number) => {
+    setFormData({ ...formData, brandPersonality: (formData.brandPersonality || []).filter((_, i) => i !== index) });
+  };
+
+  const addStory = () => {
+    if (story.trim()) {
+      setFormData({ ...formData, stories: [...(formData.stories || []), story.trim()] });
+      setStory('');
+    }
+  };
+
+  const removeStory = (index: number) => {
+    setFormData({ ...formData, stories: (formData.stories || []).filter((_, i) => i !== index) });
+  };
+
+  const addMisconception = () => {
+    if (misconception.trim()) {
+      setFormData({ ...formData, misconceptions: [...(formData.misconceptions || []), misconception.trim()] });
+      setMisconception('');
+    }
+  };
+
+  const removeMisconception = (index: number) => {
+    setFormData({ ...formData, misconceptions: (formData.misconceptions || []).filter((_, i) => i !== index) });
+  };
+
   // Brief import handlers
   const handleBriefImport = (parsed: ParsedBriefResponse) => {
     setImportedData(parsed);
@@ -157,11 +212,18 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
     // String fields: Use imported if current is empty
     const stringFields: (keyof ClientBrief)[] = [
       'companyName',
+      'founderName',
       'industry',
+      'location',
       'businessDescription',
       'idealCustomer',
       'mainProblemSolved',
       'tonePreference',
+      'toneToAvoid',
+      'dataUsage',
+      'measurableResults',
+      'postingFrequency',
+      'mainCta',
     ];
 
     stringFields.forEach((field) => {
@@ -180,6 +242,11 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
       'platforms',
       'customerPainPoints',
       'customerQuestions',
+      'keywords',
+      'competitors',
+      'brandPersonality',
+      'stories',
+      'misconceptions',
     ];
 
     arrayFields.forEach((field) => {
@@ -248,7 +315,7 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
         <div>
           <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
             <User className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
-            Company Name
+            Company / Business Name
           </label>
           <input
             type="text"
@@ -260,6 +327,24 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
             }`}
           />
           {errors.companyName && <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors.companyName}</p>}
+        </div>
+
+        {/* Founder Name */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <User className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Founder / Primary Voice Name
+          </label>
+          <input
+            type="text"
+            value={formData.founderName ?? ''}
+            onChange={(e) => setFormData({ ...formData, founderName: e.target.value })}
+            placeholder="e.g., Dr. Sarah Kim, John Smith"
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
+            Used in personal brand content templates.
+          </p>
         </div>
 
         {/* Industry */}
@@ -415,6 +500,116 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Tone to Avoid */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <MessageSquare className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Tone to Avoid
+          </label>
+          <input
+            type="text"
+            value={formData.toneToAvoid ?? ''}
+            onChange={(e) => setFormData({ ...formData, toneToAvoid: e.target.value })}
+            placeholder="e.g., salesy, corporate jargon, overly casual"
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+          />
+        </div>
+
+        {/* Brand Personality */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-800 dark:text-neutral-200">Brand Personality Traits</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={personalityTrait}
+              onChange={(e) => setPersonalityTrait(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addPersonalityTrait())}
+              placeholder="e.g., Direct, Witty, Warm, Data-driven"
+              className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 px-3 py-2 text-sm"
+            />
+            <button type="button" onClick={addPersonalityTrait} className="rounded-md bg-slate-100 dark:bg-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-neutral-200 hover:bg-slate-200 dark:hover:bg-slate-600">Add</button>
+          </div>
+          {(formData.brandPersonality || []).length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1">
+              {formData.brandPersonality?.map((trait, i) => (
+                <li key={i} className="inline-flex items-center gap-1 rounded-full bg-orange-50 dark:bg-orange-900/20 px-3 py-1 text-sm text-orange-800 dark:text-orange-300">
+                  <span>{trait}</span>
+                  <button onClick={() => removePersonalityTrait(i)} className="text-orange-600 dark:text-orange-400 hover:text-orange-800 font-bold">×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">Choose 2–4 traits. Controls content voice and style.</p>
+        </div>
+
+        {/* Data Usage */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <Lightbulb className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Data & Statistics Usage
+          </label>
+          <select
+            value={formData.dataUsage ?? 'moderate'}
+            onChange={(e) => setFormData({ ...formData, dataUsage: e.target.value })}
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 px-3 py-2 text-sm"
+          >
+            <option value="heavy">Heavy — loves numbers and stats</option>
+            <option value="moderate">Moderate — mix of story and data</option>
+            <option value="minimal">Minimal — personal/anecdotal preferred</option>
+          </select>
+        </div>
+
+        {/* Posting Frequency */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <MessageSquare className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Desired Posting Frequency
+          </label>
+          <input
+            type="text"
+            value={formData.postingFrequency ?? ''}
+            onChange={(e) => setFormData({ ...formData, postingFrequency: e.target.value })}
+            placeholder="e.g., 3-4x weekly, daily, 2x per week"
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+          />
+        </div>
+
+        {/* Main CTA */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <Target className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Primary Call to Action
+          </label>
+          <input
+            type="text"
+            value={formData.mainCta ?? ''}
+            onChange={(e) => setFormData({ ...formData, mainCta: e.target.value })}
+            placeholder="e.g., Book a free consultation, Download the guide"
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
+            Appended to every post. Use a statement, not a question.
+          </p>
+        </div>
+
+        {/* Measurable Results */}
+        <div>
+          <label className="mb-1 flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-neutral-200">
+            <Lightbulb className="h-4 w-4 text-slate-600 dark:text-neutral-400" />
+            Measurable Results / Proof Points
+          </label>
+          <textarea
+            value={formData.measurableResults ?? ''}
+            onChange={(e) => setFormData({ ...formData, measurableResults: e.target.value })}
+            placeholder="e.g., 90% of clients report lower anxiety, 47% of new clients are referrals, reduced sales cycle from 90 to 45 days"
+            rows={3}
+            className="w-full rounded-md border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500"
+          />
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">
+            Stats, percentages, and outcomes used in content to build credibility.
+          </p>
         </div>
 
         {/* Customer Pain Points */}
@@ -601,6 +796,60 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
               })}
             </ul>
           )}
+        </div>
+
+        {/* Stories */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-800 dark:text-neutral-200">Stories / Founder Journey / Customer Wins</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={story}
+              onChange={(e) => setStory(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addStory())}
+              placeholder="e.g., Helped a client cut their sales cycle in half"
+              className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 px-3 py-2 text-sm"
+            />
+            <button type="button" onClick={addStory} className="rounded-md bg-slate-100 dark:bg-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-neutral-200 hover:bg-slate-200 dark:hover:bg-slate-600">Add</button>
+          </div>
+          {(formData.stories || []).length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {formData.stories?.map((s, i) => (
+                <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100">
+                  <span>{s}</span>
+                  <button onClick={() => removeStory(i)} className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300">×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">Used in personal story and case study templates.</p>
+        </div>
+
+        {/* Misconceptions / Topics to Avoid */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-800 dark:text-neutral-200">Industry Misconceptions / Topics to Avoid</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={misconception}
+              onChange={(e) => setMisconception(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addMisconception())}
+              placeholder="e.g., 'You need 10k followers to get clients'"
+              className="flex-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-100 placeholder:text-slate-400 dark:placeholder:text-neutral-500 px-3 py-2 text-sm"
+            />
+            <button type="button" onClick={addMisconception} className="rounded-md bg-slate-100 dark:bg-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-neutral-200 hover:bg-slate-200 dark:hover:bg-slate-600">Add</button>
+          </div>
+          {(formData.misconceptions || []).length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {formData.misconceptions?.map((m, i) => (
+                <li key={i} className="flex items-center justify-between rounded-md bg-slate-50 dark:bg-neutral-800 px-3 py-2 text-sm text-slate-900 dark:text-neutral-100">
+                  <span>{m}</span>
+                  <button onClick={() => removeMisconception(i)} className="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300">×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-1 text-xs text-slate-500 dark:text-neutral-400">Myths or claims to debunk in content. Also used to avoid sensitive topics.</p>
         </div>
 
         {/* Save Button */}

@@ -213,6 +213,7 @@ Extract the following information and format it as JSON:
   "customer_pain_points": ["pain point 1", ...],
   "customer_questions": ["question 1", ...],
   "tone_preference": "professional",
+  "tone_to_avoid": "What tone they do NOT want",
   "brand_personality": ["approachable", "direct"],
   "key_phrases": ["phrase 1", ...],
   "target_platforms": ["LinkedIn", "Twitter"],
@@ -281,12 +282,25 @@ FIELD-SPECIFIC EXTRACTION RULES:
 
 11. **data_usage**: "minimal", "moderate", or "heavy"
 
+12. **tone_to_avoid**: Search Section 9 "How You Communicate" for the "What tone do you NOT want?" answer
+    - Also search for: "avoid", "don't want", "turns off", "hate", "never"
+
+13. **PRE-CALL INTERVIEW SECTION MAPPING** — if the document has numbered sections like "SECTION 1", "SECTION 4", "SECTION 5", "SECTION 9":
+    - **company_name**: Look for "Business Name:" field at top of document or Section 1
+    - **Section 4 (AUDIENCE)**: Extract "Describe your ideal customer" → ideal_customer; "What's their biggest problem" → main_problem_solved; "What questions do your customers ask you most?" numbered list (Q1-Q5) → customer_questions; if Answer lines follow each question, use those answers to enrich the question text: format as "Q: [question] / A: [answer]"
+    - **Section 5 (COMPETITION)**: "Who are your top 3 competitors?" numbered list → competitors (extract ONLY the names from slots 1, 2, 3); "How are you different" → key differentiator for business_description
+    - **Section 7 (MARKETING EFFORTS)**: "Rank your current marketing channels" → contributes to keywords and target_platforms
+    - **Section 9 (VOICE & PERSONALITY)**: "How would you describe your brand personality?" → brand_personality traits; "What tone do you NOT want?" → tone_to_avoid; "Do you use data/statistics?" checkbox → data_usage (Yes=heavy, Sometimes=moderate, No=minimal); "Do you have any personal story?" → stories
+    - **Section 3 (RESULTS)**: "what results are you seeing?" → measurable_results
+    - **Section 2 (CONTENT)**: "What platforms/channels are you using?" checkboxes → target_platforms; "How often?" → posting_frequency
+
 SEARCH STRATEGY:
 1. Read ENTIRE brief from start to finish
 2. Check sections: About, Additional Context, Data Usage, CTA Preferences, Background, Team, Stats, Topics
-3. Extract implicit data: infer keywords from content, convert topics to questions, find names in narratives
-4. When in doubt, INCLUDE the information
-5. Only leave empty if NO information exists ANYWHERE
+3. For pre-call interview format: map each numbered section per rule 13 above
+4. Extract implicit data: infer keywords from content, convert topics to questions, find names in narratives
+5. When in doubt, INCLUDE the information
+6. Only leave empty if NO information exists ANYWHERE
 
 Return ONLY the JSON, no additional commentary."""
 

@@ -219,6 +219,24 @@ def init_db():
                     "location",
                     "VARCHAR",
                 ),  # Geographic location/region for market context
+                (
+                    "founder_name",
+                    "VARCHAR",
+                ),  # Founder/owner name for personal brand content
+                (
+                    "brand_personality",
+                    "JSON",
+                ),  # Brand personality traits (array of strings)
+                ("tone_to_avoid", "TEXT"),  # Tone/style the client does NOT want
+                ("data_usage", "VARCHAR"),  # heavy / moderate / minimal
+                (
+                    "stories",
+                    "JSON",
+                ),  # Founder journey, customer wins, anecdotes (array)
+                ("misconceptions", "JSON"),  # Industry myths / topics to avoid (array)
+                ("measurable_results", "TEXT"),  # Stats and proof points
+                ("posting_frequency", "VARCHAR"),  # Desired posting cadence
+                ("main_cta", "VARCHAR"),  # Primary call-to-action text
             ]
 
             # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)

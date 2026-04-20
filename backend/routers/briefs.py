@@ -377,20 +377,32 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
     # Map ClientBrief fields to extraction results
     field_mapping = {
         "companyName": parsed_brief.company_name,
+        "founderName": parsed_brief.founder_name,
         "businessDescription": parsed_brief.business_description,
         "industry": parsed_brief.industry,
+        "keywords": parsed_brief.keywords,
+        "competitors": parsed_brief.competitors,
+        "location": parsed_brief.location,
         "idealCustomer": parsed_brief.ideal_customer,
         "mainProblemSolved": parsed_brief.main_problem_solved,
         "tonePreference": (
             parsed_brief.tone_preference.value if parsed_brief.tone_preference else "professional"
         ),
+        "toneToAvoid": parsed_brief.tone_to_avoid,
+        "brandPersonality": parsed_brief.brand_personality,
         "platforms": (
             [p.value for p in parsed_brief.target_platforms]
             if parsed_brief.target_platforms
             else []
         ),
+        "postingFrequency": parsed_brief.posting_frequency,
+        "dataUsage": parsed_brief.data_usage.value if parsed_brief.data_usage else "moderate",
         "customerPainPoints": parsed_brief.customer_pain_points,
         "customerQuestions": parsed_brief.customer_questions,
+        "mainCta": parsed_brief.main_cta,
+        "measurableResults": parsed_brief.measurable_results,
+        "stories": parsed_brief.stories,
+        "misconceptions": parsed_brief.misconceptions,
     }
 
     for field_name, field_value in field_mapping.items():

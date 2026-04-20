@@ -115,20 +115,28 @@ class BriefParserAgent:
         try:
             client_brief = ClientBrief(
                 company_name=data.get("company_name", "Unknown Company"),
+                founder_name=data.get("founder_name"),
                 business_description=data.get("business_description", "No description provided"),
+                industry=data.get("industry"),
+                keywords=data.get("keywords", []),
+                competitors=data.get("competitors", []),
+                location=data.get("location"),
                 ideal_customer=data.get("ideal_customer", "Not specified"),
                 main_problem_solved=data.get("main_problem_solved", "Not specified"),
                 customer_pain_points=data.get("customer_pain_points", []),
                 customer_questions=data.get("customer_questions", []),
                 tone_preference=tone_preference,
+                tone_to_avoid=data.get("tone_to_avoid"),
                 brand_personality=brand_personality,
+                brand_voice=data.get("brand_voice"),
                 key_phrases=data.get("key_phrases", []),
                 target_platforms=target_platforms,
                 posting_frequency=data.get("posting_frequency", "3-4x weekly"),
                 data_usage=data_usage,
+                main_cta=data.get("main_cta"),
+                measurable_results=data.get("measurable_results"),
                 stories=data.get("stories", data.get("personal_stories", [])),
                 misconceptions=data.get("misconceptions", data.get("avoid_topics", [])),
-                industry=data.get("industry"),  # Extract industry for research tools
             )
 
             return client_brief

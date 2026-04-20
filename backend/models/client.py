@@ -45,10 +45,29 @@ class Client(Base, SoftDeleteMixin):
         String, nullable=True
     )  # Geographic location/region (e.g., "San Francisco", "USA", "Global") for market context
 
+    # Extended profile fields (from pre-call interview)
+    founder_name = Column(String, nullable=True)  # Founder/owner name for personal brand content
+    brand_personality = Column(
+        JSON, nullable=True
+    )  # Personality traits (e.g., ["direct", "witty"])
+    tone_to_avoid = Column(Text, nullable=True)  # Tone/style the client does NOT want
+    data_usage = Column(String, nullable=True, default="moderate")  # heavy / moderate / minimal
+    stories = Column(JSON, nullable=True)  # Founder journey, customer wins, anecdotes
+    misconceptions = Column(JSON, nullable=True)  # Industry myths / topics to avoid
+    measurable_results = Column(
+        Text, nullable=True
+    )  # Stats and proof points (e.g., "90% success rate")
+    posting_frequency = Column(
+        String, nullable=True
+    )  # Desired posting cadence (e.g., "3-4x weekly")
+    main_cta = Column(String, nullable=True)  # Primary call-to-action text
+
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     user = relationship("backend.models.user.User", foreign_keys=[user_id])  # TR-021: Client owner
     projects = relationship(
-        "backend.models.project.Project", back_populates="client", cascade="all, delete-orphan"
+        "backend.models.project.Project",
+        back_populates="client",
+        cascade="all, delete-orphan",
     )
     deliverables = relationship("backend.models.deliverable.Deliverable", back_populates="client")
     communications = relationship(

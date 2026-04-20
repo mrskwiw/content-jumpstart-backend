@@ -40,6 +40,15 @@ const ClientSchemaInput = z.object({
   keywords: z.array(z.string()).nullish(),
   competitors: z.array(z.string()).nullish(),
   location: z.string().nullish(),
+  founderName: z.string().nullish(),
+  brandPersonality: z.array(z.string()).nullish(),
+  toneToAvoid: z.string().nullish(),
+  dataUsage: z.string().nullish(),
+  stories: z.array(z.string()).nullish(),
+  misconceptions: z.array(z.string()).nullish(),
+  measurableResults: z.string().nullish(),
+  postingFrequency: z.string().nullish(),
+  mainCta: z.string().nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -59,6 +68,15 @@ const ClientSchemaOutput = z.object({
   keywords: z.array(z.string()).nullish(),
   competitors: z.array(z.string()).nullish(),
   location: z.string().nullish(),
+  founderName: z.string().nullish(),
+  brandPersonality: z.array(z.string()).nullish(),
+  toneToAvoid: z.string().nullish(),
+  dataUsage: z.string().nullish(),
+  stories: z.array(z.string()).nullish(),
+  misconceptions: z.array(z.string()).nullish(),
+  measurableResults: z.string().nullish(),
+  postingFrequency: z.string().nullish(),
+  mainCta: z.string().nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 

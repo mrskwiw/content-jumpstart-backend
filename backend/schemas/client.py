@@ -5,7 +5,14 @@ Pydantic schemas for Client API.
 from datetime import datetime
 from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, AliasChoices, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    AliasChoices,
+    field_serializer,
+)
 from backend.schemas.enums import Platform
 
 
@@ -13,7 +20,9 @@ class ClientBase(BaseModel):
     """Base client schema with camelCase/snake_case bidirectional support"""
 
     name: str = Field(
-        ..., validation_alias=AliasChoices("name", "companyName"), description="Client company name"
+        ...,
+        validation_alias=AliasChoices("name", "companyName"),
+        description="Client company name",
     )
     email: Optional[EmailStr] = Field(
         default=None,
@@ -62,6 +71,42 @@ class ClientBase(BaseModel):
     location: Optional[str] = Field(
         default=None,
         validation_alias=AliasChoices("location"),
+    )
+    founder_name: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("founder_name", "founderName"),
+    )
+    brand_personality: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("brand_personality", "brandPersonality"),
+    )
+    tone_to_avoid: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("tone_to_avoid", "toneToAvoid"),
+    )
+    data_usage: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("data_usage", "dataUsage"),
+    )
+    stories: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("stories"),
+    )
+    misconceptions: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("misconceptions"),
+    )
+    measurable_results: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("measurable_results", "measurableResults"),
+    )
+    posting_frequency: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("posting_frequency", "postingFrequency"),
+    )
+    main_cta: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("main_cta", "mainCta"),
     )
 
     model_config = ConfigDict(
@@ -144,6 +189,42 @@ class ClientUpdate(BaseModel):
         default=None,
         validation_alias=AliasChoices("location"),
     )
+    founder_name: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("founder_name", "founderName"),
+    )
+    brand_personality: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("brand_personality", "brandPersonality"),
+    )
+    tone_to_avoid: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("tone_to_avoid", "toneToAvoid"),
+    )
+    data_usage: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("data_usage", "dataUsage"),
+    )
+    stories: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("stories"),
+    )
+    misconceptions: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("misconceptions"),
+    )
+    measurable_results: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("measurable_results", "measurableResults"),
+    )
+    posting_frequency: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("posting_frequency", "postingFrequency"),
+    )
+    main_cta: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("main_cta", "mainCta"),
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,  # Accept both snake_case and camelCase
@@ -180,6 +261,17 @@ class ClientResponse(BaseModel):
     keywords: Optional[List[str]] = None
     competitors: Optional[List[str]] = None
     location: Optional[str] = None
+    founder_name: Optional[str] = Field(default=None, serialization_alias="founderName")
+    brand_personality: Optional[List[str]] = Field(
+        default=None, serialization_alias="brandPersonality"
+    )
+    tone_to_avoid: Optional[str] = Field(default=None, serialization_alias="toneToAvoid")
+    data_usage: Optional[str] = Field(default=None, serialization_alias="dataUsage")
+    stories: Optional[List[str]] = None
+    misconceptions: Optional[List[str]] = None
+    measurable_results: Optional[str] = Field(default=None, serialization_alias="measurableResults")
+    posting_frequency: Optional[str] = Field(default=None, serialization_alias="postingFrequency")
+    main_cta: Optional[str] = Field(default=None, serialization_alias="mainCta")
     created_at: datetime = Field(..., serialization_alias="createdAt")
 
     model_config = ConfigDict(
