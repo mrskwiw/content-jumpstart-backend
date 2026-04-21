@@ -16,6 +16,10 @@ interface ResearchDataCollectionPanelProps {
 
 // Client field → Tool input field mappings
 const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
+  voice_analysis: {
+    brandPersonality: 'brand_personality',
+    toneToAvoid: 'tone_to_avoid',
+  },
   seo_keyword_research: {
     keywords: 'main_topics',
     location: 'location',
@@ -82,6 +86,20 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       max: 30,
       placeholder: 'Paste a sample of client\'s writing (blog post, LinkedIn post, email, etc.)',
       helperText: 'Provide 5-30 samples of the client\'s existing writing (minimum 50 characters each). More samples = better voice analysis.'
+    }, {
+      key: 'brand_personality',
+      label: 'Declared Personality Traits (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., approachable, direct, data-driven',
+      helperText: '✨ Auto-populates from client profile. Used to validate whether the observed voice matches declared brand direction — highlights alignment gaps.'
+    }, {
+      key: 'tone_to_avoid',
+      label: 'Tone to Avoid (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., corporate jargon, overly salesy, condescending',
+      helperText: '✨ Auto-populates from client profile. If this tone is detected in the content samples it will be flagged in the analysis.'
     }]
   },
   seo_keyword_research: {

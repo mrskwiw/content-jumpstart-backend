@@ -132,6 +132,42 @@ class VoiceAnalyzer(ResearchTool, CommonValidationMixin):
 
         inputs["content_samples"] = validated_samples
 
+        # SECURITY: Validate optional brand personality hints (auto-populated from client profile)
+        brand_personality = inputs.get("brand_personality")
+        if brand_personality:
+            if isinstance(brand_personality, list):
+                inputs["brand_personality"] = [
+                    self.validator.validate_text(
+                        t,
+                        field_name="personality_hint",
+                        min_length=2,
+                        max_length=100,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for t in brand_personality[:10]
+                ]
+            elif isinstance(brand_personality, str):
+                inputs["brand_personality"] = self.validator.validate_text(
+                    brand_personality,
+                    field_name="brand_personality",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                )
+
+        # SECURITY: Validate optional tone_to_avoid (anti-pattern flag for analysis)
+        if "tone_to_avoid" in inputs and inputs["tone_to_avoid"]:
+            inputs["tone_to_avoid"] = self.validator.validate_text(
+                inputs.get("tone_to_avoid"),
+                field_name="tone_to_avoid",
+                min_length=2,
+                max_length=500,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> VoiceGuide:
@@ -167,7 +203,11 @@ class VoiceAnalyzer(ResearchTool, CommonValidationMixin):
         readability = self._analyze_readability(texts)
 
         # Use Claude to identify tone and personality
-        tone_personality = self._identify_tone_and_personality(texts)
+        brand_personality = inputs.get("brand_personality", [])
+        tone_to_avoid = inputs.get("tone_to_avoid", "")
+        tone_personality = self._identify_tone_and_personality(
+            texts, brand_personality=brand_personality, tone_to_avoid=tone_to_avoid
+        )
 
         # Calculate consistency
         consistency_score = self._calculate_consistency(texts)
@@ -517,16 +557,41 @@ class VoiceAnalyzer(ResearchTool, CommonValidationMixin):
         except (ZeroDivisionError, ValueError, TypeError):
             return {"score": 60.0, "level": "High school level (estimated)"}
 
-    def _identify_tone_and_personality(self, texts: List[str]) -> Dict[str, Any]:
+    def _identify_tone_and_personality(
+        self,
+        texts: List[str],
+        brand_personality: "list | str" = "",
+        tone_to_avoid: str = "",
+    ) -> Dict[str, Any]:
         """Use Claude to identify tone and personality traits"""
         # Sample 3-5 representative texts
         sample_texts = texts[:5]
+
+        # Build declared-direction context to surface in analysis
+        direction_lines = []
+        if brand_personality:
+            traits = (
+                ", ".join(brand_personality)
+                if isinstance(brand_personality, list)
+                else brand_personality
+            )
+            direction_lines.append(f"Declared personality traits: {traits}")
+        if tone_to_avoid:
+            direction_lines.append(f"Tone to avoid: {tone_to_avoid} — flag if detected in samples")
+        direction_context = (
+            (
+                "\n\nDECLARED BRAND DIRECTION (validate against samples — note alignment or gaps):\n"
+                + "\n".join(direction_lines)
+            )
+            if direction_lines
+            else ""
+        )
 
         prompt = f"""Analyze the following content samples and identify the writing voice characteristics.
 
 SAMPLES:
 ---
-{chr(10).join([f"Sample {i+1}:{chr(10)}{text}{chr(10)}---" for i, text in enumerate(sample_texts)])}
+{chr(10).join([f"Sample {i+1}:{chr(10)}{text}{chr(10)}---" for i, text in enumerate(sample_texts)])}{direction_context}
 
 EXAMPLE OUTPUT:
 {{
