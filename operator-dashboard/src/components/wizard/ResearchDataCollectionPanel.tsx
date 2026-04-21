@@ -36,7 +36,9 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   market_trends_research: {
     industry: 'industry',
-    location: 'location'
+    location: 'location',
+    customerPainPoints: 'customer_pain_points',
+    misconceptions: 'misconceptions',
   },
   platform_strategy: {
     platforms: 'current_platforms',
@@ -253,6 +255,20 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'e.g., San Francisco, CA',
       helperText: '✨ Auto-populates from client profile. When set, also pulls Google Maps reviews from industry businesses in your market for real customer insights.'
+    }, {
+      key: 'customer_pain_points',
+      label: 'Customer Pain Points (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., Wasting hours on manual reporting, losing deals to faster competitors...',
+      helperText: '✨ Auto-populates from client profile. Trends that address confirmed pain points are flagged as higher relevance — guaranteed audience demand.'
+    }, {
+      key: 'misconceptions',
+      label: 'Industry Misconceptions (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., "People think this only works for enterprise, but SMBs get better ROI"',
+      helperText: '✨ Auto-populates from client profile. Misconception-debunking content outperforms generic thought leadership — these seed a high-value trend opportunity category.'
     }]
   },
   platform_strategy: {

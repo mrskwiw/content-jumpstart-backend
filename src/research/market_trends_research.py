@@ -148,6 +148,26 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
         else:
             inputs["location"] = None
 
+        # Optional client intelligence fields
+        if "customer_pain_points" in inputs and inputs["customer_pain_points"]:
+            inputs["customer_pain_points"] = self.validator.validate_text(
+                inputs.get("customer_pain_points"),
+                field_name="customer_pain_points",
+                min_length=2,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+        if "misconceptions" in inputs and inputs["misconceptions"]:
+            inputs["misconceptions"] = self.validator.validate_text(
+                inputs.get("misconceptions"),
+                field_name="misconceptions",
+                min_length=2,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> TrendReport:
@@ -157,6 +177,8 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
         target_audience = inputs["target_audience"]
         business_name = inputs.get("business_name", "Client")
         focus_areas = inputs.get("focus_areas")
+        customer_pain_points = inputs.get("customer_pain_points", "")
+        misconceptions = inputs.get("misconceptions", "")
 
         # Auto-populate industry if not provided (should come from DB)
         if not industry:
@@ -203,6 +225,8 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
             focus_areas,
             industry_insights,
             web_trends_data,
+            customer_pain_points=customer_pain_points,
+            misconceptions=misconceptions,
         )
 
         # Step 2: Identify emerging conversations
@@ -618,11 +642,30 @@ Your focus areas:"""
         focus_areas: List[str],
         industry_insights: str = "",
         web_trends_data: List[Dict[str, str]] = None,
+        customer_pain_points: str = "",
+        misconceptions: str = "",
     ) -> List[TrendCategory]:
         """Research trending topics organized by category"""
         # Bug #37 fix - handle dicts in focus_areas
         focus_context = (
             f"Focus particularly on: {self._safe_join(focus_areas, ', ')}" if focus_areas else ""
+        )
+
+        # Build client intelligence section
+        client_intel_lines = []
+        if customer_pain_points:
+            client_intel_lines.append(
+                f"Known Customer Pain Points (confirmed — trends addressing these have guaranteed demand):\n{customer_pain_points}"
+            )
+        if misconceptions:
+            client_intel_lines.append(
+                f"Industry Misconceptions to Correct (trend opportunity — debunking content outperforms):\n{misconceptions}"
+            )
+        client_intel_section = (
+            "\n\nCLIENT INTELLIGENCE (use to validate trend relevance):\n"
+            + "\n\n".join(client_intel_lines)
+            if client_intel_lines
+            else ""
         )
 
         # Add customer insights section if available
@@ -680,7 +723,7 @@ Business: {business_desc}
 
 Target Audience: {target_audience}
 
-{focus_context}{insights_section}{web_trends_section}
+{focus_context}{client_intel_section}{insights_section}{web_trends_section}
 
 For each category:
 1. Category name and description
