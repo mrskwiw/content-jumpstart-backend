@@ -59,6 +59,12 @@ class Keyword(BaseModel):
     related_queries: List[str] = Field(
         default_factory=list, description="Top related queries from Google Trends"
     )
+    trend_momentum_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Computed momentum score from Google Trends (mean of recent interest values)",
+    )
 
 
 class KeywordCluster(BaseModel):

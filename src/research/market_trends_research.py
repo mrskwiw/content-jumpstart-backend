@@ -229,6 +229,9 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
             misconceptions=misconceptions,
         )
 
+        # Step 1b: Validate top trend topics with Google Trends (optional enrichment)
+        trend_categories = self._validate_with_google_trends(trend_categories)
+
         # Step 2: Identify emerging conversations
         emerging_conversations = self._identify_emerging_conversations(
             business_desc, industry, target_audience
@@ -1249,3 +1252,107 @@ KEY THEMES:
             text += f"- {opp}\n"
 
         return text
+
+    def _validate_with_google_trends(
+        self, trend_categories: List[TrendCategory]
+    ) -> List[TrendCategory]:
+        """
+        Validate top trend topics against live Google Trends data.
+
+        Queries pytrends for the top 5 distinct trend topics (one batch, max 5 terms)
+        from across all categories. Appends a directional note to each matched trend's
+        description: " ↑ trending" for rising topics or " ↓ declining" for declining ones.
+
+        Wraps all pytrends calls in try/except — on any failure the original
+        trend_categories are returned unchanged.
+
+        Args:
+            trend_categories: List of TrendCategory objects produced by
+                _research_trending_topics.
+
+        Returns:
+            The same list, with trend descriptions annotated where Trends data
+            confirms direction.  Original data is never removed or reordered.
+        """
+        try:
+            from pytrends.request import TrendReq
+            import statistics
+
+            # Collect up to 5 unique topic strings across all categories
+            topics: List[str] = []
+            topic_to_trends: dict = {}  # topic -> list of Trend objects sharing that topic
+
+            for category in trend_categories:
+                for trend in category.trends:
+                    if trend.topic not in topic_to_trends:
+                        if len(topics) >= 5:
+                            break
+                        topics.append(trend.topic)
+                        topic_to_trends[trend.topic] = []
+                    topic_to_trends[trend.topic].append(trend)
+                if len(topics) >= 5:
+                    break
+
+            if not topics:
+                return trend_categories
+
+            logger.info(f"Validating {len(topics)} trend topics with Google Trends: {topics}")
+
+            # Initialize pytrends client
+            try:
+                pytrends = TrendReq(
+                    hl="en-US",
+                    tz=360,
+                    timeout=(10, 25),
+                    retries=2,
+                    backoff_factor=0.5,
+                )
+            except TypeError:
+                pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+
+            # Single batch query (max 5 terms, max 2 calls per run — only 1 here)
+            pytrends.build_payload(topics, timeframe="today 3-m", geo="")
+            interest_df = pytrends.interest_over_time()
+
+            if interest_df.empty:
+                logger.info("Google Trends returned no data for market trend topics")
+                return trend_categories
+
+            if "isPartial" in interest_df.columns:
+                interest_df = interest_df.drop("isPartial", axis=1)
+
+            # Annotate each matched trend in-place
+            for topic in topics:
+                if topic not in interest_df.columns:
+                    continue
+
+                values = interest_df[topic].tolist()
+                if len(values) < 8:
+                    continue
+
+                recent_avg = statistics.mean(values[-4:])
+                older_avg = statistics.mean(values[-8:-4])
+
+                if recent_avg > older_avg * 1.2:
+                    direction_note = " \u2191 trending"
+                elif recent_avg < older_avg * 0.8:
+                    direction_note = " \u2193 declining"
+                else:
+                    direction_note = ""
+
+                if direction_note:
+                    for trend_obj in topic_to_trends[topic]:
+                        # Avoid double-annotating on repeated calls
+                        if direction_note not in trend_obj.description:
+                            trend_obj.description = trend_obj.description + direction_note
+
+            logger.info("Google Trends validation complete for market trend topics")
+
+        except ImportError:
+            logger.warning(
+                "pytrends not installed — skipping Google Trends validation for market trends"
+            )
+        except Exception as e:
+            logger.warning(f"Google Trends validation failed for market trends (non-critical): {e}")
+
+        return trend_categories

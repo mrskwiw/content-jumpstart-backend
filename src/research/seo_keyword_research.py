@@ -850,9 +850,9 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
                                 # Calculate trend score (average of recent values)
                                 if values:
-                                    keyword_obj.trend_score = float(
-                                        statistics.mean(values[-4:])
-                                    )  # Last 4 data points
+                                    mean_score = float(statistics.mean(values[-4:]))
+                                    keyword_obj.trend_score = mean_score
+                                    keyword_obj.trend_momentum_score = mean_score
 
                                     # Determine trend direction
                                     if len(values) >= 8:
