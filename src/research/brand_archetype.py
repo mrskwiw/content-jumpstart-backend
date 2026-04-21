@@ -341,6 +341,41 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
                 ),
             )
 
+        # Optional client brand direction fields
+        if "brand_personality" in inputs and inputs["brand_personality"]:
+            bp = inputs["brand_personality"]
+            if isinstance(bp, list):
+                inputs["brand_personality"] = [
+                    self.validator.validate_text(
+                        t,
+                        field_name="brand_personality_item",
+                        min_length=1,
+                        max_length=100,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for t in bp
+                    if t
+                ]
+            else:
+                inputs["brand_personality"] = self.validator.validate_text(
+                    bp,
+                    field_name="brand_personality",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                )
+        if "tone_to_avoid" in inputs and inputs["tone_to_avoid"]:
+            inputs["tone_to_avoid"] = self.validator.validate_text(
+                inputs.get("tone_to_avoid"),
+                field_name="tone_to_avoid",
+                min_length=2,
+                max_length=500,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -357,6 +392,8 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
         brand_positioning = inputs.get("brand_positioning", "")
         target_audience = inputs.get("target_audience", "")
         core_values = inputs.get("core_values", [])
+        brand_personality = inputs.get("brand_personality", "")
+        tone_to_avoid = inputs.get("tone_to_avoid", "")
 
         logger.info("Running brand archetype analysis")
 
@@ -365,7 +402,12 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
 
         # Step 2: Claude-based analysis for context
         claude_analysis = self._analyze_with_claude(
-            business_desc, brand_positioning, target_audience, core_values
+            business_desc,
+            brand_positioning,
+            target_audience,
+            core_values,
+            brand_personality=brand_personality,
+            tone_to_avoid=tone_to_avoid,
         )
 
         # Step 3: Combine scores
@@ -402,7 +444,13 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
         return scores
 
     def _analyze_with_claude(
-        self, business_desc: str, positioning: str, audience: str, values: List[str]
+        self,
+        business_desc: str,
+        positioning: str,
+        audience: str,
+        values: List[str],
+        brand_personality: "Any" = "",
+        tone_to_avoid: str = "",
     ) -> Dict[str, float]:
         """Use Claude to analyze brand archetype fit"""
 
@@ -414,6 +462,27 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
             ]
         )
 
+        direction_lines = []
+        if brand_personality:
+            traits = (
+                ", ".join(brand_personality)
+                if isinstance(brand_personality, list)
+                else brand_personality
+            )
+            direction_lines.append(
+                f"Declared Brand Personality: {traits} — weight these traits heavily when scoring archetype fit"
+            )
+        if tone_to_avoid:
+            direction_lines.append(
+                f"Tone to Avoid: {tone_to_avoid} — lower scores for archetypes that embody this tone"
+            )
+        brand_direction = (
+            "\n\n**Declared Brand Direction (client-stated — use as primary signal):**\n"
+            + "\n".join(direction_lines)
+            if direction_lines
+            else ""
+        )
+
         prompt = f"""Analyze this brand and rate how well it fits each of the 12 brand archetypes.
 
 **Business:** {business_desc}
@@ -422,7 +491,7 @@ class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
 
 **Target Audience:** {audience or "Not provided"}
 
-**Core Values:** {', '.join(values) if values else "Not provided"}
+**Core Values:** {', '.join(values) if values else "Not provided"}{brand_direction}
 
 **The 12 Brand Archetypes:**
 {archetype_list}

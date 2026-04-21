@@ -70,6 +70,10 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     customerPainPoints: 'customer_pain_points',
     customerQuestions: 'customer_questions',
   },
+  brand_archetype: {
+    brandPersonality: 'brand_personality',
+    toneToAvoid: 'tone_to_avoid',
+  },
   business_report: {
     name: 'company_name',
     location: 'location'
@@ -408,7 +412,21 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
     }]
   },
   brand_archetype: {
-    fields: []  // Fully automatic - uses business_description from client profile
+    fields: [{
+      key: 'brand_personality',
+      label: 'Brand Personality Traits (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Bold, Empathetic, No-nonsense, Approachable...',
+      helperText: '✨ Auto-populates from client profile. Declared personality traits are weighted heavily when scoring archetype fit — improves accuracy.'
+    }, {
+      key: 'tone_to_avoid',
+      label: 'Tone to Avoid (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Overly formal, aggressive, corporate jargon...',
+      helperText: '✨ Auto-populates from client profile. Archetypes that embody the avoided tone receive lower scores, steering recommendations away from mismatched identities.'
+    }]
   },
   business_report: {
     fields: [{
