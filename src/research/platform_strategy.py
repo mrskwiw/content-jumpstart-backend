@@ -26,6 +26,8 @@ from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
 from ..utils.anthropic_client import get_default_client
+from ..utils.logger import logger
+from ..utils.web_search import get_search_client
 
 
 class PlatformStrategist(ResearchTool, CommonValidationMixin):
@@ -205,8 +207,12 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             self.client, business_description, target_audience
         )
 
-        # Step 2: Generate platform recommendations
+        # Step 2: Generate platform recommendations (with optional live demographics)
         print("[Step 2/5] Evaluating platform fit and recommendations...")
+        active_platform_names = [b.platform.value for b in audience_behavior if b.audience_present]
+        platform_demographics = self._research_platform_demographics(
+            active_platform_names, industry
+        )
         platform_recommendations = self._generate_platform_recommendations(
             self.client,
             business_description,
@@ -216,6 +222,7 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             tone_preference=tone_preference,
             brand_personality=brand_personality,
             data_usage=data_usage,
+            platform_demographics=platform_demographics,
         )
 
         # Step 3: Determine optimal platform mix
@@ -377,6 +384,42 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
 
         return behaviors
 
+    def _research_platform_demographics(self, platforms: List[str], industry: str) -> str:
+        """Fetch current audience demographics for each platform via web search.
+
+        Searches for live demographic data to ground platform recommendations in
+        current real-world usage patterns rather than baked-in assumptions.
+
+        Args:
+            platforms: List of platform names to research (max 3 queried).
+            industry: Industry context for targeted search results.
+
+        Returns:
+            Formatted string of demographics data, or empty string if unavailable.
+        """
+        try:
+            search_client = get_search_client()
+            if search_client is None:
+                return ""
+
+            results_lines: List[str] = []
+            for platform in platforms[:3]:
+                query = f"{platform} audience demographics {industry} 2026"
+                logger.info(f"platform_strategy: searching demographics — {query}")
+                response = search_client.search(query, max_results=3)
+                if not response.results:
+                    continue
+                results_lines.append(f"{platform} demographics (from web):")
+                for result in response.results:
+                    results_lines.append(f"- [{result.title}] {result.snippet}")
+                results_lines.append("")
+
+            return "\n".join(results_lines).strip()
+
+        except Exception as exc:
+            logger.warning(f"platform_strategy: web search for demographics failed — {exc}")
+            return ""
+
     def _generate_platform_recommendations(
         self,
         client: Any,
@@ -387,6 +430,7 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
         tone_preference: str = "",
         brand_personality: "list | str" = "",
         data_usage: str = "",
+        platform_demographics: str = "",
     ) -> List[PlatformRecommendation]:
         """Generate detailed recommendations for all relevant platforms in a single API call"""
         # Filter to platforms where audience is present
@@ -426,6 +470,12 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
             )
         voice_context = ("\nBrand Voice Context:\n" + "\n".join(voice_lines)) if voice_lines else ""
 
+        demographics_context = (
+            f"\n\nCurrent Platform Demographics (live web data):\n{platform_demographics}"
+            if platform_demographics
+            else ""
+        )
+
         prompt = f"""Create detailed platform recommendations for ALL of these platforms: {platform_names}
 
 Business: {business_description}
@@ -433,7 +483,7 @@ Target Audience: {target_audience}
 Content Goals: {content_goals}{voice_context}
 
 Audience Behavior Data:
-{behaviors_text}
+{behaviors_text}{demographics_context}
 
 For EACH platform, provide a recommendation with:
 1. Fit level (essential/recommended/optional/not_recommended)

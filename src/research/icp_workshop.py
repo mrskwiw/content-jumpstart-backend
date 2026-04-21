@@ -25,6 +25,8 @@ from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
 from ..utils.anthropic_client import get_default_client
+from ..utils.logger import logger
+from ..utils.web_search import get_search_client
 
 
 class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
@@ -188,11 +190,20 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
             existing_customer_data = f"{seed_block}\n\n{existing_customer_data}".strip()
 
         print("[ICP Workshop] Starting interactive profile development...")
+
+        # Step 0: Fetch published ICP benchmarks for the industry via web search
+        industry_label = inputs.get("industry", "") or ""
+        industry_benchmarks = self._research_industry_icp_benchmarks(industry_label)
+
         print("[1/6] Analyzing business context...")
 
         # Step 1: Demographics/Firmographics
         demographics = self._gather_demographics(
-            self.client, business_description, target_audience, existing_customer_data
+            self.client,
+            business_description,
+            target_audience,
+            existing_customer_data,
+            industry_benchmarks=industry_benchmarks,
         )
 
         print("[2/6] Building psychographic profile...")
@@ -269,12 +280,58 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
 
         return analysis
 
+    def _research_industry_icp_benchmarks(self, industry: str) -> str:
+        """Fetch published ICP patterns for the industry via web search.
+
+        Retrieves live benchmark data so the ICP criteria can be validated
+        against real-world industry patterns rather than AI assumptions alone.
+
+        Args:
+            industry: Industry to research (e.g. "B2B SaaS", "Marketing Agency").
+
+        Returns:
+            Formatted string of benchmark data, or empty string if unavailable.
+        """
+        try:
+            search_client = get_search_client()
+            if search_client is None:
+                return ""
+
+            results_lines: list[str] = []
+
+            # Search 1: ICP patterns for the industry
+            query1 = f"{industry} ideal customer profile 2026"
+            logger.info(f"icp_workshop: searching ICP benchmarks — {query1}")
+            response1 = search_client.search(query1, max_results=3)
+            if response1.results:
+                results_lines.append(f"Industry ICP Patterns — {industry}:")
+                for result in response1.results:
+                    results_lines.append(f"- [{result.title}] {result.snippet}")
+                results_lines.append("")
+
+            # Search 2: Buyer persona characteristics
+            query2 = f"{industry} buyer persona characteristics"
+            logger.info(f"icp_workshop: searching buyer personas — {query2}")
+            response2 = search_client.search(query2, max_results=3)
+            if response2.results:
+                results_lines.append(f"Buyer Persona Characteristics — {industry}:")
+                for result in response2.results:
+                    results_lines.append(f"- [{result.title}] {result.snippet}")
+                results_lines.append("")
+
+            return "\n".join(results_lines).strip()
+
+        except Exception as exc:
+            logger.warning(f"icp_workshop: web search for ICP benchmarks failed — {exc}")
+            return ""
+
     def _gather_demographics(
         self,
         client: Any,
         business_description: str,
         target_audience: str,
         existing_data: str,
+        industry_benchmarks: str = "",
     ) -> Demographics:
         """Gather demographic/firmographic data"""
         prompt = f"""You are facilitating an ICP (Ideal Customer Profile) workshop. Based on this business information, determine the demographic/firmographic profile of their ideal customer.
@@ -312,6 +369,12 @@ FIELD RULES:
 - Fill ALL fields
 
 Return ONLY valid JSON. No markdown. No code blocks."""
+
+        if industry_benchmarks:
+            prompt += (
+                f"\n\nIndustry ICP Benchmarks (live web data — validate your criteria against these):"
+                f"\n{industry_benchmarks}"
+            )
 
         # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
         data = self._call_claude_api(
