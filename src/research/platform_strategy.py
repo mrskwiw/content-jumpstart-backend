@@ -94,6 +94,64 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
                 sanitize=True,
             )
 
+        # SECURITY: Validate optional tone preference (auto-populated from client profile)
+        if "tone_preference" in inputs and inputs["tone_preference"]:
+            inputs["tone_preference"] = self.validator.validate_text(
+                inputs.get("tone_preference"),
+                field_name="tone_preference",
+                min_length=2,
+                max_length=100,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional brand personality traits (auto-populated from client profile)
+        if "brand_personality" in inputs and inputs["brand_personality"]:
+            brand_personality = inputs["brand_personality"]
+            if isinstance(brand_personality, list):
+                inputs["brand_personality"] = [
+                    self.validator.validate_text(
+                        t,
+                        field_name="personality_trait",
+                        min_length=2,
+                        max_length=100,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for t in brand_personality[:10]
+                ]
+            elif isinstance(brand_personality, str):
+                inputs["brand_personality"] = self.validator.validate_text(
+                    brand_personality,
+                    field_name="brand_personality",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                )
+
+        # SECURITY: Validate optional posting frequency (auto-populated from client profile)
+        if "posting_frequency" in inputs and inputs["posting_frequency"]:
+            inputs["posting_frequency"] = self.validator.validate_text(
+                inputs.get("posting_frequency"),
+                field_name="posting_frequency",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional data usage preference (auto-populated from client profile)
+        if "data_usage" in inputs and inputs["data_usage"]:
+            inputs["data_usage"] = self.validator.validate_text(
+                inputs.get("data_usage"),
+                field_name="data_usage",
+                min_length=2,
+                max_length=50,
+                required=False,
+                sanitize=True,
+            )
+
         # SECURITY: Validate optional current platforms list
         # BUG FIX #38: Add type normalization before validation
         if "current_platforms" in inputs:
@@ -136,6 +194,10 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         industry = inputs.get("industry", "Not specified")
         current_platforms = inputs.get("current_platforms", [])
         content_goals = inputs.get("content_goals", "awareness and leads")
+        tone_preference = inputs.get("tone_preference", "")
+        brand_personality = inputs.get("brand_personality", [])
+        posting_frequency = inputs.get("posting_frequency", "")
+        data_usage = inputs.get("data_usage", "")
 
         # Step 1: Analyze audience platform behavior
         print("[Step 1/5] Analyzing target audience platform behavior...")
@@ -146,13 +208,24 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         # Step 2: Generate platform recommendations
         print("[Step 2/5] Evaluating platform fit and recommendations...")
         platform_recommendations = self._generate_platform_recommendations(
-            self.client, business_description, target_audience, audience_behavior, content_goals
+            self.client,
+            business_description,
+            target_audience,
+            audience_behavior,
+            content_goals,
+            tone_preference=tone_preference,
+            brand_personality=brand_personality,
+            data_usage=data_usage,
         )
 
         # Step 3: Determine optimal platform mix
         print("[Step 3/5] Determining optimal platform mix...")
         platform_mix = self._determine_platform_mix(
-            self.client, platform_recommendations, target_audience, content_goals
+            self.client,
+            platform_recommendations,
+            target_audience,
+            content_goals,
+            posting_frequency=posting_frequency,
         )
 
         # Step 4: Create content distribution strategy
@@ -311,6 +384,9 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
         target_audience: str,
         audience_behavior: List[AudienceBehavior],
         content_goals: str,
+        tone_preference: str = "",
+        brand_personality: "list | str" = "",
+        data_usage: str = "",
     ) -> List[PlatformRecommendation]:
         """Generate detailed recommendations for all relevant platforms in a single API call"""
         # Filter to platforms where audience is present
@@ -333,11 +409,28 @@ Focus on platforms where the audience is ACTUALLY active, not theoretical presen
         behaviors_text = "\n\n".join(behaviors_summary)
         platform_names = ", ".join(b.platform.value for b in active_platforms)
 
+        # Build brand voice context if available
+        voice_lines = []
+        if tone_preference:
+            voice_lines.append(f"Tone Preference: {tone_preference}")
+        if brand_personality:
+            traits = (
+                ", ".join(brand_personality)
+                if isinstance(brand_personality, list)
+                else brand_personality
+            )
+            voice_lines.append(f"Brand Personality Traits: {traits}")
+        if data_usage:
+            voice_lines.append(
+                f"Data/Statistics Usage: {data_usage} (affects content format fit — heavy data favors LinkedIn/blog over Twitter/Instagram)"
+            )
+        voice_context = ("\nBrand Voice Context:\n" + "\n".join(voice_lines)) if voice_lines else ""
+
         prompt = f"""Create detailed platform recommendations for ALL of these platforms: {platform_names}
 
 Business: {business_description}
 Target Audience: {target_audience}
-Content Goals: {content_goals}
+Content Goals: {content_goals}{voice_context}
 
 Audience Behavior Data:
 {behaviors_text}
@@ -438,6 +531,7 @@ Return a JSON array with one object per platform:
         recommendations: List[PlatformRecommendation],
         target_audience: str,
         content_goals: str,
+        posting_frequency: str = "",
     ) -> PlatformMix:
         """Determine optimal portfolio of platforms"""
         # Build context
@@ -453,10 +547,15 @@ Return a JSON array with one object per platform:
                 }
             )
 
+        frequency_context = (
+            f"\nClient's Posting Frequency: {posting_frequency} (factor this into how many primary platforms are realistic)"
+            if posting_frequency
+            else ""
+        )
         prompt = f"""Based on these platform recommendations, determine the optimal platform mix.
 
 Target Audience: {target_audience}
-Content Goals: {content_goals}
+Content Goals: {content_goals}{frequency_context}
 
 Platform Recommendations:
 {json.dumps(recs_summary, indent=2)}

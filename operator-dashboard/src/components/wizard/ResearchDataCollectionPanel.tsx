@@ -34,6 +34,10 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   platform_strategy: {
     platforms: 'current_platforms',
     mainProblemSolved: 'content_goals',
+    tonePreference: 'tone_preference',
+    brandPersonality: 'brand_personality',
+    postingFrequency: 'posting_frequency',
+    dataUsage: 'data_usage',
   },
   content_calendar_strategy: {
     platforms: 'primary_platforms',
@@ -210,6 +214,34 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'e.g., awareness and leads, thought leadership, customer education',
       helperText: '✨ Auto-populates from the main problem your client solves. Override with specific content objectives.'
+    }, {
+      key: 'tone_preference',
+      label: 'Tone Preference (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., professional, conversational, authoritative',
+      helperText: '✨ Auto-populates from client profile. Constrains platform fit — e.g., witty/casual tone favors Twitter over LinkedIn.'
+    }, {
+      key: 'brand_personality',
+      label: 'Brand Personality Traits (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., approachable, direct, data-driven',
+      helperText: '✨ Auto-populates from client profile. Used to match platform culture to brand voice.'
+    }, {
+      key: 'posting_frequency',
+      label: 'Posting Frequency (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., 3x per week, daily',
+      helperText: '✨ Auto-populates from client profile. Factors into how many primary platforms are realistic given available bandwidth.'
+    }, {
+      key: 'data_usage',
+      label: 'Data & Statistics Usage (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., heavy, moderate, minimal',
+      helperText: '✨ Auto-populates from client profile. Heavy data usage favors LinkedIn and blog over Twitter/Instagram.'
     }]
   },
   content_calendar_strategy: {
