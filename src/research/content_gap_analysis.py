@@ -180,6 +180,56 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
                     sanitize=True,
                 )
 
+        # SECURITY: Validate optional customer questions (auto-populated from client brief)
+        customer_questions = inputs.get("customer_questions")
+        if customer_questions:
+            if isinstance(customer_questions, list):
+                inputs["customer_questions"] = [
+                    self.validator.validate_text(
+                        q,
+                        field_name="customer_question",
+                        min_length=2,
+                        max_length=500,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for q in customer_questions[:10]
+                ]
+            elif isinstance(customer_questions, str):
+                inputs["customer_questions"] = self.validator.validate_text(
+                    customer_questions,
+                    field_name="customer_questions",
+                    min_length=2,
+                    max_length=2000,
+                    required=False,
+                    sanitize=True,
+                )
+
+        # SECURITY: Validate optional customer pain points (auto-populated from client brief)
+        customer_pain_points = inputs.get("customer_pain_points")
+        if customer_pain_points:
+            if isinstance(customer_pain_points, list):
+                inputs["customer_pain_points"] = [
+                    self.validator.validate_text(
+                        p,
+                        field_name="pain_point",
+                        min_length=2,
+                        max_length=500,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for p in customer_pain_points[:10]
+                ]
+            elif isinstance(customer_pain_points, str):
+                inputs["customer_pain_points"] = self.validator.validate_text(
+                    customer_pain_points,
+                    field_name="customer_pain_points",
+                    min_length=2,
+                    max_length=2000,
+                    required=False,
+                    sanitize=True,
+                )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> ContentGapAnalysis:
@@ -194,6 +244,8 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         industry = inputs.get("industry", "Not specified")
         competitors = inputs.get("competitors", [])
         known_misconceptions = inputs.get("known_misconceptions", [])
+        customer_questions = inputs.get("customer_questions", [])
+        customer_pain_points = inputs.get("customer_pain_points", [])
 
         # Step 1: Analyze current content coverage
         logger.info("Step 1: Analyzing current content coverage...")
@@ -215,6 +267,8 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
             current_coverage,
             competitor_analysis,
             known_misconceptions=known_misconceptions,
+            customer_questions=customer_questions,
+            customer_pain_points=customer_pain_points,
         )
 
         # Step 4: Identify format gaps
@@ -493,6 +547,8 @@ Return ONLY valid JSON with keys: content_strengths, popular_topics, formats_use
         current_coverage: Dict,
         competitor_analysis: List[CompetitorContentAnalysis],
         known_misconceptions: "list | str | None" = None,
+        customer_questions: "list | str | None" = None,
+        customer_pain_points: "list | str | None" = None,
     ) -> List[ContentGap]:
         """Identify specific topic gaps"""
 
@@ -528,6 +584,28 @@ Return ONLY valid JSON with keys: content_strengths, popular_topics, formats_use
                     f"\nKnown Industry Misconceptions (client-reported):\n  {known_misconceptions}"
                 )
 
+        # Build customer questions context if provided
+        questions_context = ""
+        if customer_questions:
+            if isinstance(customer_questions, list) and customer_questions:
+                q_str = "\n".join(f"  - {q}" for q in customer_questions)
+                questions_context = f"\nTop Customer Questions (client-reported — these ARE the content gaps the audience is asking about):\n{q_str}"
+            elif isinstance(customer_questions, str) and customer_questions.strip():
+                questions_context = (
+                    f"\nTop Customer Questions (client-reported):\n  {customer_questions}"
+                )
+
+        # Build pain points context if provided
+        pain_points_context = ""
+        if customer_pain_points:
+            if isinstance(customer_pain_points, list) and customer_pain_points:
+                pp_str = "\n".join(f"  - {p}" for p in customer_pain_points)
+                pain_points_context = f"\nKnown Customer Pain Points (client-reported — pain-point content is perennially underserved):\n{pp_str}"
+            elif isinstance(customer_pain_points, str) and customer_pain_points.strip():
+                pain_points_context = (
+                    f"\nKnown Customer Pain Points (client-reported):\n  {customer_pain_points}"
+                )
+
         prompt = f"""Identify content gaps for this business:
 
 Business: {business_description}
@@ -536,7 +614,7 @@ Target Audience: {target_audience}
 Current Coverage: {json.dumps(current_coverage, indent=2)}
 Competitor Topics: {competitor_context}
 Differentiation Opportunities (topics competitors are missing):
-{differentiation_context}{misconceptions_context}
+{differentiation_context}{misconceptions_context}{questions_context}{pain_points_context}
 
 Identify 10-15 specific content gaps. For each gap:
 - gap_title: What's missing

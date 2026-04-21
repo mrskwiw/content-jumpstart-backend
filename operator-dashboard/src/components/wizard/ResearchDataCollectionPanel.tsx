@@ -43,6 +43,8 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   content_gap_analysis: {
     misconceptions: 'known_misconceptions',
+    customerQuestions: 'customer_questions',
+    customerPainPoints: 'customer_pain_points',
   },
   story_mining: {
     stories: 'existing_stories',
@@ -141,6 +143,20 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'e.g., "People think we\'re only for enterprise, but we serve SMBs too"',
       helperText: '✨ Auto-populates from client profile. Misconceptions the client wants to correct make high-value gap content — they\'re underserved topics their audience is confused about.'
+    }, {
+      key: 'customer_questions',
+      label: 'Top Customer Questions (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., "How long does onboarding take? What does it cost?"',
+      helperText: '✨ Auto-populates from client profile. Questions customers already ask ARE the content gaps — they map directly to missing educational content.'
+    }, {
+      key: 'customer_pain_points',
+      label: 'Customer Pain Points (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., "Wasting hours on manual reporting, losing deals to faster competitors"',
+      helperText: '✨ Auto-populates from client profile. Pain-point content is consistently underserved — these identify gaps with guaranteed audience demand.'
     }]
   },
   content_audit: {
