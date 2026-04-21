@@ -29,7 +29,10 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     location: 'location'
   },
   competitive_analysis: {
-    competitors: 'competitors'
+    competitors: 'competitors',
+    toneToAvoid: 'tone_to_avoid',
+    measurableResults: 'measurable_results',
+    brandPersonality: 'brand_personality',
   },
   market_trends_research: {
     industry: 'industry',
@@ -153,6 +156,27 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       max: 5,
       placeholder: 'Leave empty to use competitors from client profile or Determine Competitors results',
       helperText: '⚠️ Required in practice — auto-populates from Determine Competitors results or client profile. If neither has data this tool will fail. Run Determine Competitors first, or add 1–5 names here.'
+    }, {
+      key: 'brand_personality',
+      label: 'Brand Personality Traits (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Bold, Empathetic, No-nonsense...',
+      helperText: '✨ Auto-populates from client profile. Used to anchor positioning recommendations to the client\'s declared brand identity.'
+    }, {
+      key: 'tone_to_avoid',
+      label: 'Tone to Avoid (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Overly formal, corporate jargon, aggressive...',
+      helperText: '✨ Auto-populates from client profile. Prevents positioning recommendations from suggesting messaging that conflicts with the client\'s stated tone boundaries.'
+    }, {
+      key: 'measurable_results',
+      label: 'Measurable Results / Proof Points (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., 3x revenue increase, 40% churn reduction...',
+      helperText: '✨ Auto-populates from client profile. Concrete proof points are used as differentiator evidence in the positioning statement.'
     }]
   },
   content_gap_analysis: {

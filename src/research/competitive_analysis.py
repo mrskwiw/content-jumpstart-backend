@@ -118,6 +118,50 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
         if location:
             inputs["location"] = location.strip()
 
+        # Optional client brand context fields
+        if "tone_to_avoid" in inputs and inputs["tone_to_avoid"]:
+            inputs["tone_to_avoid"] = self.validator.validate_text(
+                inputs.get("tone_to_avoid"),
+                field_name="tone_to_avoid",
+                min_length=2,
+                max_length=500,
+                required=False,
+                sanitize=True,
+            )
+        if "measurable_results" in inputs and inputs["measurable_results"]:
+            inputs["measurable_results"] = self.validator.validate_text(
+                inputs.get("measurable_results"),
+                field_name="measurable_results",
+                min_length=2,
+                max_length=1000,
+                required=False,
+                sanitize=True,
+            )
+        if "brand_personality" in inputs and inputs["brand_personality"]:
+            bp = inputs["brand_personality"]
+            if isinstance(bp, list):
+                inputs["brand_personality"] = [
+                    self.validator.validate_text(
+                        t,
+                        field_name="brand_personality_item",
+                        min_length=1,
+                        max_length=100,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for t in bp
+                    if t
+                ]
+            else:
+                inputs["brand_personality"] = self.validator.validate_text(
+                    bp,
+                    field_name="brand_personality",
+                    min_length=2,
+                    max_length=500,
+                    required=False,
+                    sanitize=True,
+                )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> CompetitiveAnalysis:
@@ -128,6 +172,9 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
         industry = inputs.get("industry", "Not specified")
         business_name = inputs.get("business_name", "Client")
         location = inputs.get("location")  # Optional location for Google Maps reviews
+        tone_to_avoid = inputs.get("tone_to_avoid", "")
+        measurable_results = inputs.get("measurable_results", "")
+        brand_personality = inputs.get("brand_personality", "")
 
         logger.info(f"Analyzing {len(competitors)} competitors")
 
@@ -148,7 +195,13 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
 
         # Step 4: Develop positioning recommendation
         positioning = self._develop_positioning(
-            competitor_profiles, business_desc, content_gaps, diff_strategies
+            competitor_profiles,
+            business_desc,
+            content_gaps,
+            diff_strategies,
+            tone_to_avoid=tone_to_avoid,
+            measurable_results=measurable_results,
+            brand_personality=brand_personality,
         )
 
         # Step 5: Identify quick wins
@@ -623,15 +676,38 @@ Return ONLY a valid JSON array with keys: strategy_name, description, difficulty
         business_desc: str,
         content_gaps: List[ContentGap],
         strategies: List[DifferentiationStrategy],
+        tone_to_avoid: str = "",
+        measurable_results: str = "",
+        brand_personality: Any = "",
     ) -> MarketPosition:
         """Develop recommended market positioning"""
         comp_summary = "\n".join([f"- {c.name}: {c.positioning}" for c in competitors])
         gap_summary = "\n".join([f"- {g.topic}" for g in content_gaps[:5]])
         strat_summary = "\n".join([f"- {s.strategy_name}" for s in strategies[:3]])
 
+        brand_lines = []
+        if brand_personality:
+            traits = (
+                ", ".join(brand_personality)
+                if isinstance(brand_personality, list)
+                else brand_personality
+            )
+            brand_lines.append(f"Brand Personality: {traits}")
+        if tone_to_avoid:
+            brand_lines.append(f"Tone to Avoid: {tone_to_avoid}")
+        if measurable_results:
+            brand_lines.append(
+                f"Proven Results: {measurable_results} — use as differentiator evidence"
+            )
+        brand_context = (
+            "\n\nClient Brand Context (anchor positioning to these):\n" + "\n".join(brand_lines)
+            if brand_lines
+            else ""
+        )
+
         prompt = f"""Develop a market positioning recommendation.
 
-Our Business: {business_desc}
+Our Business: {business_desc}{brand_context}
 
 Competitor Positioning:
 {comp_summary}
