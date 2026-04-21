@@ -37,6 +37,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   market_trends_research: {
     industry: 'industry',
     location: 'location',
+    keywords: 'focus_areas',
     customerPainPoints: 'customer_pain_points',
     misconceptions: 'misconceptions',
   },
@@ -55,6 +56,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     mainCta: 'main_cta',
   },
   content_gap_analysis: {
+    keywords: 'current_content_topics',
     misconceptions: 'known_misconceptions',
     customerQuestions: 'customer_questions',
     customerPainPoints: 'customer_pain_points',
@@ -64,6 +66,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     measurableResults: 'measurable_results',
   },
   icp_workshop: {
+    idealCustomer: 'existing_customer_data',
     stories: 'stories',
     measurableResults: 'measurable_results',
     customerPainPoints: 'customer_pain_points',
@@ -192,12 +195,12 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   content_gap_analysis: {
     fields: [{
       key: 'current_content_topics',
-      label: 'Current Content Topics (Optional - Auto-Generated)',
+      label: 'Current Content Topics (Optional — Auto-Populated)',
       type: 'textarea',
       required: false,
       min: 0,
-      placeholder: 'Leave empty to auto-generate from SEO keywords, or describe your current content topics',
-      helperText: '✨ Auto-generates from SEO keyword research if available, or from your business profile. Or manually describe your current content topics (minimum 10 characters if provided).'
+      placeholder: 'Leave empty to auto-populate from client keywords or SEO research results...',
+      helperText: '✨ Auto-populates from client profile keywords, then from SEO keyword research results if available. Override to describe your current topics manually (minimum 10 characters if provided).'
     }, {
       key: 'known_misconceptions',
       label: 'Known Industry Misconceptions (Optional — Auto-Populated)',
@@ -243,11 +246,11 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       helperText: '✨ Auto-populates from your client profile if left empty. Override if researching a different industry.'
     }, {
       key: 'focus_areas',
-      label: 'Focus Areas (Optional - Auto-Generated)',
+      label: 'Focus Areas (Optional — Auto-Populated)',
       type: 'text-list',
       required: false,
-      placeholder: 'Leave empty to auto-generate from SEO keywords',
-      helperText: '✨ Auto-generates from SEO keywords and business profile if left empty. Or manually add 1-10 custom focus areas.'
+      placeholder: 'Leave empty to auto-populate from client keywords or SEO research results...',
+      helperText: '✨ Auto-populates from client profile keywords, then from SEO keyword research results if available. Add or remove topics to focus the trend research.'
     }, {
       key: 'location',
       label: 'Location (Optional — Auto-Populated, Enables Review Analysis)',
@@ -367,11 +370,11 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   icp_workshop: {
     fields: [{
       key: 'existing_customer_data',
-      label: 'Existing Customer Data (Optional)',
+      label: 'Existing Customer Data (Optional — Auto-Populated)',
       type: 'textarea',
       required: false,
-      placeholder: 'Describe your current customers, their characteristics, common traits, etc.',
-      helperText: 'Optional. Provide any data you have about existing customers to inform the ICP analysis (0-5000 characters).'
+      placeholder: 'Leave empty to auto-populate from client ideal customer profile and audience research results...',
+      helperText: '✨ Auto-populates from client ideal customer description, then enriched with audience research pain points and psychographics if available. Add more detail or override entirely.'
     }, {
       key: 'stories',
       label: 'Customer Wins / Stories (Optional — Auto-Populated)',
