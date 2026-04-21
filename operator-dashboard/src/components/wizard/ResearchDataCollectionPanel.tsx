@@ -56,6 +56,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   },
   story_mining: {
     stories: 'existing_stories',
+    measurableResults: 'measurable_results',
   },
   icp_workshop: {
     stories: 'stories',
@@ -355,6 +356,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'Leave empty to use stories from client profile, or paste additional story material...',
       helperText: '✨ Auto-populates from client profile stories. Used to seed the analysis with narratives the client has already shared.'
+    }, {
+      key: 'measurable_results',
+      label: 'Measurable Results / Success Benchmarks (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., 3x revenue increase in 6 months, 40% churn reduction...',
+      helperText: '✨ Auto-populates from client profile. Frames the results-gathering stage with concrete benchmarks so the AI probes for matching outcomes.'
     }]
   },
   brand_archetype: {

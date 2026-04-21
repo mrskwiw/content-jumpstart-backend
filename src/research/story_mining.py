@@ -107,6 +107,17 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
                     sanitize=True,
                 )
 
+        # SECURITY: Validate optional measurable results (outcome benchmarks from client brief)
+        if "measurable_results" in inputs and inputs["measurable_results"]:
+            inputs["measurable_results"] = self.validator.validate_text(
+                inputs.get("measurable_results"),
+                field_name="measurable_results",
+                min_length=2,
+                max_length=1000,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> StoryMiningAnalysis:
@@ -128,6 +139,8 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
                 seed_block = ""
             if seed_block:
                 interview_notes = f"{seed_block}\n\n{interview_notes}".strip()
+
+        measurable_results = inputs.get("measurable_results", "")
 
         print("[Story Mining] Starting customer story extraction...")
         print("[1/7] Gathering customer background...")
@@ -162,7 +175,12 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
 
         # Step 5: Results
         results = self._gather_results(
-            self.client, customer_background, challenge, implementation, interview_notes
+            self.client,
+            customer_background,
+            challenge,
+            implementation,
+            interview_notes,
+            measurable_results=measurable_results,
         )
 
         print("[6/7] Extracting testimonials and quotes...")
@@ -417,13 +435,19 @@ Fill ALL fields. Return ONLY valid JSON. No markdown. No code blocks."""
         challenge: Challenge,
         implementation: Implementation,
         notes: str,
+        measurable_results: str = "",
     ) -> Results:
         """Gather results and outcomes"""
+        benchmarks_line = (
+            f"\nSuccess Benchmarks (client-reported): {measurable_results}"
+            if measurable_results
+            else ""
+        )
         prompt = f"""Continue the story mining interview. Document results achieved.
 
 Customer: {customer_background.customer_name or 'Customer'}
 Challenge: {challenge.problem_description}
-Timeline: {implementation.implementation_timeline}
+Timeline: {implementation.implementation_timeline}{benchmarks_line}
 
 Extract results:
 1. Quantitative results (with numbers/percentages)
