@@ -3380,3 +3380,61 @@ def _format_generic_research(data: dict) -> List[str]:
         else:
             lines.append(f"**{key.replace('_', ' ').title()}:** {value}")
     return lines
+
+
+def _read_output_files(outputs: Optional[dict]) -> List[str]:
+    """Read research output files and return their contents as a list of lines.
+
+    Prefers markdown output when both markdown and JSON are available.
+    Handles missing files, invalid JSON, and unsupported formats gracefully.
+
+    Args:
+        outputs: Dict mapping format names (e.g. 'markdown', 'json') to file paths,
+                 or None.
+
+    Returns:
+        List of content lines, or empty list if outputs is None/empty.
+    """
+    import json as _json
+
+    if not outputs:
+        return []
+
+    # Prefer markdown over JSON when both are present
+    if "markdown" in outputs:
+        file_path = outputs["markdown"]
+        p = Path(file_path)
+        if not p.exists():
+            return [
+                f"Research output unavailable: file not found at '{file_path}'",
+            ]
+        try:
+            content = p.read_text(encoding="utf-8")
+            lines = content.splitlines()
+            # Always return at least one element so callers can check content exists
+            return lines if lines else [""]
+        except Exception as exc:
+            return [f"Research output unavailable: error reading file — {exc}"]
+
+    if "json" in outputs:
+        file_path = outputs["json"]
+        p = Path(file_path)
+        if not p.exists():
+            return [
+                f"Research output unavailable: file not found at '{file_path}'",
+            ]
+        try:
+            raw = p.read_text(encoding="utf-8")
+            data = _json.loads(raw)
+            lines = ["```json"]
+            lines.extend(_json.dumps(data, indent=2).splitlines())
+            lines.append("```")
+            return lines
+        except _json.JSONDecodeError as exc:
+            return [f"Research output unavailable: invalid JSON — {exc}"]
+        except Exception as exc:
+            return [f"Research output unavailable: error reading file — {exc}"]
+
+    # Unsupported format — report which format was requested
+    fmt = next(iter(outputs))
+    return [f"Research output format '{fmt}' is not available for inline display."]

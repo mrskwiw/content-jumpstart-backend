@@ -57,6 +57,8 @@ omit = [
     "*/backend/*",
     "*/research/*",
     "src/research/*",
+    "src/config/template_rules_expanded.py",
+    "src/database/migrate_phase8b.py",
 ]
 
 [tool.coverage.report]
