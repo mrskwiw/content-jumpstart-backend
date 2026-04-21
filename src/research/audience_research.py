@@ -77,6 +77,26 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
             location = location[:200]
         inputs["location"] = location
 
+        # Optional client-reported audience intelligence
+        if "customer_pain_points" in inputs and inputs["customer_pain_points"]:
+            inputs["customer_pain_points"] = self.validator.validate_text(
+                inputs.get("customer_pain_points"),
+                field_name="customer_pain_points",
+                min_length=2,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+        if "customer_questions" in inputs and inputs["customer_questions"]:
+            inputs["customer_questions"] = self.validator.validate_text(
+                inputs.get("customer_questions"),
+                field_name="customer_questions",
+                min_length=2,
+                max_length=2000,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> AudienceResearch:
@@ -88,6 +108,8 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
         business_name = inputs.get("business_name", "Client Business")
         industry = inputs.get("industry", "General")
         location = inputs.get("location", "")
+        customer_pain_points = inputs.get("customer_pain_points", "")
+        customer_questions = inputs.get("customer_questions", "")
 
         # Multi-step analysis
 
@@ -126,7 +148,11 @@ class AudienceResearcher(ResearchTool, CommonValidationMixin):
 
         print("[Step 2/4] Analyzing behaviors and pain points...")
         behaviors_pain = self._analyze_behaviors_pain_points(
-            business_desc, target_audience, industry
+            business_desc,
+            target_audience,
+            industry,
+            customer_pain_points=customer_pain_points,
+            customer_questions=customer_questions,
         )
 
         print("[Step 3/4] Identifying audience segments...")
@@ -295,16 +321,36 @@ Return ONLY valid JSON. Use null for fields where data cannot be reasonably infe
         return dict(result) if isinstance(result, dict) else {}
 
     def _analyze_behaviors_pain_points(
-        self, business_desc: str, target_audience: str, industry: str
+        self,
+        business_desc: str,
+        target_audience: str,
+        industry: str,
+        customer_pain_points: str = "",
+        customer_questions: str = "",
     ) -> Dict[str, Any]:
         """Step 2: Analyze behaviors and pain points"""
+        seed_lines = []
+        if customer_pain_points:
+            seed_lines.append(
+                f"Client-Reported Pain Points (treat as confirmed — build from these):\n{customer_pain_points}"
+            )
+        if customer_questions:
+            seed_lines.append(
+                f"Real Customer Questions (treat as confirmed pain-signal — surface in pain_points):\n{customer_questions}"
+            )
+        seed_context = (
+            "\n\nCONFIRMED CLIENT INTELLIGENCE (prioritize over inferred data):\n"
+            + "\n\n".join(seed_lines)
+            if seed_lines
+            else ""
+        )
         prompt = f"""Analyze the behavioral patterns and pain points for this audience.
 
 BUSINESS: {business_desc}
 
 TARGET AUDIENCE: {target_audience}
 
-INDUSTRY: {industry}
+INDUSTRY: {industry}{seed_context}
 
 Provide a detailed JSON analysis with:
 

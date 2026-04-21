@@ -66,6 +66,10 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
     measurableResults: 'measurable_results',
     customerPainPoints: 'customer_pain_points',
   },
+  audience_research: {
+    customerPainPoints: 'customer_pain_points',
+    customerQuestions: 'customer_questions',
+  },
   business_report: {
     name: 'company_name',
     location: 'location'
@@ -324,7 +328,21 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
     }]
   },
   audience_research: {
-    fields: []  // Fully automatic - uses business_description and target_audience from client profile
+    fields: [{
+      key: 'customer_pain_points',
+      label: 'Customer Pain Points (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., Wasting hours on manual reporting, losing deals to faster competitors...',
+      helperText: '✨ Auto-populates from client profile. Treated as confirmed intelligence — seeds the pain point analysis so the AI builds from real problems rather than inferred ones.'
+    }, {
+      key: 'customer_questions',
+      label: 'Top Customer Questions (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'e.g., How long does onboarding take? What does it cost?',
+      helperText: '✨ Auto-populates from client profile. Real questions are treated as confirmed pain signals — surfaced directly in the pain points and decision factors output.'
+    }]
   },
   icp_workshop: {
     fields: [{
