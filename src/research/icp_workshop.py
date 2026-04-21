@@ -92,6 +92,67 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
                 sanitize=True,
             )
 
+        # SECURITY: Validate optional client stories (customer wins pre-seeded from brief)
+        stories = inputs.get("stories")
+        if stories:
+            if isinstance(stories, list):
+                inputs["stories"] = [
+                    self.validator.validate_text(
+                        s,
+                        field_name="story",
+                        min_length=2,
+                        max_length=2000,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for s in stories[:20]
+                ]
+            elif isinstance(stories, str):
+                inputs["stories"] = self.validator.validate_text(
+                    stories,
+                    field_name="stories",
+                    min_length=2,
+                    max_length=5000,
+                    required=False,
+                    sanitize=True,
+                )
+
+        # SECURITY: Validate optional measurable results (success benchmarks from brief)
+        if "measurable_results" in inputs and inputs["measurable_results"]:
+            inputs["measurable_results"] = self.validator.validate_text(
+                inputs.get("measurable_results"),
+                field_name="measurable_results",
+                min_length=2,
+                max_length=1000,
+                required=False,
+                sanitize=True,
+            )
+
+        # SECURITY: Validate optional customer pain points (seed for ICP criteria)
+        customer_pain_points = inputs.get("customer_pain_points")
+        if customer_pain_points:
+            if isinstance(customer_pain_points, list):
+                inputs["customer_pain_points"] = [
+                    self.validator.validate_text(
+                        p,
+                        field_name="pain_point",
+                        min_length=2,
+                        max_length=500,
+                        required=False,
+                        sanitize=True,
+                    )
+                    for p in customer_pain_points[:10]
+                ]
+            elif isinstance(customer_pain_points, str):
+                inputs["customer_pain_points"] = self.validator.validate_text(
+                    customer_pain_points,
+                    field_name="customer_pain_points",
+                    min_length=2,
+                    max_length=2000,
+                    required=False,
+                    sanitize=True,
+                )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> ICPWorkshopAnalysis:
@@ -100,6 +161,31 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
         business_name = inputs.get("business_name", "Client")
         target_audience = inputs.get("target_audience", "")
         existing_customer_data = inputs.get("existing_customer_data", "")
+
+        # Prepend client brief intelligence to existing_customer_data as seed context
+        seed_lines = []
+        stories = inputs.get("stories")
+        if stories:
+            stories_text = (
+                "\n".join(f"  - {s}" for s in stories)
+                if isinstance(stories, list)
+                else str(stories)
+            )
+            seed_lines.append(f"Customer Wins / Stories:\n{stories_text}")
+        measurable_results = inputs.get("measurable_results", "")
+        if measurable_results:
+            seed_lines.append(f"Measurable Results / Success Benchmarks: {measurable_results}")
+        customer_pain_points = inputs.get("customer_pain_points")
+        if customer_pain_points:
+            pp_text = (
+                "\n".join(f"  - {p}" for p in customer_pain_points)
+                if isinstance(customer_pain_points, list)
+                else str(customer_pain_points)
+            )
+            seed_lines.append(f"Known Customer Pain Points:\n{pp_text}")
+        if seed_lines:
+            seed_block = "[Pre-seeded client brief intelligence]\n" + "\n\n".join(seed_lines)
+            existing_customer_data = f"{seed_block}\n\n{existing_customer_data}".strip()
 
         print("[ICP Workshop] Starting interactive profile development...")
         print("[1/6] Analyzing business context...")

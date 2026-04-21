@@ -57,6 +57,11 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   story_mining: {
     stories: 'existing_stories',
   },
+  icp_workshop: {
+    stories: 'stories',
+    measurableResults: 'measurable_results',
+    customerPainPoints: 'customer_pain_points',
+  },
   business_report: {
     name: 'company_name',
     location: 'location'
@@ -304,6 +309,27 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'Describe your current customers, their characteristics, common traits, etc.',
       helperText: 'Optional. Provide any data you have about existing customers to inform the ICP analysis (0-5000 characters).'
+    }, {
+      key: 'stories',
+      label: 'Customer Wins / Stories (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'Leave empty to use stories from client profile...',
+      helperText: '✨ Auto-populates from client profile stories. Used as ICP evidence — who the client has already successfully helped reveals who the ideal customer is.'
+    }, {
+      key: 'measurable_results',
+      label: 'Measurable Results / Success Benchmarks (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., 40% cost reduction, 3x pipeline in 90 days',
+      helperText: '✨ Auto-populates from client profile. Defines what success looks like in quantifiable terms — grounds ICP criteria in real outcomes.'
+    }, {
+      key: 'customer_pain_points',
+      label: 'Known Customer Pain Points (Optional — Auto-Populated)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'Leave empty to use pain points from client profile...',
+      helperText: '✨ Auto-populates from client profile. Seeds the ICP pain-point discovery prompts with known problems, improving specificity.'
     }]
   },
   story_mining: {
