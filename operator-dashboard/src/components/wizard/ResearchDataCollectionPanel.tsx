@@ -16,6 +16,10 @@ interface ResearchDataCollectionPanelProps {
 
 // Client field → Tool input field mappings
 const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
+  seo_keyword_research: {
+    keywords: 'main_topics',
+    location: 'location',
+  },
   determine_competitors: {
     industry: 'industry',
     location: 'location'
@@ -77,12 +81,19 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   seo_keyword_research: {
     fields: [{
       key: 'main_topics',
-      label: 'Main Topics (Optional - Auto-Generated)',
+      label: 'Seed Keywords / Main Topics (Optional — Auto-Populated)',
       type: 'text-list',
-      required: false,  // Changed to optional - will auto-generate from business description
+      required: false,
       min: 0,
-      placeholder: 'Leave empty to auto-generate from business profile, or add custom topics',
-      helperText: '✨ Auto-generates topics from your business profile if left empty. Or manually add 1-10 custom topics to focus on.'
+      placeholder: 'Leave empty to auto-generate, or override with custom topics',
+      helperText: '✨ Auto-populates from client profile keywords if set. Or manually add 1-10 custom topics. If 5+ keywords provided they are used directly as seed topics.'
+    }, {
+      key: 'location',
+      label: 'Geographic Market (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., United States, New York, Global',
+      helperText: '✨ Auto-populates from client profile location. Focuses keyword research on geo-specific search volume and local competition.'
     }]
   },
   determine_competitors: {

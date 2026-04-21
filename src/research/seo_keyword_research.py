@@ -84,6 +84,17 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
             # Will auto-generate in run_analysis
             inputs["main_topics"] = None
 
+        # SECURITY: Validate optional location / geographic target (auto-populated from client profile)
+        if "location" in inputs and inputs["location"]:
+            inputs["location"] = self.validator.validate_text(
+                inputs.get("location"),
+                field_name="location",
+                min_length=2,
+                max_length=200,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> KeywordStrategy:
@@ -93,6 +104,7 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
         main_topics = inputs.get("main_topics")
         competitors = inputs.get("competitors", [])
         industry = inputs.get("industry") or "Not specified"
+        location = inputs.get("location", "")
 
         # Auto-generate topics if not provided
         if not main_topics:
@@ -119,7 +131,7 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
 
         # Step 1: Research primary keywords (5-10)
         primary_keywords = self._research_primary_keywords(
-            business_desc, target_audience, main_topics, industry
+            business_desc, target_audience, main_topics, industry, location=location
         )
 
         # Step 2: Research secondary/long-tail keywords (20-30)
@@ -351,6 +363,7 @@ Your topics:"""
         target_audience: str,
         main_topics: List[str],
         industry: str,
+        location: str = "",
     ) -> List[Keyword]:
         """
         Research primary target keywords with iterative deep dive (5-10 high-quality keywords)
@@ -418,6 +431,7 @@ Your topics:"""
                 industry,
                 strategy["focus"],
                 iteration,
+                location=location,
             )
 
             try:
@@ -514,6 +528,7 @@ Your topics:"""
         industry: str,
         focus: str,
         iteration: int,
+        location: str = "",
     ) -> str:
         """
         Build prompt for keyword research with specific focus
@@ -529,6 +544,7 @@ Your topics:"""
         Returns:
             Formatted prompt string
         """
+        location_line = f"\nGeographic Market: {location}" if location else ""
         prompt = f"""Analyze this business and recommend 5-10 PRIMARY target keywords for SEO.
 
 CRITICAL: Extract ALL fields for EVERY keyword. Do not leave any fields empty or use placeholder values.
@@ -537,7 +553,7 @@ Business: {business_desc}
 
 Target Audience: {target_audience}
 
-Industry: {industry}
+Industry: {industry}{location_line}
 
 Main Topics: {', '.join(main_topics)}
 
