@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, Button, Input, Textarea } from '@/components/ui';
-import { AlertCircle, Plus, X, FileText, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Plus, X, FileText, CheckCircle2, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { ContentAuditCollector } from './ContentAuditCollector';
 import { researchApi } from '@/api/research';
 import type { Client } from '@/types/domain';
@@ -816,6 +816,74 @@ export function ResearchDataCollectionPanel({
     }
   };
 
+  // Collapsed/expanded state for the client context preview
+  const [contextExpanded, setContextExpanded] = useState(false);
+
+  // Client context preview — shows business_description + target_audience the tools will silently consume
+  const ClientContextPreview = () => {
+    if (!clientData) return null;
+
+    const businessDesc = clientData.businessDescription ?? '';
+    const targetAudience = clientData.idealCustomer ?? '';
+
+    if (!businessDesc && !targetAudience) return null;
+
+    const PREVIEW_LEN = 200;
+
+    const truncate = (text: string) =>
+      text.length > PREVIEW_LEN ? text.slice(0, PREVIEW_LEN).trimEnd() + '…' : text;
+
+    return (
+      <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50">
+        <button
+          type="button"
+          onClick={() => setContextExpanded(prev => !prev)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left"
+        >
+          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Client context the tools will use
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+            {contextExpanded ? (
+              <>Hide <ChevronUp className="h-3.5 w-3.5" /></>
+            ) : (
+              <>Show <ChevronDown className="h-3.5 w-3.5" /></>
+            )}
+          </span>
+        </button>
+
+        {contextExpanded && (
+          <div className="border-t border-neutral-200 px-4 py-3 dark:border-neutral-700 space-y-3">
+            {businessDesc && (
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Business Description
+                </p>
+                <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                  {truncate(businessDesc)}
+                </p>
+              </div>
+            )}
+            {targetAudience && (
+              <div>
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  Ideal Customer / Target Audience
+                </p>
+                <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                  {truncate(targetAudience)}
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-neutral-400 dark:text-neutral-500 flex items-center gap-1">
+              <ExternalLink className="h-3 w-3" />
+              To update these, edit the client profile before running the tools.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Auto-fill badge component
   const AutoFillBadge = ({ isAutoFilled }: { isAutoFilled: boolean }) => {
     if (!isAutoFilled) return null;
@@ -845,6 +913,8 @@ export function ResearchDataCollectionPanel({
             The selected research tools need some additional information. Please provide the following data:
           </p>
         </div>
+
+        <ClientContextPreview />
 
         <div className="space-y-6">
           {requiredFields.map(field => (
