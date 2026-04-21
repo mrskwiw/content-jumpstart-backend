@@ -184,6 +184,11 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
             self.client, pillars, business_description, target_audience, content_goals
         )
 
+        # Step 2b: Validate seasonal theme timing with Google Trends
+        # Extract up to 3 keywords from the pillars for trend lookup
+        trend_keywords = [p["topics"][0] for p in pillars if p.get("topics")][:3]
+        themes = self._validate_theme_timing_with_trends(themes, trend_keywords)
+
         print("[Step 3/6] Building 13-week detailed calendar...")
         # Step 3a: Fetch live industry events to seed the calendar
         industry_events = self._research_industry_events(industry, start_date_str)
@@ -507,6 +512,126 @@ Return JSON array with 3 themes:
 
         # Try to map, otherwise return cleaned value
         return pillar_mappings.get(pillar_lower, pillar_lower)
+
+    def _validate_theme_timing_with_trends(
+        self,
+        themes: List[ContentTheme],
+        keywords: List[str],
+    ) -> List[ContentTheme]:
+        """Validate seasonal alignment of quarterly themes using Google Trends.
+
+        Runs a single Trends call for up to 3 keyword terms (one per theme where
+        available, otherwise the theme name) to identify seasonal peak months.
+        When a keyword's peak month differs from the scheduled theme month, the
+        theme description is annotated with the Trends peak month as a hint.
+
+        Args:
+            themes: List of ContentTheme objects produced by _create_quarterly_themes
+            keywords: Up to 3 keyword terms representative of each theme's topic
+
+        Returns:
+            Updated list of ContentTheme objects (original list unchanged on failure)
+        """
+        try:
+            from pytrends.request import TrendReq  # noqa: PLC0415
+        except ImportError:
+            logger.debug("pytrends not available — skipping theme timing validation")
+            return themes
+
+        try:
+            if not themes:
+                return themes
+
+            # Build keyword list: prefer provided keywords, fall back to theme names
+            theme_keywords: List[str] = []
+            for i, theme in enumerate(themes[:3]):
+                if i < len(keywords) and keywords[i]:
+                    theme_keywords.append(keywords[i])
+                else:
+                    theme_keywords.append(theme.name)
+
+            if not theme_keywords:
+                return themes
+
+            # Initialize pytrends client
+            try:
+                pytrends = TrendReq(
+                    hl="en-US",
+                    tz=360,
+                    timeout=(10, 25),
+                    retries=2,
+                    backoff_factor=0.5,
+                )
+            except TypeError:
+                pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+
+            logger.info(
+                f"Fetching Google Trends seasonal data for {len(theme_keywords)} theme keywords"
+            )
+
+            # Single Trends call — max 3 keywords, 12-month window for seasonal patterns
+            pytrends.build_payload(theme_keywords, timeframe="today 12-m", geo="")
+            interest_df = pytrends.interest_over_time()
+
+            if interest_df.empty:
+                logger.debug("Google Trends returned empty seasonal data — skipping")
+                return themes
+
+            if "isPartial" in interest_df.columns:
+                interest_df = interest_df.drop("isPartial", axis=1)
+
+            # Map each theme to its scheduled start month (from weeks field)
+            # Themes run sequentially: theme 0 ≈ months 1-3, theme 1 ≈ months 4-6, etc.
+            # Use the current date as the calendar anchor
+            from datetime import datetime  # noqa: PLC0415
+
+            calendar_anchor = datetime.now()
+
+            for i, theme in enumerate(themes[:3]):
+                term = theme_keywords[i] if i < len(theme_keywords) else None
+                if term is None or term not in interest_df.columns:
+                    continue
+
+                values = interest_df[term].tolist()
+                if not values:
+                    continue
+
+                # Find peak index in the 12-month series
+                peak_idx = values.index(max(values))
+                # interest_over_time returns weekly rows; map to approximate month
+                # The earliest date in the index = ~12 months ago from today
+                dates = interest_df.index.tolist()
+                if peak_idx < len(dates):
+                    peak_month_name = dates[peak_idx].strftime("%B")
+                else:
+                    peak_month_name = None
+
+                if peak_month_name is None:
+                    continue
+
+                # Determine the approximate scheduled month for this theme
+                # Each theme covers roughly 4 weeks; offset by theme index
+                scheduled_month = (calendar_anchor.month + i * 1) % 12 or 12
+                scheduled_month_name = datetime(2000, scheduled_month, 1).strftime("%B")
+
+                if peak_month_name != scheduled_month_name:
+                    # Annotate description with Trends peak hint
+                    hint = f" (Trends peak: {peak_month_name})"
+                    if hint not in theme.description:
+                        theme.description = theme.description + hint
+                        logger.debug(
+                            f"Theme '{theme.name}': scheduled {scheduled_month_name}, "
+                            f"Trends peak {peak_month_name} — annotated"
+                        )
+
+            logger.info(f"Theme timing validation complete for {len(themes)} themes")
+
+        except Exception as exc:
+            logger.warning(
+                f"Google Trends theme timing validation failed — using original themes: {exc}"
+            )
+
+        return themes
 
     def _generate_weekly_calendar(
         self,

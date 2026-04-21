@@ -271,6 +271,10 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
             customer_pain_points=customer_pain_points,
         )
 
+        # Step 3b: Validate gap urgency with Google Trends
+        logger.info("Step 3b: Validating gap urgency with Google Trends...")
+        topic_gaps = self._validate_gap_urgency_with_trends(topic_gaps)
+
         # Step 4: Identify format gaps
         logger.info("Step 4: Identifying format gaps...")
         format_gaps = self._identify_format_gaps(business_description, current_coverage)
@@ -666,6 +670,122 @@ Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
                     estimated_effort="Medium",
                 )
             ]
+
+    def _validate_gap_urgency_with_trends(self, gaps: List[ContentGap]) -> List[ContentGap]:
+        """Validate and adjust gap priority using Google Trends momentum data.
+
+        Takes the top 5 gaps by current priority, fetches 3-month trend data for
+        each topic, and updates priority/description based on trend direction:
+        - Rising trend → bump priority toward CRITICAL
+        - Declining trend → append timing warning to description
+
+        Args:
+            gaps: List of ContentGap objects from _identify_topic_gaps
+
+        Returns:
+            Updated list of ContentGap objects (original list unchanged on failure)
+        """
+        try:
+            from pytrends.request import TrendReq  # noqa: PLC0415
+            import statistics  # noqa: PLC0415
+        except ImportError:
+            logger.debug("pytrends not available — skipping Trends urgency validation")
+            return gaps
+
+        try:
+            # Priority ordering for bumping logic
+            priority_order = [
+                GapPriority.LOW,
+                GapPriority.MEDIUM,
+                GapPriority.HIGH,
+                GapPriority.CRITICAL,
+            ]
+
+            # Take top 5 gaps — preserve original list order, highest priority first
+            priority_rank = {p: i for i, p in enumerate(priority_order)}
+            top_gaps = sorted(
+                gaps[:],
+                key=lambda g: priority_rank.get(g.priority, 0),
+                reverse=True,
+            )[:5]
+
+            if not top_gaps:
+                return gaps
+
+            keyword_terms = [gap.gap_title for gap in top_gaps]
+
+            # Initialize pytrends client
+            try:
+                pytrends = TrendReq(
+                    hl="en-US",
+                    tz=360,
+                    timeout=(10, 25),
+                    retries=2,
+                    backoff_factor=0.5,
+                )
+            except TypeError:
+                pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
+
+            logger.info(f"Fetching Google Trends data for {len(keyword_terms)} gap topics")
+
+            # Single batch call — max 5 keywords per Trends request
+            pytrends.build_payload(keyword_terms, timeframe="today 3-m", geo="")
+            interest_df = pytrends.interest_over_time()
+
+            if interest_df.empty:
+                logger.debug("Google Trends returned empty data — skipping urgency update")
+                return gaps
+
+            # Drop the isPartial column if present
+            if "isPartial" in interest_df.columns:
+                interest_df = interest_df.drop("isPartial", axis=1)
+
+            # Build a fast lookup: gap_title → gap object
+            gap_map = {gap.gap_title: gap for gap in gaps}
+            rising_count = 0
+            declining_count = 0
+
+            for gap in top_gaps:
+                term = gap.gap_title
+                if term not in interest_df.columns:
+                    continue
+
+                values = interest_df[term].tolist()
+                if len(values) < 8:
+                    continue
+
+                overall_avg = statistics.mean(values)
+                last_4_avg = statistics.mean(values[-4:])
+
+                # Match the direction thresholds from seo_keyword_research
+                if last_4_avg > overall_avg * 1.2:
+                    # Rising — bump priority one level toward CRITICAL
+                    current_idx = priority_rank.get(gap.priority, 0)
+                    if current_idx < len(priority_order) - 1:
+                        new_priority = priority_order[current_idx + 1]
+                        gap_map[term].priority = new_priority
+                        logger.debug(
+                            f"Trends rising: '{term}' bumped {gap.priority.value} → {new_priority.value}"
+                        )
+                    rising_count += 1
+                elif last_4_avg < overall_avg * 0.8:
+                    # Declining — append timing warning to description
+                    existing = gap_map[term].description
+                    if "(timing-sensitive" not in existing:
+                        gap_map[term].description = (
+                            existing + " (timing-sensitive — interest declining)"
+                        )
+                    declining_count += 1
+
+            logger.info(
+                f"Trends urgency validation complete: {rising_count} rising, "
+                f"{declining_count} declining out of {len(top_gaps)} gaps checked"
+            )
+
+        except Exception as exc:
+            logger.warning(f"Google Trends urgency validation failed — using original gaps: {exc}")
+
+        return gaps
 
     def _identify_format_gaps(
         self, business_description: str, current_coverage: Dict
