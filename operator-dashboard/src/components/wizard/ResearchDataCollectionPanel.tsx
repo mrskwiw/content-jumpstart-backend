@@ -285,11 +285,11 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   platform_strategy: {
     fields: [{
       key: 'current_platforms',
-      label: 'Current Platforms (Optional)',
+      label: 'Current Platforms (Optional — Auto-Populated)',
       type: 'text-list',
       required: false,
       placeholder: 'e.g., LinkedIn, Twitter, Blog',
-      helperText: 'Platforms you currently use for content distribution.'
+      helperText: '✨ Auto-populates from client profile platforms. Override to add or change platforms.'
     }, {
       key: 'content_goals',
       label: 'Content Goals (Optional — Auto-Populated)',
@@ -337,11 +337,11 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       helperText: '✨ Auto-populates from the main problem your client solves. Override with specific calendar objectives (10-1000 characters).'
     }, {
       key: 'primary_platforms',
-      label: 'Primary Platforms (Optional)',
+      label: 'Primary Platforms (Optional — Auto-Populated)',
       type: 'text-list',
       required: false,
       placeholder: 'e.g., LinkedIn, Twitter, Blog',
-      helperText: 'Platforms where you plan to publish content. Leave empty to get recommendations.'
+      helperText: '✨ Auto-populates from client profile platforms. Leave empty to get recommendations.'
     }, {
       key: 'posting_frequency',
       label: 'Posting Frequency (Optional — Auto-Populated)',
@@ -495,6 +495,46 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
   }
 };
 
+// Human-readable tool names used in cross-tool notices
+const TOOL_LABELS: Record<string, string> = {
+  determine_competitors: 'Determine Competitors',
+  seo_keyword_research: 'SEO Keyword Research',
+  content_gap_analysis: 'Content Gap Analysis',
+  voice_analysis: 'Voice Analysis',
+  brand_archetype: 'Brand Archetype',
+  audience_research: 'Audience Research',
+  market_trends_research: 'Market Trends Research',
+};
+
+// Fields auto-populated by a prior tool result — used to render inline notices when
+// the source tool is also selected for this run but hasn't produced a result yet.
+const CROSS_TOOL_SOURCES: Record<string, { sourceToolId: string; fallbackClientField?: keyof Client }[]> = {
+  competitors: [{ sourceToolId: 'determine_competitors', fallbackClientField: 'competitors' }],
+  current_content_topics: [{ sourceToolId: 'seo_keyword_research', fallbackClientField: 'keywords' }],
+  focus_areas: [{ sourceToolId: 'seo_keyword_research', fallbackClientField: 'keywords' }],
+  audit_focus_areas: [{ sourceToolId: 'content_gap_analysis' }],
+  tone_preference: [{ sourceToolId: 'voice_analysis', fallbackClientField: 'tonePreference' }],
+  content_goals: [
+    { sourceToolId: 'seo_keyword_research', fallbackClientField: 'mainProblemSolved' },
+    { sourceToolId: 'brand_archetype', fallbackClientField: 'mainProblemSolved' },
+  ],
+  existing_customer_data: [{ sourceToolId: 'audience_research', fallbackClientField: 'idealCustomer' }],
+};
+
+// Minimum viable inputs per tool: if ALL fields in anyOf are blank, the tool has nothing
+// to anchor its analysis and will produce generic AI-guessed output.
+// Warning banner fires when this condition is true (dismissible, non-blocking).
+const TOOL_MINIMUM_VIABLE_INPUTS: Record<string, { anyOf: string[] }> = {
+  voice_analysis: { anyOf: ['brand_personality', 'tone_to_avoid'] },
+  competitive_analysis: { anyOf: ['brand_personality', 'measurable_results'] },
+  market_trends_research: { anyOf: ['customer_pain_points', 'misconceptions'] },
+  content_gap_analysis: { anyOf: ['known_misconceptions', 'customer_questions', 'customer_pain_points'] },
+  icp_workshop: { anyOf: ['stories', 'measurable_results', 'customer_pain_points'] },
+  story_mining: { anyOf: ['business_name', 'existing_stories', 'measurable_results'] },
+  brand_archetype: { anyOf: ['brand_personality', 'tone_to_avoid'] },
+  platform_strategy: { anyOf: ['posting_frequency', 'tone_preference', 'brand_personality'] },
+};
+
 export function ResearchDataCollectionPanel({
   selectedTools,
   clientData,
@@ -505,6 +545,7 @@ export function ResearchDataCollectionPanel({
   const [collectedData, setCollectedData] = useState<Record<string, unknown>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
 
   // Fetch prior research results for cross-tool auto-populate
   const { data: priorResearch } = useQuery({
@@ -816,6 +857,59 @@ export function ResearchDataCollectionPanel({
     }
   };
 
+  // Returns true when a collected field has no value yet
+  const isFieldEmpty = (key: string): boolean => {
+    const v = collectedData[key];
+    if (v === undefined || v === null || v === '') return true;
+    if (Array.isArray(v) && v.length === 0) return true;
+    return false;
+  };
+
+  // Returns true when all minimum viable inputs for a tool are blank — meaning the AI
+  // would have to guess rather than ground its analysis in client-specific data.
+  const toolNeedsWarning = (toolId: string): boolean => {
+    if (dismissedWarnings.has(toolId)) return false;
+    const rule = TOOL_MINIMUM_VIABLE_INPUTS[toolId];
+    if (!rule) return false;
+    return rule.anyOf.every(fieldKey => isFieldEmpty(fieldKey));
+  };
+
+  // Returns an inline notice for a field that will be auto-populated by another tool
+  // running in this session, or a warning when the field is critically blank.
+  const getCrossToolNotice = (fieldKey: string): { type: 'info' | 'warning'; message: string } | null => {
+    const sources = CROSS_TOOL_SOURCES[fieldKey];
+    if (!sources) return null;
+    if (!isFieldEmpty(fieldKey)) return null;
+
+    // Special case: competitors blank with no available source = tool will fail
+    if (fieldKey === 'competitors') {
+      const dcInRun = selectedTools.includes('determine_competitors');
+      const hasClientCompetitors = !!(clientData?.competitors?.length);
+      if (!dcInRun && !hasClientCompetitors) {
+        return {
+          type: 'warning',
+          message: 'No competitors found. Run Determine Competitors first, or add 1–5 names manually — this field is required for the analysis to produce results.',
+        };
+      }
+    }
+
+    const completedToolIds = new Set(
+      (priorResearch?.results?.filter(r => r.status === 'completed') ?? []).map(r => r.toolName)
+    );
+
+    const pendingSources = sources.filter(
+      s => selectedTools.includes(s.sourceToolId) && !completedToolIds.has(s.sourceToolId)
+    );
+    if (pendingSources.length === 0) return null;
+
+    const sourceNames = pendingSources.map(s => TOOL_LABELS[s.sourceToolId] ?? s.sourceToolId);
+    const nameStr = sourceNames.length === 1 ? sourceNames[0] : sourceNames.join(' or ');
+    return {
+      type: 'info',
+      message: `This field will auto-populate when ${nameStr} completes earlier in this run.`,
+    };
+  };
+
   // Collapsed/expanded state for the client context preview
   const [contextExpanded, setContextExpanded] = useState(false);
 
@@ -917,161 +1011,230 @@ export function ResearchDataCollectionPanel({
         <ClientContextPreview />
 
         <div className="space-y-6">
-          {requiredFields.map(field => (
-            <div key={field.key}>
-              {field.type === 'text' && (
-                <div>
-                  <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    {field.label}
-                    {field.required && <span className="text-rose-500">*</span>}
-                    <AutoFillBadge isAutoFilled={autoFilledFields.has(field.key)} />
-                  </label>
-                  <Input
-                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    placeholder={field.placeholder}
-                    className={`${errors[field.key] ? 'border-rose-500' : ''} ${
-                      autoFilledFields.has(field.key)
-                        ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
-                        : ''
-                    }`}
-                  />
-                  {errors[field.key] && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors[field.key]}</p>
-                  )}
-                  {field.helperText && (
-                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
-                  )}
-                </div>
-              )}
+          {(() => {
+            // Render fields grouped by tool so we can show per-tool warning banners.
+            // Track rendered field keys to skip duplicates when the same key appears
+            // in multiple tools (e.g. content_goals in platform_strategy + content_calendar_strategy).
+            const renderedKeys = new Set<string>();
 
-              {field.type === 'textarea' && (
-                <div>
-                  <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    {field.label}
-                    {field.required && <span className="text-rose-500">*</span>}
-                    <AutoFillBadge isAutoFilled={autoFilledFields.has(field.key)} />
-                  </label>
-                  <Textarea
-                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
-                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    placeholder={field.placeholder}
-                    rows={4}
-                    className={`${errors[field.key] ? 'border-rose-500' : ''} ${
-                      autoFilledFields.has(field.key)
-                        ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
-                        : ''
-                    }`}
-                  />
-                  {errors[field.key] && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors[field.key]}</p>
-                  )}
-                  {field.helperText && (
-                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
-                  )}
-                </div>
-              )}
+            return selectedTools.flatMap(toolId => {
+              const toolFields = (TOOL_DATA_REQUIREMENTS[toolId]?.fields ?? []).filter(f => {
+                if (renderedKeys.has(f.key)) return false;
+                renderedKeys.add(f.key);
+                return true;
+              });
+              if (toolFields.length === 0) return [];
 
-              {field.type === 'text-list' && (
-                <div>
-                  <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                    {field.label}
-                    {field.required && <span className="text-rose-500">*</span>}
-                    <AutoFillBadge isAutoFilled={autoFilledFields.has(field.key)} />
-                  </label>
-                  <Textarea
-                    value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
-                    onChange={(e) => handleTextListChange(field.key, e.target.value)}
-                    placeholder={field.placeholder}
-                    rows={3}
-                    className={`${errors[field.key] ? 'border-rose-500' : ''} ${
-                      autoFilledFields.has(field.key)
-                        ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
-                        : ''
-                    }`}
-                  />
-                  <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
-                    Separate items with commas
-                    {field.min && ` (minimum ${field.min})`}
-                    {field.max && ` (maximum ${field.max})`}
-                  </p>
-                  {errors[field.key] && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{errors[field.key]}</p>
-                  )}
-                  {field.helperText && (
-                    <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
-                  )}
-                </div>
-              )}
+              const showWarning = toolNeedsWarning(toolId);
 
-              {field.type === 'content-list' && (
-                <div>
-                  {/* Special handling for content_inventory (Content Audit) */}
-                  {field.key === 'content_inventory' ? (
-                    <ContentAuditCollector
-                      value={Array.isArray(collectedData[field.key]) ? collectedData[field.key] as never[] : []}
-                      onChange={(pieces) => {
-                        setCollectedData(prev => ({ ...prev, [field.key]: pieces }));
-                        setErrors(prev => ({ ...prev, [field.key]: '' }));
-                      }}
-                      error={errors[field.key]}
-                    />
-                  ) : (
-                    <>
-                      <label className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                        <FileText className="h-4 w-4" />
-                        {field.label}
-                        {field.required && <span className="text-rose-500">*</span>}
-                      </label>
+              const items: React.ReactNode[] = [];
 
-                      <div className="space-y-3">
-                        {(Array.isArray(collectedData[field.key]) ? collectedData[field.key] as string[] : []).map((sample: string, index: number) => (
-                          <div key={index} className="flex gap-2">
-                            <Textarea
-                              value={sample}
-                              onChange={(e) => handleContentListChange(field.key, index, e.target.value)}
-                              placeholder={`${field.placeholder} (${index + 1}/${field.max || '∞'})`}
-                              rows={3}
-                              className="flex-1"
-                            />
+              // Warning banner — fires when all optional context fields are blank
+              if (showWarning) {
+                items.push(
+                  <div
+                    key={`${toolId}__warning`}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 px-4 py-3"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="text-sm text-amber-800 dark:text-amber-300">
+                        <span className="font-medium">Output will be generic</span> — the client profile has no data to anchor this tool's analysis. Fill in the optional fields below, or complete the client profile before running tools.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss warning"
+                      onClick={() => setDismissedWarnings(prev => new Set([...prev, toolId]))}
+                      className="shrink-0 text-amber-500 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              }
+
+              // Field items for this tool
+              toolFields.forEach(field => {
+                const notice = getCrossToolNotice(field.key);
+                const isAutoFilled = autoFilledFields.has(field.key);
+                const fieldError = errors[field.key];
+
+                const noticeChip = notice ? (
+                  <div className={`mt-1.5 flex items-start gap-1.5 rounded px-2 py-1.5 text-xs ${
+                    notice.type === 'warning'
+                      ? 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300'
+                      : 'border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300'
+                  }`}>
+                    <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                    {notice.message}
+                  </div>
+                ) : null;
+
+                items.push(
+                  <div key={`${toolId}__${field.key}`}>
+                    {field.type === 'text' && (
+                      <div>
+                        <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                          {field.label}
+                          {field.required && <span className="text-rose-500">*</span>}
+                          <AutoFillBadge isAutoFilled={isAutoFilled} />
+                        </label>
+                        <Input
+                          value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
+                          onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          className={`${fieldError ? 'border-rose-500' : ''} ${
+                            isAutoFilled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
+                              : ''
+                          }`}
+                        />
+                        {fieldError && (
+                          <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{fieldError}</p>
+                        )}
+                        {field.helperText && (
+                          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                        )}
+                        {noticeChip}
+                      </div>
+                    )}
+
+                    {field.type === 'textarea' && (
+                      <div>
+                        <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                          {field.label}
+                          {field.required && <span className="text-rose-500">*</span>}
+                          <AutoFillBadge isAutoFilled={isAutoFilled} />
+                        </label>
+                        <Textarea
+                          value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
+                          onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          rows={4}
+                          className={`${fieldError ? 'border-rose-500' : ''} ${
+                            isAutoFilled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
+                              : ''
+                          }`}
+                        />
+                        {fieldError && (
+                          <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{fieldError}</p>
+                        )}
+                        {field.helperText && (
+                          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                        )}
+                        {noticeChip}
+                      </div>
+                    )}
+
+                    {field.type === 'text-list' && (
+                      <div>
+                        <label className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                          {field.label}
+                          {field.required && <span className="text-rose-500">*</span>}
+                          <AutoFillBadge isAutoFilled={isAutoFilled} />
+                        </label>
+                        <Textarea
+                          value={typeof collectedData[field.key] === 'string' ? collectedData[field.key] as string : ''}
+                          onChange={(e) => handleTextListChange(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          rows={3}
+                          className={`${fieldError ? 'border-rose-500' : ''} ${
+                            isAutoFilled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
+                              : ''
+                          }`}
+                        />
+                        <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-400">
+                          Separate items with commas
+                          {field.min && ` (minimum ${field.min})`}
+                          {field.max && ` (maximum ${field.max})`}
+                        </p>
+                        {fieldError && (
+                          <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{fieldError}</p>
+                        )}
+                        {field.helperText && (
+                          <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                        )}
+                        {noticeChip}
+                      </div>
+                    )}
+
+                    {field.type === 'content-list' && (
+                      <div>
+                        {/* Special handling for content_inventory (Content Audit) */}
+                        {field.key === 'content_inventory' ? (
+                          <ContentAuditCollector
+                            value={Array.isArray(collectedData[field.key]) ? collectedData[field.key] as never[] : []}
+                            onChange={(pieces) => {
+                              setCollectedData(prev => ({ ...prev, [field.key]: pieces }));
+                              setErrors(prev => ({ ...prev, [field.key]: '' }));
+                            }}
+                            error={errors[field.key]}
+                          />
+                        ) : (
+                          <>
+                            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                              <FileText className="h-4 w-4" />
+                              {field.label}
+                              {field.required && <span className="text-rose-500">*</span>}
+                            </label>
+
+                            <div className="space-y-3">
+                              {(Array.isArray(collectedData[field.key]) ? collectedData[field.key] as string[] : []).map((sample: string, index: number) => (
+                                <div key={index} className="flex gap-2">
+                                  <Textarea
+                                    value={sample}
+                                    onChange={(e) => handleContentListChange(field.key, index, e.target.value)}
+                                    placeholder={`${field.placeholder} (${index + 1}/${field.max || '∞'})`}
+                                    rows={3}
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => handleRemoveContentSample(field.key, index)}
+                                    className="mt-1"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+
                             <Button
                               variant="secondary"
                               size="sm"
-                              onClick={() => handleRemoveContentSample(field.key, index)}
-                              className="mt-1"
+                              onClick={() => handleAddContentSample(field.key)}
+                              disabled={!!(field.max && Array.isArray(collectedData[field.key]) && (collectedData[field.key] as unknown[]).length >= field.max)}
+                              className="mt-3"
                             >
-                              <X className="h-4 w-4" />
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Sample ({Array.isArray(collectedData[field.key]) ? (collectedData[field.key] as unknown[]).length : 0}/{field.max || '∞'})
                             </Button>
-                          </div>
-                        ))}
+
+                            {fieldError && (
+                              <p className="mt-2 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                {fieldError}
+                              </p>
+                            )}
+                            {field.helperText && (
+                              <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
+                            )}
+                            {noticeChip}
+                          </>
+                        )}
                       </div>
+                    )}
+                  </div>
+                );
+              });
 
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleAddContentSample(field.key)}
-                        disabled={!!(field.max && Array.isArray(collectedData[field.key]) && (collectedData[field.key] as unknown[]).length >= field.max)}
-                        className="mt-3"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Sample ({Array.isArray(collectedData[field.key]) ? (collectedData[field.key] as unknown[]).length : 0}/{field.max || '∞'})
-                      </Button>
-
-                      {errors[field.key] && (
-                        <p className="mt-2 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors[field.key]}
-                        </p>
-                      )}
-                      {field.helperText && (
-                        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">{field.helperText}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+              return items;
+            });
+          })()}
         </div>
 
         <div className="mt-6 flex justify-between border-t border-neutral-200 dark:border-neutral-700 pt-4">
