@@ -574,6 +574,65 @@ export function ResearchDataCollectionPanel({
       }
     }
 
+    // 4A — Feed voice_analysis → platform_strategy
+    if (selectedTools.includes('platform_strategy')) {
+      const voiceResult = completedResults.find(r => r.toolName === 'voice_analysis');
+      if (voiceResult?.data) {
+        const data = voiceResult.data as any;
+        const voiceGuide = data.brand_voice_guide ?? data.voice_characteristics ?? '';
+        const primaryTone = data.primary_tone ?? data.dominant_tone ?? data.tone ?? '';
+        const voiceContext = voiceGuide || (primaryTone ? `Tone: ${primaryTone}` : '');
+        if (voiceContext) maybeSet('tone_preference', voiceContext);
+      }
+    }
+
+    // 4B — Feed brand_archetype → content_calendar_strategy
+    if (selectedTools.includes('content_calendar_strategy')) {
+      const archetypeResult = completedResults.find(r => r.toolName === 'brand_archetype');
+      if (archetypeResult?.data) {
+        const data = archetypeResult.data as any;
+        const primaryArchetype = data.primary_archetype ?? data.archetype ?? '';
+        const messaging = data.messaging_framework ?? data.content_recommendations ?? data.brand_voice ?? '';
+        if (primaryArchetype) {
+          const archetypeGoals = messaging
+            ? `${primaryArchetype} archetype — ${messaging}`
+            : `${primaryArchetype} archetype content strategy`;
+          maybeSet('content_goals', archetypeGoals);
+        }
+      }
+    }
+
+    // 4C — Feed audience_research → icp_workshop
+    if (selectedTools.includes('icp_workshop')) {
+      const audienceResult = completedResults.find(r => r.toolName === 'audience_research');
+      if (audienceResult?.data) {
+        const data = audienceResult.data as any;
+        const painPoints: string[] = (data.pain_points ?? data.behaviors_pain?.pain_points ?? []).slice(0, 5);
+        const infoSources: string[] = (data.information_sources ?? data.behaviors_pain?.information_sources ?? []).slice(0, 5);
+        const psycho = typeof data.psychographics === 'string' ? data.psychographics : (data.demographics_psycho?.psychographics ?? '');
+
+        const parts: string[] = [];
+        if (painPoints.length > 0) parts.push(`Known Pain Points: ${painPoints.join('; ')}`);
+        if (infoSources.length > 0) parts.push(`Where They Get Info: ${infoSources.join(', ')}`);
+        if (psycho) parts.push(`Psychographics: ${psycho}`);
+
+        if (parts.length > 0) maybeSet('existing_customer_data', parts.join('\n'));
+      }
+    }
+
+    // 4D — Feed seo_keyword_research → platform_strategy (content_goals)
+    if (selectedTools.includes('platform_strategy')) {
+      const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
+      if (seoResult?.data) {
+        const data = seoResult.data as any;
+        const keywords: string[] = (data.primary_keywords ?? data.keywords ?? [])
+          .slice(0, 5)
+          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
+          .filter(Boolean);
+        if (keywords.length > 0) maybeSet('content_goals', `Content topics: ${keywords.join(', ')}`);
+      }
+    }
+
     if (Object.keys(updates).length > 0) {
       setCollectedData(prev => ({ ...prev, ...updates }));
       setAutoFilledFields(autoFilled);
