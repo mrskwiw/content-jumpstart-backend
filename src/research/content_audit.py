@@ -139,6 +139,17 @@ class ContentAuditor(ResearchTool, CommonValidationMixin):
                 sanitize=True,
             )
 
+        # SECURITY: Validate optional audit focus areas (seeded from content_gap_analysis)
+        if "audit_focus_areas" in inputs and inputs["audit_focus_areas"]:
+            inputs["audit_focus_areas"] = self.validator.validate_text(
+                inputs.get("audit_focus_areas"),
+                field_name="audit_focus_areas",
+                min_length=2,
+                max_length=1000,
+                required=False,
+                sanitize=True,
+            )
+
         return True
 
     def run_analysis(self, inputs: Dict[str, Any]) -> ContentAuditAnalysis:
@@ -152,6 +163,7 @@ class ContentAuditor(ResearchTool, CommonValidationMixin):
         business_name = inputs.get("business_name", "Client")
         industry = inputs.get("industry", "Not specified")
         performance_metrics = inputs.get("performance_metrics", {})
+        audit_focus_areas = inputs.get("audit_focus_areas", "")
 
         # Step 1: Analyze individual content pieces
         logger.info("Step 1/8: Analyzing individual content pieces...")
@@ -192,7 +204,10 @@ class ContentAuditor(ResearchTool, CommonValidationMixin):
         # Step 8: Identify content gaps
         logger.info("Step 8/8: Identifying content gaps...")
         content_gaps = self._identify_content_gaps(
-            business_description, target_audience, analyzed_content
+            business_description,
+            target_audience,
+            analyzed_content,
+            audit_focus_areas=audit_focus_areas,
         )
 
         # Calculate metrics
@@ -495,17 +510,27 @@ Return ONLY a valid JSON array. Each item has: source_content, repurpose_into, t
         ]
 
     def _identify_content_gaps(
-        self, business_description: str, target_audience: str, existing_content: List[ContentPiece]
+        self,
+        business_description: str,
+        target_audience: str,
+        existing_content: List[ContentPiece],
+        audit_focus_areas: str = "",
     ) -> List[ContentGap]:
         """Identify gaps in content coverage"""
         client = get_default_client()
 
         content_topics = list(set([p.title for p in existing_content]))[:20]
 
+        focus_line = (
+            f"\nFOCUS AREAS (prioritize gaps in these topics): {audit_focus_areas}"
+            if audit_focus_areas
+            else ""
+        )
+
         prompt = f"""Identify 5-7 content gaps based on existing content:
 
 BUSINESS: {business_description}
-TARGET AUDIENCE: {target_audience}
+TARGET AUDIENCE: {target_audience}{focus_line}
 
 EXISTING CONTENT TOPICS:
 {chr(10).join(['- ' + t for t in content_topics])}

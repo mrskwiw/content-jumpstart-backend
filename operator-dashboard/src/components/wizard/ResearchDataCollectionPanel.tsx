@@ -64,6 +64,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   story_mining: {
     stories: 'existing_stories',
     measurableResults: 'measurable_results',
+    founderName: 'business_name',
   },
   icp_workshop: {
     idealCustomer: 'existing_customer_data',
@@ -234,6 +235,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       max: 100,
       placeholder: 'URLs will be auto-analyzed...',
       helperText: 'Paste URLs for quick import, or manually add content without URLs. Tool analyzes performance, identifies top/underperformers, and recommends updates, refreshes, or archives.'
+    }, {
+      key: 'audit_focus_areas',
+      label: 'Audit Focus Areas (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'Leave empty, or enter topics to focus the audit on...',
+      helperText: '✨ Auto-populates from Content Gap Analysis results if available. Focuses the audit on known gap areas rather than auditing everything.'
     }]
   },
   market_trends_research: {
@@ -428,6 +436,13 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       required: false,
       placeholder: 'e.g., 3x revenue increase in 6 months, 40% churn reduction...',
       helperText: '✨ Auto-populates from client profile. Frames the results-gathering stage with concrete benchmarks so the AI probes for matching outcomes.'
+    }, {
+      key: 'business_name',
+      label: 'Business Name / Story Attribution (Optional — Auto-Populated)',
+      type: 'text',
+      required: false,
+      placeholder: 'e.g., Jane Smith / Acme Co...',
+      helperText: '✨ Auto-populates from client founder name. Used to attribute the customer story to the right person or brand.'
     }]
   },
   brand_archetype: {
@@ -574,6 +589,19 @@ export function ResearchDataCollectionPanel({
           .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
           .filter(Boolean);
         if (topKeywords.length > 0) maybeSet('current_content_topics', topKeywords.join(', '));
+      }
+    }
+
+    if (selectedTools.includes('content_audit')) {
+      // Populate audit_focus_areas from content_gap_analysis results if available
+      const gapResult = completedResults.find(r => r.toolName === 'content_gap_analysis');
+      if (gapResult?.data) {
+        const data = gapResult.data as any;
+        const gaps: string[] = (data.content_gaps ?? data.gaps ?? [])
+          .slice(0, 5)
+          .map((g: any) => (typeof g === 'string' ? g : g?.topic ?? g?.title))
+          .filter(Boolean);
+        if (gaps.length > 0) maybeSet('audit_focus_areas', gaps.join(', '));
       }
     }
 
