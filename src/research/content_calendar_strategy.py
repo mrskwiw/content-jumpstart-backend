@@ -5,6 +5,7 @@ content pillars, themes, and platform-specific schedules.
 """
 
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,7 +22,10 @@ from src.models.content_calendar_models import (
 from src.research.base import ResearchTool
 from src.research.validation_mixin import CommonValidationMixin
 from src.utils.anthropic_client import get_default_client
+from src.utils.web_search import get_search_client
 from src.validators.research_input_validator import ResearchInputValidator
+
+logger = logging.getLogger(__name__)
 
 
 class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
@@ -181,7 +185,10 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         )
 
         print("[Step 3/6] Building 13-week detailed calendar...")
-        # Step 3: Generate weekly calendar
+        # Step 3a: Fetch live industry events to seed the calendar
+        industry_events = self._research_industry_events(industry, start_date_str)
+
+        # Step 3b: Generate weekly calendar
         weekly_calendar = self._generate_weekly_calendar(
             self.client,
             start_date_str,
@@ -190,6 +197,7 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
             business_description,
             target_audience,
             main_cta=main_cta,
+            industry_events=industry_events,
         )
 
         print("[Step 4/6] Determining platform-specific schedules...")
@@ -220,6 +228,64 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         )
 
         return calendar_strategy
+
+    def _research_industry_events(self, industry: str, start_date: str) -> str:
+        """Fetch real industry events, awareness dates, and seasonal trends via web search.
+
+        Args:
+            industry: The industry to research (e.g. "healthcare", "SaaS").
+            start_date: Calendar start date in YYYY-MM-DD format; used to derive the year.
+
+        Returns:
+            Formatted string of industry events and awareness dates, or empty string
+            if web search is unavailable or fails.
+        """
+        try:
+            search_client = get_search_client()
+            if search_client is None:
+                return ""
+
+            # Derive year from start_date; fall back to 2026
+            try:
+                year = datetime.strptime(start_date, "%Y-%m-%d").year
+            except (ValueError, TypeError):
+                year = 2026
+
+            lines: List[str] = []
+
+            # Search 1: Industry awareness months and annual events
+            awareness_query = f"{industry} awareness months events {year}"
+            logger.info(f"Web search (industry events): {awareness_query}")
+            awareness_response = search_client.search(awareness_query, max_results=5)
+            awareness_lines: List[str] = []
+            for result in awareness_response.results:
+                awareness_lines.append(f"- {result.title}: {result.snippet}")
+            if awareness_lines:
+                lines.append("Awareness Months / Annual Events:")
+                lines.extend(awareness_lines)
+
+            # Search 2: Seasonal content calendar trends
+            seasonal_query = f"{industry} seasonal content calendar {year}"
+            logger.info(f"Web search (seasonal calendar): {seasonal_query}")
+            seasonal_response = search_client.search(seasonal_query, max_results=5)
+            seasonal_lines: List[str] = []
+            for result in seasonal_response.results:
+                seasonal_lines.append(f"- {result.title}: {result.snippet}")
+            if seasonal_lines:
+                if lines:
+                    lines.append("")
+                lines.append("Seasonal Content Calendar:")
+                lines.extend(seasonal_lines)
+
+            if not lines:
+                return ""
+
+            header = "Industry Events and Awareness Dates (live web data):\n"
+            return header + "\n".join(lines)
+
+        except Exception as e:
+            logger.warning(f"Industry events web search failed: {e}. Continuing without live data.")
+            return ""
 
     def _get_next_monday(self) -> datetime:
         """Get the next Monday from today"""
@@ -451,6 +517,7 @@ Return JSON array with 3 themes:
         business_description: str,
         target_audience: str,
         main_cta: str = "",
+        industry_events: str = "",
     ) -> List[CalendarWeek]:
         """Generate 13 weeks of detailed content calendar"""
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
@@ -474,6 +541,11 @@ Return JSON array with 3 themes:
             )
 
             cta_context = f"\nPrimary CTA: {main_cta}" if main_cta else ""
+            events_context = (
+                f"\n\nIndustry Events (use to seed holidays_events field in calendar weeks):\n{industry_events}"
+                if industry_events
+                else ""
+            )
             prompt = f"""Create detailed weekly content plans for weeks {weeks_in_batch[0]}-{weeks_in_batch[-1]} of a 90-day calendar.
 
 Business: {business_description}
@@ -511,7 +583,7 @@ Return JSON array for weeks {weeks_in_batch}:
     "notes": "Optional notes"
   }},
   ...
-]"""
+]{events_context}"""
 
             response = client.create_message(
                 messages=[{"role": "user", "content": prompt}], max_tokens=3000
