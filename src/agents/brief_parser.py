@@ -95,13 +95,48 @@ class BriefParserAgent:
         # brand_personality is now just a list of strings (personality traits)
         brand_personality = data.get("brand_personality", [])
 
-        # Convert platform strings to enum
+        # Synonym map: normalize common variations before enum lookup.
+        # Keys are lowercase; values are valid Platform enum values.
+        _PLATFORM_SYNONYMS: dict[str, str] = {
+            # LinkedIn
+            "li": "linkedin",
+            "linkedin learning": "linkedin",
+            # Twitter / X
+            "twitter/x": "twitter",
+            "x": "twitter",
+            "x (formerly twitter)": "twitter",
+            "@twitter": "twitter",
+            # Facebook
+            "fb": "facebook",
+            "meta": "facebook",
+            "facebook page": "facebook",
+            # Blog
+            "blog posts": "blog",
+            "blogging": "blog",
+            "website blog": "blog",
+            "medium": "blog",
+            "substack": "blog",
+            "newsletter blog": "blog",
+            # Email
+            "email newsletter": "email",
+            "email list": "email",
+            "email marketing": "email",
+            "email campaigns": "email",
+        }
+
+        # Convert platform strings to enum with case-insensitive + synonym normalization
         target_platforms = []
         for platform in data.get("target_platforms", []):
+            normalized = platform.lower().strip()
+            normalized = _PLATFORM_SYNONYMS.get(normalized, normalized)
             try:
-                target_platforms.append(Platform(platform))
+                target_platforms.append(Platform(normalized))
+                if normalized != platform.lower().strip():
+                    logger.info(f"Platform synonym normalized: '{platform}' → '{normalized}'")
             except ValueError:
-                logger.warning(f"Unknown platform: {platform}, skipping")
+                logger.warning(
+                    f"Unsupported platform '{platform}' — not in supported list, skipping"
+                )
 
         # Convert data usage string to enum
         data_usage_str = data.get("data_usage", "moderate").lower()

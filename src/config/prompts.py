@@ -286,7 +286,20 @@ FIELD-SPECIFIC EXTRACTION RULES:
 12. **tone_to_avoid**: Search Section 9 "How You Communicate" for the "What tone do you NOT want?" answer
     - Also search for: "avoid", "don't want", "turns off", "hate", "never"
 
-13. **PRE-CALL INTERVIEW SECTION MAPPING** — if the document has numbered sections like "SECTION 1", "SECTION 4", "SECTION 5", "SECTION 9":
+13. **target_platforms**: Search the ENTIRE brief for every platform or channel mentioned.
+    - Supported values (return ONLY these): `linkedin`, `twitter`, `facebook`, `blog`, `email`, `generic`
+    - Synonym map — normalize any variation to the supported value:
+      * LinkedIn, LI, LinkedIn Learning → `linkedin`
+      * Twitter, Twitter/X, X, X (formerly Twitter), @twitter → `twitter`
+      * Facebook, FB, Meta, Facebook Page → `facebook`
+      * Blog, blog posts, blogging, website blog, Medium, Substack, newsletter blog → `blog`
+      * Email, email newsletter, email list, email marketing, email campaigns → `email`
+      * Any channel not in the list above (Instagram, YouTube, TikTok, IG, Reels, Shorts, Podcast, Pinterest, Snapchat, etc.) → omit, do not return
+    - Collect ALL supported platforms found anywhere in the brief, not just the first one
+    - Return as an array of the exact lowercase values: e.g. `["linkedin", "email", "blog"]`
+    - If no supported platform is mentioned, return `[]`
+
+14. **PRE-CALL INTERVIEW SECTION MAPPING** — if the document has numbered sections like "SECTION 1", "SECTION 4", "SECTION 5", "SECTION 9":
     - **company_name**: Look for "Business Name:" field at top of document or Section 1
     - **Section 4 (AUDIENCE)**: Extract "Describe your ideal customer" → ideal_customer; "What's their biggest problem" → main_problem_solved; "What questions do your customers ask you most?" numbered list (Q1-Q5) → customer_questions; if Answer lines follow each question, use those answers to enrich the question text: format as "Q: [question] / A: [answer]"
     - **Section 5 (COMPETITION)**: "Who are your top 3 competitors?" numbered list → competitors (extract ONLY the names from slots 1, 2, 3); "How are you different" → key differentiator for business_description
@@ -298,7 +311,7 @@ FIELD-SPECIFIC EXTRACTION RULES:
 SEARCH STRATEGY:
 1. Read ENTIRE brief from start to finish
 2. Check sections: About, Additional Context, Data Usage, CTA Preferences, Background, Team, Stats, Topics
-3. For pre-call interview format: map each numbered section per rule 13 above
+3. For pre-call interview format: map each numbered section per rule 14 above
 4. Extract implicit data: infer keywords from content, convert topics to questions, find names in narratives
 5. When in doubt, INCLUDE the information
 6. Only leave empty if NO information exists ANYWHERE
