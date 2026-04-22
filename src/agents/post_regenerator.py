@@ -151,6 +151,18 @@ class PostRegenerator:
                             )
                         break
 
+                # Catch any post whose final line ends with ?, even when no CTA
+                # pattern was matched (e.g. an engagement question used as a closer)
+                if last_line.rstrip().endswith("?"):
+                    # Avoid double-reporting if cta_is_question already added
+                    if not any(r.reason_type == "cta_is_question" for r in reasons):
+                        reasons.append(
+                            RegenerationReason(
+                                "post_ends_with_question",
+                                "Post ends with a question — the final line must be a statement",
+                            )
+                        )
+
         # Check headline engagement (if available from review reason)
         if post.needs_review and post.review_reason:
             reason = post.review_reason
@@ -323,6 +335,14 @@ class PostRegenerator:
                     "- Rewrite the CTA as a statement, not a question. "
                     "Instead of 'What do you think?' use 'Share your take in the comments.' "
                     "Instead of 'Have you tried this?' use 'Try this today and let me know how it goes.'"
+                )
+
+            elif reason.reason_type == "post_ends_with_question":
+                guidance_parts.append(
+                    "- Rewrite the final line as a statement, not a question. "
+                    "Instead of 'Have you faced this?' use 'Share your experience below.' "
+                    "Instead of 'What would you do?' use 'Try this approach and let me know how it goes.' "
+                    "The final line must always be a statement."
                 )
 
             elif reason.reason_type == "weak_headline":

@@ -63,10 +63,11 @@ CRITICAL GUIDELINES:
 3. **Write for humans** - Sound natural, conversational, and authentic
 4. **Strong hooks** - First line must grab attention immediately
 5. **Clear CTAs** - End with a specific, actionable statement CTA on the final line (not a question)
-6. **Optimal length** - Follow platform-specific length targets exactly (will be specified)
-7. **No AI tells** - Avoid phrases like "in today's world", "dive deep", "unlock", "game-changer"
-8. **Paragraph breaks** - Use short paragraphs (2-3 lines max) for social posts
-9. **Complete content** - Write FULL posts, never partial or outline format
+6. **Final line must be a statement** - Never end a post with a question. No exceptions. The last line must always be an imperative statement.
+7. **Optimal length** - Follow platform-specific length targets exactly (will be specified)
+8. **No AI tells** - Avoid phrases like "in today's world", "dive deep", "unlock", "game-changer"
+9. **Paragraph breaks** - Use short paragraphs (2-3 lines max) for social posts
+10. **Complete content** - Write FULL posts, never partial or outline format
 
 VOICE MATCHING:
 

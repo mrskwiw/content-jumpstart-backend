@@ -100,6 +100,7 @@ class CTAValidator:
         # Check CTA placement and form per-post
         for post in posts:
             issues.extend(self._check_post_cta_placement(post))
+            issues.extend(self._check_post_ends_with_question(post))
 
         return {
             "passed": len(issues) == 0,
@@ -180,6 +181,25 @@ class CTAValidator:
                 break
 
         return issues
+
+    def _check_post_ends_with_question(self, post: "Post") -> List[str]:
+        """Check that the post does not end with a question mark.
+
+        This is broader than ``_check_post_cta_placement``'s question check: it
+        catches any post whose final non-empty line ends with ``?``, regardless of
+        whether that line contains a recognised CTA pattern.
+
+        Returns a list of issue strings (empty = no issues).
+        """
+        lines = [ln.strip() for ln in post.content.strip().splitlines() if ln.strip()]
+        if not lines:
+            return []
+        if lines[-1].rstrip().endswith("?"):
+            return [
+                f"Post ends with a question in '{post.template_name or 'post'}': "
+                "the final line must be a statement"
+            ]
+        return []
 
     def _calculate_variety_score(self, cta_counts: Counter, total_posts: int) -> float:
         """
