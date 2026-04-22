@@ -69,22 +69,23 @@ class SEOKeywordParams(BaseModel):
         if len(v) == 0:
             return None  # treat empty list same as None — auto-generate from business profile
 
-        if not 1 <= len(v) <= 10:
-            raise ValueError("Must provide between 1-10 main topics")
-
         valid_topics = []
         for idx, topic in enumerate(v):
             topic = topic.strip()
 
             if len(topic) < 3:
-                raise ValueError(f"Topic {idx + 1} is too short (minimum 3 characters)")
+                continue  # skip too-short topics rather than blocking the whole run
 
             if len(topic) > 100:
-                raise ValueError(f"Topic {idx + 1} is too long (maximum 100 characters)")
+                topic = topic[:100]  # truncate rather than reject
 
             valid_topics.append(topic)
 
-        return valid_topics
+        if not valid_topics:
+            return None  # all items were invalid — fall back to auto-generation
+
+        # Silently cap at 10 — never raise; the tool itself also caps at 10
+        return valid_topics[:10]
 
 
 class CompetitiveAnalysisParams(BaseModel):
