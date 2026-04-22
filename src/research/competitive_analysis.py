@@ -260,8 +260,16 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
             search_query = f"{competitor} {industry} content strategy blog social media"
             search_results = search_client.search(search_query, max_results=10)
 
+            # STEP 1b: Targeted search for posting frequency signals
+            logger.info(f"Searching posting cadence data for competitor: {competitor}")
+            cadence_query = (
+                f"{competitor} posting frequency content cadence how often posts per week"
+            )
+            cadence_results = search_client.search(cadence_query, max_results=5)
+
             # Format search results for prompt
             search_data = self._format_competitor_search_results(search_results, competitor)
+            cadence_data = self._format_competitor_search_results(cadence_results, competitor)
 
             # STEP 2: If location provided, try to find competitor on Google Maps and get reviews
             review_data = ""
@@ -308,6 +316,14 @@ Use the reviews to understand:
 - Service quality perception
 """
 
+            cadence_section = ""
+            if cadence_results.results:
+                cadence_section = f"""
+
+**POSTING CADENCE SEARCH RESULTS (Use to estimate content_frequency):**
+{cadence_data}
+"""
+
             prompt = f"""Analyze this competitor based on the web search results and customer reviews below.
 
 **COMPETITOR:** {competitor}
@@ -319,20 +335,21 @@ Use the reviews to understand:
 **INDUSTRY:** {industry}
 
 **WEB SEARCH RESULTS (Use ONLY these for analysis):**
-{search_data}{review_section}
+{search_data}{review_section}{cadence_section}
 
 **CRITICAL INSTRUCTIONS:**
 - You MUST use ONLY the information found in the search results and reviews above
 - Base your analysis on FACTUAL data from the search results, not assumptions
 - When reviews are available, incorporate customer feedback into strengths/weaknesses
-- If information is not available in the search results, mark it as "Unknown" or "Not found in search"
+- For content_frequency: look for explicit statements like "posts 3x per week" OR estimate from published dates in the search results (e.g., if articles are published 2-3 days apart → "2-3x per week"; if weeks apart → "1-2x per week"; if months apart → "Monthly"). State your method: e.g., "~3x per week (estimated from article publish dates)".
+- If content_frequency cannot be estimated from any signal in the results, use "Not determinable from available data" — never return just "Unknown"
 - Do NOT invent or hallucinate information not present in the search results
 
 Provide a comprehensive competitor profile including:
 1. Their positioning (how they position themselves in market)
 2. Their target audience
 3. Content types they produce (blog, social, video, etc.)
-4. Content frequency (e.g., "3-4x per week")
+4. Content frequency (e.g., "3-4x per week" or "~2x per week (estimated from article dates)")
 5. Main content topics (5-7 topics)
 6. Brand voice description
 7. Tone descriptors (3-5 adjectives)
@@ -351,17 +368,17 @@ Example when data is missing:
   "positioning": "Premium B2B software for enterprise teams",
   "target_audience": "Enterprise IT directors",
   "content_types": ["blog", "case studies"],
-  "content_frequency": "Unknown — not found in search results",
+  "content_frequency": "~2x per week (estimated from article publish dates)",
   "content_topics": ["security", "compliance", "integration"],
   "brand_voice": "Professional and authoritative",
   "tone_descriptors": ["technical", "formal", "credible"],
   "strengths": ["Strong case study library", "Clear enterprise focus"],
   "weaknesses": ["Limited social media presence"],
-  "estimated_reach": "Unknown — not found in search results",
+  "estimated_reach": "Not determinable from available data",
   "engagement_level": "weak"
 }}
 
-Use "Unknown — not found in search results" for string fields with no data. Use [] for array fields with no data."""
+Use "Not determinable from available data" for string fields with no data. Use [] for array fields with no data."""
 
             try:
                 response = self.client.create_message(
@@ -384,16 +401,22 @@ Use "Unknown — not found in search results" for string fields with no data. Us
 
                 profile = CompetitorProfile(
                     name=competitor,
-                    positioning=data.get("positioning", "Unknown"),
-                    target_audience=data.get("target_audience", "Unknown"),
+                    positioning=data.get("positioning", "Not determinable from available data"),
+                    target_audience=data.get(
+                        "target_audience", "Not determinable from available data"
+                    ),
                     content_types=content_types,
-                    content_frequency=data.get("content_frequency", "Unknown"),
+                    content_frequency=data.get(
+                        "content_frequency", "Not determinable from available data"
+                    ),
                     content_topics=data.get("content_topics", [])[:7],
-                    brand_voice=data.get("brand_voice", "Unknown"),
+                    brand_voice=data.get("brand_voice", "Not determinable from available data"),
                     tone_descriptors=data.get("tone_descriptors", [])[:5],
                     strengths=data.get("strengths", [])[:5],
                     weaknesses=data.get("weaknesses", [])[:5],
-                    estimated_reach=data.get("estimated_reach", "Unknown"),
+                    estimated_reach=data.get(
+                        "estimated_reach", "Not determinable from available data"
+                    ),
                     engagement_level=CompetitorStrength(
                         data.get("engagement_level", "moderate").lower()
                         if data.get("engagement_level", "").lower()
@@ -409,10 +432,10 @@ Use "Unknown — not found in search results" for string fields with no data. Us
                 profile = CompetitorProfile(
                     name=competitor,
                     positioning="Analysis unavailable",
-                    target_audience="Unknown",
-                    content_frequency="Unknown",
-                    brand_voice="Unknown",
-                    estimated_reach="Unknown",
+                    target_audience="Not determinable from available data",
+                    content_frequency="Not determinable from available data",
+                    brand_voice="Not determinable from available data",
+                    estimated_reach="Not determinable from available data",
                     engagement_level=CompetitorStrength.MODERATE,
                 )
                 profiles.append(profile)
