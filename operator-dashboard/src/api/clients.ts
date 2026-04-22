@@ -16,6 +16,15 @@ export interface CreateClientInput {
   keywords?: string[];
   competitors?: string[];
   location?: string;
+  founderName?: string;
+  brandPersonality?: string[];
+  toneToAvoid?: string;
+  dataUsage?: string;
+  stories?: string[];
+  misconceptions?: string[];
+  measurableResults?: string;
+  postingFrequency?: string;
+  mainCta?: string;
 }
 
 export interface UpdateClientInput {
@@ -32,6 +41,15 @@ export interface UpdateClientInput {
   keywords?: string[];
   competitors?: string[];
   location?: string;
+  founderName?: string;
+  brandPersonality?: string[];
+  toneToAvoid?: string;
+  dataUsage?: string;
+  stories?: string[];
+  misconceptions?: string[];
+  measurableResults?: string;
+  postingFrequency?: string;
+  mainCta?: string;
 }
 
 export interface SendEmailInput {
@@ -78,6 +96,15 @@ export const clientsApi = {
     if (input.keywords !== undefined) backendInput.keywords = input.keywords;
     if (input.competitors !== undefined) backendInput.competitors = input.competitors;
     if (input.location !== undefined) backendInput.location = input.location;
+    if (input.founderName !== undefined) backendInput.founder_name = input.founderName;
+    if (input.brandPersonality !== undefined) backendInput.brand_personality = input.brandPersonality;
+    if (input.toneToAvoid !== undefined) backendInput.tone_to_avoid = input.toneToAvoid;
+    if (input.dataUsage !== undefined) backendInput.data_usage = input.dataUsage;
+    if (input.stories !== undefined) backendInput.stories = input.stories;
+    if (input.misconceptions !== undefined) backendInput.misconceptions = input.misconceptions;
+    if (input.measurableResults !== undefined) backendInput.measurable_results = input.measurableResults;
+    if (input.postingFrequency !== undefined) backendInput.posting_frequency = input.postingFrequency;
+    if (input.mainCta !== undefined) backendInput.main_cta = input.mainCta;
 
     const { data } = await apiClient.post('/api/clients/', backendInput);
     return ClientSchema.parse(data);
@@ -100,6 +127,15 @@ export const clientsApi = {
     if (input.keywords !== undefined) backendInput.keywords = input.keywords;
     if (input.competitors !== undefined) backendInput.competitors = input.competitors;
     if (input.location !== undefined) backendInput.location = input.location;
+    if (input.founderName !== undefined) backendInput.founder_name = input.founderName;
+    if (input.brandPersonality !== undefined) backendInput.brand_personality = input.brandPersonality;
+    if (input.toneToAvoid !== undefined) backendInput.tone_to_avoid = input.toneToAvoid;
+    if (input.dataUsage !== undefined) backendInput.data_usage = input.dataUsage;
+    if (input.stories !== undefined) backendInput.stories = input.stories;
+    if (input.misconceptions !== undefined) backendInput.misconceptions = input.misconceptions;
+    if (input.measurableResults !== undefined) backendInput.measurable_results = input.measurableResults;
+    if (input.postingFrequency !== undefined) backendInput.posting_frequency = input.postingFrequency;
+    if (input.mainCta !== undefined) backendInput.main_cta = input.mainCta;
 
     const { data } = await apiClient.patch(`/api/clients/${clientId}`, backendInput);
     return ClientSchema.parse(data);
