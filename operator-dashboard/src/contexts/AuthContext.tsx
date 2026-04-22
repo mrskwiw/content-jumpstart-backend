@@ -13,8 +13,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Proactively refresh the access token on user activity so it never expires
-// during an active session. Fires at most once every 15 minutes.
-const ACTIVITY_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+// during an active session. Fires at most once every 30 minutes.
+const ACTIVITY_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

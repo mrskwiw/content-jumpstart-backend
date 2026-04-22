@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # NEVER use default values in production
     SECRET_KEY: str  # No default - must be set via environment variable
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours — covers a full work session
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Super Admin Configuration
