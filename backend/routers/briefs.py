@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import re
 import sys
 import time
 from pathlib import Path
@@ -33,11 +34,48 @@ _MAX_TEXT_BYTES = 51_200  # 50 KB for .txt / .md
 _MAX_DOCX_BYTES = 5_242_880  # 5 MB for .docx (binary container; text content is small)
 
 
+def _strip_markdown(text: str) -> str:
+    """
+    Convert Markdown-formatted text to plain text.
+
+    Preserves all readable content while removing syntax characters that
+    interfere with Claude's field extraction (headings, bold, links, etc.).
+    """
+    # Fenced code blocks — keep content, drop fence markers
+    text = re.sub(r"```[^\n]*\n(.*?)```", r"\1", text, flags=re.DOTALL)
+    # Inline code — keep content
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Headings — strip leading # characters
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    # Bold / italic (**, *, __, _)
+    text = re.sub(r"\*{1,3}([^*\n]+)\*{1,3}", r"\1", text)
+    text = re.sub(r"_{1,3}([^_\n]+)_{1,3}", r"\1", text)
+    # Images ![alt](url) — keep alt text
+    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # Links [text](url) — keep link text
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    # Blockquotes
+    text = re.sub(r"^>\s?", "", text, flags=re.MULTILINE)
+    # Horizontal rules
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+    # Unordered list markers (-, *, +)
+    text = re.sub(r"^[ \t]*[-*+]\s+", "", text, flags=re.MULTILINE)
+    # Ordered list markers (1. 2. etc.)
+    text = re.sub(r"^[ \t]*\d+\.\s+", "", text, flags=re.MULTILINE)
+    # HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+    # Collapse 3+ blank lines to 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _extract_brief_text(content: bytes, file_ext: str) -> str:
     """
     Extract plain text from a brief file.
 
-    For .txt and .md files the bytes are decoded as UTF-8.
+    For .txt files the bytes are decoded as UTF-8 and returned as-is.
+    For .md files the bytes are decoded then Markdown syntax is stripped
+    so Claude receives clean prose rather than raw formatting characters.
     For .docx files python-docx is used to extract paragraph and table text.
 
     Args:
@@ -68,11 +106,18 @@ def _extract_brief_text(content: bytes, file_ext: str) -> str:
                     lines.append(row_text)
         return "\n".join(lines)
 
-    # .txt / .md — plain UTF-8
+    # Decode UTF-8 for .txt and .md
     try:
-        return content.decode("utf-8")
+        raw_text = content.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError(f"File must be UTF-8 encoded: {exc}") from exc
+
+    if file_ext == ".md":
+        stripped = _strip_markdown(raw_text)
+        logger.info(f"Stripped Markdown: {len(raw_text)} chars → {len(stripped)} chars plain text")
+        return stripped
+
+    return raw_text
 
 
 @router.post("/create", response_model=BriefResponse, status_code=status.HTTP_201_CREATED)
