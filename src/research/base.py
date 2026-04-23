@@ -162,10 +162,22 @@ class ResearchTool(ABC):
                     # Already a dict
                     analysis_data = analysis
                 else:
-                    # Try JSON serialization as fallback
+                    # Try JSON serialization as fallback.
+                    # Use a coercer that calls .model_dump()/.dict() on nested
+                    # Pydantic objects instead of str(), which would produce raw
+                    # Python repr strings like "{'key': 'value'}" in the output.
                     import json
 
-                    analysis_data = json.loads(json.dumps(analysis, default=str))
+                    def _coerce_to_json(obj):
+                        if hasattr(obj, "model_dump"):
+                            return obj.model_dump()
+                        if hasattr(obj, "dict"):
+                            return obj.dict()
+                        if hasattr(obj, "__dict__"):
+                            return vars(obj)
+                        return str(obj)
+
+                    analysis_data = json.loads(json.dumps(analysis, default=_coerce_to_json))
             except Exception as e:
                 logger.warning(f"Could not serialize analysis data: {e}")
                 analysis_data = {"error": "Could not serialize analysis data"}

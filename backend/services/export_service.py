@@ -293,6 +293,72 @@ async def _generate_markdown(
     return output_path, file_size
 
 
+def _add_markdown_paragraph(doc, line: str):
+    """Add a paragraph to *doc* with inline markdown converted to Word formatting.
+
+    Handles:
+      - Bullet lines starting with ``- `` or ``  - `` (nested)
+      - Inline bold (``**text**``) and italic (``*text*``) anywhere in a line
+      - Plain lines (Normal style)
+
+    Table rows (``|…|``) are added as plain text — full table parsing is not
+    attempted here because python-docx table creation requires knowing column
+    counts in advance.
+    """
+    # Determine paragraph style and strip list marker
+    indent = 0
+    stripped = line
+    if line.startswith("    - ") or line.startswith("      - "):
+        stripped = line.lstrip(" -").lstrip()
+        indent = 2
+    elif line.startswith("  - ") or line.startswith("   - "):
+        stripped = line.lstrip(" -").lstrip()
+        indent = 1
+    elif line.startswith("- "):
+        stripped = line[2:]
+        indent = 0
+
+    if indent == 2:
+        para = doc.add_paragraph(style="List Bullet 3")
+    elif indent == 1:
+        para = doc.add_paragraph(style="List Bullet 2")
+    elif line.startswith("- "):
+        para = doc.add_paragraph(style="List Bullet")
+    else:
+        para = doc.add_paragraph()
+
+    # Parse inline bold/italic using a simple token approach.
+    # Split on *** first (bold+italic), then ** (bold), then * (italic).
+    import re
+
+    # Tokenise: alternate normal/formatted segments
+    # Pattern order matters: *** before ** before *
+    TOKEN_RE = re.compile(r"(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*)")
+    pos = 0
+    for m in TOKEN_RE.finditer(stripped):
+        # Plain text before this match
+        if m.start() > pos:
+            para.add_run(stripped[pos : m.start()])
+        token = m.group(0)
+        if token.startswith("***") and token.endswith("***"):
+            run = para.add_run(token[3:-3])
+            run.bold = True
+            run.italic = True
+        elif token.startswith("**") and token.endswith("**"):
+            run = para.add_run(token[2:-2])
+            run.bold = True
+        else:
+            run = para.add_run(token[1:-1])
+            run.italic = True
+        pos = m.end()
+
+    # Remaining plain text after last match
+    if pos < len(stripped):
+        para.add_run(stripped[pos:])
+
+    return para
+
+
 async def _generate_docx(
     posts: List[Post],
     client: Client,
@@ -377,9 +443,13 @@ async def _generate_docx(
         # Post header
         doc.add_heading(f"Post {i}: {post.template_name or 'Custom'}", level=2)
 
-        # Post content
-        content_para = doc.add_paragraph(post.content)
-        content_para.paragraph_format.space_after = Pt(12)
+        # Post content — render each line with inline markdown support
+        content_lines = (post.content or "").splitlines()
+        last_para = None
+        for content_line in content_lines:
+            last_para = _add_markdown_paragraph(doc, content_line)
+        if last_para is not None:
+            last_para.paragraph_format.space_after = Pt(12)
 
         # Metadata
         metadata_parts = [f"Words: {post.word_count or 'N/A'}"]
@@ -427,11 +497,14 @@ async def _generate_docx(
                         doc.add_heading(line[2:], level=2)
                     elif line.startswith("## "):
                         doc.add_heading(line[3:], level=3)
+                    elif line.startswith("### "):
+                        doc.add_heading(line[4:], level=3)
                     elif line.startswith("|"):
-                        # Table row - skip for now (complex DOCX table formatting)
-                        doc.add_paragraph(line)
+                        # Table rows rendered as plain text (full table parsing
+                        # requires column-count knowledge not available here)
+                        _add_markdown_paragraph(doc, line)
                     elif line:
-                        doc.add_paragraph(line)
+                        _add_markdown_paragraph(doc, line)
 
     # Audit log (if requested)
     if include_audit_log and db:
@@ -502,11 +575,22 @@ def _generate_research_section(project_id: str, client_id: str, db: Session) -> 
     from backend.services import crud
 
     results = crud.get_research_results_by_project(db, project_id, status="completed")
+    cross_project_fallback = False
     if not results:
         # Fall back to most recent completed results for this client across all projects
         results = crud.get_research_results_by_client(db, client_id, status="completed")
+        cross_project_fallback = bool(results)
     if not results:
         return {}
+
+    # Fetch client name for placeholder substitution (single DB lookup)
+    client_name = None
+    try:
+        client = crud.get_client(db, client_id)
+        if client:
+            client_name = client.name
+    except Exception:
+        pass
 
     research_sections = {}
 
@@ -514,6 +598,14 @@ def _generate_research_section(project_id: str, client_id: str, db: Session) -> 
         lines = []
         lines.append(f"# {result.tool_label or result.tool_name}")
         lines.append("")
+
+        # Warn when data was sourced from a different project
+        if cross_project_fallback:
+            lines.append(
+                "**Note:** Research data sourced from a previous project for this client. "
+                "Some references may reflect earlier analysis."
+            )
+            lines.append("")
 
         # Metadata
         if result.created_at:
@@ -542,11 +634,35 @@ def _generate_research_section(project_id: str, client_id: str, db: Session) -> 
                 lines.extend(_format_market_trends(result.data))
             elif result.tool_name == "business_report":
                 lines.extend(_format_business_report(result.data))
+            # Previously missing from dispatch — dedicated formatters now wired up:
+            elif result.tool_name == "content_audit":
+                lines.extend(_format_content_audit(result.data))
+            elif result.tool_name == "platform_strategy":
+                lines.extend(_format_platform_strategy(result.data))
+            elif result.tool_name == "audience_research":
+                lines.extend(_format_audience_research(result.data))
+            elif result.tool_name in ("content_calendar_strategy", "content_calendar"):
+                lines.extend(_format_content_calendar(result.data))
+            elif result.tool_name == "icp_workshop":
+                lines.extend(_format_icp_workshop(result.data))
+            elif result.tool_name == "story_mining":
+                lines.extend(_format_story_mining(result.data))
             else:
-                # Generic fallback for other tools
+                # Generic fallback for unrecognised tools
                 lines.extend(_format_generic_research(result.data))
 
             lines.append("")
+
+        # Substitute placeholder client name strings left by research tools
+        # when business_name was not passed correctly (retroactive fix for
+        # existing stored data as well as future runs).
+        if client_name:
+            lines = [
+                line.replace("Client Business", client_name).replace(
+                    "**Business Name:** Client", f"**Business Name:** {client_name}"
+                )
+                for line in lines
+            ]
 
         research_sections[result.tool_name] = lines
 
@@ -1033,8 +1149,13 @@ def _format_seo_keywords(data: dict) -> List[str]:
         lines.append("")
         lines.append("Recommended content to create (in priority order):")
         lines.append("")
+        import re as _re
+
+        _PRIORITY_TAG_RE = _re.compile(r"^\[(HIGH|MEDIUM|LOW|QUICK WIN|GAP)\]\s*", _re.IGNORECASE)
         for i, priority in enumerate(priorities, 1):
-            lines.append(f"{i}. {priority}")
+            # Strip internal scoring tags like [HIGH], [QUICK WIN] from client output
+            display = _PRIORITY_TAG_RE.sub("", str(priority)).strip()
+            lines.append(f"{i}. {display}")
         lines.append("")
 
     # 6. Competitor Analysis (if available)
@@ -1080,6 +1201,21 @@ def _format_seo_keywords(data: dict) -> List[str]:
         lines.append("**SEO Keywords:** No data available")
 
     return lines
+
+
+def _sanitize_template_placeholders(text: str) -> str:
+    """Replace unfilled Claude-generated template placeholders with a readable fallback.
+
+    Matches bracket-enclosed title-case strings like [Artist Name], [Major Label],
+    [Company], [Independent Artist] that Claude returns when source data is sparse.
+    Legitimate bracket content like [LinkedIn] or [B2B] uses short single words and
+    is unlikely to match the two-or-more-word title-case pattern.
+    """
+    import re as _re
+
+    # Match [Two Or More Title Case Words] — leaves [SHORT] and [B2B] intact
+    _TMPL_RE = _re.compile(r"\[([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\]")
+    return _TMPL_RE.sub(r"[\1 — details not available]", text)
 
 
 def _format_competitive_analysis(data: dict) -> List[str]:
@@ -1235,9 +1371,9 @@ def _format_competitive_analysis(data: dict) -> List[str]:
                 score_indicator = ""
                 if opp_score is not None:
                     if opp_score >= 8:
-                        score_indicator = " [HIGH OPPORTUNITY]"
+                        score_indicator = " — HIGH OPPORTUNITY"
                     elif opp_score >= 6:
-                        score_indicator = " [MEDIUM OPPORTUNITY]"
+                        score_indicator = " — MEDIUM OPPORTUNITY"
 
                 lines.append(f"**{i}. {topic}**{score_indicator}")
 
@@ -1299,7 +1435,7 @@ def _format_competitive_analysis(data: dict) -> List[str]:
                 if examples:
                     lines.append("   - **Examples:**")
                     for example in examples[:3]:
-                        lines.append(f"     - {example}")
+                        lines.append(f"     - {_sanitize_template_placeholders(str(example))}")
 
                 lines.append("")
 
@@ -2034,9 +2170,16 @@ def _format_platform_strategy(data: dict) -> List[str]:
         lines.append("### Where Your Audience Is Active")
         lines.append("")
 
+        seen_behavior_platforms: set = set()
         for behavior in audience_behavior:
             if isinstance(behavior, dict):
                 platform = str(behavior.get("platform", "Unknown")).replace("_", " ").title()
+                # Deduplicate: skip if we already rendered this platform
+                plat_key = platform.lower()
+                if plat_key in seen_behavior_platforms:
+                    continue
+                seen_behavior_platforms.add(plat_key)
+
                 audience_present = behavior.get("audience_present", False)
                 activity_level = behavior.get("activity_level", "")
                 consumption = behavior.get("content_consumption_pattern", "")
@@ -2066,9 +2209,15 @@ def _format_platform_strategy(data: dict) -> List[str]:
         lines.append("### Detailed Platform Recommendations")
         lines.append("")
 
+        seen_rec_platforms: set = set()
         for rec in platform_recs:
             if isinstance(rec, dict):
                 platform = str(rec.get("platform", "Unknown")).replace("_", " ").title()
+                # Deduplicate across capitalization variants (e.g. "blog" vs "Blog")
+                plat_key = platform.lower()
+                if plat_key in seen_rec_platforms:
+                    continue
+                seen_rec_platforms.add(plat_key)
                 fit_level = str(rec.get("fit_level", "")).replace("_", " ").title()
                 priority = rec.get("priority", "").upper()
 

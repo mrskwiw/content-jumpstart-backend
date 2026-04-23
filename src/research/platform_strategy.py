@@ -573,7 +573,15 @@ Return a JSON array with one object per platform:
                 print(f"Warning: Failed to create recommendation: {e}")
                 continue
 
-        return recommendations
+        # Deduplicate by platform value (case-insensitive); keep first occurrence
+        seen_platforms: set = set()
+        deduped: list = []
+        for rec in recommendations:
+            key = rec.platform.value.lower()
+            if key not in seen_platforms:
+                seen_platforms.add(key)
+                deduped.append(rec)
+        return deduped
 
     def _determine_platform_mix(
         self,

@@ -1004,10 +1004,11 @@ class ResearchService:
         # Use Client model fields (business_description, ideal_customer) instead of non-existent Project fields
         inputs = {
             "company_name": client.name,
+            "business_name": client.name,  # Propagate to all tools (prevents "Client Business" placeholder)
             "business_description": client.business_description or "",
             "target_audience": client.ideal_customer or "",
             "platforms": project.platforms or ["LinkedIn"],
-            **params,  # Merge in additional parameters
+            **params,  # Merge in additional parameters (explicit params take precedence)
         }
 
         # Tool-specific input preparation
