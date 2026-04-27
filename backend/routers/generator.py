@@ -161,6 +161,11 @@ async def run_generation_background(
             LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
         ]
 
+        # Bug #110: surface unsupported platform substitution to operator
+        platform_warning = result.get("platform_warning")
+        if platform_warning:
+            logs.append(LogEntry(timestamp=timestamp, message=platform_warning))
+
         # Surface any count shortfall prominently in the run log
         if posts_created < expected_count:
             shortfall = expected_count - posts_created

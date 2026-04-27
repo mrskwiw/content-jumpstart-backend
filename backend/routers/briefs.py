@@ -520,4 +520,19 @@ def _generate_warnings(fields: dict) -> list:
     if platforms_field and platforms_field.confidence == "low":
         warnings.append("No platforms specified - will need to select manually")
 
+    # Bug #110: warn about unsupported platforms extracted from the brief
+    if platforms_field and platforms_field.value:
+        from src.models.client_brief import Platform as _Platform
+
+        supported = {p.value for p in _Platform}
+        extracted = platforms_field.value if isinstance(platforms_field.value, list) else []
+        unsupported = [p for p in extracted if str(p).lower() not in supported]
+        if unsupported:
+            names = ", ".join(unsupported)
+            warnings.append(
+                f"Unsupported platforms detected: {names}. "
+                f"Supported platforms are: {', '.join(sorted(supported))}. "
+                "These platforms will be ignored during content generation."
+            )
+
     return warnings

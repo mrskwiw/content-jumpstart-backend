@@ -234,9 +234,15 @@ class GeneratorService:
             # Map platform string to Platform enum
             platform_str = original_posts[0].target_platform or "linkedin"
             platform_upper = platform_str.upper()
+            regen_platform_warning: Optional[str] = None
             try:
                 platform_enum = Platform[platform_upper]
             except KeyError:
+                regen_platform_warning = (
+                    f"⚠️ Platform '{platform_str}' is not supported and was substituted with "
+                    f"'{Platform.LINKEDIN.value}'. Supported platforms: "
+                    f"{', '.join(sorted(p.value for p in Platform))}."
+                )
                 platform_enum = Platform.LINKEDIN
 
             # Create client brief (with optional feedback incorporated)
@@ -295,6 +301,7 @@ class GeneratorService:
                 "posts_regenerated": posts_updated,
                 "status": "completed",
                 "message": f"Successfully regenerated {posts_updated} posts",
+                "platform_warning": regen_platform_warning,  # Bug #110
             }
 
         except Exception as e:
@@ -372,12 +379,18 @@ class GeneratorService:
 
             # Map platform string to Platform enum
             platform_enum = Platform.LINKEDIN  # Default
+            platform_warning: Optional[str] = None
             if platform:
                 platform_upper = platform.upper()
                 try:
                     platform_enum = Platform[platform_upper]
                     logger.info(f"Using platform: {platform_enum.value}")
                 except KeyError:
+                    platform_warning = (
+                        f"⚠️ Platform '{platform}' is not supported and was substituted with "
+                        f"'{Platform.LINKEDIN.value}'. Supported platforms: "
+                        f"{', '.join(sorted(p.value for p in Platform))}."
+                    )
                     logger.warning(f"Unknown platform '{platform}', using LINKEDIN")
 
             # Create client brief
@@ -403,7 +416,10 @@ class GeneratorService:
                 generator = ContentGeneratorAgent()
                 logger.info("Successfully initialized ContentGeneratorAgent")
             except Exception as e:
-                logger.error(f"Failed to initialize ContentGeneratorAgent: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Failed to initialize ContentGeneratorAgent: {str(e)}",
+                    exc_info=True,
+                )
                 raise
 
             # Generate posts using template quantities
@@ -577,6 +593,7 @@ class GeneratorService:
                 "posts_failed": posts_failed,
                 "output_dir": None,  # No file output for direct generation
                 "files": {},
+                "platform_warning": platform_warning,  # Bug #110: None if platform was valid
             }
 
         except Exception as e:
