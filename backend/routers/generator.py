@@ -142,16 +142,31 @@ async def run_generation_background(
         from backend.schemas.run import LogEntry
         from src.utils.cost_tracker import get_default_tracker
 
+        posts_created = result["posts_created"]
+        posts_failed = result.get("posts_failed", 0)
+        expected_count = sum(template_quantities.values()) if template_quantities else num_posts
+
         timestamp = datetime.now().isoformat()
         logs = [
             LogEntry(timestamp=timestamp, message="Generation started"),
             LogEntry(timestamp=timestamp, message="CLI execution completed"),
             LogEntry(
                 timestamp=timestamp,
-                message=f"Created {result['posts_created']} post records",
+                message=f"Created {posts_created} post records",
             ),
             LogEntry(timestamp=timestamp, message=f"Output directory: {result['output_dir']}"),
         ]
+
+        # Surface any count shortfall prominently in the run log
+        if posts_created < expected_count:
+            shortfall = expected_count - posts_created
+            warning_msg = (
+                f"⚠️ WARNING: {posts_created} of {expected_count} posts were saved. "
+                f"{shortfall} posts missing"
+                + (f" ({posts_failed} failed to save to DB)." if posts_failed else ".")
+            )
+            logger.warning(warning_msg)
+            logs.append(LogEntry(timestamp=timestamp, message=warning_msg))
 
         # Capture token usage and cost (Task #32)
         try:

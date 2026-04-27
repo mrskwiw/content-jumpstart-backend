@@ -829,6 +829,16 @@ class ContentGeneratorAgent:
                 )
                 post_number += 1
 
+        # Warn if any template IDs were silently skipped (not found in loader)
+        requested_total = sum(template_quantities.values())
+        if len(tasks) < requested_total:
+            skipped = requested_total - len(tasks)
+            logger.warning(
+                f"⚠️ {skipped} of {requested_total} requested posts will not be generated "
+                f"because their template IDs were not found in the template library. "
+                f"Check the template_quantities configuration."
+            )
+
         # Generate posts in parallel with concurrency limit
         semaphore = asyncio.Semaphore(max_concurrent)
 

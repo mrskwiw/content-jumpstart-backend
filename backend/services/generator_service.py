@@ -467,6 +467,7 @@ class GeneratorService:
             # Create Post records in database
             logger.info(f"Creating {len(posts)} Post records in database for project {project.id}")
             posts_created = 0
+            posts_failed = 0
 
             for idx, post in enumerate(posts):
                 try:
@@ -497,8 +498,18 @@ class GeneratorService:
                     logger.info(f"Successfully created post record {post_id}")
 
                 except Exception as e:
-                    logger.error(f"Failed to create post record {idx+1}: {str(e)}", exc_info=True)
+                    posts_failed += 1
+                    logger.error(
+                        f"Failed to save post {idx+1}/{len(posts)} to database: {str(e)}",
+                        exc_info=True,
+                    )
                     continue
+
+            if posts_failed:
+                logger.error(
+                    f"⚠️ {posts_failed} of {len(posts)} posts failed to save — "
+                    f"only {posts_created} will appear in the deliverable."
+                )
 
             # Commit all posts
             logger.info(f"Committing {posts_created} posts to database...")
@@ -563,6 +574,7 @@ class GeneratorService:
 
             return {
                 "posts_created": posts_created,
+                "posts_failed": posts_failed,
                 "output_dir": None,  # No file output for direct generation
                 "files": {},
             }
