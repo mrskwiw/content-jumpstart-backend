@@ -24,5 +24,10 @@ export default function RootRedirect() {
   }
 
   // Redirect based on authentication status
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
+  // Show the portfolio/WIP splash once per session for authenticated users
+  if (isAuthenticated) {
+    const seen = sessionStorage.getItem('portfolioNoticeSeen');
+    return <Navigate to={seen ? '/dashboard' : '/portfolio-notice'} replace />;
+  }
+  return <Navigate to="/login" replace />;
 }

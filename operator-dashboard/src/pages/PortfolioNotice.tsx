@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Rocket, CheckCircle2, Clock, ArrowRight, Sparkles, Lock } from 'lucide-react';
 import { Button } from '@/components/ui';
@@ -37,18 +37,21 @@ export default function PortfolioNotice() {
       .filter((g) => g.items.length > 0);
   }, [incomplete]);
 
+  const markSeenAndContinue = useCallback(() => {
+    sessionStorage.setItem('portfolioNoticeSeen', '1');
+    navigate('/dashboard', { replace: true });
+  }, [navigate]);
+
   // Press any key or click to continue
   useEffect(() => {
     const handle = (e: KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
-        navigate('/dashboard', { replace: true });
+        markSeenAndContinue();
       }
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);
-  }, [navigate]);
-
-  const handleContinue = () => navigate('/dashboard', { replace: true });
+  }, [markSeenAndContinue]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-blue-50 to-purple-50 dark:from-neutral-950 dark:via-blue-950 dark:to-purple-950 p-4 py-8">
@@ -182,7 +185,7 @@ export default function PortfolioNotice() {
 
         {/* CTA */}
         <div className="text-center space-y-3">
-          <Button onClick={handleContinue} variant="primary" className="group px-8">
+          <Button onClick={markSeenAndContinue} variant="primary" className="group px-8">
             Enter Dashboard
             <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
           </Button>

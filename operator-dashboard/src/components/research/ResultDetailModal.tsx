@@ -1,30 +1,45 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { researchApi } from '@/api';
 import { ResearchResult } from '@/types/domain';
 import { X, Download, FileText, Code2, Info } from 'lucide-react';
+import { useState } from 'react';
 
 interface ResultDetailModalProps {
-  resultId: string;
+  result: ResearchResult;
   onClose: () => void;
 }
 
-export function ResultDetailModal({ resultId, onClose }: ResultDetailModalProps) {
+export function ResultDetailModal({ result, onClose }: ResultDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'data' | 'metadata'>('preview');
+  const [primaryOutputName, primaryOutputContent] = Object.entries(result.outputs)[0] ?? [
+    'output',
+    '',
+  ];
 
-  // Fetch result details
-  // Note: We need to add a getResult endpoint to the API
-  const { data: result, isLoading } = useQuery<ResearchResult | null>({
-    queryKey: ['research-result', resultId],
-    queryFn: async () => {
-      // TODO: Implement getResult endpoint
-      // For now, return null as placeholder
-      return null;
-    }
-  });
-
-  const handleDownload = async () => {
-    // TODO: Implement download functionality
+  const handleDownload = () => {
+    const payload = JSON.stringify(
+      {
+        id: result.id,
+        toolName: result.toolName,
+        toolLabel: result.toolLabel,
+        outputs: result.outputs,
+        data: result.data,
+        metadata: {
+          status: result.status,
+          durationSeconds: result.durationSeconds,
+          toolPrice: result.toolPrice,
+          actualCostUsd: result.actualCostUsd,
+          createdAt: result.createdAt,
+        },
+      },
+      null,
+      2
+    );
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${result.toolName}-${result.id}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -34,10 +49,10 @@ export function ResultDetailModal({ resultId, onClose }: ResultDetailModalProps)
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-neutral-700">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-              {result?.toolLabel || 'Research Result'}
+              {result.toolLabel || 'Research Result'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              {result?.createdAt && new Date(result.createdAt).toLocaleString()}
+              {new Date(result.createdAt).toLocaleString()}
             </p>
           </div>
           <button
@@ -72,45 +87,44 @@ export function ResultDetailModal({ resultId, onClose }: ResultDetailModalProps)
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            </div>
-          ) : (
-            <>
-              {activeTab === 'preview' && (
-                <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Markdown preview will be displayed here
-                  </p>
+          <>
+            {activeTab === 'preview' && (
+              <div className="space-y-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {primaryOutputName}
                 </div>
-              )}
-              {activeTab === 'data' && (
-                <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4">
-                  <pre className="text-sm text-gray-900 dark:text-gray-100 overflow-auto">
-                    {JSON.stringify(result?.data || {}, null, 2)}
+                <div className="prose dark:prose-invert max-w-none">
+                  <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-sm text-gray-800 dark:bg-neutral-800 dark:text-gray-100">
+                    {primaryOutputContent || 'No output content available.'}
                   </pre>
                 </div>
-              )}
-              {activeTab === 'metadata' && (
-                <div className="space-y-4">
-                  <MetadataRow label="Status" value={result?.status || '—'} />
-                  <MetadataRow
-                    label="Duration"
-                    value={result?.durationSeconds ? `${result.durationSeconds}s` : '—'}
-                  />
-                  <MetadataRow
-                    label="Business Price"
-                    value={result?.toolPrice ? `$${result.toolPrice}` : '—'}
-                  />
-                  <MetadataRow
-                    label="Actual API Cost"
-                    value={result?.actualCostUsd ? `$${result.actualCostUsd.toFixed(4)}` : '—'}
-                  />
-                </div>
-              )}
-            </>
-          )}
+              </div>
+            )}
+            {activeTab === 'data' && (
+              <div className="bg-gray-50 dark:bg-neutral-800 rounded-lg p-4">
+                <pre className="text-sm text-gray-900 dark:text-gray-100 overflow-auto">
+                  {JSON.stringify(result.data || result.outputs || {}, null, 2)}
+                </pre>
+              </div>
+            )}
+            {activeTab === 'metadata' && (
+              <div className="space-y-4">
+                <MetadataRow label="Status" value={result.status || '—'} />
+                <MetadataRow
+                  label="Duration"
+                  value={result.durationSeconds ? `${result.durationSeconds}s` : '—'}
+                />
+                <MetadataRow
+                  label="Business Price"
+                  value={result.toolPrice ? `$${result.toolPrice}` : '—'}
+                />
+                <MetadataRow
+                  label="Actual API Cost"
+                  value={result.actualCostUsd ? `$${result.actualCostUsd.toFixed(4)}` : '—'}
+                />
+              </div>
+            )}
+          </>
         </div>
 
         {/* Footer */}

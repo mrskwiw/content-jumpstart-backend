@@ -25,14 +25,20 @@ _RETENTION_DAYS = 90
 def _build_query(
     db: Session,
     user_id: str,
+    is_superuser: bool,
     action_type: Optional[str],
     resource_type: Optional[str],
     status: Optional[str],
     date_from: Optional[str],
     date_to: Optional[str],
 ):
-    """Return a filtered AuditLog query scoped to the given user."""
-    q = db.query(AuditLog).filter(AuditLog.user_id == user_id)
+    """Return a filtered AuditLog query.
+
+    Superusers see all entries. Regular users see only their own.
+    """
+    q = db.query(AuditLog)
+    if not is_superuser:
+        q = q.filter(AuditLog.user_id == user_id)
 
     if action_type and action_type != "all":
         q = q.filter(AuditLog.action_type == action_type)
@@ -63,12 +69,17 @@ async def get_audit_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Return compliance dashboard aggregate stats for the current user."""
+    """Return compliance dashboard aggregate stats.
+
+    Superusers see platform-wide totals. Regular users see only their own.
+    """
     now = datetime.now(tz=timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     thirty_days_ago = now - timedelta(days=30)
 
-    base = db.query(AuditLog).filter(AuditLog.user_id == current_user.id)
+    base = db.query(AuditLog)
+    if not current_user.is_superuser:
+        base = base.filter(AuditLog.user_id == current_user.id)
 
     total_events = base.count()
     today_events = base.filter(AuditLog.created_at >= today_start).count()
@@ -111,7 +122,14 @@ async def export_audit_csv(
 ) -> StreamingResponse:
     """Export filtered audit log as CSV for compliance reporting."""
     q = _build_query(
-        db, str(current_user.id), action_type, resource_type, status, date_from, date_to
+        db,
+        str(current_user.id),
+        bool(current_user.is_superuser),
+        action_type,
+        resource_type,
+        status,
+        date_from,
+        date_to,
     )
     entries = q.limit(10000).all()
 
@@ -171,7 +189,14 @@ async def export_audit_json(
 ) -> StreamingResponse:
     """Export filtered audit log as JSON for compliance reporting."""
     q = _build_query(
-        db, str(current_user.id), action_type, resource_type, status, date_from, date_to
+        db,
+        str(current_user.id),
+        bool(current_user.is_superuser),
+        action_type,
+        resource_type,
+        status,
+        date_from,
+        date_to,
     )
     entries = q.limit(10000).all()
 
@@ -206,7 +231,14 @@ async def list_audit_logs(
     Authorization: Users see only their own entries.
     """
     q = _build_query(
-        db, str(current_user.id), action_type, resource_type, status, date_from, date_to
+        db,
+        str(current_user.id),
+        bool(current_user.is_superuser),
+        action_type,
+        resource_type,
+        status,
+        date_from,
+        date_to,
     )
     entries = q.offset(skip).limit(limit).all()
     return [AuditLogResponse.from_orm_entry(e).model_dump_api() for e in entries]

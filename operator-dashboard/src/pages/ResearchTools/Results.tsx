@@ -12,7 +12,7 @@ export default function ResearchResults() {
     clientId: 'all',
     dateRange: '30'
   });
-  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const [selectedResult, setSelectedResult] = useState<ResearchResult | null>(null);
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['research-results', filters],
@@ -90,7 +90,7 @@ export default function ResearchResults() {
             <ResultCard
               key={result.id}
               result={result}
-              onView={() => setSelectedResultId(result.id)}
+              onView={() => setSelectedResult(result)}
             />
           ))
         ) : (
@@ -107,10 +107,10 @@ export default function ResearchResults() {
       </div>
 
       {/* Result Detail Modal */}
-      {selectedResultId && (
+      {selectedResult && (
         <ResultDetailModal
-          resultId={selectedResultId}
-          onClose={() => setSelectedResultId(null)}
+          result={selectedResult}
+          onClose={() => setSelectedResult(null)}
         />
       )}
     </div>
