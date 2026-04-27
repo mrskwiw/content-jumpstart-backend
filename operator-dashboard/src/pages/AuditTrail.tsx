@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { auditApi } from '@/api/audit';
+import type { AuditEntry, ComplianceStats } from '@/api/audit';
 import {
   FileText,
   Download,
@@ -20,304 +22,9 @@ import {
   Calendar,
 } from 'lucide-react';
 
-// Types
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-  action: string;
-  actionType: 'create' | 'read' | 'update' | 'delete' | 'export' | 'system' | 'security';
-  resource: string;
-  resourceType: 'project' | 'deliverable' | 'user' | 'settings' | 'template' | 'client';
-  details: string;
-  ipAddress: string;
-  status: 'success' | 'failed' | 'warning';
-  metadata?: {
-    changes?: Record<string, { old: unknown; new: unknown }>;
-    reason?: string;
-    [key: string]: unknown;
-  };
-}
+// Local alias so the rest of the component doesn't change
+type AuditLog = AuditEntry;
 
-interface ComplianceStats {
-  totalEvents: number;
-  todayEvents: number;
-  failedActions: number;
-  securityEvents: number;
-  avgEventsPerDay: number;
-  retentionDays: number;
-}
-
-// Mock data
-const mockAuditLogs: AuditLog[] = [
-  {
-    id: 'log-001',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-001',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@company.com',
-      role: 'Admin',
-    },
-    action: 'Updated deliverable status',
-    actionType: 'update',
-    resource: 'Deliverable #D-2024-003',
-    resourceType: 'deliverable',
-    details: 'Changed status from "Ready" to "Delivered"',
-    ipAddress: '192.168.1.100',
-    status: 'success',
-    metadata: {
-      changes: {
-        status: { old: 'ready', new: 'delivered' },
-      },
-    },
-  },
-  {
-    id: 'log-002',
-    timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-002',
-      name: 'Michael Chen',
-      email: 'michael.c@company.com',
-      role: 'Editor',
-    },
-    action: 'Exported client data',
-    actionType: 'export',
-    resource: 'Client: Acme Corp',
-    resourceType: 'client',
-    details: 'Exported deliverables list as CSV',
-    ipAddress: '192.168.1.105',
-    status: 'success',
-    metadata: {
-      exportFormat: 'csv',
-      recordCount: 30,
-    },
-  },
-  {
-    id: 'log-003',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-003',
-      name: 'Emily Rodriguez',
-      email: 'emily.r@company.com',
-      role: 'Viewer',
-    },
-    action: 'Failed to delete project',
-    actionType: 'delete',
-    resource: 'Project #P-2024-015',
-    resourceType: 'project',
-    details: 'Insufficient permissions to delete project',
-    ipAddress: '192.168.1.110',
-    status: 'failed',
-    metadata: {
-      reason: 'Permission denied: Viewer role cannot delete projects',
-    },
-  },
-  {
-    id: 'log-004',
-    timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-001',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@company.com',
-      role: 'Admin',
-    },
-    action: 'Created new user',
-    actionType: 'create',
-    resource: 'User: Alex Thompson',
-    resourceType: 'user',
-    details: 'Added new team member with Editor role',
-    ipAddress: '192.168.1.100',
-    status: 'success',
-    metadata: {
-      newUser: {
-        email: 'alex.t@company.com',
-        role: 'editor',
-      },
-    },
-  },
-  {
-    id: 'log-005',
-    timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'system',
-      name: 'System',
-      email: 'system@company.com',
-      role: 'System',
-    },
-    action: 'Automated backup completed',
-    actionType: 'system',
-    resource: 'Database backup',
-    resourceType: 'settings',
-    details: 'Daily backup completed successfully',
-    ipAddress: '127.0.0.1',
-    status: 'success',
-    metadata: {
-      backupSize: '2.4 GB',
-      duration: '3m 42s',
-    },
-  },
-  {
-    id: 'log-006',
-    timestamp: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-004',
-      name: 'David Kim',
-      email: 'david.k@company.com',
-      role: 'Admin',
-    },
-    action: 'Updated security settings',
-    actionType: 'security',
-    resource: 'Security Configuration',
-    resourceType: 'settings',
-    details: 'Enabled two-factor authentication requirement',
-    ipAddress: '192.168.1.115',
-    status: 'success',
-    metadata: {
-      changes: {
-        requireTwoFactor: { old: false, new: true },
-      },
-    },
-  },
-  {
-    id: 'log-007',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-002',
-      name: 'Michael Chen',
-      email: 'michael.c@company.com',
-      role: 'Editor',
-    },
-    action: 'Multiple login failures',
-    actionType: 'security',
-    resource: 'Authentication System',
-    resourceType: 'settings',
-    details: '3 failed login attempts detected',
-    ipAddress: '192.168.1.105',
-    status: 'warning',
-    metadata: {
-      attempts: 3,
-      reason: 'Incorrect password',
-    },
-  },
-  {
-    id: 'log-008',
-    timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-001',
-      name: 'Sarah Johnson',
-      email: 'sarah.j@company.com',
-      role: 'Admin',
-    },
-    action: 'Generated analytics report',
-    actionType: 'create',
-    resource: 'Monthly Performance Report',
-    resourceType: 'project',
-    details: 'Created monthly performance report for November 2024',
-    ipAddress: '192.168.1.100',
-    status: 'success',
-    metadata: {
-      reportType: 'monthly',
-      period: '2024-11',
-      metrics: ['quality', 'throughput', 'revenue'],
-    },
-  },
-  {
-    id: 'log-009',
-    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-003',
-      name: 'Emily Rodriguez',
-      email: 'emily.r@company.com',
-      role: 'Viewer',
-    },
-    action: 'Viewed client details',
-    actionType: 'read',
-    resource: 'Client: TechStart Inc',
-    resourceType: 'client',
-    details: 'Accessed client profile and project history',
-    ipAddress: '192.168.1.110',
-    status: 'success',
-  },
-  {
-    id: 'log-010',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-002',
-      name: 'Michael Chen',
-      email: 'michael.c@company.com',
-      role: 'Editor',
-    },
-    action: 'Updated template library',
-    actionType: 'update',
-    resource: 'Template: Problem Recognition',
-    resourceType: 'template',
-    details: 'Updated template structure and guidelines',
-    ipAddress: '192.168.1.105',
-    status: 'success',
-    metadata: {
-      changes: {
-        guidelines: { old: 'Brief guidelines', new: 'Detailed step-by-step guidelines' },
-      },
-    },
-  },
-  {
-    id: 'log-011',
-    timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'system',
-      name: 'System',
-      email: 'system@company.com',
-      role: 'System',
-    },
-    action: 'Data retention policy executed',
-    actionType: 'system',
-    resource: 'Old audit logs',
-    resourceType: 'settings',
-    details: 'Archived logs older than 90 days',
-    ipAddress: '127.0.0.1',
-    status: 'success',
-    metadata: {
-      archivedCount: 1245,
-      retentionDays: 90,
-    },
-  },
-  {
-    id: 'log-012',
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    user: {
-      id: 'user-004',
-      name: 'David Kim',
-      email: 'david.k@company.com',
-      role: 'Admin',
-    },
-    action: 'Deleted inactive user',
-    actionType: 'delete',
-    resource: 'User: John Smith',
-    resourceType: 'user',
-    details: 'Removed user account after 90 days of inactivity',
-    ipAddress: '192.168.1.115',
-    status: 'success',
-    metadata: {
-      reason: 'Inactive for 90+ days',
-      lastActive: '2024-08-15',
-    },
-  },
-];
-
-const mockComplianceStats: ComplianceStats = {
-  totalEvents: 8456,
-  todayEvents: 127,
-  failedActions: 23,
-  securityEvents: 8,
-  avgEventsPerDay: 142,
-  retentionDays: 90,
-};
 
 // Helper functions
 const getActionTypeIcon = (type: string) => {
@@ -425,22 +132,16 @@ export default function AuditTrail() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
-  // Fetch audit logs
+  // Fetch audit logs from real API
   const { data: auditLogs = [] } = useQuery<AuditLog[]>({
     queryKey: ['audit-logs'],
-    queryFn: async () => {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      return mockAuditLogs;
-    },
+    queryFn: () => auditApi.list({ limit: 500 }),
   });
 
-  // Fetch compliance stats
+  // Fetch compliance stats from real API
   const { data: complianceStats } = useQuery<ComplianceStats>({
     queryKey: ['compliance-stats'],
-    queryFn: async () => {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      return mockComplianceStats;
-    },
+    queryFn: () => auditApi.stats(),
   });
 
   // Filter logs
@@ -511,6 +212,18 @@ export default function AuditTrail() {
   }, [auditLogs]);
 
   const handleExport = (format: 'csv' | 'json') => {
+    const filters = {
+      action_type: selectedActionType !== 'all' ? selectedActionType : undefined,
+      resource_type: selectedResourceType !== 'all' ? selectedResourceType : undefined,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    };
+    const url = auditApi.exportUrl(format, filters);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `audit_log.${format}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     setShowExportModal(false);
   };
 

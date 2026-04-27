@@ -29,6 +29,7 @@ from backend.utils.http_rate_limiter import (
 from backend.routers import (
     admin_users,
     assistant,
+    audit,
     metrics,
     cache,
     auth,
@@ -612,6 +613,7 @@ app.include_router(database.router, prefix="/api", tags=["Database"])
 app.include_router(cache.router, prefix="/api/cache", tags=["Cache Management"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics & Monitoring"])
 app.include_router(stripe_checkout.router, prefix="/api/stripe", tags=["Payments"])
+app.include_router(audit.router, prefix="/api/audit", tags=["Audit Trail"])
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from backend.middleware.authorization import (
 )  # TR-021: Authorization
 from backend.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 from backend.services import crud
+from backend.services.audit_service import get_client_ip, log_action
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -66,7 +67,20 @@ async def create_client(
     Authorization: TR-021 - Client owned by creating user
     """
     # TR-021: Create client with user_id for ownership
-    return crud.create_client(db, client, user_id=current_user.id)
+    new_client = crud.create_client(db, client, user_id=current_user.id)
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Created client",
+        action_type="create",
+        resource_type="client",
+        resource_id=new_client.id,
+        resource_name=new_client.name,
+        ip_address=get_client_ip(request),
+    )
+    return new_client
 
 
 @router.get("/{client_id}", response_model=ClientResponse)
@@ -108,6 +122,18 @@ async def update_client(
     updated_client = crud.update_client(db, client_id, client_update)
     if not updated_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Updated client",
+        action_type="update",
+        resource_type="client",
+        resource_id=client_id,
+        resource_name=updated_client.name,
+        ip_address=get_client_ip(request),
+    )
     return updated_client
 
 
@@ -263,6 +289,19 @@ async def delete_client(
     db.delete(client)
     db.commit()
 
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Deleted client",
+        action_type="delete",
+        resource_type="client",
+        resource_id=client_id,
+        resource_name=client.name,
+        details=f"Hard delete — {len(projects)} project(s) removed",
+        ip_address=get_client_ip(request),
+    )
     return None
 
 
@@ -279,6 +318,18 @@ async def archive_client(
     client.soft_delete()
     db.commit()
     db.refresh(client)
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Archived client",
+        action_type="update",
+        resource_type="client",
+        resource_id=client_id,
+        resource_name=client.name,
+        ip_address=get_client_ip(request),
+    )
     return client
 
 
@@ -304,6 +355,18 @@ async def unarchive_client(
     client.restore()
     db.commit()
     db.refresh(client)
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Unarchived client",
+        action_type="update",
+        resource_type="client",
+        resource_id=client_id,
+        resource_name=client.name,
+        ip_address=get_client_ip(request),
+    )
     return client
 
 

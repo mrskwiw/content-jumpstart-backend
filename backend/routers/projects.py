@@ -19,6 +19,7 @@ from backend.utils.pagination import paginate_hybrid, get_pagination_params
 from backend.database import get_db
 from backend.models import Project, User
 from backend.utils.http_rate_limiter import standard_limiter
+from backend.services.audit_service import get_client_ip, log_action
 
 router = APIRouter()
 
@@ -146,6 +147,18 @@ async def create_project(
     # TR-021: Create project with user_id for ownership
     db_project = crud.create_project(db, project, user_id=current_user.id)
 
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Created project",
+        action_type="create",
+        resource_type="project",
+        resource_id=db_project.id,
+        resource_name=getattr(db_project, "name", db_project.id),
+        ip_address=get_client_ip(request),
+    )
     project_data = ProjectResponse.model_validate(db_project).model_dump(by_alias=True, mode="json")
     return JSONResponse(content=project_data, status_code=status.HTTP_201_CREATED)
 
@@ -197,6 +210,18 @@ async def update_project(
             detail=f"Project {project_id} not found",
         )
 
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Updated project",
+        action_type="update",
+        resource_type="project",
+        resource_id=project_id,
+        resource_name=getattr(updated_project, "name", project_id),
+        ip_address=get_client_ip(request),
+    )
     project_data = ProjectResponse.model_validate(updated_project).model_dump(
         by_alias=True, mode="json"
     )
@@ -221,6 +246,7 @@ async def delete_project(
     Cache invalidation: Signals clients to invalidate projects cache.
     """
     # TR-021: project already verified by dependency
+    project_name = getattr(project, "name", project_id)
     success = crud.delete_project(db, project_id)
     if not success:
         raise HTTPException(
@@ -228,4 +254,16 @@ async def delete_project(
             detail=f"Project {project_id} not found",
         )
 
+    log_action(
+        db,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_name=current_user.full_name or current_user.email,
+        action="Deleted project",
+        action_type="delete",
+        resource_type="project",
+        resource_id=project_id,
+        resource_name=project_name,
+        ip_address=get_client_ip(request),
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
