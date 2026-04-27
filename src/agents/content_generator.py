@@ -5,6 +5,7 @@ import random
 import re
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from ..config.template_angles import TEMPLATE_ANGLES, MAX_QUANTITY_PER_TEMPLATE
 from ..config.brand_frameworks import (
     get_archetype_from_client_type,
     get_archetype_guidance,
@@ -778,11 +779,33 @@ class ContentGeneratorAgent:
 
         # Iterate through template quantities
         for template_id, quantity in template_quantities.items():
+            # Enforce the per-template ceiling before making any API calls.
+            if quantity > MAX_QUANTITY_PER_TEMPLATE:
+                raise ValueError(
+                    f"Template {template_id} requested {quantity} posts but the maximum is "
+                    f"{MAX_QUANTITY_PER_TEMPLATE} per template per run. "
+                    "Reduce the quantity or split across multiple runs."
+                )
+
             # Get template by ID
             template = self.template_loader.get_template_by_id(template_id)
             if not template:
                 logger.warning(f"Template ID {template_id} not found, skipping {quantity} posts")
                 continue
+
+            # Pre-sample unique angles for this template's batch so every post
+            # in the run gets a distinct execution approach. Falls back gracefully
+            # if the template_id is not yet in TEMPLATE_ANGLES (future templates).
+            available_angles = TEMPLATE_ANGLES.get(template_id, [])
+            if available_angles and quantity <= len(available_angles):
+                selected_angles: List[str] = random.sample(available_angles, quantity)  # nosec B311
+            else:
+                # Graceful degradation: cycle through available angles if pool is
+                # smaller than quantity (shouldn't happen given the cap above).
+                selected_angles = [
+                    available_angles[i % len(available_angles)] if available_angles else ""
+                    for i in range(quantity)
+                ]
 
             # Build a template-specific base context when web search results are available.
             # _build_context() copies base_context, so this is safe to share across variants.
@@ -791,15 +814,17 @@ class ContentGeneratorAgent:
                 {**base_context, "web_search_results": web_results} if web_results else base_context
             )
 
-            # Create tasks for specified quantity
-            for variant in range(1, quantity + 1):
+            # Create one task per post, embedding the pre-sampled angle via a fresh
+            # dict spread per task. The "_angle" sentinel key is consumed by
+            # _build_context and never forwarded to the LLM as a raw context entry.
+            for variant_idx, angle in enumerate(selected_angles):
                 tasks.append(
                     {
                         "template": template,
-                        "variant": variant,
+                        "variant": variant_idx + 1,
                         "post_number": post_number,
                         "cached_system_prompt": cached_system_prompt,
-                        "base_context": template_base_ctx,
+                        "base_context": {**template_base_ctx, "_angle": angle},
                     }
                 )
                 post_number += 1
@@ -1272,8 +1297,14 @@ This is a blog post, not a social media post — depth and thoroughness matter. 
             except Exception as e:
                 logger.warning(f"Could not add research context: {e}")
 
-        # Add variant-specific guidance
-        if variant == 1:
+        # Add variant-specific guidance.
+        # If a pre-sampled angle was embedded into base_context by the task builder,
+        # consume it here and use it directly. The "_angle" sentinel is popped so it
+        # never appears as a raw key in the serialised prompt context.
+        _injected_angle: str = context.pop("_angle", "")
+        if _injected_angle:
+            context["variant_guidance"] = _injected_angle
+        elif variant == 1:
             context["variant_guidance"] = "Use a direct, problem-focused angle"
         elif variant == 2:
             context["variant_guidance"] = "Use a story-driven or example-based angle"
