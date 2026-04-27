@@ -918,10 +918,30 @@ async def export_package(
                 detail=f"Client {project.client_id} not found",
             )
 
-        # Get posts for this project
-        from backend.models import Post as PostModel
+        # Get posts for this project, scoped to the latest run to prevent stale
+        # posts from previous runs (including test runs with wrong client data)
+        # from appearing in the export.
+        from backend.models import Post as PostModel, Run as RunModel
 
-        posts = db.query(PostModel).filter(PostModel.project_id == input.project_id).all()
+        latest_run = (
+            db.query(RunModel)
+            .filter(RunModel.project_id == input.project_id)
+            .order_by(RunModel.started_at.desc())
+            .first()
+        )
+
+        if latest_run:
+            posts = (
+                db.query(PostModel)
+                .filter(
+                    PostModel.project_id == input.project_id,
+                    PostModel.run_id == latest_run.id,
+                )
+                .all()
+            )
+        else:
+            # No run record — fall back to all posts for backward compatibility
+            posts = db.query(PostModel).filter(PostModel.project_id == input.project_id).all()
 
         if not posts:
             raise HTTPException(
@@ -931,7 +951,8 @@ async def export_package(
 
         logger.info(
             f"Creating deliverable export for project {input.project_id} in format {input.format} "
-            f"with {len(posts)} posts (audit_log={input.include_audit_log})"
+            f"with {len(posts)} posts from run {latest_run.id if latest_run else 'N/A'} "
+            f"(audit_log={input.include_audit_log})"
         )
 
         from backend.models import Deliverable
@@ -954,16 +975,6 @@ async def export_package(
             include_audit_log=input.include_audit_log,
             include_research=input.include_research,  # NEW
             db=db,
-        )
-
-        # Get the latest run_id for this project (if any)
-        from backend.models import Run as RunModel
-
-        latest_run = (
-            db.query(RunModel)
-            .filter(RunModel.project_id == input.project_id)
-            .order_by(RunModel.started_at.desc())
-            .first()
         )
 
         # Create deliverable record

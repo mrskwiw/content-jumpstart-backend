@@ -776,9 +776,15 @@ Generate a post following this template structure, customized for this client's 
         """
         lines = []
 
-        # Priority fields (always include if present)
+        # company_name is always emitted — even if empty — so that two clients
+        # with otherwise identical sparse context produce different cache keys
+        # and cannot collide in the response cache.
+        raw_company = context.get("company_name", "") or ""
+        lines.append(f"company_name: {raw_company.strip() or '[not provided]'}")
+
+        # Remaining priority fields (always include if present and non-empty)
         priority_fields = [
-            "company_name",
+            "company_name",  # already handled above — kept here so the skip logic works
             "ideal_customer",
             "problem_solved",
             "brand_voice",
@@ -786,6 +792,8 @@ Generate a post following this template structure, customized for this client's 
             "web_search_results",
         ]
         for field_name in priority_fields:
+            if field_name == "company_name":
+                continue  # emitted unconditionally above
             if field_name in context and context[field_name]:
                 value = context[field_name]
                 if isinstance(value, str) and value.strip():
