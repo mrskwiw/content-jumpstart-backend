@@ -299,6 +299,7 @@ export default function Wizard() {
         name: `${brief.companyName} - Content Project`,
         clientId: finalClientId,
         platforms: brief.platforms ?? [],
+        targetPlatform: targetPlatform || 'linkedin',  // Bug #106: persist selected platform to project
         templates: selectedTemplates.map(String), // Legacy field for backward compatibility
         templateQuantities: templateQuantities, // New field for per-template quantities
         // pricePerPost removed - credits only, // $40 base + $15 research

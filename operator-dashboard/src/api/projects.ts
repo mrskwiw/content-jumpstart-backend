@@ -23,6 +23,7 @@ export interface CreateProjectInput {
   discountAmount?: number; // Bundle discount savings
   selectedTools?: string[]; // List of selected research tool IDs
   platforms: string[];
+  targetPlatform?: string;
   tone?: string;
 }
 
@@ -96,6 +97,7 @@ export const projectsApi = {
       discount_amount: input.discountAmount,
       selected_tools: input.selectedTools,
       platforms: input.platforms,
+      target_platform: input.targetPlatform,
       tone: input.tone,
     };
     const { data } = await apiClient.post('/api/projects/', backendInput);

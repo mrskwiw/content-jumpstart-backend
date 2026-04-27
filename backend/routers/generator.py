@@ -47,7 +47,9 @@ class GenerateAllInput(BaseModel):
         None  # Optional template quantities from frontend
     )
     custom_topics: Optional[list[str]] = None  # NEW: topic override for content generation
-    target_platform: Optional[str] = "blog"  # Target platform for generation optimization
+    target_platform: Optional[str] = (
+        None  # Bug #106: was "blog" (truthy), blocked project.target_platform fallback
+    )
 
     @field_validator("num_posts")
     @classmethod
@@ -90,7 +92,9 @@ async def run_generation_background(
     num_posts: int = 30,
     template_quantities: Optional[dict[str, int]] = None,
     custom_topics: Optional[list[str]] = None,  # NEW: topic override for generation
-    target_platform: Optional[str] = "generic",  # NEW: target platform for generation
+    target_platform: Optional[
+        str
+    ] = "linkedin",  # Target platform; defaults to linkedin if not resolved
 ):
     """
     Background task to run content generation.

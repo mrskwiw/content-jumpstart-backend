@@ -141,6 +141,7 @@ export default function Projects() {
         projectId: project.id,
         clientId: project.clientId,
         isBatch: true,
+        targetPlatform: project.targetPlatform ?? undefined,  // Bug #106: pass stored platform
       }),
     onSuccess: (run) => {
       qc.invalidateQueries({ queryKey: ['projects'] });
