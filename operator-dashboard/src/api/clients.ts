@@ -25,6 +25,7 @@ export interface CreateClientInput {
   measurableResults?: string;
   postingFrequency?: string;
   mainCta?: string;
+  keyPhrases?: string[];
 }
 
 export interface UpdateClientInput {
@@ -50,6 +51,7 @@ export interface UpdateClientInput {
   measurableResults?: string;
   postingFrequency?: string;
   mainCta?: string;
+  keyPhrases?: string[];
 }
 
 export interface SendEmailInput {
@@ -105,6 +107,7 @@ export const clientsApi = {
     if (input.measurableResults !== undefined) backendInput.measurable_results = input.measurableResults;
     if (input.postingFrequency !== undefined) backendInput.posting_frequency = input.postingFrequency;
     if (input.mainCta !== undefined) backendInput.main_cta = input.mainCta;
+    if (input.keyPhrases !== undefined) backendInput.key_phrases = input.keyPhrases;
 
     const { data } = await apiClient.post('/api/clients/', backendInput);
     return ClientSchema.parse(data);
@@ -136,6 +139,7 @@ export const clientsApi = {
     if (input.measurableResults !== undefined) backendInput.measurable_results = input.measurableResults;
     if (input.postingFrequency !== undefined) backendInput.posting_frequency = input.postingFrequency;
     if (input.mainCta !== undefined) backendInput.main_cta = input.mainCta;
+    if (input.keyPhrases !== undefined) backendInput.key_phrases = input.keyPhrases;
 
     const { data } = await apiClient.patch(`/api/clients/${clientId}`, backendInput);
     return ClientSchema.parse(data);

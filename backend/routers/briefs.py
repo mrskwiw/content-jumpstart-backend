@@ -451,6 +451,7 @@ def _add_confidence_scores(parsed_brief, original_text: str) -> dict:
         "measurableResults": parsed_brief.measurable_results,
         "stories": parsed_brief.stories,
         "misconceptions": parsed_brief.misconceptions,
+        "keyPhrases": parsed_brief.key_phrases,
     }
 
     for field_name, field_value in field_mapping.items():

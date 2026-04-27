@@ -247,6 +247,7 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
       'brandPersonality',
       'stories',
       'misconceptions',
+      'keyPhrases',
     ];
 
     arrayFields.forEach((field) => {

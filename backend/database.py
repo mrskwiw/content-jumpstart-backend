@@ -237,6 +237,10 @@ def init_db():
                 ("measurable_results", "TEXT"),  # Stats and proof points
                 ("posting_frequency", "VARCHAR"),  # Desired posting cadence
                 ("main_cta", "VARCHAR"),  # Primary call-to-action text
+                (
+                    "key_phrases",
+                    "JSON",
+                ),  # Key brand/product phrases extracted from brief
             ]
 
             # SECURITY FIX: Whitelist of allowed SQL column types (TR-015)

@@ -49,6 +49,7 @@ const ClientSchemaInput = z.object({
   measurableResults: z.string().nullish(),
   postingFrequency: z.string().nullish(),
   mainCta: z.string().nullish(),
+  keyPhrases: z.array(z.string()).nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -77,6 +78,7 @@ const ClientSchemaOutput = z.object({
   measurableResults: z.string().nullish(),
   postingFrequency: z.string().nullish(),
   mainCta: z.string().nullish(),
+  keyPhrases: z.array(z.string()).nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -324,6 +326,7 @@ export const ClientBriefSchema = z.object({
   measurableResults: z.string().optional(),
   postingFrequency: z.string().optional(),
   mainCta: z.string().optional(),
+  keyPhrases: z.array(z.string()).optional(),
 });
 export type ClientBrief = z.infer<typeof ClientBriefSchema>;
 

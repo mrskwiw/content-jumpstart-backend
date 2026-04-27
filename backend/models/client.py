@@ -61,6 +61,7 @@ class Client(Base, SoftDeleteMixin):
         String, nullable=True
     )  # Desired posting cadence (e.g., "3-4x weekly")
     main_cta = Column(String, nullable=True)  # Primary call-to-action text
+    key_phrases = Column(JSON, nullable=True)  # Key brand/product phrases extracted from brief
 
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     user = relationship("backend.models.user.User", foreign_keys=[user_id])  # TR-021: Client owner

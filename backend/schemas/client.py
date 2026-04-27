@@ -108,6 +108,10 @@ class ClientBase(BaseModel):
         default=None,
         validation_alias=AliasChoices("main_cta", "mainCta"),
     )
+    key_phrases: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("key_phrases", "keyPhrases"),
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,  # Accept both snake_case and camelCase
@@ -225,6 +229,10 @@ class ClientUpdate(BaseModel):
         default=None,
         validation_alias=AliasChoices("main_cta", "mainCta"),
     )
+    key_phrases: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("key_phrases", "keyPhrases"),
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,  # Accept both snake_case and camelCase
@@ -272,6 +280,7 @@ class ClientResponse(BaseModel):
     measurable_results: Optional[str] = Field(default=None, serialization_alias="measurableResults")
     posting_frequency: Optional[str] = Field(default=None, serialization_alias="postingFrequency")
     main_cta: Optional[str] = Field(default=None, serialization_alias="mainCta")
+    key_phrases: Optional[List[str]] = Field(default=None, serialization_alias="keyPhrases")
     created_at: datetime = Field(..., serialization_alias="createdAt")
 
     model_config = ConfigDict(

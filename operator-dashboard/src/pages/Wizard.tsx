@@ -237,6 +237,7 @@ export default function Wizard() {
             keywords: brief.keywords,
             competitors: brief.competitors,
             location: brief.location,
+            keyPhrases: brief.keyPhrases,
           });
           finalClientId = client.id;
         } catch (error: unknown) {
@@ -271,6 +272,7 @@ export default function Wizard() {
             keywords: brief.keywords,
             competitors: brief.competitors,
             location: brief.location,
+            keyPhrases: brief.keyPhrases,
           });
           finalClientId = clientId;
         } catch (error: unknown) {
