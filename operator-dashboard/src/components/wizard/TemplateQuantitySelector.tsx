@@ -1,11 +1,12 @@
 import { useState, useMemo, memo, useEffect } from 'react';
-import { Plus, Minus, Coins, FileText, Calculator, TrendingUp, HelpCircle, AlertCircle, X, CheckCircle2, Sparkles, Link2 } from 'lucide-react';
+import { Plus, Minus, Coins, FileText, Calculator, TrendingUp, HelpCircle, AlertCircle, X, CheckCircle2, Sparkles, Link2, Lock } from 'lucide-react';
 import { PlatformSelector } from './PlatformSelector';
 import { TemplateDetailPanel } from './TemplateDetailPanel';
 import type { TemplatePrereqs } from './TemplateDetailPanel';
 import { generatorApi, type TemplateDependencies } from '@/api/generator';
 import { researchApi, type ResearchResultListResponse } from '@/api/research';
 import type { Client } from '@/types/domain';
+import { getDisabledTemplateIds } from '@/config/featureRegistry';
 
 interface Template {
   id: number;
@@ -212,6 +213,8 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   onContinue,
   onEditClient,
 }: Props) {
+  const disabledTemplateIds = useMemo(() => getDisabledTemplateIds(), []);
+
   const [quantities, setQuantities] = useState<Record<number, number>>(initialQuantities);
   const [includeResearch, setIncludeResearch] = useState(initialIncludeResearch);
   const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);
@@ -678,6 +681,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
         {/* Dim grid when panel is open */}
         <div className={`grid gap-3 sm:grid-cols-2 lg:grid-cols-3 transition-opacity duration-150 ${selectedTemplateId !== null ? 'opacity-30 pointer-events-none select-none' : ''}`}>
         {TEMPLATES.map((template) => {
+          const isRegistryDisabled = disabledTemplateIds.has(template.id);
           const quantity = quantities[template.id] || 0;
           const hasQuantity = quantity > 0;
           const templateDeps = dependencies.get(template.id);
@@ -692,15 +696,24 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
           return (
             <div
               key={template.id}
-              onClick={() => setSelectedTemplateId(template.id)}
-              className={`group relative rounded-lg border-2 p-4 transition-all cursor-pointer ${
-                selectedTemplateId === template.id
-                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md ring-2 ring-blue-400 dark:ring-blue-600'
+              onClick={() => !isRegistryDisabled && setSelectedTemplateId(template.id)}
+              className={`group relative rounded-lg border-2 p-4 transition-all ${
+                isRegistryDisabled
+                  ? 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 opacity-60 cursor-not-allowed select-none'
+                  : selectedTemplateId === template.id
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md ring-2 ring-blue-400 dark:ring-blue-600 cursor-pointer'
                   : hasQuantity
-                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md'
-                  : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm'
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md cursor-pointer'
+                  : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm cursor-pointer'
               }`}
             >
+              {/* Coming Soon overlay badge */}
+              {isRegistryDisabled && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 rounded-full bg-neutral-200 dark:bg-neutral-700 px-2 py-0.5">
+                  <Lock className="h-3 w-3 text-neutral-500 dark:text-neutral-400" />
+                  <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">Coming soon</span>
+                </div>
+              )}
               {/* Template Header */}
               <div className="mb-3">
                 <div className="mb-1 flex items-center justify-between">
@@ -874,8 +887,8 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
               {/* Quantity Controls */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => updateQuantity(template.id, -1)}
-                  disabled={quantity === 0}
+                  onClick={(e) => { e.stopPropagation(); updateQuantity(template.id, -1); }}
+                  disabled={quantity === 0 || isRegistryDisabled}
                   className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Decrease quantity"
                 >
@@ -887,14 +900,14 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                   min="0"
                   max={storyCount !== undefined ? storyCount : 100}
                   value={quantity}
-                  disabled={noStories}
-                  onChange={(e) => setQuantity(template.id, parseInt(e.target.value) || 0)}
+                  disabled={noStories || isRegistryDisabled}
+                  onChange={(e) => { if (!isRegistryDisabled) setQuantity(template.id, parseInt(e.target.value) || 0); }}
                   className="h-8 w-16 rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-center text-sm font-semibold text-neutral-900 dark:text-neutral-100 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:opacity-40 disabled:cursor-not-allowed"
                 />
 
                 <button
-                  onClick={() => updateQuantity(template.id, 1)}
-                  disabled={noStories || storyLimitReached}
+                  onClick={(e) => { e.stopPropagation(); updateQuantity(template.id, 1); }}
+                  disabled={noStories || storyLimitReached || isRegistryDisabled}
                   className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label="Increase quantity"
                 >

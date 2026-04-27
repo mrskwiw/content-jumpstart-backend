@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { researchApi, costsApi, ResearchTool, projectsApi, settingsApi, clientsApi } from "@/api";
+import { getDisabledToolIds } from '@/config/featureRegistry';
 import type { Project } from '@/types/api-types';
 import { ToolCard } from '../../components/research/ToolCard';
 import { PricingSummaryCard } from '../../components/research/PricingSummaryCard';
@@ -104,8 +105,17 @@ export default function ResearchToolsLibrary() {
     enabled: showProjectSelector
   });
 
+  // Apply registry disabled status — overrides backend status so UI stays in sync with registry
+  const disabledToolIds = useMemo(() => getDisabledToolIds(), []);
+  const effectiveTools = useMemo<ResearchTool[]>(
+    () => tools.map((t: ResearchTool) =>
+      disabledToolIds.has(t.name) ? { ...t, status: 'coming_soon' as const } : t
+    ),
+    [tools, disabledToolIds]
+  );
+
   // Filter tools by category and search
-  const filteredTools = tools.filter((tool: ResearchTool) => {
+  const filteredTools = effectiveTools.filter((tool: ResearchTool) => {
     const matchesCategory = categoryFilter === 'all' || tool.category === categoryFilter;
     const matchesSearch = !searchQuery ||
       tool.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -114,7 +124,7 @@ export default function ResearchToolsLibrary() {
   });
 
   // Get unique categories
-  const categories: string[] = ['all', ...new Set(tools.map((t: ResearchTool) => t.category).filter((c): c is string => Boolean(c)))];
+  const categories: string[] = ['all', ...new Set(effectiveTools.map((t: ResearchTool) => t.category).filter((c): c is string => Boolean(c)))];
 
   // Check if a tool is enabled based on integration requirements
   const isToolEnabled = (tool: ResearchTool): { enabled: boolean; missingIntegrations: string[] } => {
@@ -151,8 +161,11 @@ export default function ResearchToolsLibrary() {
   };
 
   const handleToggleTool = (toolId: string) => {
-    // Check if tool is enabled before allowing selection
-    const tool = tools.find(t => t.name === toolId);
+    // Registry-disabled tools cannot be selected
+    if (disabledToolIds.has(toolId)) return;
+
+    // Check if tool is enabled based on integration requirements
+    const tool = effectiveTools.find(t => t.name === toolId);
     if (tool) {
       const { enabled } = isToolEnabled(tool);
       if (!enabled) {
@@ -365,7 +378,7 @@ export default function ResearchToolsLibrary() {
               onToggle={() => handleToggleTool(tool.name)}
               prerequisites={TOOL_PREREQUISITES[tool.name]}
               toolLabels={TOOL_LABELS}
-              disabled={!enabled}
+              disabled={!enabled || disabledToolIds.has(tool.name)}
               missingIntegrations={missingIntegrations}
               completedTools={completedToolsForClient}
               executionStatus={executionStatus}

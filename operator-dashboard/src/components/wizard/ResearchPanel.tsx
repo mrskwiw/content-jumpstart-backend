@@ -7,6 +7,7 @@ import { settingsApi } from '@/api/settings';
 import { getApiErrorMessage } from '@/utils/apiError';
 import { notifyResearchSuccess, notifyResearchError, extractResearchMetrics } from '@/utils/researchNotifications';
 import { ResearchDataCollectionPanel } from './ResearchDataCollectionPanel';
+import { getDisabledToolIds } from '@/config/featureRegistry';
 
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
@@ -132,10 +133,19 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
 
 
   // Fetch available research tools
-  const { data: tools = [], isLoading } = useQuery({
+  const { data: rawTools = [], isLoading } = useQuery({
     queryKey: ['research', 'tools'],
     queryFn: () => researchApi.listTools(),
   });
+
+  // Apply registry disabled status — overrides backend status so UI stays in sync with registry
+  const disabledToolIds = useMemo(() => getDisabledToolIds(), []);
+  const tools = useMemo<ResearchTool[]>(
+    () => rawTools.map((t: ResearchTool) =>
+      disabledToolIds.has(t.name) ? { ...t, status: 'coming_soon' as const } : t
+    ),
+    [rawTools, disabledToolIds]
+  );
 
   // Fetch research history for current client
   const historyQuery = useQuery({
