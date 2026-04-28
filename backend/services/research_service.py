@@ -710,8 +710,6 @@ class ResearchService:
             # Platform Strategy Integration: Save recommended platforms to client
             if tool_name == "platform_strategy" and result.success:
                 try:
-                    from backend.services import crud
-
                     # Extract recommended platforms from research result
                     platform_data = result.metadata.get("data", {})
                     recommended_platforms = platform_data.get("recommended_platforms")
@@ -1164,6 +1162,10 @@ class ResearchService:
                     f"Auto-populated primary_platforms from client.recommended_platforms: {primary_platforms}"
                 )
             inputs["primary_platforms"] = primary_platforms or []
+            # Keep the client record authoritative for naming so the calendar
+            # cannot inherit a stale or user-supplied competitor name.
+            inputs["business_name"] = client.name or "Client Business"
+            inputs["company_name"] = client.name or "Client Business"
 
         # Log data sources for transparency
         backend_injected = set(inputs.keys()) - frontend_provided
