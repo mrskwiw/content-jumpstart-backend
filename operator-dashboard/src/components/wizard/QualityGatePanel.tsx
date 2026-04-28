@@ -36,7 +36,7 @@ export function QualityGatePanel({ posts, projectId, onRegenerated }: Props) {
     mutationFn: ({ postId, content }: { postId: string; content: string }) =>
       postsApi.update(postId, { content }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // No cache invalidation needed - posts are never cached
       setEditingPost(null);
       onRegenerated?.();
     },

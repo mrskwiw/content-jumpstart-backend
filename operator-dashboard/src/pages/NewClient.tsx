@@ -26,6 +26,17 @@ export default function NewClient() {
         keywords: clientData.keywords,
         competitors: clientData.competitors,
         location: clientData.location,
+        // Extended profile fields (auto-population data sources)
+        founderName: clientData.founderName,
+        brandPersonality: clientData.brandPersonality,
+        toneToAvoid: clientData.toneToAvoid,
+        dataUsage: clientData.dataUsage,
+        stories: clientData.stories,
+        misconceptions: clientData.misconceptions,
+        measurableResults: clientData.measurableResults,
+        postingFrequency: clientData.postingFrequency,
+        mainCta: clientData.mainCta,
+        keyPhrases: clientData.keyPhrases,
       });
       return client;
     },

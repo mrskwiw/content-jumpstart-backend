@@ -21,7 +21,7 @@ _PLATFORM_DISPLAY_NAMES: dict = {
     "blog": "Blog",
     "linkedin": "LinkedIn",
     "facebook": "Facebook",
-    "twitter": "Twitter / X",
+    "twitter": "Twitter",
     "email": "Email Newsletter",
 }
 
@@ -165,9 +165,9 @@ async def _generate_markdown(
     client: Client,
     project: Project,
     output_path: Path,
-    include_audit_log: bool,
-    include_research: bool,
-    db: Optional[Session],
+    include_audit_log: bool = False,
+    include_research: bool = False,
+    db: Optional[Session] = None,
 ) -> Tuple[Path, int]:
     """Generate Markdown deliverable file with frontmatter."""
     lines = []

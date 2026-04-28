@@ -117,6 +117,8 @@ export default function Wizard() {
     queryKey: ['posts', { projectId }],
     queryFn: () => postsApi.list({ projectId: projectId! }),
     enabled: !!projectId,
+    staleTime: 0,
+    gcTime: 0, // Disable caching entirely
   });
 
   // Extract posts from paginated response (Week 3 optimization)
@@ -238,6 +240,16 @@ export default function Wizard() {
             competitors: brief.competitors,
             location: brief.location,
             keyPhrases: brief.keyPhrases,
+            // Extended profile fields (auto-population data sources)
+            founderName: brief.founderName,
+            brandPersonality: brief.brandPersonality,
+            toneToAvoid: brief.toneToAvoid,
+            dataUsage: brief.dataUsage,
+            stories: brief.stories,
+            misconceptions: brief.misconceptions,
+            measurableResults: brief.measurableResults,
+            postingFrequency: brief.postingFrequency,
+            mainCta: brief.mainCta,
           });
           finalClientId = client.id;
         } catch (error: unknown) {
@@ -273,6 +285,16 @@ export default function Wizard() {
             competitors: brief.competitors,
             location: brief.location,
             keyPhrases: brief.keyPhrases,
+            // Extended profile fields (auto-population data sources)
+            founderName: brief.founderName,
+            brandPersonality: brief.brandPersonality,
+            toneToAvoid: brief.toneToAvoid,
+            dataUsage: brief.dataUsage,
+            stories: brief.stories,
+            misconceptions: brief.misconceptions,
+            measurableResults: brief.measurableResults,
+            postingFrequency: brief.postingFrequency,
+            mainCta: brief.mainCta,
           });
           finalClientId = clientId;
         } catch (error: unknown) {

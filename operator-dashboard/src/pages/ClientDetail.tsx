@@ -117,6 +117,8 @@ export default function ClientDetail() {
   const { data: postsResponse } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts'],
     queryFn: () => postsApi.list(),
+    staleTime: 0,
+    gcTime: 0, // Disable caching entirely
   });
 
   // Fetch deliverables

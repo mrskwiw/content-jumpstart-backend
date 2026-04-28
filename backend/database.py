@@ -760,7 +760,7 @@ def init_db():
 
     if current_version < latest_version:
         set_schema_version(engine, latest_version)
-        print(f">> DEBUG: Schema version updated: v{current_version} → v{latest_version}")
+        print(f">> DEBUG: Schema version updated: v{current_version} -> v{latest_version}")
     elif current_version == latest_version:
         print(f">> DEBUG: Schema version is current: v{latest_version}")
     else:

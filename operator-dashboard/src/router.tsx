@@ -43,6 +43,9 @@ const SettingsIntegrations = lazyWithRetry(() => import('@/pages/Settings/Integr
 // Payment pages
 const PaymentSuccess = lazyWithRetry(() => import('@/pages/PaymentSuccess'));
 
+// Legal pages
+const PrivacyPolicy = lazyWithRetry(() => import('@/pages/PrivacyPolicy'));
+
 // Loading fallback component
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center">
@@ -109,6 +112,10 @@ export const router = createBrowserRouter([
   {
     path: '/payment-success',
     element: withSuspense(PaymentSuccess),
+  },
+  {
+    path: '/privacy-policy',
+    element: withSuspense(PrivacyPolicy),
   },
   {
     path: '*',

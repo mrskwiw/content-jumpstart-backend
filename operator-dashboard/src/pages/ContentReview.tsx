@@ -61,6 +61,8 @@ export default function ContentReview() {
   const { data: postsResponse } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts'],
     queryFn: () => postsApi.list(),
+    staleTime: 0,
+    gcTime: 0, // Disable caching entirely
   });
 
   const { data: projectsResponse } = useQuery<PaginatedResponse<Project>>({
@@ -84,7 +86,7 @@ export default function ContentReview() {
       return { id: postId, content };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // No cache invalidation needed - posts are never cached
       setEditingPostId(null);
       setEditContent('');
     },

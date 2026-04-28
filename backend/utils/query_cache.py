@@ -12,6 +12,7 @@ Week 3 Optimization: Cache sizes tuned for production load
 
 import functools
 import hashlib
+import inspect
 import json
 from typing import Any, Callable, Dict, Optional
 
@@ -105,9 +106,27 @@ def cached(ttl: str = "short", key_prefix: Optional[str] = None):
             cache = _caches.get(ttl, _caches["short"])
             stats = _cache_stats.get(ttl, _cache_stats["short"])
 
+            # Bind the call so we can ignore session-like parameters whether they were
+            # passed positionally or by keyword.
+            signature = inspect.signature(func)
+            bound = signature.bind_partial(*args, **kwargs)
+            filtered_args = []
+            filtered_kwargs = {}
+            for name, value in bound.arguments.items():
+                if name in ["db", "session", "engine"]:
+                    continue
+                param = signature.parameters[name]
+                if param.kind in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                ):
+                    filtered_args.append(value)
+                else:
+                    filtered_kwargs[name] = value
+
             # Generate cache key
             cache_key_base = key_prefix or func.__name__
-            cache_key = _make_cache_key(cache_key_base, args, kwargs)
+            cache_key = _make_cache_key(cache_key_base, tuple(filtered_args), filtered_kwargs)
 
             # Try to get from cache
             if cache_key in cache:

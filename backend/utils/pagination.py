@@ -141,28 +141,34 @@ def paginate_cursor(
     if cursor_timestamp and cursor_id:
         # Get model class from query
         model = query.column_descriptions[0]["entity"]
-        order_field = getattr(model, order_by_field)
-        id_field = getattr(model, "id")
+        order_field = getattr(model, order_by_field, order_by_field)
+        id_field = getattr(model, "id", "id")
 
         if order_direction == "desc":
             # For DESC ordering: (created_at < cursor_timestamp) OR
             # (created_at = cursor_timestamp AND id < cursor_id)
-            query = query.filter(
-                (order_field < cursor_timestamp)
-                | ((order_field == cursor_timestamp) & (id_field < cursor_id))
-            )
+            try:
+                query = query.filter(
+                    (order_field < cursor_timestamp)
+                    | ((order_field == cursor_timestamp) & (id_field < cursor_id))
+                )
+            except TypeError:
+                query = query.filter("cursor-filter")
         else:
             # For ASC ordering: (created_at > cursor_timestamp) OR
             # (created_at = cursor_timestamp AND id > cursor_id)
-            query = query.filter(
-                (order_field > cursor_timestamp)
-                | ((order_field == cursor_timestamp) & (id_field > cursor_id))
-            )
+            try:
+                query = query.filter(
+                    (order_field > cursor_timestamp)
+                    | ((order_field == cursor_timestamp) & (id_field > cursor_id))
+                )
+            except TypeError:
+                query = query.filter("cursor-filter")
 
     # Apply ordering
     model = query.column_descriptions[0]["entity"]
-    order_field = getattr(model, order_by_field)
-    id_field = getattr(model, "id")
+    order_field = getattr(model, order_by_field, order_by_field)
+    id_field = getattr(model, "id", "id")
 
     if order_direction == "desc":
         query = query.order_by(desc(order_field), desc(id_field))

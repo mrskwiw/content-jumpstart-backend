@@ -10,7 +10,7 @@ from typing import Literal
 
 import docx  # python-docx
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
 from backend.middleware.auth_dependency import get_current_user
 from backend.middleware.authorization import (
     verify_brief_ownership,
@@ -275,7 +275,7 @@ async def get_brief(
 async def parse_brief_file(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    authorization: str | None = Header(default=None),
 ):
     """
     Parse uploaded brief file and extract client data with confidence scores.
@@ -284,6 +284,13 @@ async def parse_brief_file(
     """
     start_time = time.time()
 
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Validate file extension (.txt, .md, .docx)
     file_ext = Path(file.filename or "").suffix.lower()
     if file_ext not in [".txt", ".md", ".docx"]:
@@ -291,7 +298,7 @@ async def parse_brief_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": "INVALID_FILE_TYPE",
-                "message": "Only .txt, .md, and .docx files are supported",
+                "message": "Only .txt and .md files are supported",
                 "details": {"filename": file.filename, "extension": file_ext},
             },
         )

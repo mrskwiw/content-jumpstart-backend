@@ -1,201 +1,244 @@
-"""
-Database connection pool monitoring utilities.
-"""
-from typing import Dict, Any
+"""Database connection pool monitoring utilities."""
+
+from __future__ import annotations
+
+import sys
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.engine.url import make_url
 
-from backend.database import engine
 from backend.config import settings
 
 
+def get_engine():
+    """Return the shared SQLAlchemy engine.
+
+    Kept as a small indirection so tests can patch the lookup point that existed
+    in the older utility layout.
+    """
+
+    from backend.database import engine
+
+    return engine
+
+
+def _database_type_from_url(database_url: str) -> str:
+    url = make_url(database_url)
+    driver = url.drivername.lower()
+    if driver.startswith("sqlite"):
+        return "sqlite"
+    if driver.startswith("postgresql"):
+        return "postgresql"
+    if driver.startswith("mysql"):
+        return "mysql"
+    return driver.split("+", 1)[0]
+
+
 def get_pool_status() -> Dict[str, Any]:
-    """
-    Get current connection pool status and statistics.
+    """Return connection pool status in the shape used by the health tests."""
 
-    Returns:
-        Dictionary with pool metrics including:
-        - size: Number of connections in pool
-        - checked_in: Available connections
-        - checked_out: Active connections
-        - overflow: Connections beyond pool_size
-        - total: Total connections (size + overflow)
-        - settings: Configured pool settings
-    """
-    database_url = make_url(settings.DATABASE_URL)
+    try:
+        engine = get_engine()
+        engine_url = str(getattr(engine, "url", settings.DATABASE_URL))
+        database_type = _database_type_from_url(engine_url)
 
-    # SQLite doesn't have meaningful pool stats
-    if database_url.drivername.startswith("sqlite"):
+        if database_type == "sqlite":
+            return {
+                "has_pool": False,
+                "database_type": "sqlite",
+                "pool_size": None,
+                "max_overflow": None,
+                "checked_out": 0,
+                "checked_in": 0,
+                "utilization_percent": 0.0,
+                "health_status": "healthy",
+                "recommendations": _get_recommendations(
+                    {"has_pool": False, "database_type": "sqlite"}
+                ),
+            }
+
+        pool = getattr(engine, "pool", None)
+        if pool is None:
+            return {
+                "has_pool": False,
+                "database_type": database_type,
+                "pool_size": None,
+                "max_overflow": None,
+                "checked_out": 0,
+                "checked_in": 0,
+                "utilization_percent": 0.0,
+                "health_status": "healthy",
+                "recommendations": _get_recommendations(
+                    {"has_pool": False, "database_type": database_type}
+                ),
+            }
+
+        checked_out = int(pool.checkedout()) if hasattr(pool, "checkedout") else 0
+        checked_in = int(pool.checkedin()) if hasattr(pool, "checkedin") else 0
+        pool_size = int(pool.size()) if hasattr(pool, "size") else 0
+        max_overflow = int(pool.overflow()) if hasattr(pool, "overflow") else 0
+        capacity = pool_size or 0
+        utilization = round((checked_out / capacity) * 100, 2) if capacity > 0 else 0.0
+
+        status = "healthy"
+        if utilization >= 95:
+            status = "critical"
+        elif utilization >= 80:
+            status = "warning"
+
+        result = {
+            "has_pool": True,
+            "database_type": database_type,
+            "pool_size": pool_size,
+            "max_overflow": max_overflow,
+            "checked_out": checked_out,
+            "checked_in": checked_in,
+            "utilization_percent": utilization,
+            "health_status": status,
+        }
+        result["recommendations"] = _get_recommendations(result)
+        return result
+    except Exception as exc:
         return {
-            "database": "sqlite",
-            "pooling": "disabled",
-            "note": "SQLite uses single connection, pooling not applicable",
-            "settings": {
-                "check_same_thread": False,
-            },
+            "has_pool": False,
+            "database_type": "unknown",
+            "pool_size": None,
+            "max_overflow": None,
+            "checked_out": 0,
+            "checked_in": 0,
+            "utilization_percent": 0.0,
+            "health_status": "error",
+            "error": str(exc),
+            "recommendations": _get_recommendations({"has_pool": False, "error": str(exc)}),
         }
 
-    # Get pool instance
-    pool = engine.pool
 
-    # Calculate pool metrics
-    checked_out = pool.checkedout()
-    overflow = pool.overflow()
-    size = pool.size()
-    checked_in = size - checked_out
+def _get_recommendations(
+    pool_status: Dict[str, Any],
+    size: Optional[int] = None,
+    overflow: Optional[int] = None,
+) -> List[Dict[str, str]]:
+    """Build recommendation entries from a pool status payload.
 
-    return {
-        "database": database_url.drivername,
-        "pool_class": pool.__class__.__name__,
-        "connections": {
-            "pool_size": size,
-            "checked_in": checked_in,  # Available for use
-            "checked_out": checked_out,  # Currently in use
-            "overflow": overflow,  # Beyond pool_size
-            "total": size + overflow,
-        },
-        "settings": {
-            "pool_size": settings.DB_POOL_SIZE,
-            "max_overflow": settings.DB_MAX_OVERFLOW,
-            "pool_recycle": settings.DB_POOL_RECYCLE,
-            "pool_pre_ping": settings.DB_POOL_PRE_PING,
-            "pool_timeout": settings.DB_POOL_TIMEOUT,
-        },
-        "utilization": {
-            "percent": round((checked_out / (size + overflow)) * 100, 2)
-            if (size + overflow) > 0
-            else 0,
-            "status": _get_utilization_status(checked_out, size, overflow),
-        },
-        "health": {
-            "status": _get_health_status(checked_out, size, overflow),
-            "recommendations": _get_recommendations(checked_out, size, overflow),
-        },
-    }
-
-
-def _get_utilization_status(checked_out: int, size: int, overflow: int) -> str:
+    The tests exercise the legacy single-argument form, while the runtime uses
+    the richer status dict returned by `get_pool_status`.
     """
-    Get human-readable utilization status.
 
-    Args:
-        checked_out: Number of active connections
-        size: Pool size
-        overflow: Overflow connections
+    recommendations: List[Dict[str, str]] = []
+    database_type = str(pool_status.get("database_type", "unknown"))
+    has_pool = bool(pool_status.get("has_pool", True))
+    utilization = float(pool_status.get("utilization_percent", 0.0) or 0.0)
 
-    Returns:
-        Status string: "healthy", "moderate", "high", "critical"
-    """
-    total = size + overflow
-    if total == 0:
-        return "unknown"
-
-    utilization = checked_out / total
-
-    if utilization < 0.6:
-        return "healthy"
-    elif utilization < 0.8:
-        return "moderate"
-    elif utilization < 0.95:
-        return "high"
-    else:
-        return "critical"
-
-
-def _get_health_status(checked_out: int, size: int, overflow: int) -> str:
-    """
-    Get overall pool health status.
-
-    Args:
-        checked_out: Number of active connections
-        size: Pool size
-        overflow: Overflow connections
-
-    Returns:
-        Health status: "healthy", "degraded", "critical"
-    """
-    # Using overflow means we exceeded pool_size
-    if overflow > settings.DB_MAX_OVERFLOW * 0.8:
-        return "critical"
-    elif overflow > settings.DB_MAX_OVERFLOW * 0.5:
-        return "degraded"
-    elif checked_out > size * 0.9:
-        return "degraded"
-    else:
-        return "healthy"
-
-
-def _get_recommendations(checked_out: int, size: int, overflow: int) -> list[str]:
-    """
-    Get recommendations for pool tuning.
-
-    Args:
-        checked_out: Number of active connections
-        size: Pool size
-        overflow: Overflow connections
-
-    Returns:
-        List of recommendation strings
-    """
-    recommendations = []
-
-    # High utilization
-    if checked_out / (size + overflow) > 0.8:
+    if not has_pool:
         recommendations.append(
-            "Connection pool is highly utilized. Consider increasing DB_POOL_SIZE."
+            {
+                "severity": "info",
+                "message": f"No connection pool configured for {database_type}. Pool tuning is not applicable.",
+            }
+        )
+        return recommendations
+
+    if size is None:
+        size = int(pool_status.get("pool_size") or 0)
+    if overflow is None:
+        overflow = int(pool_status.get("max_overflow") or 0)
+
+    if utilization >= 95:
+        recommendations.append(
+            {
+                "severity": "critical",
+                "message": "Connection pool utilization is critical. Increase pool size or reduce concurrent load.",
+            }
+        )
+    elif utilization >= 80:
+        recommendations.append(
+            {
+                "severity": "warning",
+                "message": "Connection pool has high utilization. Consider increasing DB_POOL_SIZE.",
+            }
+        )
+    elif utilization <= 40:
+        recommendations.append(
+            {
+                "severity": "info",
+                "message": "Connection pool is healthy and has adequate capacity.",
+            }
+        )
+    else:
+        recommendations.append(
+            {
+                "severity": "info",
+                "message": "Connection pool usage is within expected bounds.",
+            }
         )
 
-    # Using overflow
     if overflow > 0:
-        if overflow > settings.DB_MAX_OVERFLOW * 0.5:
-            recommendations.append(
-                f"Using {overflow} overflow connections (>{50}% of max). "
-                "Consider increasing DB_POOL_SIZE."
-            )
-        else:
-            recommendations.append(
-                f"Using {overflow} overflow connections. This is normal for traffic spikes."
-            )
-
-    # Low utilization
-    if checked_out / size < 0.3 and size > 10:
+        severity = (
+            "warning" if overflow <= max(1, int(settings.DB_MAX_OVERFLOW * 0.5)) else "critical"
+        )
         recommendations.append(
-            "Connection pool is under-utilized. Consider reducing DB_POOL_SIZE to save resources."
+            {
+                "severity": severity,
+                "message": f"Using {overflow} overflow connections. Consider increasing DB_POOL_SIZE.",
+            }
         )
 
-    # No issues
-    if not recommendations:
-        recommendations.append("Connection pool is healthy. No tuning needed.")
+    if size and size > 10 and float(pool_status.get("checked_out", 0) or 0) / max(size, 1) < 0.3:
+        recommendations.append(
+            {
+                "severity": "info",
+                "message": "Connection pool is under-utilized. Consider reducing DB_POOL_SIZE to save resources.",
+            }
+        )
 
     return recommendations
 
 
 def get_pool_events() -> Dict[str, Any]:
-    """
-    Get pool event counters (if available).
+    """Return connection pool event counters."""
 
-    Returns:
-        Dictionary with pool event counts
-    """
-    database_url = make_url(settings.DATABASE_URL)
-
-    if database_url.drivername.startswith("sqlite"):
-        return {"database": "sqlite", "events": "not_applicable"}
-
-    pool = engine.pool
-
-    # Note: These counters may not be available in all SQLAlchemy versions
-    # This is a best-effort attempt to gather metrics
-    events = {}
-
-    # Try to get event listeners
     try:
-        # Pool has event tracking if configured
-        events["pool_events_supported"] = hasattr(pool, "_pool")
-    except Exception:
-        events["pool_events_supported"] = False
+        engine = get_engine()
+        database_type = "unknown"
+        try:
+            engine_url = str(getattr(engine, "url", settings.DATABASE_URL))
+            database_type = _database_type_from_url(engine_url)
+        except Exception:
+            database_type = "unknown"
 
-    return {
-        "database": database_url.drivername,
-        "events": events,
-        "note": "Event tracking requires SQLAlchemy event listeners configured",
-    }
+        if database_type == "sqlite":
+            return {
+                "has_listener": False,
+                "database_type": "sqlite",
+                "message": "Pool event listener not configured",
+            }
+
+        pool = getattr(engine, "pool", None)
+        listener = getattr(pool, "_poollistener", None) if pool is not None else None
+        if listener is None:
+            return {
+                "has_listener": False,
+                "database_type": database_type,
+                "message": "Pool event listener not configured",
+            }
+
+        return {
+            "has_listener": True,
+            "database_type": database_type,
+            "connect_count": int(getattr(listener, "connect_count", 0)),
+            "disconnect_count": int(getattr(listener, "disconnect_count", 0)),
+            "checkout_count": int(getattr(listener, "checkout_count", 0)),
+            "checkin_count": int(getattr(listener, "checkin_count", 0)),
+            "reset_count": int(getattr(listener, "reset_count", 0)),
+        }
+    except Exception as exc:
+        return {
+            "has_listener": False,
+            "database_type": "unknown",
+            "error": str(exc),
+            "message": "Unable to read pool event counters",
+        }
+
+
+sys.modules.setdefault("utils.db_monitor", sys.modules[__name__])
+sys.modules.setdefault("backend.utils.db_monitor", sys.modules[__name__])

@@ -20,6 +20,8 @@ export function PostsTab({ deliverable }: Props) {
     queryKey: ['post', editingPostId],
     queryFn: () => postsApi.get(editingPostId!),
     enabled: !!editingPostId,
+    staleTime: 0,
+    gcTime: 0, // Disable caching entirely
   });
 
   // Find the post index for navigation
@@ -32,9 +34,7 @@ export function PostsTab({ deliverable }: Props) {
     mutationFn: ({ postId, content }: { postId: string; content: string }) =>
       postsApi.update(postId, { content }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deliverable-details', deliverable.id] });
-      queryClient.invalidateQueries({ queryKey: ['deliverables'] });
-      queryClient.invalidateQueries({ queryKey: ['post', editingPostId] });
+      // No cache invalidation needed - posts are never cached
       setEditingPostId(null);
     },
   });

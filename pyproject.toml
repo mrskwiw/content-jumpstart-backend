@@ -24,7 +24,7 @@ line-length = 100
 target-version = "py310"
 
 [tool.pytest.ini_options]
-testpaths = ["../tests"]
+testpaths = ["../tests", "backend/tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -46,7 +46,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["src", "backend"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -54,11 +54,19 @@ omit = [
     "*/migrations/*",
     "*/.venv/*",
     "*/venv/*",
-    "*/backend/*",
     "*/research/*",
     "src/research/*",
     "src/config/template_rules_expanded.py",
     "src/database/migrate_phase8b.py",
+    "backend/tests/*",
+    "backend/test_*.py",
+    "backend/__pycache__/*",
+    "backend/venv/*",
+    "backend/.venv/*",
+    "backend/seed_*.py",
+    "backend/tmp_*.py",
+    "backend/generate_secret_key.py",
+    "backend/init_db.py",
 ]
 
 [tool.coverage.report]
