@@ -1440,18 +1440,21 @@ This is a blog post, not a social media post — depth and thoroughness matter. 
 
 🚨 TWITTER ULTRA-CONCISE REQUIREMENTS (STRICTLY ENFORCE):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. MAXIMUM 18 words total (HARD LIMIT - will FAIL if exceeded)
-2. Single sentence OR two very short sentences maximum
-3. NO paragraph breaks, NO line breaks
-4. NO explanations, NO backstory, NO context
-5. Make EVERY word count - be ruthless in cutting
+1. MAXIMUM 280 characters total (HARD LIMIT - will FAIL if exceeded)
+2. Aim for 70-100 characters for standalone posts
+3. Single sentence preferred; two very short sentences only if needed
+4. NO paragraph breaks, NO line breaks
+5. NO explanations, backstory, or setup
+6. Make EVERY character count - remove filler aggressively
 
-EXAMPLES OF CORRECT LENGTH (12-18 words):
-✓ "73% of teams miss deadlines. The reason? Tool chaos costs 12 hours weekly." (13 words)
-✓ "Your team wastes 12 hours weekly switching tools. Solution: consolidate to three max." (14 words)
-✗ "I've been tracking this across 200+ engineering teams. The data's clear..." (WRONG - too long, too wordy)
+EXAMPLES OF CORRECT LENGTH:
+✓ "Systems break when teams juggle too many tools." (47 chars)
+✓ "Tool chaos costs teams hours every week. Simplify the stack." (61 chars)
+✓ "Your process is slower than it should be. Fix the bottlenecks." (65 chars)
+✗ "I've been tracking this across 200+ engineering teams and the data clearly shows..." (WRONG - too long)
 
-CRITICAL: If your first draft exceeds 18 words, CUT IT IN HALF, then cut again.
+CRITICAL: If your draft exceeds 100 characters for a standalone tweet, rewrite it shorter.
+If it exceeds 280 characters at any point, DO NOT OUTPUT. Rewrite from scratch.
 Think: billboard, not paragraph. Punchy, not explanatory.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
@@ -1460,11 +1463,11 @@ Think: billboard, not paragraph. Punchy, not explanatory.
 
 📘 FACEBOOK POST REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TARGET: 50-100 words (complete, standalone post)
+TARGET: 10-15 words (40-80 characters) for standalone posts
 
 CRITICAL: Write a COMPLETE, self-contained post.
 Do NOT write a teaser or headline that implies more content follows.
-❌ WRONG: "Here's what top teams do differently." (implies explanation never arrives)
+❌ WRONG: "Here's what top teams do differently." (too vague and incomplete)
 ❌ WRONG: "Most teams make this mistake. Here's the fix." (teaser with no follow-through)
 ✓ RIGHT: Deliver the actual insight, story, or value IN the post itself.
 
@@ -2230,11 +2233,11 @@ REQUIREMENTS:
 3. Tease the value without giving everything away
 4. Target length: {target_length}
 
-For Twitter: Hook + key insight teaser + link + 1-2 hashtags. Target 160-180 characters total. HARD FAIL at 200 characters — count before outputting and rewrite if over 200.
-For Facebook: Ultra-short teaser + link (under 80 chars total)
+For Twitter: Hook + key insight teaser + link + 1-2 hashtags. Target 70-100 characters for standalone copy, or 240-280 characters when including a link. HARD FAIL at 280 characters — count before outputting and rewrite if over.
+For Facebook: Ultra-short teaser + link (10-15 words or 40-80 chars total)
 
 Example Twitter format:
-"Your content strategy is backwards. Here's why → {blog_meta['link_placeholder']} #ContentMarketing"
+"Your content strategy is backwards → {blog_meta['link_placeholder']}"
 
 Example Facebook format:
 "This changes everything → {blog_meta['link_placeholder']}"

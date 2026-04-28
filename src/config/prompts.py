@@ -118,8 +118,8 @@ FIELD-BY-FIELD GENERATION CHECKLIST:
 
 7. **Length Optimization:**
    - LinkedIn: 220-280 words (MINIMUM 200 — posts under 200 words will be rejected)
-   - Twitter: 240-280 characters (leave room for link)
-   - Facebook: 50-100 words (complete, self-contained)
+   - Twitter: 70-100 characters for standalone posts
+   - Facebook: 10-15 words for standalone posts, or 40-80 characters for short teaser copy
    - Count words/characters before finishing — if under the minimum, expand
 
 8. **Quality Validation:**
@@ -137,14 +137,14 @@ PLATFORM-SPECIFIC GUIDELINES:
 - Thought leadership angle
 
 **Twitter:**
-- Concise and punchy (240-280 chars)
+- Concise and punchy (70-100 chars)
 - Strong hook essential
 - One clear point
 - CTA can be reply prompt
 
 **Facebook:**
 - Casual and relatable
-- Medium length (100-150 words)
+- Short and complete (10-15 words or 40-80 characters for short-form posts)
 - Storytelling works well
 - Community engagement focus
 
@@ -158,8 +158,8 @@ PRE-OUTPUT LENGTH CHECK (MANDATORY):
 
 Before returning your post, count the words mentally:
 - LinkedIn / Email: If under 200 words → DO NOT OUTPUT YET. Add one of: a specific supporting example, a relevant data point, a brief story or scenario, or a "what this looks like in practice" paragraph. Then recount.
-- Facebook: If under 50 words → add a sentence of context or a supporting detail.
-- Twitter: If over 20 words → cut ruthlessly.
+- Facebook: If under 10 words → add a sentence of context or a supporting detail.
+- Twitter: If over 20 words or 100 characters → cut ruthlessly; if over 280 characters, rewrite from scratch.
 
 A post that is too short FAILS quality validation and will be regenerated. It is faster to write it correctly now than to be asked to fix it.
 

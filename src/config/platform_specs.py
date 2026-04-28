@@ -26,23 +26,23 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
         "optimal_min_words": 12,
         "optimal_max_words": 18,
         "max_words": 50,
-        "min_chars": 80,
-        "optimal_min_chars": 160,
-        "optimal_max_chars": 180,
-        "max_chars": 200,  # Hard fail — posts over 200 chars fail validation
+        "min_chars": 40,
+        "optimal_min_chars": 70,
+        "optimal_max_chars": 100,
+        "max_chars": 280,  # Free account limit / hard fail in validator
         "thread_mode": True,  # Can split into threads
         "thread_min_posts": 4,
         "thread_max_posts": 8,
     },
     Platform.FACEBOOK: {
-        "min_words": 30,
-        "optimal_min_words": 50,
-        "optimal_max_words": 100,
-        "max_words": 150,
-        "min_chars": 180,
-        "optimal_min_chars": 300,
-        "optimal_max_chars": 600,
-        "max_chars": 900,
+        "min_words": 8,
+        "optimal_min_words": 10,
+        "optimal_max_words": 15,
+        "max_words": 25,
+        "min_chars": 40,
+        "optimal_min_chars": 40,
+        "optimal_max_chars": 80,
+        "max_chars": 125,
     },
     Platform.BLOG: {
         "min_words": 800,
@@ -119,15 +119,15 @@ Guidelines:
 - Can include data/statistics
 """,
     Platform.TWITTER: """
-Target length: 160-180 characters (HARD FAIL at 200 characters — posts over 200 chars fail validation and will be regenerated).
+Target length: 70-100 characters (HARD FAIL at 280 characters — posts over 280 chars fail validation and will be regenerated).
 
 Make every word count. Punchy and direct.
 
 PRE-OUTPUT CHARACTER CHECK (MANDATORY):
 Before returning your tweet, count the characters:
-- If under 160 characters → expand slightly: add a concrete detail, a number, or a sharper CTA
-- If over 180 characters → cut ruthlessly: remove filler words, shorten phrases, drop a hashtag
-- If over 200 characters → DO NOT OUTPUT. Rewrite from scratch. This is a hard failure.
+- If under 70 characters → expand slightly: add a concrete detail, a number, or a sharper CTA
+- If over 100 characters → cut ruthlessly: remove filler words, shorten phrases, drop a hashtag
+- If over 280 characters → DO NOT OUTPUT. Rewrite from scratch. This is a hard failure.
 
 Guidelines:
 - Ultra-concise — no filler words
@@ -137,7 +137,7 @@ Guidelines:
 - Direct CTAs work well
 """,
     Platform.FACEBOOK: """
-Target length: 50-100 words (300-600 characters).
+Target length: 10-15 words (40-80 characters).
 
 Complete, self-contained post. Does NOT rely on an image to make sense.
 
@@ -186,6 +186,11 @@ def get_platform_target_length(platform: Platform) -> str:
     specs = PLATFORM_LENGTH_SPECS.get(platform)
     if not specs:
         return "150-250 words"
+
+    if platform == Platform.TWITTER:
+        return "70-100 characters (~12-18 words)"
+    if platform == Platform.FACEBOOK:
+        return "10-15 words (40-80 characters)"
 
     optimal_min = specs.get("optimal_min_words", specs.get("min_words", 100))
     optimal_max = specs.get("optimal_max_words", specs.get("max_words", 250))
