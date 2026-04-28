@@ -15,10 +15,10 @@ export default function Login() {
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already authenticated
+  // Redirect to the splash screen first for authenticated sessions.
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate('/portfolio-notice', { replace: true });
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -29,7 +29,7 @@ export default function Login() {
 
     try {
       await login({ email, password });
-      navigate('/portfolio-notice');
+      navigate('/portfolio-notice', { replace: true });
     } catch (err: unknown) {
       const friendlyMessage = getAuthErrorMessage(err);
       setError(friendlyMessage);
