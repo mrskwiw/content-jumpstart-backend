@@ -707,6 +707,32 @@ class ResearchService:
                         exc_info=True,
                     )
 
+            # Platform Strategy Integration: Save recommended platforms to client
+            if tool_name == "platform_strategy" and result.success:
+                try:
+                    from backend.services import crud
+
+                    # Extract recommended platforms from research result
+                    platform_data = result.metadata.get("data", {})
+                    recommended_platforms = platform_data.get("recommended_platforms")
+
+                    if recommended_platforms:
+                        # Save to client record for persistence across sessions
+                        crud.update_client_recommended_platforms(
+                            db=db,
+                            client_id=client_id,
+                            recommended_platforms=recommended_platforms,
+                        )
+                        logger.info(
+                            f"Saved recommended platforms for client {client_id}: {recommended_platforms}"
+                        )
+                except Exception as e:
+                    # Don't fail the entire research execution if platform saving fails
+                    logger.error(
+                        f"Failed to save platform strategy recommendations to database: {str(e)}",
+                        exc_info=True,
+                    )
+
             # Invalidate research context cache (Phase 4: Cache invalidation)
             try:
                 invalidate_cache(client_id)
@@ -1127,6 +1153,17 @@ class ResearchService:
                 location = client.location or "United States"
                 logger.info(f"Auto-populated location from client: {location}")
             inputs["location"] = location
+
+        elif tool_name in ("content_calendar", "content_calendar_strategy"):
+            # Content calendar strategy needs primary platforms
+            primary_platforms = params.get("primary_platforms")
+            if not primary_platforms and client.recommended_platforms:
+                # Fallback to recommended platforms from platform strategy
+                primary_platforms = client.recommended_platforms
+                logger.info(
+                    f"Auto-populated primary_platforms from client.recommended_platforms: {primary_platforms}"
+                )
+            inputs["primary_platforms"] = primary_platforms or []
 
         # Log data sources for transparency
         backend_injected = set(inputs.keys()) - frontend_provided

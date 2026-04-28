@@ -112,6 +112,10 @@ class ClientBase(BaseModel):
         default=None,
         validation_alias=AliasChoices("key_phrases", "keyPhrases"),
     )
+    recommended_platforms: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("recommended_platforms", "recommendedPlatforms"),
+    )
 
     model_config = ConfigDict(
         populate_by_name=True,  # Accept both snake_case and camelCase
@@ -281,6 +285,9 @@ class ClientResponse(BaseModel):
     posting_frequency: Optional[str] = Field(default=None, serialization_alias="postingFrequency")
     main_cta: Optional[str] = Field(default=None, serialization_alias="mainCta")
     key_phrases: Optional[List[str]] = Field(default=None, serialization_alias="keyPhrases")
+    recommended_platforms: Optional[List[str]] = Field(
+        default=None, serialization_alias="recommendedPlatforms"
+    )
     created_at: datetime = Field(..., serialization_alias="createdAt")
 
     model_config = ConfigDict(

@@ -396,10 +396,61 @@ def update_client(db: Session, client_id: str, client_update: ClientUpdate) -> O
     return db_client
 
 
+def update_client_recommended_platforms(
+    db: Session, client_id: str, recommended_platforms: Optional[List[str]]
+) -> Optional[Client]:
+    """
+    Update recommended platforms for a client.
+
+    Called by platform_strategy research tool after determining platform recommendations.
+    Persists recommendations to database so they can be used by other tools and across sessions.
+
+    Args:
+        db: Database session
+        client_id: ID of client to update
+        recommended_platforms: List of platform names (e.g., ["linkedin", "twitter", "blog"])
+
+    Returns:
+        Updated client or None if not found
+    """
+    db_client = get_client(db, client_id)
+    if not db_client:
+        return None
+
+    # Validate platform names (whitelist of valid platforms)
+    VALID_PLATFORMS = {
+        "linkedin",
+        "twitter",
+        "tiktok",
+        "blog",
+        "youtube",
+        "instagram",
+        "facebook",
+        "threads",
+        "medium",
+        "newsletter",
+    }
+
+    if recommended_platforms:
+        # Filter to only valid platforms
+        valid_platforms = [p.lower() for p in recommended_platforms if p.lower() in VALID_PLATFORMS]
+        db_client.recommended_platforms = valid_platforms if valid_platforms else None
+    else:
+        db_client.recommended_platforms = None
+
+    try:
+        db.commit()
+        db.refresh(db_client)
+        return db_client
+    except Exception as e:
+        db.rollback()
+        print(f"[ERROR] Failed to update recommended platforms for client {client_id}: {str(e)}")
+        raise
+
+
 # ==================== Posts ====================
 
 
-@cache_short(key_prefix="post")
 def get_post(db: Session, post_id: str) -> Optional[Post]:
     """
     Get post by ID.
@@ -418,7 +469,6 @@ def get_post(db: Session, post_id: str) -> Optional[Post]:
     )
 
 
-@cache_short(key_prefix="posts")
 def get_posts(
     db: Session,
     skip: int = 0,
