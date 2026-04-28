@@ -289,7 +289,7 @@ export default function PrivacyPolicy() {
                     ['H. Audio, electronic, sensory, or similar information', 'Images and audio, video or call recordings created in connection with our business activities'],
                     ['I. Professional or employment-related information', 'Business contact details in order to provide you our Services at a business level or job title, work history, and professional qualifications'],
                     ['J. Education Information', 'Student records and directory information'],
-                    ['K. Inferences drawn from collected personal information', 'Inferences drawn from any of the collected personal information listed above to create a profile or summary about an individual's preferences and characteristics'],
+                    ['K. Inferences drawn from collected personal information', "Inferences drawn from any of the collected personal information listed above to create a profile or summary about an individual's preferences and characteristics"],
                     ['L. Sensitive personal Information', '—'],
                   ].map(([cat, ex]) => (
                     <tr key={cat} className="even:bg-neutral-50 dark:even:bg-neutral-900">
