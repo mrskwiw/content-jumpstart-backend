@@ -21,6 +21,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from backend.utils.logger import logger
 from backend.utils.http_rate_limiter import (
     strict_limiter,
     standard_limiter,
@@ -445,7 +446,26 @@ async def spa_routing_middleware(request: Request, call_next):
         )
     )
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # If middleware chain fails, return 500 error
+        logger.error(f"Middleware error in spa_routing_middleware: {str(e)}")
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            {"error": "Internal Server Error"},
+            status_code=500,
+        )
+
+    if response is None:
+        logger.error("SPA routing middleware received None response from call_next")
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            {"error": "Internal Server Error"},
+            status_code=500,
+        )
 
     # If 404 and looks like a frontend route, serve index.html
     if response.status_code == 404 and is_frontend_route:
