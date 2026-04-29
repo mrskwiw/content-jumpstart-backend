@@ -111,7 +111,14 @@ else:
 enable_sqlalchemy_profiling(engine)
 
 # Create SessionLocal class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# expire_on_commit=False prevents objects from being detached after commit
+# This is critical for long-running operations where objects need to remain accessible
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    expire_on_commit=False,
+)
 
 # Create Base class for models
 Base = declarative_base()

@@ -54,10 +54,14 @@ class Settings(BaseSettings):
     # For SQLite (default), pooling is limited due to single-threaded nature
     DB_POOL_SIZE: int = 20  # Number of connections to keep open
     DB_MAX_OVERFLOW: int = 40  # Max additional connections beyond pool_size
-    DB_POOL_RECYCLE: int = 3600  # Recycle connections after 1 hour (seconds)
+    DB_POOL_RECYCLE: int = (
+        7200  # Recycle connections after 2 hours (was 1h, increased for long-running batches)
+    )
     DB_POOL_PRE_PING: bool = True  # Test connections before using (detect stale)
     DB_ECHO_POOL: bool = False  # Log connection pool operations (debug only)
-    DB_POOL_TIMEOUT: int = 30  # Seconds to wait for connection from pool
+    DB_POOL_TIMEOUT: int = (
+        60  # Wait up to 60 seconds for connection from pool (was 30s, increased for batch waits)
+    )
 
     # JWT Authentication
     # CRITICAL SECURITY: SECRET_KEY must be cryptographically random and unique
