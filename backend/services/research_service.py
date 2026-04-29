@@ -424,6 +424,13 @@ class ResearchService:
         if not client:
             raise ValueError(f"Client {client_id} not found")
 
+        # Access all needed attributes while session is active to prevent detachment errors
+        project_platforms = project.platforms
+        project_user_id = project.user_id
+        client_name = client.name
+        client_business_description = client.business_description
+        client_ideal_customer = client.ideal_customer
+
         # Check if research tools are available
         if not RESEARCH_TOOLS_AVAILABLE:
             logger.warning(
@@ -446,7 +453,7 @@ class ResearchService:
         # Check system prerequisites (infrastructure requirements)
         system_prereqs = get_system_prerequisites(tool_name)
         if SystemPrerequisiteType.WEB_SEARCH in system_prereqs:
-            is_configured, message = is_web_search_configured(db, project.user_id)
+            is_configured, message = is_web_search_configured(db, project_user_id)
             if not is_configured:
                 logger.warning(f"Web search not configured for {tool_name}: {message}")
                 return {
@@ -494,7 +501,16 @@ class ResearchService:
         ToolClass = RESEARCH_TOOL_MAP[tool_name]
 
         # Prepare inputs based on tool requirements
-        inputs = self._prepare_inputs(project, client, tool_name, params or {})
+        inputs = self._prepare_inputs(
+            project,
+            client,
+            tool_name,
+            params or {},
+            cached_client_name=client_name,
+            cached_client_business_description=client_business_description,
+            cached_client_ideal_customer=client_ideal_customer,
+            cached_project_platforms=project_platforms,
+        )
 
         # STAGED EXECUTION: Fetch data from prerequisite tools stored in database
         prerequisite_data = self._fetch_prerequisite_data(db, project_id, tool_name)
@@ -1005,6 +1021,10 @@ class ResearchService:
         client: Client,
         tool_name: str,
         params: Dict,
+        cached_client_name: Optional[str] = None,
+        cached_client_business_description: Optional[str] = None,
+        cached_client_ideal_customer: Optional[str] = None,
+        cached_project_platforms: Optional[list] = None,
     ) -> Dict:
         """
         Prepare inputs for research tool execution.
@@ -1025,13 +1045,16 @@ class ResearchService:
         frontend_provided = set(params.keys())
 
         # Base inputs common to all tools
-        # Use Client model fields (business_description, ideal_customer) instead of non-existent Project fields
+        # Use cached values if available to prevent detachment errors, fallback to object attributes
         inputs = {
-            "company_name": client.name,
-            "business_name": client.name,  # Propagate to all tools (prevents "Client Business" placeholder)
-            "business_description": client.business_description or "",
-            "target_audience": client.ideal_customer or "",
-            "platforms": project.platforms or ["LinkedIn"],
+            "company_name": cached_client_name or client.name,
+            "business_name": cached_client_name
+            or client.name,  # Propagate to all tools (prevents "Client Business" placeholder)
+            "business_description": cached_client_business_description
+            or client.business_description
+            or "",
+            "target_audience": cached_client_ideal_customer or client.ideal_customer or "",
+            "platforms": cached_project_platforms or project.platforms or ["LinkedIn"],
             **params,  # Merge in additional parameters (explicit params take precedence)
         }
 
