@@ -451,6 +451,13 @@ Your topics:"""
                 # Parse keywords
                 iteration_keywords = []
                 for kw_data in keywords_data[:10]:
+                    # Skip if kw_data is not a dict
+                    if not isinstance(kw_data, dict):
+                        logger.warning(
+                            f"Skipping invalid keyword entry (expected dict, got {type(kw_data)}): {kw_data}"
+                        )
+                        continue
+
                     keyword = Keyword(
                         keyword=kw_data["keyword"],
                         search_intent=SearchIntent(kw_data["search_intent"]),
@@ -755,13 +762,25 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                 logger.warning("Claude returned empty data for secondary keywords")
                 return self._generate_fallback_secondary_keywords(primary_keywords)
 
-            # Unwrap if Claude returned {"keywords": [...]} instead of bare array
+            # Normalize response format
             if isinstance(keywords_data, dict):
+                # Unwrap if Claude returned {"keywords": [...]} instead of bare array
                 keywords_data = next((v for v in keywords_data.values() if isinstance(v, list)), [])
+            elif not isinstance(keywords_data, list):
+                # If it's neither dict nor list, something went wrong
+                logger.warning(f"Unexpected keywords_data type: {type(keywords_data)}")
+                return self._generate_fallback_secondary_keywords(primary_keywords)
 
             keywords = []
 
             for kw_data in keywords_data[:30]:  # Max 30 secondary
+                # Skip if kw_data is not a dict
+                if not isinstance(kw_data, dict):
+                    logger.warning(
+                        f"Skipping invalid keyword entry (expected dict, got {type(kw_data)}): {kw_data}"
+                    )
+                    continue
+
                 keyword = Keyword(
                     keyword=kw_data["keyword"],
                     search_intent=SearchIntent(kw_data["search_intent"]),
