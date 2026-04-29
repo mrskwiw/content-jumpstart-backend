@@ -398,7 +398,7 @@ def update_client(db: Session, client_id: str, client_update: ClientUpdate) -> O
 
 def update_client_recommended_platforms(
     db: Session, client_id: str, recommended_platforms: Optional[List[str]]
-) -> Optional[Client]:
+) -> bool:
     """
     Update recommended platforms for a client.
 
@@ -411,11 +411,11 @@ def update_client_recommended_platforms(
         recommended_platforms: List of platform names (e.g., ["linkedin", "twitter", "blog"])
 
     Returns:
-        Updated client or None if not found
+        True if successful, False if client not found or update failed
     """
     db_client = get_client(db, client_id)
     if not db_client:
-        return None
+        return False
 
     # Validate platform names (whitelist of valid platforms)
     VALID_PLATFORMS = {
@@ -440,12 +440,10 @@ def update_client_recommended_platforms(
 
     try:
         db.commit()
-        db.refresh(db_client)
-        return db_client
-    except Exception as e:
+        return True
+    except Exception:
         db.rollback()
-        print(f"[ERROR] Failed to update recommended platforms for client {client_id}: {str(e)}")
-        raise
+        return False
 
 
 # ==================== Posts ====================
