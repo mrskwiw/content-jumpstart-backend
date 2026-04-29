@@ -102,11 +102,9 @@ async def list_posts(
         # Verify user owns the project before showing its posts
         project = crud.get_project(db, project_id)
         if project:
-            if (
-                hasattr(project, "user_id")
-                and project.user_id != current_user.id
-                and not current_user.is_superuser
-            ):
+            # Reattach detached object to session for attribute access
+            project = db.merge(project)
+            if project.user_id != current_user.id and not current_user.is_superuser:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Access denied: You don't own this project",

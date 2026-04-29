@@ -133,12 +133,11 @@ async def create_project(
             detail=f"Client {project.client_id} not found",
         )
 
+    # Reattach detached object to session for attribute access
+    client = db.merge(client)
+
     # TR-021: Verify user owns the client
-    if (
-        hasattr(client, "user_id")
-        and client.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if client.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this client",

@@ -20,8 +20,6 @@ from backend.models import Run, User
 router = APIRouter()
 
 
-
-
 @router.get("/", response_model=List[RunResponse])
 async def list_runs(
     skip: int = Query(0, ge=0),
@@ -72,12 +70,11 @@ async def create_run(
             detail=f"Project {run.project_id} not found",
         )
 
+    # Reattach detached object to session for attribute access
+    project = db.merge(project)
+
     # TR-021: Verify user owns the project before creating run
-    if (
-        hasattr(project, "user_id")
-        and project.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if project.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",

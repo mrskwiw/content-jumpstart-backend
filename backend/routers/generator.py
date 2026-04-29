@@ -612,12 +612,11 @@ async def generate_all(
             detail=f"Project {input.project_id} not found",
         )
 
+    # Reattach detached object to session for attribute access
+    project = db.merge(project)
+
     # TR-021: Verify user owns the project
-    if (
-        hasattr(project, "user_id")
-        and project.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if project.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",
@@ -764,12 +763,11 @@ async def regenerate(
             detail=f"Project {input.project_id} not found",
         )
 
+    # Reattach detached object to session for attribute access
+    project = db.merge(project)
+
     # TR-021: Verify user owns the project
-    if (
-        hasattr(project, "user_id")
-        and project.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if project.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",
@@ -923,12 +921,11 @@ async def export_package(
                 detail=f"Project {input.project_id} not found",
             )
 
+        # Reattach detached object to session for attribute access
+        project = db.merge(project)
+
         # TR-021: Verify user owns the project
-        if (
-            hasattr(project, "user_id")
-            and project.user_id != current_user.id
-            and not current_user.is_superuser
-        ):
+        if project.user_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: You don't own this project",

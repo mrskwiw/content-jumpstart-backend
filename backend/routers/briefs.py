@@ -10,7 +10,16 @@ from typing import Literal
 
 import docx  # python-docx
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from backend.middleware.auth_dependency import get_current_user
 from backend.middleware.authorization import (
     verify_brief_ownership,
@@ -139,12 +148,11 @@ async def create_brief_from_text(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # Reattach detached object to session for attribute access
+    project = db.merge(project)
+
     # TR-021: Verify user owns the project before creating brief
-    if (
-        hasattr(project, "user_id")
-        and project.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if project.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",
@@ -200,12 +208,11 @@ async def upload_brief_file(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # Reattach detached object to session for attribute access
+    project = db.merge(project)
+
     # TR-021: Verify user owns the project before uploading brief
-    if (
-        hasattr(project, "user_id")
-        and project.user_id != current_user.id
-        and not current_user.is_superuser
-    ):
+    if project.user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",
