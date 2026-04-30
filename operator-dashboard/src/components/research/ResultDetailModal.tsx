@@ -1,18 +1,56 @@
 import { ResearchResult } from '@/types/domain';
-import { X, Download, FileText, Code2, Info } from 'lucide-react';
-import { useState } from 'react';
+import { X, Download, FileText, Code2, Info, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { researchApi } from '@/api/research';
 
 interface ResultDetailModalProps {
   result: ResearchResult;
   onClose: () => void;
 }
 
+/** Pick the best human-readable format for preview (excludes json). */
+function pickPreviewFormat(outputs: Record<string, string>): string | null {
+  const keys = Object.keys(outputs);
+  if (keys.length === 0) return null;
+  if (keys.includes('markdown')) return 'markdown';
+  if (keys.includes('text')) return 'text';
+  return keys.find((k) => k !== 'json') ?? null;
+}
+
 export function ResultDetailModal({ result, onClose }: ResultDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'data' | 'metadata'>('preview');
-  const [primaryOutputName, primaryOutputContent] = Object.entries(result.outputs)[0] ?? [
-    'output',
-    '',
-  ];
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(true);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const previewFormat = pickPreviewFormat(result.outputs ?? {});
+
+  useEffect(() => {
+    if (!previewFormat) {
+      setPreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    researchApi
+      .getResearchOutputContent(result.id, previewFormat)
+      .then(({ content }) => {
+        if (!cancelled) {
+          setPreviewContent(content);
+          setPreviewLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setPreviewError(err instanceof Error ? err.message : 'Failed to load preview');
+          setPreviewLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result.id, previewFormat]);
 
   const handleDownload = () => {
     const payload = JSON.stringify(
@@ -91,13 +129,31 @@ export function ResultDetailModal({ result, onClose }: ResultDetailModalProps) {
             {activeTab === 'preview' && (
               <div className="space-y-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  {primaryOutputName}
+                  {previewFormat ?? 'output'}
                 </div>
-                <div className="prose dark:prose-invert max-w-none">
-                  <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-sm text-gray-800 dark:bg-neutral-800 dark:text-gray-100">
-                    {primaryOutputContent || 'No output content available.'}
-                  </pre>
-                </div>
+                {previewLoading ? (
+                  <div className="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span className="text-sm">Loading preview…</span>
+                  </div>
+                ) : previewContent ? (
+                  <div className="prose dark:prose-invert max-w-none">
+                    <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-sm text-gray-800 dark:bg-neutral-800 dark:text-gray-100">
+                      {previewContent}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {previewError && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {previewError} — showing structured data instead.
+                      </p>
+                    )}
+                    <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 p-4 text-sm text-gray-800 dark:bg-neutral-800 dark:text-gray-100">
+                      {JSON.stringify(result.data ?? result.outputs ?? {}, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
             {activeTab === 'data' && (
