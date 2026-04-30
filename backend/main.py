@@ -449,8 +449,9 @@ async def spa_routing_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        # If middleware chain fails, return 500 error
-        logger.error(f"Middleware error in spa_routing_middleware: {str(e)}")
+        logger.error(
+            f"Middleware error in spa_routing_middleware: {str(e)} " f"[{request.method} {path}]"
+        )
         from starlette.responses import JSONResponse
 
         return JSONResponse(

@@ -12,12 +12,21 @@ from pydantic import (
     Field,
     AliasChoices,
     field_serializer,
+    field_validator,
 )
 from backend.schemas.enums import Platform
 
 
 class ClientBase(BaseModel):
     """Base client schema with camelCase/snake_case bidirectional support"""
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _coerce_empty_email(cls, v: object) -> object:
+        # Frontend sends "" when the field is cleared; treat as absent
+        if v == "":
+            return None
+        return v
 
     name: str = Field(
         ...,
