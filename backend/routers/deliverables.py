@@ -286,6 +286,7 @@ async def generate_research_report(
             relative_path=output_path,
             include_audit_log=False,
             include_research=True,  # Include research data
+            is_research_only=True,
             db=db,
         )
 

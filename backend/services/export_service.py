@@ -39,6 +39,7 @@ async def generate_export_file(
     relative_path: str,
     include_audit_log: bool = False,
     include_research: bool = False,
+    is_research_only: bool = False,
     db: Optional[Session] = None,
 ) -> Tuple[Path, int]:
     """
@@ -52,6 +53,7 @@ async def generate_export_file(
         relative_path: Relative path for the output file (from data/outputs/)
         include_audit_log: Whether to include audit log in export
         include_research: Whether to include research results appendix
+        is_research_only: If True, export is research-only (no posts expected)
         db: Database session (required if include_audit_log or include_research is True)
 
     Returns:
@@ -62,17 +64,41 @@ async def generate_export_file(
     full_path = output_dir / relative_path
     full_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Determine export type (research-only vs standard project export)
+    research_only = is_research_only or not posts
+
     if format == "docx":
         return await _generate_docx(
-            posts, client, project, full_path, include_audit_log, include_research, db
+            posts,
+            client,
+            project,
+            full_path,
+            include_audit_log,
+            include_research,
+            research_only,
+            db,
         )
     elif format == "md" or format == "markdown":
         return await _generate_markdown(
-            posts, client, project, full_path, include_audit_log, include_research, db
+            posts,
+            client,
+            project,
+            full_path,
+            include_audit_log,
+            include_research,
+            research_only,
+            db,
         )
     else:
         return await _generate_txt(
-            posts, client, project, full_path, include_audit_log, include_research, db
+            posts,
+            client,
+            project,
+            full_path,
+            include_audit_log,
+            include_research,
+            research_only,
+            db,
         )
 
 
@@ -83,6 +109,7 @@ async def _generate_txt(
     output_path: Path,
     include_audit_log: bool,
     include_research: bool,
+    research_only: bool,
     db: Optional[Session],
 ) -> Tuple[Path, int]:
     """Generate TXT deliverable file."""
@@ -90,15 +117,14 @@ async def _generate_txt(
 
     # Header
     lines.append("=" * 60)
-    lines.append("30-DAY CONTENT JUMPSTART DELIVERABLE" if project else "RESEARCH REPORT")
+    lines.append("RESEARCH REPORT" if research_only else "30-DAY CONTENT JUMPSTART DELIVERABLE")
     lines.append("=" * 60)
     lines.append("")
     lines.append(f"Client: {client.name}")
     if project:
         lines.append(f"Project: {project.name}")
     lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    if posts:
-        lines.append(f"Total Posts: {len(posts)}")
+    lines.append(f"Total Posts: {len(posts)}")
     lines.append("")
     lines.append("=" * 60)
     lines.append("")
@@ -169,33 +195,28 @@ async def _generate_markdown(
     output_path: Path,
     include_audit_log: bool = False,
     include_research: bool = False,
+    research_only: bool = False,
     db: Optional[Session] = None,
 ) -> Tuple[Path, int]:
     """Generate Markdown deliverable file with frontmatter."""
     lines = []
-    is_research_only = not project
 
     # YAML frontmatter
     lines.append("---")
     lines.append(
-        "title: Research Report"
-        if is_research_only
-        else "title: 30-Day Content Jumpstart Deliverable"
+        "title: Research Report" if research_only else "title: 30-Day Content Jumpstart Deliverable"
     )
     lines.append(f"client: {client.name}")
     if project:
         lines.append(f"project: {project.name}")
     lines.append(f'generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
-    if posts:
-        lines.append(f"total_posts: {len(posts)}")
+    lines.append(f"total_posts: {len(posts)}")
     lines.append("format: markdown")
     lines.append("---")
     lines.append("")
 
     # Header
-    lines.append(
-        "# Research Report" if is_research_only else "# 30-Day Content Jumpstart Deliverable"
-    )
+    lines.append("# Research Report" if research_only else "# 30-Day Content Jumpstart Deliverable")
     lines.append("")
     lines.append(f"**Client:** {client.name}")
     if project:
@@ -381,6 +402,7 @@ async def _generate_docx(
     output_path: Path,
     include_audit_log: bool,
     include_research: bool,
+    research_only: bool,
     db: Optional[Session],
 ) -> Tuple[Path, int]:
     """Generate DOCX deliverable file."""
@@ -393,7 +415,7 @@ async def _generate_docx(
         # Fall back to TXT if docx not available
         txt_path = output_path.with_suffix(".txt")
         return await _generate_txt(
-            posts, client, project, txt_path, include_audit_log, include_research, db
+            posts, client, project, txt_path, include_audit_log, include_research, research_only, db
         )
 
     # Create document
@@ -402,11 +424,9 @@ async def _generate_docx(
     # Brand color
     brand_color = RGBColor(41, 128, 185)
 
-    is_research_only = not project
-
     # Title page
     title = doc.add_paragraph()
-    title_text = "Research Report" if is_research_only else "30-Day Content Jumpstart"
+    title_text = "Research Report" if research_only else "30-Day Content Jumpstart"
     title_run = title.add_run(title_text)
     title_run.font.name = "Calibri"
     title_run.font.size = Pt(28)
