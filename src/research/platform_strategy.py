@@ -642,8 +642,14 @@ Return JSON with:
             messages=[{"role": "user", "content": prompt}], max_tokens=2000
         )
 
-        # Parse response
+        # Parse response — guard against non-dict output (LLM sometimes wraps in an array)
         mix_data = self._extract_json_from_response(response)
+        if not isinstance(mix_data, dict):
+            logger.warning(
+                f"platform_mix: expected dict from LLM, got {type(mix_data).__name__}; "
+                "falling back to top-2 recommendations by fit"
+            )
+            mix_data = {}
 
         # Handle rationale - could be string or dict
         rationale = mix_data.get("rationale", "")
@@ -657,36 +663,33 @@ Return JSON with:
             if r.fit_level == PlatformFit.NOT_RECOMMENDED
         }
 
-        def _safe_map(names: list, cap: int) -> List[PlatformName]:
-            """Map names to enums, skip unmappable values, enforce cap."""
+        def _safe_map(names: object, cap: int) -> List[PlatformName]:
+            """Map names to enums; skip unmappable or not-recommended values; enforce cap."""
+            if not isinstance(names, list):
+                return []
             result = []
             for p in names:
+                if not isinstance(p, str):
+                    continue
+                if p.lower() in not_recommended:
+                    continue
                 try:
                     result.append(self._map_platform_name(p))
                 except Exception:  # nosec B112
                     continue
             return result[:cap]
 
-        primary_raw = [
-            p
-            for p in mix_data.get("primary_platforms", [])
-            if str(p).lower() not in not_recommended
-        ]
-        secondary_raw = [
-            p
-            for p in mix_data.get("secondary_platforms", [])
-            if str(p).lower() not in not_recommended
-        ]
-        experimental_raw = [
-            p
-            for p in mix_data.get("experimental_platforms", [])
-            if str(p).lower() not in not_recommended
-        ]
+        primary = _safe_map(mix_data.get("primary_platforms"), 2)
+        secondary = _safe_map(mix_data.get("secondary_platforms"), 2)
+        experimental = _safe_map(mix_data.get("experimental_platforms"), 1)
+        avoid = _safe_map(mix_data.get("avoid_platforms"), 99)
 
-        primary = _safe_map(primary_raw, 2)
-        secondary = _safe_map(secondary_raw, 2)
-        experimental = _safe_map(experimental_raw, 1)
-        avoid = _safe_map(mix_data.get("avoid_platforms", []), 99)
+        # Remove any platform already in a higher-priority bucket so no platform
+        # appears in more than one active bucket (LLM occasionally duplicates).
+        assigned: set = {p.value for p in primary}
+        secondary = [p for p in secondary if p.value not in assigned]
+        assigned |= {p.value for p in secondary}
+        experimental = [p for p in experimental if p.value not in assigned]
 
         return PlatformMix(
             primary_platforms=primary,
