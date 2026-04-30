@@ -828,7 +828,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
                 {categoryTools.map((tool) => {
                   const isSelected = selected.has(tool.name);
                   const isAvailable = tool.status === 'available';
-                  const hasResult = results.has(tool.name);
+                  const hasResult = results.has(tool.name) || completedTools.has(tool.name);
                   const { enabled: integrationEnabled, missingIntegrations } = isToolEnabled(tool);
                   const canSelect = isAvailable && integrationEnabled;
 
@@ -952,11 +952,15 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
                               </div>
                             </div>
                           )}
-                          {hasResult && (
-                            <div className="mt-2 rounded bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400">
-                              ✓ Research completed
-                            </div>
-                          )}
+                          {hasResult && (() => {
+                            const runCount = historyData?.results.filter(r => r.toolName === tool.name).length ?? 0;
+                            return (
+                              <div className="mt-2 rounded bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                                {runCount > 1 ? `Run ${runCount}x` : 'Completed'}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </button>

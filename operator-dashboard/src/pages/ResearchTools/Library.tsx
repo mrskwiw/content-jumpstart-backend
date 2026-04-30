@@ -77,6 +77,33 @@ export default function ResearchToolsLibrary() {
     enabled: selectedClientId !== null,
   });
 
+  // Fetch run history for the selected client to show completion indicators on cards
+  const { data: clientHistory } = useQuery({
+    queryKey: ['research-history', selectedClientId],
+    queryFn: () => selectedClientId ? researchApi.getClientHistory(selectedClientId) : null,
+    enabled: selectedClientId !== null,
+    staleTime: 60 * 1000,
+  });
+
+  // Build per-tool execution status map: tool_name → { executed, executionCount, lastRun }
+  const toolExecutionStatus = useMemo(() => {
+    if (!clientHistory?.results) return {} as Record<string, { executed: boolean; executionCount: number; lastRun?: string }>;
+    const map: Record<string, { executed: boolean; executionCount: number; lastRun?: string }> = {};
+    clientHistory.results.forEach((result) => {
+      const entry = map[result.toolName];
+      if (!entry) {
+        map[result.toolName] = { executed: true, executionCount: 1, lastRun: result.createdAt };
+      } else {
+        entry.executionCount += 1;
+        // Keep the most recent run date
+        if (!entry.lastRun || result.createdAt > entry.lastRun) {
+          entry.lastRun = result.createdAt;
+        }
+      }
+    });
+    return map;
+  }, [clientHistory]);
+
   // Real-time pricing preview with bundle detection
   const { data: pricing } = useQuery({
     queryKey: ['pricing-preview', selectedTools],
@@ -385,6 +412,8 @@ export default function ResearchToolsLibrary() {
             onToggle={() => handleToggleTool(tool.name)}
             prerequisites={TOOL_PREREQUISITES[tool.name] || { required: [], recommended: [] }}
             completedTools={completedToolsForClient}
+            executionStatus={toolExecutionStatus[tool.name]}
+            toolLabels={TOOL_LABELS}
           />
         ))}
       </div>
