@@ -28,6 +28,7 @@ class ContentType(str, Enum):
     VIDEO = "video"
     INFOGRAPHIC = "infographic"
     WEBINAR = "webinar"
+    PORTFOLIO = "portfolio"
     OTHER = "other"
 
 

@@ -32,6 +32,14 @@ from .validation_mixin import CommonValidationMixin
 from ..utils.anthropic_client import get_default_client
 
 
+def _parse_content_type(value: str) -> ContentType:
+    """Return ContentType for value, falling back to OTHER for unrecognised types."""
+    try:
+        return ContentType(value)
+    except ValueError:
+        return ContentType.OTHER
+
+
 class ContentAuditor(ResearchTool, CommonValidationMixin):
     """Analyzes existing content for performance and opportunities"""
 
@@ -313,7 +321,7 @@ Return ONLY a valid JSON array. Each item has: performance_level, health_status,
             piece = ContentPiece(
                 title=content_data.get("title", f"Content Piece {i+1}"),
                 url=content_data.get("url"),
-                content_type=ContentType(content_data.get("type", "blog_post")),
+                content_type=_parse_content_type(content_data.get("type", "blog_post")),
                 publish_date=content_data.get("publish_date"),
                 last_updated=content_data.get("last_updated"),
                 performance_level=PerformanceLevel.AVERAGE,  # Default
