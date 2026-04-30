@@ -34,7 +34,7 @@ def _platform_display_name(raw: str) -> str:
 async def generate_export_file(
     posts: List[Post],
     client: Client,
-    project: Project,
+    project: Optional[Project],
     format: str,
     relative_path: str,
     include_audit_log: bool = False,
@@ -47,7 +47,7 @@ async def generate_export_file(
     Args:
         posts: List of Post database models
         client: Client database model
-        project: Project database model
+        project: Project database model (optional for research-only exports)
         format: Export format ('txt', 'md', or 'docx')
         relative_path: Relative path for the output file (from data/outputs/)
         include_audit_log: Whether to include audit log in export
@@ -79,7 +79,7 @@ async def generate_export_file(
 async def _generate_txt(
     posts: List[Post],
     client: Client,
-    project: Project,
+    project: Optional[Project],
     output_path: Path,
     include_audit_log: bool,
     include_research: bool,
@@ -90,13 +90,15 @@ async def _generate_txt(
 
     # Header
     lines.append("=" * 60)
-    lines.append("30-DAY CONTENT JUMPSTART DELIVERABLE")
+    lines.append("30-DAY CONTENT JUMPSTART DELIVERABLE" if project else "RESEARCH REPORT")
     lines.append("=" * 60)
     lines.append("")
     lines.append(f"Client: {client.name}")
-    lines.append(f"Project: {project.name}")
+    if project:
+        lines.append(f"Project: {project.name}")
     lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    lines.append(f"Total Posts: {len(posts)}")
+    if posts:
+        lines.append(f"Total Posts: {len(posts)}")
     lines.append("")
     lines.append("=" * 60)
     lines.append("")
@@ -163,7 +165,7 @@ async def _generate_txt(
 async def _generate_markdown(
     posts: List[Post],
     client: Client,
-    project: Project,
+    project: Optional[Project],
     output_path: Path,
     include_audit_log: bool = False,
     include_research: bool = False,
@@ -171,45 +173,58 @@ async def _generate_markdown(
 ) -> Tuple[Path, int]:
     """Generate Markdown deliverable file with frontmatter."""
     lines = []
+    is_research_only = not project
 
     # YAML frontmatter
     lines.append("---")
-    lines.append("title: 30-Day Content Jumpstart Deliverable")
+    lines.append(
+        "title: Research Report"
+        if is_research_only
+        else "title: 30-Day Content Jumpstart Deliverable"
+    )
     lines.append(f"client: {client.name}")
-    lines.append(f"project: {project.name}")
+    if project:
+        lines.append(f"project: {project.name}")
     lines.append(f'generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
-    lines.append(f"total_posts: {len(posts)}")
+    if posts:
+        lines.append(f"total_posts: {len(posts)}")
     lines.append("format: markdown")
     lines.append("---")
     lines.append("")
 
     # Header
-    lines.append("# 30-Day Content Jumpstart Deliverable")
+    lines.append(
+        "# Research Report" if is_research_only else "# 30-Day Content Jumpstart Deliverable"
+    )
     lines.append("")
     lines.append(f"**Client:** {client.name}")
-    lines.append(f"**Project:** {project.name}")
+    if project:
+        lines.append(f"**Project:** {project.name}")
     lines.append(f'**Generated:** {datetime.now().strftime("%B %d, %Y at %H:%M")}')
-    lines.append(f"**Total Posts:** {len(posts)}")
+    if posts:
+        lines.append(f"**Total Posts:** {len(posts)}")
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # Table of Contents
-    lines.append("## Table of Contents")
-    lines.append("")
-    for i, post in enumerate(posts, 1):
-        template_name = post.template_name or "Custom"
-        platform = (
-            f" ({_platform_display_name(post.target_platform)})" if post.target_platform else ""
-        )
-        lines.append(f"{i}. [Post {i}: {template_name}{platform}](#post-{i})")
+    # Table of Contents (only for posts-based exports)
+    if posts:
+        lines.append("## Table of Contents")
+        lines.append("")
+        for i, post in enumerate(posts, 1):
+            template_name = post.template_name or "Custom"
+            platform = (
+                f" ({_platform_display_name(post.target_platform)})" if post.target_platform else ""
+            )
+            lines.append(f"{i}. [Post {i}: {template_name}{platform}](#post-{i})")
     lines.append("")
     lines.append("---")
     lines.append("")
 
-    # Posts section
-    lines.append("## Your Posts")
-    lines.append("")
+    # Posts section (only for content exports, not research-only)
+    if posts:
+        lines.append("## Your Posts")
+        lines.append("")
 
     for i, post in enumerate(posts, 1):
         # Post header with anchor
@@ -362,7 +377,7 @@ def _add_markdown_paragraph(doc, line: str):
 async def _generate_docx(
     posts: List[Post],
     client: Client,
-    project: Project,
+    project: Optional[Project],
     output_path: Path,
     include_audit_log: bool,
     include_research: bool,
@@ -377,7 +392,9 @@ async def _generate_docx(
         logger.warning("python-docx not installed, falling back to TXT")
         # Fall back to TXT if docx not available
         txt_path = output_path.with_suffix(".txt")
-        return await _generate_txt(posts, client, project, txt_path, include_audit_log, db)
+        return await _generate_txt(
+            posts, client, project, txt_path, include_audit_log, include_research, db
+        )
 
     # Create document
     doc = Document()
@@ -385,9 +402,12 @@ async def _generate_docx(
     # Brand color
     brand_color = RGBColor(41, 128, 185)
 
+    is_research_only = not project
+
     # Title page
     title = doc.add_paragraph()
-    title_run = title.add_run("30-Day Content Jumpstart")
+    title_text = "Research Report" if is_research_only else "30-Day Content Jumpstart"
+    title_run = title.add_run(title_text)
     title_run.font.name = "Calibri"
     title_run.font.size = Pt(28)
     title_run.font.bold = True

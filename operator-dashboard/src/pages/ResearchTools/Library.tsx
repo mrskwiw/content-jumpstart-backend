@@ -54,10 +54,10 @@ export default function ResearchToolsLibrary() {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showProjectSelector, setShowProjectSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [clientPrerequisiteMode, setClientPrerequisiteMode] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('md');
 
   // Fetch available tools
   const { data: tools = [], isLoading: toolsLoading } = useQuery({
@@ -89,21 +89,11 @@ export default function ResearchToolsLibrary() {
   const { data: clientPrerequisites } = useQuery({
     queryKey: ['client-prerequisites', selectedClientId],
     queryFn: () => researchApi.getClientPrerequisites(selectedClientId as string),
-    enabled: selectedClientId !== null && clientPrerequisiteMode,
+    enabled: selectedClientId !== null,
   });
 
   // Build completed tools set from client prerequisites
   const completedToolsForClient = clientPrerequisites?.completedTools || [];
-
-  // Fetch projects for project selector
-  const { data: projects = [] } = useQuery({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      const response = await projectsApi.list();
-      return response?.items || [];
-    },
-    enabled: showProjectSelector
-  });
 
   // Apply registry disabled status — overrides backend status so UI stays in sync with registry
   const disabledToolIds = useMemo(() => getDisabledToolIds(), []);
@@ -184,24 +174,48 @@ export default function ResearchToolsLibrary() {
     setSelectedTools([]);
   };
 
-  const handleAddToProject = () => {
+  const handleGenerateReport = async () => {
+    if (!selectedClientId) {
+      setError('Please select a client');
+      return;
+    }
     if (selectedTools.length === 0) {
       setError('Please select at least one research tool');
       return;
     }
-    setError(null);
-    setShowProjectSelector(true);
-  };
 
-  const handleSelectProject = (projectId: string) => {
+    setError(null);
+    setIsExecuting(true);
+
     try {
-      // Navigate to wizard research panel with selected tools
-      // Store selected tools in sessionStorage so wizard can pick them up
-      sessionStorage.setItem('selectedResearchTools', JSON.stringify(selectedTools));
-      navigate(`/dashboard/wizard?projectId=${projectId}&step=research`);
-    } catch (err) {
-      setError('Failed to navigate to project. Please try again.');
-      console.error('Navigation error:', err);
+      // Execute research tools sequentially
+      for (const tool of selectedTools) {
+        await researchApi.run({
+          projectId: selectedClientId, // Use clientId as project for research-only
+          clientId: selectedClientId,
+          tool,
+          params: {},
+        });
+      }
+
+      // After all tools complete, generate report
+      const response = await researchApi.generateResearchReport({
+        clientId: selectedClientId,
+        tools: selectedTools,
+        format: exportFormat,
+      });
+
+      // Download the report
+      if (response && response.url) {
+        window.location.href = response.url;
+      }
+
+      setSelectedTools([]);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to generate research report');
+      console.error('Generation error:', err);
+    } finally {
+      setIsExecuting(false);
     }
   };
 
@@ -228,47 +242,30 @@ export default function ResearchToolsLibrary() {
       </div>
 
 
-      {/* Client Filter - NEW */}
+      {/* Client Selection */}
       <div className="bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-700 p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="client-prerequisite-mode"
-              checked={clientPrerequisiteMode}
-              onChange={(e) => {
-                setClientPrerequisiteMode(e.target.checked);
-                if (!e.target.checked) {
-                  setSelectedClientId(null);
-                }
-              }}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="client-prerequisite-mode" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Show client-specific prerequisite status
-            </label>
-          </div>
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+            Select Client for Research Report
+          </label>
+          <select
+            value={selectedClientId || ''}
+            onChange={(e) => setSelectedClientId(e.target.value || null)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">-- Select a client --</option>
+            {clients.map((client: any) => (
+              <option key={client.id} value={client.id}>
+                {client.companyName || client.name}
+              </option>
+            ))}
+          </select>
 
-          {clientPrerequisiteMode && (
-            <div className="flex-1">
-              <select
-                value={selectedClientId || ''}
-                onChange={(e) => setSelectedClientId(e.target.value || null)}
-                className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a client...</option>
-                {clients.map((client: any) => (
-                  <option key={client.id} value={client.id}>
-                    {client.companyName || client.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {clientPrerequisiteMode && selectedClientId && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{completedToolsForClient.length}</span> tools completed for this client
+          {selectedClientId && (
+            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-sm text-blue-900 dark:text-blue-100">
+                <span className="font-medium">{completedToolsForClient.length}</span> research tool{completedToolsForClient.length !== 1 ? 's' : ''} previously completed for this client
+              </p>
             </div>
           )}
         </div>
@@ -362,8 +359,8 @@ export default function ResearchToolsLibrary() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredTools.map((tool: ResearchTool) => {
           const { enabled, missingIntegrations } = isToolEnabled(tool);
-          // Get execution status for this tool
-          const toolStatus = clientPrerequisites?.tools.find(t => t.toolName === tool.name);
+          // Get execution status for this tool from client history
+          const toolStatus = selectedClientId && clientPrerequisites?.tools?.find(t => t.toolName === tool.name);
           const executionStatus = toolStatus ? {
             executed: toolStatus.completed,
             executionCount: toolStatus.completed ? 1 : 0,
@@ -427,59 +424,34 @@ export default function ResearchToolsLibrary() {
                 </span>
               )}
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Format:</label>
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as 'md' | 'docx' | 'pdf')}
+                  className="px-3 py-1 text-sm border border-gray-300 dark:border-neutral-600 rounded bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="md">Markdown</option>
+                  <option value="docx">Word (DOCX)</option>
+                  <option value="pdf">PDF</option>
+                </select>
+              </div>
               <button
                 onClick={handleClearSelection}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                disabled={isExecuting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors disabled:opacity-50"
               >
-                Clear Selection
+                Clear
               </button>
               <button
-                onClick={handleAddToProject}
-                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                onClick={handleGenerateReport}
+                disabled={!selectedClientId || isExecuting}
+                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add to Project
+                {isExecuting ? 'Generating...' : 'Generate Report'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Project Selector Modal */}
-      {showProjectSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Select Project
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Choose a project to use these {selectedTools.length} research tool{selectedTools.length !== 1 ? 's' : ''}
-            </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
-              {projects.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                  No projects found. Create a project first.
-                </p>
-              ) : (
-                projects.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
-                    className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-neutral-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {project.name}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-            <button
-              onClick={() => setShowProjectSelector(false)}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-neutral-600 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}

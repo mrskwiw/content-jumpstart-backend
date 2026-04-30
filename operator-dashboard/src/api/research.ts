@@ -336,4 +336,24 @@ export const researchApi = {
       completedTools: parsed.completed_tools,
     };
   },
+
+  /**
+   * Generate a research report deliverable from completed research tools.
+   * Returns download URL for the generated report in requested format.
+   */
+  async generateResearchReport(input: {
+    clientId: string;
+    tools: string[];
+    format: 'md' | 'docx' | 'pdf';
+  }): Promise<{ url: string; fileName: string }> {
+    const { data } = await apiClient.post('/api/deliverables/from-research', {
+      client_id: input.clientId,
+      tools: input.tools,
+      format: input.format,
+    });
+    return {
+      url: data.download_url,
+      fileName: data.file_name,
+    };
+  },
 };
