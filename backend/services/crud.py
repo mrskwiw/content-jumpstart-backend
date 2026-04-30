@@ -386,8 +386,9 @@ def update_client(db: Session, client_id: str, client_update: ClientUpdate) -> O
         db.rollback()
         raise
 
-    db.refresh(db_client)
-    print(f"[REFRESH] Client refreshed: {client_id}")
+    # Re-query after commit: db_client may be detached (from cache) and refresh() would fail
+    db_client = db.get(Client, client_id)
+    print(f"[REFRESH] Client re-fetched after commit: {client_id}")
 
     # Invalidate caches
     invalidate_related_caches("client", "clients", "project", "projects")
