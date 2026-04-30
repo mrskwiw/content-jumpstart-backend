@@ -293,7 +293,6 @@ async def restore_database_from_backup(
 
                     return {
                         "message": "Database restored successfully",
-                        "backup_created": str(pre_restore_backup),
                         "restored_from": file.filename,
                         "target": str(db_path),
                         "timestamp": timestamp,
@@ -369,6 +368,138 @@ async def restore_database_from_backup(
                 temp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@router.get("/restore-points")
+async def list_restore_points(
+    admin: User = Depends(require_admin),
+) -> dict:
+    """
+    List available restore points (pre-restore backups from previous restore operations).
+
+    **ADMIN ONLY**: Requires superuser privileges.
+
+    Returns backups created by the restore operation, allowing admins to revert
+    to the state before a restore if needed.
+
+    Returns:
+        dict: List of restore points with timestamps and file sizes
+    """
+    logger.info(f"Admin {admin.email} listing restore points")
+
+    backup_dir = Path("data/backups")
+    restore_points = []
+
+    if backup_dir.exists():
+        for backup_file in sorted(backup_dir.glob("pre_restore_backup_*.db"), reverse=True):
+            restore_points.append(
+                {
+                    "filename": backup_file.name,
+                    "path": str(backup_file),
+                    "size_bytes": backup_file.stat().st_size,
+                    "created_at": backup_file.stat().st_mtime,
+                }
+            )
+
+    return {
+        "restore_points": restore_points,
+        "count": len(restore_points),
+    }
+
+
+@router.post("/restore-to-point")
+async def restore_to_restore_point(
+    filename: str,
+    admin: User = Depends(require_admin),
+) -> dict:
+    """
+    Revert database to a previous restore point (pre-restore backup).
+
+    **ADMIN ONLY**: Requires superuser privileges.
+
+    This allows undoing a restore operation by reverting to the database state
+    that existed before the restore was performed.
+
+    Args:
+        filename: Name of the pre_restore_backup_*.db file to restore to
+        admin: Authenticated admin user (verified by require_admin dependency)
+
+    Returns:
+        dict: Status message and restore details
+
+    Raises:
+        HTTPException 400: Invalid filename or file not found
+        HTTPException 403: Not an admin
+        HTTPException 500: Restore failed
+    """
+    logger.warning(f"Admin {admin.email} reverting to restore point: {filename}")
+
+    # Validate filename format (security: prevent directory traversal)
+    if not filename.startswith("pre_restore_backup_") or not filename.endswith(".db"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid restore point filename",
+        )
+
+    backup_dir = Path("data/backups")
+    restore_point_path = backup_dir / filename
+
+    if not restore_point_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Restore point not found: {filename}",
+        )
+
+    try:
+        db_path = get_database_path()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Validate it's a readable SQLite database
+        validation_error: Exception | None = None
+        check_conn = None
+        try:
+            check_conn = sqlite3.connect(str(restore_point_path))
+            tables = check_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table';"
+            ).fetchall()
+            if not tables:
+                validation_error = ValueError("Restore point contains no tables")
+        except Exception as e:
+            validation_error = e
+        finally:
+            if check_conn is not None:
+                check_conn.close()
+
+        if validation_error is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid restore point file: {validation_error}",
+            )
+
+        # Create a backup of current state before reverting
+        pre_revert_backup = backup_dir / f"pre_revert_backup_{timestamp}.db"
+        engine.dispose()
+        shutil.copy2(db_path, pre_revert_backup)
+
+        # Restore from the restore point
+        shutil.copy2(str(restore_point_path), str(db_path))
+
+        return {
+            "message": "Database reverted to previous restore point successfully",
+            "restored_point": filename,
+            "target": str(db_path),
+            "timestamp": timestamp,
+            "warning": (
+                "User settings (API keys, web search provider) may need to be "
+                "re-entered if they were changed after the original restore."
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Revert to restore point failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Revert failed: {e}")
 
 
 @router.post("/merge")

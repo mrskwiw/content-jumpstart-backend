@@ -213,6 +213,8 @@ export default function Settings() {
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [mergePreview, setMergePreview] = useState<MergePreviewResult | null>(null);
   const [showConfigureModal, setShowConfigureModal] = useState<Integration | null>(null);
+  const [restorePoints, setRestorePoints] = useState<Array<{ filename: string; path: string; size_bytes: number; created_at: number }>>([]);
+  const [showRestorePointsModal, setShowRestorePointsModal] = useState(false);
 
   // Grant credits state (super admin only)
   const [showGrantCreditsModal, setShowGrantCreditsModal] = useState(false);
@@ -435,10 +437,6 @@ export default function Settings() {
   // Database restore mutation
   const restoreDatabaseMutation = useMutation({
     mutationFn: async (file: File) => {
-      // Always download a backup before restoring — container storage is
-      // volatile so the server-side safety copy may not survive a restart.
-      await triggerBackupDownload();
-
       const token = localStorage.getItem('access_token');
       const formData = new FormData();
       formData.append('file', file);
@@ -458,15 +456,58 @@ export default function Settings() {
 
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Fetch restore points after successful restore
+      const token = localStorage.getItem('access_token');
+      try {
+        const response = await fetch('/api/database/restore-points', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setRestorePoints(data.restore_points || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch restore points:', error);
+      }
+
       // Clear all queries after restore
       queryClient.clear();
       setShowRestoreConfirm(false);
       setUploadFile(null);
-      alert('Database restored successfully. Please refresh the page.');
+      alert('Database restored successfully. You can now undo this restore using the restore points below.');
+      setShowRestorePointsModal(true);
     },
     onError: (error: Error) => {
       alert(`Restore failed: ${error.message}`);
+    },
+  });
+
+  // Revert to restore point mutation
+  const revertToRestorePointMutation = useMutation({
+    mutationFn: async (filename: string) => {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`/api/database/restore-to-point?filename=${encodeURIComponent(filename)}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to revert to restore point');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.clear();
+      setShowRestorePointsModal(false);
+      alert('Database reverted to previous state successfully. Please refresh the page.');
+    },
+    onError: (error: Error) => {
+      alert(`Revert failed: ${error.message}`);
     },
   });
 
@@ -1345,7 +1386,7 @@ export default function Settings() {
                 <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-700 dark:text-amber-300">
                   <strong>Warning:</strong> Restoring a database backup will replace all current data.
-                  A backup of the current database will be created automatically before restore.
+                  You can undo the restore operation using restore points.
                 </div>
               </div>
             </div>
@@ -1573,7 +1614,7 @@ export default function Settings() {
 
             <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 mb-6">
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                A backup of the current database will be created automatically before restore.
+                After restore, you can undo this operation using the restore points feature.
               </p>
             </div>
 
@@ -1656,6 +1697,63 @@ export default function Settings() {
                 ) : (
                   <><GitMerge className="h-4 w-4" />Merge Database</>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Points Modal */}
+      {showRestorePointsModal && restorePoints.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-3">
+                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Database Restored</h3>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  Your restore was successful. You can undo this operation using the restore points below.
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto mb-6 space-y-2">
+              {restorePoints.map((point) => (
+                <div
+                  key={point.filename}
+                  className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                        {point.filename}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        {(point.size_bytes / 1024 / 1024).toFixed(1)} MB • {' '}
+                        {new Date(point.created_at * 1000).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => revertToRestorePointMutation.mutate(point.filename)}
+                      disabled={revertToRestorePointMutation.isPending}
+                      className="ml-2 px-3 py-1 text-xs font-medium rounded text-white bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50"
+                    >
+                      {revertToRestorePointMutation.isPending ? 'Reverting...' : 'Undo'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowRestorePointsModal(false)}
+                disabled={revertToRestorePointMutation.isPending}
+                className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+              >
+                Keep This Restore
               </button>
             </div>
           </div>
