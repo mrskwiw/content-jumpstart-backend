@@ -145,11 +145,13 @@ async def download_deliverable(
         resolved_base = base_path.resolve()
         if not str(resolved_path).startswith(str(resolved_base)):
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Access to this file is forbidden"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access to this file is forbidden",
             )
     except (ValueError, OSError) as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid file path: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file path: {str(e)}",
         )
 
     # Check if file exists — if not, regenerate from DB posts (handles ephemeral storage loss)
@@ -159,7 +161,10 @@ async def download_deliverable(
             project = crud.get_project(db, deliverable.project_id)
             client = crud.get_client(db, deliverable.client_id)
             posts = crud.get_posts(
-                db, project_id=deliverable.project_id, run_id=deliverable.run_id, limit=500
+                db,
+                project_id=deliverable.project_id,
+                run_id=deliverable.run_id,
+                limit=500,
             )
             if not project or not client or not posts:
                 raise HTTPException(
@@ -236,3 +241,79 @@ async def get_deliverable_details_endpoint(
     if not details:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deliverable not found")
     return details
+
+
+@router.post("/from-research")
+@standard_limiter.limit("10/hour")  # TR-004: Research report generation (expensive)
+async def generate_research_report(
+    request: Request,
+    client_id: str = Query(...),
+    tools: str = Query(...),  # Comma-separated tool names
+    format: str = Query("md", regex="^(md|docx|pdf)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate standalone research report from completed research tools.
+
+    Queries ResearchResult for specified client's completed tools,
+    formats them into a deliverable report, and returns download URL.
+
+    Rate limit: 10/hour per IP+user (expensive report generation)
+    Authorization: TR-021 - User must own the client
+    """
+    import uuid
+
+    # TR-021: Verify user owns the client
+    client = crud.get_client(db, client_id)
+    if not client or client.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this client",
+        )
+
+    # Get or create research project for this client
+    research_project = crud.get_or_create_research_project(db, client_id, current_user.id)
+
+    # Generate research-only report (no posts, research context only)
+    try:
+        output_path = f"{client.name.replace(' ', '_')}/research_report"
+        file_path, file_size = await generate_export_file(
+            posts=[],  # No posts - research only
+            client=client,
+            project=research_project,  # Use research project
+            format=format,
+            relative_path=output_path,
+            include_audit_log=False,
+            include_research=True,  # Include research data
+            db=db,
+        )
+
+        # Create deliverable record
+        deliverable = Deliverable(
+            id=f"del-{uuid.uuid4().hex[:12]}",
+            project_id=research_project.id,  # Use research project
+            client_id=client.id,
+            path=file_path.relative_to(Path("data/outputs")).as_posix(),
+            format=format,
+            status="ready",
+            file_size_bytes=file_size,
+        )
+        db.add(deliverable)
+        db.commit()
+        db.refresh(deliverable)
+
+        logger.info(f"Generated research report for client {client_id}: {file_path}")
+
+        return {
+            "download_url": f"/api/deliverables/{deliverable.id}/download",
+            "file_name": file_path.name,
+            "deliverable_id": deliverable.id,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to generate research report: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate research report: {str(e)}",
+        )

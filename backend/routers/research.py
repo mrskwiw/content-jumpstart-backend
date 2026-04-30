@@ -41,7 +41,11 @@ from backend.services.credit_service import InsufficientCreditsError
 from backend.pricing.credit_pricing import get_research_tool_cost
 from backend.utils.logger import logger
 from backend.utils.research_rate_limiter import research_rate_limiter
-from backend.utils.http_rate_limiter import strict_limiter, standard_limiter, lenient_limiter
+from backend.utils.http_rate_limiter import (
+    strict_limiter,
+    standard_limiter,
+    lenient_limiter,
+)
 from backend.middleware.authorization import _check_ownership  # TR-021: IDOR prevention
 from src.utils.response_cache import ResponseCache
 import hashlib
@@ -99,13 +103,22 @@ _BUNDLES = [
     {
         "id": "foundation_pack",
         "name": "Foundation Pack",
-        "tools": {"voice_analysis", "brand_archetype", "audience_research", "icp_workshop"},
+        "tools": {
+            "voice_analysis",
+            "brand_archetype",
+            "audience_research",
+            "icp_workshop",
+        },
         "price": 1500.0,
     },
     {
         "id": "seo_pack",
         "name": "SEO Pack",
-        "tools": {"seo_keyword_research", "competitive_analysis", "content_gap_analysis"},
+        "tools": {
+            "seo_keyword_research",
+            "competitive_analysis",
+            "content_gap_analysis",
+        },
         "price": 1300.0,
     },
     {
@@ -477,6 +490,37 @@ async def list_research_tools(
     return RESEARCH_TOOLS
 
 
+@router.get("/project/{client_id}")
+@standard_limiter.limit("100/hour")  # TR-004: Standard operation
+async def get_research_project(
+    request: Request,
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get or create a research project for a client.
+
+    Used by the Tools Library to get the project ID for running research tools.
+    If a research project doesn't exist for this client, one is created automatically.
+
+    Authorization: TR-021 - User must own the client
+
+    Returns:
+        { "project_id": "proj-xxx" }
+    """
+    client = crud.get_client(db, client_id)
+    if not client or client.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this client",
+        )
+
+    research_project = crud.get_or_create_research_project(db, client_id, current_user.id)
+
+    return {"project_id": research_project.id}
+
+
 class ExecuteResearchInput(BaseModel):
     """Input for /execute endpoint (client-scoped, no project required)"""
 
@@ -530,7 +574,8 @@ async def execute_research(
         client_id=body.client_id,
         tool_name=body.tool_name,
         tool_label=next(
-            (t.label for t in RESEARCH_TOOLS if t.name == body.tool_name), body.tool_name
+            (t.label for t in RESEARCH_TOOLS if t.name == body.tool_name),
+            body.tool_name,
         ),
         tool_price=tool_price if tool_price > 0 else None,
         params=validated_inputs,

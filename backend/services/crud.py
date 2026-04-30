@@ -8,12 +8,30 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from backend.schemas import BriefCreate, ClientCreate, ClientUpdate, ProjectCreate, ProjectUpdate
+from backend.schemas import (
+    BriefCreate,
+    ClientCreate,
+    ClientUpdate,
+    ProjectCreate,
+    ProjectUpdate,
+)
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
-from backend.utils.query_cache import cache_short, cache_medium, invalidate_related_caches
+from backend.utils.query_cache import (
+    cache_short,
+    cache_medium,
+    invalidate_related_caches,
+)
 
-from backend.models import Brief, Client, Deliverable, Post, Project, ResearchResult, User
+from backend.models import (
+    Brief,
+    Client,
+    Deliverable,
+    Post,
+    Project,
+    ResearchResult,
+    User,
+)
 
 
 # ==================== Cursor Pagination Utilities ====================
@@ -233,6 +251,40 @@ def create_project(db: Session, project: ProjectCreate, user_id: str) -> Project
     invalidate_related_caches("project", "projects", "client")
 
     return db_project
+
+
+def get_or_create_research_project(db: Session, client_id: str, user_id: str) -> Project:
+    """
+    Get or create a research-only project for a client.
+
+    Used by research-only report generation to avoid modifying the wizard flow.
+    Research projects are hidden from the wizard and only used for storing research deliverables.
+
+    Args:
+        db: Database session
+        client_id: Client ID to create/get research project for
+        user_id: User ID (owner of the project)
+
+    Returns:
+        Project instance (created if needed, existing if already present)
+    """
+    research_project_name = f"_research_library_{client_id}"
+
+    existing = (
+        db.query(Project)
+        .filter(Project.client_id == client_id, Project.name == research_project_name)
+        .first()
+    )
+    if existing:
+        return existing
+
+    project_data = ProjectCreate(
+        name=research_project_name,
+        status="ready",  # Research projects start ready
+        num_posts=0,
+        template_quantities={},
+    )
+    return create_project(db, project_data, user_id)
 
 
 def update_project(

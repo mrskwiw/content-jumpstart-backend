@@ -182,6 +182,15 @@ export const researchApi = {
     return z.array(ResearchToolSchema).parse(data);
   },
 
+  /**
+   * Get or create a research project for a client.
+   * Used by Tools Library to execute research tools without creating a wizard project.
+   */
+  async getResearchProject(clientId: string): Promise<{ projectId: string }> {
+    const { data } = await apiClient.get(`/api/research/project/${clientId}`);
+    return { projectId: data.project_id };
+  },
+
   async run(input: RunResearchInput): Promise<ResearchRunResult> {
     // Convert camelCase to snake_case for backend compatibility
     const backendInput = {
@@ -334,6 +343,27 @@ export const researchApi = {
         lastRunAt: t.last_run_at || undefined,
       })),
       completedTools: parsed.completed_tools,
+    };
+  },
+
+  /**
+   * Generate a research report deliverable from completed research tools.
+   * Returns download URL for the generated report in requested format.
+   */
+  async generateResearchReport(input: {
+    clientId: string;
+    tools: string[];
+    format: 'md' | 'docx' | 'pdf';
+  }): Promise<{ url: string; fileName: string }> {
+    const params = {
+      client_id: input.clientId,
+      tools: input.tools.join(','),
+      format: input.format,
+    };
+    const { data } = await apiClient.post('/api/deliverables/from-research', {}, { params });
+    return {
+      url: data.download_url,
+      fileName: data.file_name,
     };
   },
 };

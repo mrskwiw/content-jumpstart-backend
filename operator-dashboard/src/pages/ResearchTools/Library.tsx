@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { researchApi, costsApi, ResearchTool, projectsApi, settingsApi, clientsApi } from "@/api";
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { researchApi, costsApi, ResearchTool, clientsApi } from "@/api";
 import { getDisabledToolIds } from '@/config/featureRegistry';
-import type { Project } from '@/types/api-types';
 import { ToolCard } from '../../components/research/ToolCard';
 import { PricingSummaryCard } from '../../components/research/PricingSummaryCard';
-import { Search, Filter, AlertCircle, Link2, Info } from 'lucide-react';
+import { Search, Filter, AlertCircle, Link2, Info, Loader2 } from 'lucide-react';
 
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
@@ -50,33 +48,18 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 export default function ResearchToolsLibrary() {
-  const navigate = useNavigate();
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showProjectSelector, setShowProjectSelector] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [clientPrerequisiteMode, setClientPrerequisiteMode] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('md');
+  const [executionStatus, setExecutionStatus] = useState<Record<string, string>>({});
 
   // Fetch available tools
   const { data: tools = [], isLoading: toolsLoading } = useQuery({
     queryKey: ['research-tools'],
     queryFn: () => researchApi.listTools()
-  });
-
-  // Fetch integration status to check which tools can be enabled
-  const { data: integrationStatus } = useQuery({
-    queryKey: ['integrations', 'status'],
-    queryFn: () => settingsApi.getIntegrationStatus(),
-    staleTime: 30 * 1000, // 30 seconds
-  });
-
-  // Real-time pricing preview with bundle detection
-  const { data: pricing } = useQuery({
-    queryKey: ['pricing-preview', selectedTools],
-    queryFn: () => researchApi.getPricingPreview(selectedTools),
-    enabled: selectedTools.length > 0
   });
 
   // Fetch clients for client selector
@@ -88,21 +71,71 @@ export default function ResearchToolsLibrary() {
   // Fetch client prerequisite status when client is selected
   const { data: clientPrerequisites } = useQuery({
     queryKey: ['client-prerequisites', selectedClientId],
-    queryFn: () => researchApi.getClientPrerequisites(selectedClientId as string),
-    enabled: selectedClientId !== null && clientPrerequisiteMode,
+    queryFn: () => selectedClientId ? researchApi.getClientPrerequisites(selectedClientId) : null,
+    enabled: selectedClientId !== null,
+  });
+
+  // Real-time pricing preview with bundle detection
+  const { data: pricing } = useQuery({
+    queryKey: ['pricing-preview', selectedTools],
+    queryFn: () => researchApi.getPricingPreview(selectedTools),
+    enabled: selectedTools.length > 0
   });
 
   // Build completed tools set from client prerequisites
   const completedToolsForClient = clientPrerequisites?.completedTools || [];
 
-  // Fetch projects for project selector
-  const { data: projects = [] } = useQuery({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      const response = await projectsApi.list();
-      return response?.items || [];
+  // Mutation: Generate research report
+  const generateReportMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedClientId) throw new Error('No client selected');
+      if (selectedTools.length === 0) throw new Error('No tools selected');
+
+      // Step 1: Get research project ID
+      const { projectId } = await researchApi.getResearchProject(selectedClientId);
+
+      // Step 2: Execute each tool sequentially
+      setExecutionStatus({});
+      for (const tool of selectedTools) {
+        setExecutionStatus(prev => ({ ...prev, [tool]: 'running' }));
+        try {
+          await researchApi.run({
+            projectId,
+            clientId: selectedClientId,
+            tool,
+            params: {},
+          });
+          setExecutionStatus(prev => ({ ...prev, [tool]: 'complete' }));
+        } catch (err) {
+          setExecutionStatus(prev => ({ ...prev, [tool]: 'failed' }));
+          throw new Error(`Failed to execute ${tool}: ${err}`);
+        }
+      }
+
+      // Step 3: Generate research report
+      const { url, fileName } = await researchApi.generateResearchReport({
+        clientId: selectedClientId,
+        tools: selectedTools,
+        format: exportFormat,
+      });
+
+      // Step 4: Trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      return { url, fileName };
     },
-    enabled: showProjectSelector
+    onSuccess: () => {
+      setSelectedTools([]);
+      setExecutionStatus({});
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : 'Failed to generate report');
+    },
   });
 
   // Apply registry disabled status — overrides backend status so UI stays in sync with registry
@@ -126,53 +159,8 @@ export default function ResearchToolsLibrary() {
   // Get unique categories
   const categories: string[] = ['all', ...new Set(effectiveTools.map((t: ResearchTool) => t.category).filter((c): c is string => Boolean(c)))];
 
-  // Check if a tool is enabled based on integration requirements
-  const isToolEnabled = (tool: ResearchTool): { enabled: boolean; missingIntegrations: string[] } => {
-    if (!tool.required_integrations || tool.required_integrations.length === 0) {
-      return { enabled: true, missingIntegrations: [] };
-    }
-
-    if (!integrationStatus) {
-      // If we haven't loaded integration status yet, assume enabled to avoid flashing
-      return { enabled: true, missingIntegrations: [] };
-    }
-
-    const missing: string[] = [];
-
-    for (const requirement of tool.required_integrations) {
-      if (requirement === 'web_search') {
-        // web_search requires ANY web search provider (Brave, Tavily, or SerpAPI)
-        if (!integrationStatus.web_search) {
-          missing.push('Web Search (Brave, Tavily, or SerpAPI)');
-        }
-      } else if (requirement === 'serpapi') {
-        // serpapi specifically requires SerpAPI
-        if (!integrationStatus.serpapi) {
-          missing.push('SerpAPI');
-        }
-      }
-      // Add more integration checks here as needed
-    }
-
-    return {
-      enabled: missing.length === 0,
-      missingIntegrations: missing,
-    };
-  };
-
   const handleToggleTool = (toolId: string) => {
-    // Registry-disabled tools cannot be selected
     if (disabledToolIds.has(toolId)) return;
-
-    // Check if tool is enabled based on integration requirements
-    const tool = effectiveTools.find(t => t.name === toolId);
-    if (tool) {
-      const { enabled } = isToolEnabled(tool);
-      if (!enabled) {
-        return; // Don't allow selecting disabled tools
-      }
-    }
-
     setSelectedTools(prev =>
       prev.includes(toolId)
         ? prev.filter(id => id !== toolId)
@@ -184,25 +172,17 @@ export default function ResearchToolsLibrary() {
     setSelectedTools([]);
   };
 
-  const handleAddToProject = () => {
+  const handleGenerateReport = () => {
+    if (!selectedClientId) {
+      setError('Please select a client');
+      return;
+    }
     if (selectedTools.length === 0) {
       setError('Please select at least one research tool');
       return;
     }
     setError(null);
-    setShowProjectSelector(true);
-  };
-
-  const handleSelectProject = (projectId: string) => {
-    try {
-      // Navigate to wizard research panel with selected tools
-      // Store selected tools in sessionStorage so wizard can pick them up
-      sessionStorage.setItem('selectedResearchTools', JSON.stringify(selectedTools));
-      navigate(`/dashboard/wizard?projectId=${projectId}&step=research`);
-    } catch (err) {
-      setError('Failed to navigate to project. Please try again.');
-      console.error('Navigation error:', err);
-    }
+    generateReportMutation.mutate();
   };
 
   if (toolsLoading) {
@@ -222,55 +202,53 @@ export default function ResearchToolsLibrary() {
             Research Tools Library
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Select tools to enhance your content strategy with AI-powered research
+            Generate comprehensive research reports tailored to your client
           </p>
         </div>
       </div>
 
-
-      {/* Client Filter - NEW */}
+      {/* Client & Format Selector */}
       <div className="bg-white dark:bg-neutral-900 rounded-lg border border-gray-200 dark:border-neutral-700 p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="client-prerequisite-mode"
-              checked={clientPrerequisiteMode}
-              onChange={(e) => {
-                setClientPrerequisiteMode(e.target.checked);
-                if (!e.target.checked) {
-                  setSelectedClientId(null);
-                }
-              }}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="client-prerequisite-mode" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Show client-specific prerequisite status
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Client Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              Select Client for Research Report
             </label>
+            <select
+              value={selectedClientId || ''}
+              onChange={(e) => setSelectedClientId(e.target.value || null)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Choose a client...</option>
+              {clients.map((client: any) => (
+                <option key={client.id} value={client.id}>
+                  {client.companyName || client.name}
+                </option>
+              ))}
+            </select>
+            {selectedClientId && completedToolsForClient.length > 0 && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                {completedToolsForClient.length} research tool{completedToolsForClient.length !== 1 ? 's' : ''} previously completed for this client
+              </p>
+            )}
           </div>
 
-          {clientPrerequisiteMode && (
-            <div className="flex-1">
-              <select
-                value={selectedClientId || ''}
-                onChange={(e) => setSelectedClientId(e.target.value || null)}
-                className="w-full max-w-md px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a client...</option>
-                {clients.map((client: any) => (
-                  <option key={client.id} value={client.id}>
-                    {client.companyName || client.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {clientPrerequisiteMode && selectedClientId && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{completedToolsForClient.length}</span> tools completed for this client
-            </div>
-          )}
+          {/* Format Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              Export Format
+            </label>
+            <select
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value as 'md' | 'docx' | 'pdf')}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="md">Markdown (.md)</option>
+              <option value="docx">Word Document (.docx)</option>
+              <option value="pdf">PDF Document (.pdf)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -326,77 +304,24 @@ export default function ResearchToolsLibrary() {
                   <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/30 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-400 mr-2">
                     Required
                   </span>
-                  <span className="text-blue-900 dark:text-blue-100">
-                    Must complete these tools first. Tool cannot execute without them.
-                  </span>
+                  <span className="text-blue-900 dark:text-blue-100">Tools that must be completed first</span>
                 </div>
               </div>
               <div className="flex items-start gap-2">
-                <Link2 className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <Link2 className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400 mr-2">
+                  <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400 mr-2">
                     Recommended
                   </span>
-                  <span className="text-blue-900 dark:text-blue-100">
-                    Suggested for better results. Provides additional context and insights.
-                  </span>
+                  <span className="text-blue-900 dark:text-blue-100">Enhances results of this tool</span>
                 </div>
               </div>
             </div>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
-              💡 Tools without prerequisites can be run independently at any time.
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Pricing Summary */}
-      {selectedTools.length > 0 && pricing && (
-        <PricingSummaryCard
-          pricing={pricing}
-          selectedCount={selectedTools.length}
-        />
-      )}
-
-      {/* Tool Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredTools.map((tool: ResearchTool) => {
-          const { enabled, missingIntegrations } = isToolEnabled(tool);
-          // Get execution status for this tool
-          const toolStatus = clientPrerequisites?.tools.find(t => t.toolName === tool.name);
-          const executionStatus = toolStatus ? {
-            executed: toolStatus.completed,
-            executionCount: toolStatus.completed ? 1 : 0,
-            lastRun: toolStatus.lastRunAt,
-          } : undefined;
-
-          return (
-            <ToolCard
-              key={tool.name}
-              tool={tool}
-              isSelected={selectedTools.includes(tool.name)}
-              onToggle={() => handleToggleTool(tool.name)}
-              prerequisites={TOOL_PREREQUISITES[tool.name]}
-              toolLabels={TOOL_LABELS}
-              disabled={!enabled || disabledToolIds.has(tool.name)}
-              missingIntegrations={missingIntegrations}
-              completedTools={completedToolsForClient}
-              executionStatus={executionStatus}
-            />
-          );
-        })}
-      </div>
-
-      {/* Empty State */}
-      {filteredTools.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">
-            No tools found matching your filters.
-          </p>
-        </div>
-      )}
-
-      {/* Error Display */}
+      {/* Error Alert */}
       {error && (
         <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
           <div className="flex items-start gap-3">
@@ -415,6 +340,53 @@ export default function ResearchToolsLibrary() {
         </div>
       )}
 
+      {/* Execution Status */}
+      {Object.keys(executionStatus).length > 0 && (
+        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
+            Tool Execution Status
+          </h3>
+          <div className="space-y-2">
+            {selectedTools.map(tool => {
+              const status = executionStatus[tool] || 'pending';
+              return (
+                <div key={tool} className="flex items-center gap-3">
+                  {status === 'running' && (
+                    <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
+                  )}
+                  {status === 'complete' && (
+                    <div className="h-4 w-4 rounded-full bg-green-600 dark:bg-green-400"></div>
+                  )}
+                  {status === 'failed' && (
+                    <div className="h-4 w-4 rounded-full bg-red-600 dark:bg-red-400"></div>
+                  )}
+                  {status === 'pending' && (
+                    <div className="h-4 w-4 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+                  )}
+                  <span className="text-sm text-blue-900 dark:text-blue-100">
+                    {TOOL_LABELS[tool]} - {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tools Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredTools.map((tool: ResearchTool) => (
+          <ToolCard
+            key={tool.name}
+            tool={tool}
+            isSelected={selectedTools.includes(tool.name)}
+            onToggle={() => handleToggleTool(tool.name)}
+            prerequisites={TOOL_PREREQUISITES[tool.name] || { required: [], recommended: [] }}
+            completedTools={completedToolsForClient}
+          />
+        ))}
+      </div>
+
       {/* Action Bar */}
       {selectedTools.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-gray-200 dark:border-neutral-700 p-4 shadow-lg">
@@ -430,56 +402,22 @@ export default function ResearchToolsLibrary() {
             <div className="flex gap-3">
               <button
                 onClick={handleClearSelection}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+                disabled={generateReportMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg transition-colors disabled:opacity-50"
               >
                 Clear Selection
               </button>
               <button
-                onClick={handleAddToProject}
-                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                onClick={handleGenerateReport}
+                disabled={!selectedClientId || generateReportMutation.isPending}
+                className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Add to Project
+                {generateReportMutation.isPending && (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                )}
+                Generate Report
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Project Selector Modal */}
-      {showProjectSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Select Project
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Choose a project to use these {selectedTools.length} research tool{selectedTools.length !== 1 ? 's' : ''}
-            </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
-              {projects.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                  No projects found. Create a project first.
-                </p>
-              ) : (
-                projects.map((project) => (
-                  <button
-                    key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
-                    className="w-full text-left p-3 rounded-lg border border-gray-200 dark:border-neutral-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                  >
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {project.name}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-            <button
-              onClick={() => setShowProjectSelector(false)}
-              className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-neutral-600 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
