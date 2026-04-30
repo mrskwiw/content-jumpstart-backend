@@ -818,7 +818,9 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
             if not keywords_data:
                 logger.warning("Claude returned empty data for secondary keywords")
-                return self._generate_fallback_secondary_keywords(primary_keywords)
+                return self._generate_fallback_secondary_keywords(
+                    primary_keywords, negative_keywords=negative_keywords
+                )
 
             # Normalize response format
             if isinstance(keywords_data, dict):
@@ -827,7 +829,9 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
             elif not isinstance(keywords_data, list):
                 # If it's neither dict nor list, something went wrong
                 logger.warning(f"Unexpected keywords_data type: {type(keywords_data)}")
-                return self._generate_fallback_secondary_keywords(primary_keywords)
+                return self._generate_fallback_secondary_keywords(
+                    primary_keywords, negative_keywords=negative_keywords
+                )
 
             keywords = []
 
