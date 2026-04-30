@@ -421,7 +421,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
-                    max_attempts=5,  # Try up to 5 times for quality
+                    max_attempts=100,  # Try up to 100 times for quality
                 )
 
         # Execute all tasks in parallel
@@ -853,7 +853,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
-                    max_attempts=5,  # Try up to 5 times for quality
+                    max_attempts=100,  # Try up to 100 times for quality
                 )
 
         # Execute all tasks in parallel
