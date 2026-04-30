@@ -1158,6 +1158,15 @@ def _format_seo_keywords(data: dict) -> List[str]:
             lines.append(f"{i}. {display}")
         lines.append("")
 
+    # 5.5. Keywords to Exclude
+    negative_keywords = data.get("negative_keywords", [])
+    if negative_keywords:
+        lines.append("### Keywords Excluded from Strategy")
+        lines.append("")
+        for neg_kw in negative_keywords:
+            lines.append(f"- {neg_kw}")
+        lines.append("")
+
     # 6. Competitor Analysis (if available)
     competitor_analysis = data.get("competitor_analysis", [])
     if competitor_analysis:

@@ -23,6 +23,7 @@ const CLIENT_TO_TOOL_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
   seo_keyword_research: {
     keywords: 'main_topics',
     location: 'location',
+    competitors: 'negative_keywords',
   },
   determine_competitors: {
     industry: 'industry',
@@ -134,6 +135,15 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       min: 0,
       placeholder: 'Leave empty to auto-generate, or override with custom topics',
       helperText: '✨ Auto-populates from client profile keywords if set. Or manually add 1-10 custom topics. If 5+ keywords provided they are used directly as seed topics.'
+    }, {
+      key: 'negative_keywords',
+      label: 'Keywords to Exclude (Optional)',
+      type: 'text-list',
+      required: false,
+      min: 0,
+      max: 50,
+      placeholder: 'e.g., competitor name, unrelated topic',
+      helperText: 'Topics, brands, or terms you don\'t want recommended. These are excluded from both primary and secondary keyword suggestions.'
     }, {
       key: 'location',
       label: 'Geographic Market (Optional — Auto-Populated)',

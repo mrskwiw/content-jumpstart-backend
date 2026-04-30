@@ -84,6 +84,26 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
             # Will auto-generate in run_analysis
             inputs["main_topics"] = None
 
+        # Tool-specific validation: negative keywords (optional)
+        if "negative_keywords" in inputs and inputs["negative_keywords"]:
+            inputs["negative_keywords"] = self.validator.validate_list(
+                inputs.get("negative_keywords"),
+                field_name="negative_keywords",
+                min_items=1,
+                max_items=50,
+                required=False,
+                item_validator=lambda kw: self.validator.validate_text(
+                    kw,
+                    field_name="negative_keyword",
+                    min_length=2,
+                    max_length=200,
+                    required=True,
+                    sanitize=True,
+                ),
+            )
+        else:
+            inputs["negative_keywords"] = None
+
         # SECURITY: Validate optional location / geographic target (auto-populated from client profile)
         if "location" in inputs and inputs["location"]:
             inputs["location"] = self.validator.validate_text(
@@ -102,9 +122,15 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
         business_desc = inputs["business_description"]
         target_audience = inputs["target_audience"]
         main_topics = inputs.get("main_topics")
+        negative_keywords = inputs.get("negative_keywords") or []
         competitors = inputs.get("competitors", [])
         industry = inputs.get("industry") or "Not specified"
         location = inputs.get("location", "")
+
+        if negative_keywords:
+            logger.info(
+                f"Excluding {len(negative_keywords)} negative keywords: {negative_keywords}"
+            )
 
         # Auto-generate topics if not provided
         if not main_topics:
@@ -131,12 +157,21 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
 
         # Step 1: Research primary keywords (5-10)
         primary_keywords = self._research_primary_keywords(
-            business_desc, target_audience, main_topics, industry, location=location
+            business_desc,
+            target_audience,
+            main_topics,
+            industry,
+            location=location,
+            negative_keywords=negative_keywords,
         )
 
         # Step 2: Research secondary/long-tail keywords (20-30)
         secondary_keywords = self._research_secondary_keywords(
-            business_desc, target_audience, main_topics, primary_keywords
+            business_desc,
+            target_audience,
+            main_topics,
+            primary_keywords,
+            negative_keywords=negative_keywords,
         )
 
         # Step 2.5: Enrich keywords with Google Trends data (if available)
@@ -181,6 +216,7 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
             competitor_analysis=competitor_analysis,
             quick_win_keywords=quick_wins,
             content_priorities=content_priorities,
+            negative_keywords=negative_keywords,
             strategy_summary=strategy_summary,
         )
 
@@ -364,6 +400,7 @@ Your topics:"""
         main_topics: List[str],
         industry: str,
         location: str = "",
+        negative_keywords: Optional[List[str]] = None,
     ) -> List[Keyword]:
         """
         Research primary target keywords with iterative deep dive (5-10 high-quality keywords)
@@ -432,6 +469,7 @@ Your topics:"""
                 strategy["focus"],
                 iteration,
                 location=location,
+                negative_keywords=negative_keywords,
             )
 
             try:
@@ -469,6 +507,14 @@ Your topics:"""
                         related_topics=kw_data.get("related_topics", []),
                     )
                     iteration_keywords.append(keyword)
+
+                # Post-filter: exclude keywords matching negative keywords
+                if negative_keywords:
+                    iteration_keywords = [
+                        kw
+                        for kw in iteration_keywords
+                        if not any(neg.lower() in kw.keyword.lower() for neg in negative_keywords)
+                    ]
 
                 # Score keywords and filter high-quality ones
                 high_quality_batch = scorer.filter_high_quality(iteration_keywords, min_score=70.0)
@@ -536,6 +582,7 @@ Your topics:"""
         focus: str,
         iteration: int,
         location: str = "",
+        negative_keywords: Optional[List[str]] = None,
     ) -> str:
         """
         Build prompt for keyword research with specific focus
@@ -552,6 +599,10 @@ Your topics:"""
             Formatted prompt string
         """
         location_line = f"\nGeographic Market: {location}" if location else ""
+        negative_keywords_section = ""
+        if negative_keywords:
+            negative_keywords_section = f"\nKEYWORDS TO AVOID (do NOT suggest these or close variations):\n{', '.join(negative_keywords)}\nReason: Client has explicitly excluded these from their strategy."
+
         prompt = f"""Analyze this business and recommend 5-10 PRIMARY target keywords for SEO.
 
 CRITICAL: Extract ALL fields for EVERY keyword. Do not leave any fields empty or use placeholder values.
@@ -562,7 +613,7 @@ Target Audience: {target_audience}
 
 Industry: {industry}{location_line}
 
-Main Topics: {', '.join(main_topics)}
+Main Topics: {', '.join(main_topics)}{negative_keywords_section}
 
 **SEARCH STRATEGY (Iteration {iteration}):** Focus on {focus}
 
@@ -653,9 +704,14 @@ Your JSON array:"""
         target_audience: str,
         main_topics: List[str],
         primary_keywords: List[Keyword],
+        negative_keywords: Optional[List[str]] = None,
     ) -> List[Keyword]:
         """Research secondary/long-tail keywords (20-30)"""
         primary_kw_list = [kw.keyword for kw in primary_keywords]
+
+        negative_keywords_section = ""
+        if negative_keywords:
+            negative_keywords_section = f"\nKEYWORDS TO AVOID (do NOT suggest these or close variations):\n{', '.join(negative_keywords)}\nReason: Client has explicitly excluded these from their strategy."
 
         prompt = f"""Generate 20-30 SECONDARY/LONG-TAIL keywords based on these primary keywords.
 
@@ -667,7 +723,7 @@ Target Audience: {target_audience}
 
 Primary Keywords: {', '.join(primary_kw_list)}
 
-Main Topics: {', '.join(main_topics)}
+Main Topics: {', '.join(main_topics)}{negative_keywords_section}
 
 EXAMPLE SECONDARY KEYWORDS:
 
@@ -792,6 +848,14 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                     related_topics=kw_data.get("related_topics", []),
                 )
                 keywords.append(keyword)
+
+            # Post-filter: exclude keywords matching negative keywords
+            if negative_keywords:
+                keywords = [
+                    kw
+                    for kw in keywords
+                    if not any(neg.lower() in kw.keyword.lower() for neg in negative_keywords)
+                ]
 
             logger.info(f"Identified {len(keywords)} secondary keywords")
             return keywords

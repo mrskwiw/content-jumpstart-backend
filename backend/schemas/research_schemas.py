@@ -59,6 +59,11 @@ class SEOKeywordParams(BaseModel):
         description="1-10 main topics for keyword research (optional - auto-generates from business profile if not provided)",
     )
 
+    negative_keywords: Optional[List[str]] = Field(
+        None,
+        description="Keywords, topics, or brand names to exclude from recommendations (optional, max 50)",
+    )
+
     @field_validator("main_topics")
     @classmethod
     def validate_topics(cls, v: Optional[List[str]]) -> Optional[List[str]]:
@@ -86,6 +91,31 @@ class SEOKeywordParams(BaseModel):
 
         # Silently cap at 10 — never raise; the tool itself also caps at 10
         return valid_topics[:10]
+
+    @field_validator("negative_keywords")
+    @classmethod
+    def validate_negative_keywords(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate negative keywords list if provided."""
+        if v is None or len(v) == 0:
+            return None
+
+        valid_keywords = []
+        for idx, keyword in enumerate(v):
+            keyword = keyword.strip()
+
+            if len(keyword) < 2:
+                continue  # skip too-short keywords
+
+            if len(keyword) > 100:
+                keyword = keyword[:100]  # truncate rather than reject
+
+            valid_keywords.append(keyword)
+
+        if not valid_keywords:
+            return None  # all items were invalid
+
+        # Silently cap at 50
+        return valid_keywords[:50]
 
 
 class CompetitiveAnalysisParams(BaseModel):

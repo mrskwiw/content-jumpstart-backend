@@ -129,6 +129,11 @@ class KeywordStrategy(BaseModel):
         default_factory=list, description="Top 5 content pieces to create based on keyword research"
     )
 
+    # Negative keywords (explicitly excluded)
+    negative_keywords: List[str] = Field(
+        default_factory=list, description="Keywords explicitly excluded from recommendations"
+    )
+
     # Strategy summary
     strategy_summary: str = Field(..., description="Executive summary of keyword strategy")
 

@@ -381,6 +381,11 @@ def _format_seo_keywords(result):
             ]
             parts.append(f"Focus: {priority_type}")
 
+    # Add negative keywords (excluded keywords to avoid in content)
+    negative_keywords = data.get("negative_keywords", [])
+    if negative_keywords and len(negative_keywords) > 0:
+        parts.append(f"Avoid in content: {', '.join(negative_keywords[:10])}")
+
     # Assemble final context
     if parts:
         context = f"SEO Keywords ({date}): {' | '.join(parts)}"
