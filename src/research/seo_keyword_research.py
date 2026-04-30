@@ -556,7 +556,9 @@ Your topics:"""
 
             # If still not enough, use fallback
             if len(high_quality_keywords) < 5:
-                fallback = self._generate_fallback_primary_keywords(main_topics)
+                fallback = self._generate_fallback_primary_keywords(
+                    main_topics, negative_keywords=negative_keywords
+                )
                 high_quality_keywords.extend(fallback[: 5 - len(high_quality_keywords)])
 
         # Return top 10 high-quality keywords (sorted by quality score)
@@ -862,7 +864,9 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
         except Exception as e:
             logger.error(f"Failed to research secondary keywords: {e}")
-            return self._generate_fallback_secondary_keywords(primary_keywords)
+            return self._generate_fallback_secondary_keywords(
+                primary_keywords, negative_keywords=negative_keywords
+            )
 
     def _enrich_with_google_trends(self, keywords: List[Keyword]) -> None:
         """
@@ -1240,10 +1244,18 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
 
         return summary
 
-    def _generate_fallback_primary_keywords(self, main_topics: List[str]) -> List[Keyword]:
-        """Generate basic keywords if API fails"""
+    def _generate_fallback_primary_keywords(
+        self, main_topics: List[str], negative_keywords: Optional[List[str]] = None
+    ) -> List[Keyword]:
+        """Generate basic keywords if API fails, filtering out negative keywords"""
+        negative_keywords = negative_keywords or []
         keywords = []
         for topic in main_topics[:5]:
+            # Filter: skip if topic matches any negative keyword
+            if negative_keywords and any(neg.lower() in topic.lower() for neg in negative_keywords):
+                logger.info(f"Skipping fallback keyword '{topic}' (matches negative keyword)")
+                continue
+
             keyword = Keyword(
                 keyword=topic.lower(),
                 search_intent=SearchIntent.INFORMATIONAL,
@@ -1258,16 +1270,25 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
         return keywords
 
     def _generate_fallback_secondary_keywords(
-        self, primary_keywords: List[Keyword]
+        self, primary_keywords: List[Keyword], negative_keywords: Optional[List[str]] = None
     ) -> List[Keyword]:
-        """Generate basic secondary keywords if API fails"""
+        """Generate basic secondary keywords if API fails, filtering out negative keywords"""
+        negative_keywords = negative_keywords or []
         keywords = []
         question_words = ["how to", "what is", "why", "when to", "best"]
 
         for primary_kw in primary_keywords[:5]:
             for qw in question_words:
+                full_keyword = f"{qw} {primary_kw.keyword}"
+
+                # Filter: skip if keyword matches any negative keyword
+                if negative_keywords and any(
+                    neg.lower() in full_keyword.lower() for neg in negative_keywords
+                ):
+                    continue
+
                 keyword = Keyword(
-                    keyword=f"{qw} {primary_kw.keyword}",
+                    keyword=full_keyword,
                     search_intent=SearchIntent.INFORMATIONAL,
                     difficulty=KeywordDifficulty.LOW,
                     monthly_volume_estimate="Unknown",
