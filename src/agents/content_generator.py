@@ -894,14 +894,42 @@ class ContentGeneratorAgent:
         # Build context for template rendering
         context = self._build_context(client_brief, template, variant, base_context)
 
+        # Inject platform into context (mirrors async path)
+        context["target_platform"] = platform.value.upper()
+        context["platform_length_requirement"] = get_platform_target_length(platform)
+
         # Use cached system prompt if available, otherwise build it
         # Note: When using cached prompt, platform info is already embedded from the cache
         system_prompt = cached_system_prompt or self._build_system_prompt(client_brief, platform)
 
+        # Platform-specific template structure overrides (mirrors async path)
+        if platform == Platform.TWITTER:
+            template_structure_to_use = f"""Write a single Twitter/X post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+
+Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+
+Rules:
+- One punchy sentence; two very short sentences only if unavoidable
+- No paragraph breaks or line breaks
+- Distil the template's core idea into one ultra-concise statement or hook
+- 1-2 hashtags maximum (count toward the 280-char limit)
+- Count characters before outputting — rewrite from scratch if over 280"""
+        elif platform == Platform.FACEBOOK:
+            template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
+
+Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+
+Rules:
+- Complete, self-contained observation or insight — no teasers
+- Conversational and relatable tone
+- End with a soft question or invitation if it fits naturally"""
+        else:
+            template_structure_to_use = template.structure
+
         # Generate post content via API
         try:
             content = self.client.generate_post_content(
-                template_structure=template.structure,
+                template_structure=template_structure_to_use,
                 context=context,
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
@@ -1000,6 +1028,11 @@ class ContentGeneratorAgent:
         # Build context for template rendering
         context = self._build_context(client_brief, template, variant, base_context)
 
+        # Inject platform into context so it appears in the rendered Client Context block
+        # the LLM reads in the user message — not just buried in the system prompt.
+        context["target_platform"] = platform.value.upper()
+        context["platform_length_requirement"] = get_platform_target_length(platform)
+
         # Use cached system prompt if available, otherwise build it
         # Note: When using cached prompt, platform info is already embedded from the cache
         system_prompt = cached_system_prompt or self._build_system_prompt(client_brief, platform)
@@ -1012,7 +1045,9 @@ class ContentGeneratorAgent:
                 + "Write a completely new version. Do not reuse the flagged word or phrase."
             )
 
-        # For blog posts, use a minimal template structure (LinkedIn templates constrain to 200-300 words)
+        # Platform-specific template structure overrides.
+        # LinkedIn templates are multi-part and long-form; short-form platforms need a
+        # different structure or the model ignores character limits and over-generates.
         if platform == Platform.BLOG:
             blog_template_structure = """Write a comprehensive, in-depth blog post that thoroughly explores the topic.
 Your blog post should include:
@@ -1022,6 +1057,26 @@ Your blog post should include:
 
 This is a blog post, not a social media post — depth and thoroughness matter. Cover the topic comprehensively."""
             template_structure_to_use = blog_template_structure
+        elif platform == Platform.TWITTER:
+            template_structure_to_use = f"""Write a single Twitter/X post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+
+Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+
+Rules:
+- One punchy sentence; two very short sentences only if unavoidable
+- No paragraph breaks or line breaks
+- Distil the template's core idea into one ultra-concise statement or hook
+- 1-2 hashtags maximum (count toward the 280-char limit)
+- Count characters before outputting — rewrite from scratch if over 280"""
+        elif platform == Platform.FACEBOOK:
+            template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
+
+Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+
+Rules:
+- Complete, self-contained observation or insight — no teasers
+- Conversational and relatable tone
+- End with a soft question or invitation if it fits naturally"""
         else:
             template_structure_to_use = template.structure
 
