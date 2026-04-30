@@ -172,6 +172,20 @@ export default function Wizard() {
           platforms: (selectedClient.platforms || []) as Platform[],
           customerPainPoints: selectedClient.customerPainPoints || [],
           customerQuestions: selectedClient.customerQuestions || [],
+          industry: selectedClient.industry || '',
+          location: selectedClient.location || '',
+          keywords: selectedClient.keywords || [],
+          competitors: selectedClient.competitors || [],
+          founderName: selectedClient.founderName || '',
+          brandPersonality: selectedClient.brandPersonality || [],
+          toneToAvoid: selectedClient.toneToAvoid || '',
+          dataUsage: selectedClient.dataUsage || '',
+          stories: selectedClient.stories || [],
+          misconceptions: selectedClient.misconceptions || [],
+          measurableResults: selectedClient.measurableResults || '',
+          postingFrequency: selectedClient.postingFrequency || '',
+          mainCta: selectedClient.mainCta || '',
+          keyPhrases: selectedClient.keyPhrases || [],
         });
       }
     }
