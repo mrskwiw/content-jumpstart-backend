@@ -348,13 +348,13 @@ export const researchApi = {
 
   /**
    * Generate a research report deliverable from completed research tools.
-   * Returns download URL for the generated report in requested format.
+   * Returns the deliverable ID (for blob download) plus a fallback URL.
    */
   async generateResearchReport(input: {
     clientId: string;
     tools: string[];
     format: 'md' | 'docx' | 'pdf';
-  }): Promise<{ url: string; fileName: string }> {
+  }): Promise<{ deliverableId: string; fileName: string }> {
     const params = {
       client_id: input.clientId,
       tools: input.tools.join(','),
@@ -362,7 +362,7 @@ export const researchApi = {
     };
     const { data } = await apiClient.post('/api/deliverables/from-research', {}, { params });
     return {
-      url: data.download_url,
+      deliverableId: data.deliverable_id,
       fileName: data.file_name,
     };
   },

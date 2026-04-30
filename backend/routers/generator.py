@@ -976,6 +976,7 @@ async def export_package(
             f"(audit_log={input.include_audit_log})"
         )
 
+        from pathlib import Path
         from backend.models import Deliverable
         from backend.services.export_service import generate_export_file
         import uuid
@@ -998,14 +999,21 @@ async def export_package(
             db=db,
         )
 
+        # Store the ACTUAL file path and format, not the requested ones.
+        # export_service may fall back (e.g. python-docx absent → .txt) and return a
+        # different path/extension than what was requested.
+        base_path = Path("data/outputs")
+        actual_path = file_path.relative_to(base_path).as_posix()
+        actual_format = file_path.suffix.lstrip(".")  # "docx", "txt", "md", …
+
         # Create deliverable record
         db_deliverable = Deliverable(
             id=f"del-{uuid.uuid4().hex[:12]}",
             project_id=input.project_id,
             client_id=project.client_id,
             run_id=latest_run.id if latest_run else None,
-            format=input.format,
-            path=relative_path,
+            format=actual_format,
+            path=actual_path,
             status="ready",
             created_at=datetime.utcnow(),
             file_size_bytes=file_size,

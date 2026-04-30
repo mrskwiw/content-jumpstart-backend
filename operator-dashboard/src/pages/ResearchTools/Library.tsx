@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { researchApi, costsApi, ResearchTool, clientsApi } from "@/api";
+import { deliverablesApi } from '@/api/deliverables';
 import { getDisabledToolIds } from '@/config/featureRegistry';
 import { ToolCard } from '../../components/research/ToolCard';
 import { PricingSummaryCard } from '../../components/research/PricingSummaryCard';
@@ -55,7 +56,7 @@ export default function ResearchToolsLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('md');
+  const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('docx');
   const [executionStatus, setExecutionStatus] = useState<Record<string, string>>({});
 
   // Fetch available tools
@@ -141,26 +142,34 @@ export default function ResearchToolsLibrary() {
         }
       }
 
-      // Step 3: Generate research report
-      const { url, fileName } = await researchApi.generateResearchReport({
+      // Step 3: Create deliverable record in DB (matches wizard flow)
+      const { deliverableId, fileName } = await researchApi.generateResearchReport({
         clientId: selectedClientId,
         tools: selectedTools,
         format: exportFormat,
       });
 
-      // Step 4: Trigger download
+      // Step 4: Download via blob fetch (matches wizard flow — surfaces errors as
+      // JS exceptions rather than silently saving a JSON error file)
+      const { blob, filename: resolvedFilename } = await deliverablesApi.download(
+        deliverableId,
+        exportFormat
+      );
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
+      link.href = blobUrl;
+      link.download = resolvedFilename || fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
 
-      return { url, fileName };
+      return { deliverableId, fileName: resolvedFilename || fileName };
     },
     onSuccess: () => {
       setSelectedTools([]);
       setExecutionStatus({});
+      setError(null);
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : 'Failed to generate report');

@@ -154,29 +154,43 @@ async def download_deliverable(
             detail=f"Invalid file path: {str(e)}",
         )
 
-    # Check if file exists — if not, regenerate from DB posts (handles ephemeral storage loss)
+    # Check if file exists — if not, regenerate from DB (handles ephemeral storage loss)
     if not file_path.exists():
         logger.warning(f"Deliverable file missing, regenerating: {deliverable.path}")
         try:
             project = crud.get_project(db, deliverable.project_id)
             client = crud.get_client(db, deliverable.client_id)
-            posts = crud.get_posts(
-                db,
-                project_id=deliverable.project_id,
-                run_id=deliverable.run_id,
-                limit=500,
-            )
-            if not project or not client or not posts:
+            if not project or not client:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="File is missing and cannot be regenerated: project, client, or posts not found",
+                    detail="File is missing and cannot be regenerated: project or client not found",
                 )
+
+            # Research-only deliverables have no run_id and no associated posts.
+            # Detect them by the absence of a run_id, then regenerate with research content.
+            is_research_only = deliverable.run_id is None
+            posts = []
+            if not is_research_only:
+                posts = crud.get_posts(
+                    db,
+                    project_id=deliverable.project_id,
+                    run_id=deliverable.run_id,
+                    limit=500,
+                )
+                if not posts:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="File is missing and cannot be regenerated: no posts found for this run",
+                    )
+
             await generate_export_file(
                 posts=posts,
                 client=client,
                 project=project,
                 format=deliverable.format,
                 relative_path=deliverable.path,
+                include_research=is_research_only,
+                is_research_only=is_research_only,
                 db=db,
             )
             logger.info(f"Regenerated deliverable file: {deliverable.path}")
