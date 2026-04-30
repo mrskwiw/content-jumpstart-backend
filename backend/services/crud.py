@@ -278,13 +278,22 @@ def get_or_create_research_project(db: Session, client_id: str, user_id: str) ->
     if existing:
         return existing
 
-    project_data = ProjectCreate(
+    # Bypass ProjectCreate schema — this is internal system code, not user input.
+    # ProjectCreate enforces num_posts >= 1 and requires clientId, which don't
+    # apply to hidden research-library projects.
+    project = Project(
+        id=f"proj-{uuid.uuid4().hex[:12]}",
         name=research_project_name,
-        status="ready",  # Research projects start ready
+        client_id=client_id,
+        user_id=user_id,
+        status="ready",
         num_posts=0,
         template_quantities={},
     )
-    return create_project(db, project_data, user_id)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
 
 
 def update_project(

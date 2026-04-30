@@ -1243,7 +1243,8 @@ async def check_prerequisites(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    _check_ownership(project, current_user, resource_type="project")
+    if not _check_ownership("project", project, current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     logger.info(
         f"Checking prerequisites for {len(prereq_request.tool_names)} tools "
@@ -1347,7 +1348,8 @@ async def get_client_prerequisites(
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    _check_ownership(client, current_user, resource_type="client")
+    if not _check_ownership("client", client, current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Determine which tools to check
     if tool_names:
@@ -1505,14 +1507,16 @@ async def execute_research_batch(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    _check_ownership(project, current_user, resource_type="project")
+    if not _check_ownership("project", project, current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     # Verify client ownership
     client = crud.get_client(db, batch_request.client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    _check_ownership(client, current_user, resource_type="client")
+    if not _check_ownership("client", client, current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     logger.info(
         f"Executing batch of {len(batch_request.tools)} research tools "
