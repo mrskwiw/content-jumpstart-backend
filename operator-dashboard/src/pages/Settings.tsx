@@ -1441,6 +1441,28 @@ export default function Settings() {
                 <Upload className="inline h-4 w-4 mr-2" />
                 Restore Database from Backup
               </button>
+
+              <button
+                onClick={async () => {
+                  const token = localStorage.getItem('access_token');
+                  try {
+                    const response = await fetch('/api/database/restore-points', {
+                      headers: { 'Authorization': `Bearer ${token}` },
+                    });
+                    if (response.ok) {
+                      const data = await response.json();
+                      setRestorePoints(data.restore_points || []);
+                      setShowRestorePointsModal(true);
+                    }
+                  } catch {
+                    alert('Failed to fetch restore points');
+                  }
+                }}
+                className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+              >
+                <HardDrive className="inline h-4 w-4 mr-2" />
+                View Restore Points (Undo)
+              </button>
             </div>
           </div>
 
@@ -1704,22 +1726,27 @@ export default function Settings() {
       )}
 
       {/* Restore Points Modal */}
-      {showRestorePointsModal && restorePoints.length > 0 && (
+      {showRestorePointsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 dark:bg-black/60 px-4">
           <div className="w-full max-w-md rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-xl">
             <div className="flex items-start gap-4 mb-6">
-              <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-3">
-                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+              <div className="rounded-full bg-blue-100 dark:bg-blue-900/20 p-3">
+                <HardDrive className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Database Restored</h3>
+                <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Restore Points</h3>
                 <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                  Your restore was successful. You can undo this operation using the restore points below.
+                  Snapshots saved before each restore. Use Undo to revert to a previous state.
                 </p>
               </div>
             </div>
 
             <div className="max-h-64 overflow-y-auto mb-6 space-y-2">
+              {restorePoints.length === 0 && (
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 text-center py-6">
+                  No restore points available. They are created automatically when you restore a database.
+                </p>
+              )}
               {restorePoints.map((point) => (
                 <div
                   key={point.filename}
