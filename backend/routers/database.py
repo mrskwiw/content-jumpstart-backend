@@ -315,12 +315,10 @@ async def restore_database_from_backup(
             else:
                 logger.info("Schema version mismatch, using intelligent migration path")
 
-                # Save pre-restore backup before migration (same as fast path)
+                # Dispose engine first to release SQLite file lock, then snapshot
+                engine.dispose()
                 pre_restore_backup = backup_dir / f"pre_restore_backup_{timestamp}.db"
                 shutil.copy2(db_path, pre_restore_backup)
-
-                # Dispose engine before migration (releases file locks)
-                engine.dispose()
 
                 # Create migrator
                 migrator = DatabaseMigrator(temp_path, db_path)
