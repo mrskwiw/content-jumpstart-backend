@@ -277,7 +277,7 @@ async def generate_research_report(
 
     # Generate research-only report (no posts, research context only)
     try:
-        output_path = f"{client.name.replace(' ', '_')}/research_report"
+        output_path = f"{client.name.replace(' ', '_')}/research_report.{format}"
         file_path, file_size = await generate_export_file(
             posts=[],  # No posts - research only
             client=client,

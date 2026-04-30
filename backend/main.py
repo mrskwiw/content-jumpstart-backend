@@ -334,7 +334,11 @@ else:
             "Origin",
             "X-Requested-With",
         ],  # Only necessary headers
-        expose_headers=["X-Process-Time", "X-Total-Count"],  # Only exposed headers
+        expose_headers=[
+            "X-Process-Time",
+            "X-Total-Count",
+            "Content-Disposition",
+        ],  # Content-Disposition needed for file downloads
         max_age=3600,
     )
 

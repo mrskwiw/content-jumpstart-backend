@@ -140,7 +140,7 @@ export default function Deliverables() {
   const handleDownload = async (deliverable: Deliverable) => {
     try {
       setDownloadingId(deliverable.id);
-      const { blob, filename } = await deliverablesApi.download(deliverable.id);
+      const { blob, filename } = await deliverablesApi.download(deliverable.id, deliverable.format);
 
       // Create download link and trigger download
       const url = window.URL.createObjectURL(blob);

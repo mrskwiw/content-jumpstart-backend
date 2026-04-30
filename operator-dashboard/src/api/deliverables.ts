@@ -63,19 +63,22 @@ export const deliverablesApi = {
     return data;
   },
 
-  async download(deliverableId: string): Promise<{ blob: Blob; filename: string }> {
+  async download(deliverableId: string, formatHint?: string): Promise<{ blob: Blob; filename: string }> {
     const response = await apiClient.get(`/api/deliverables/${deliverableId}/download`, {
       responseType: 'blob',
     });
 
-    // Extract filename from Content-Disposition header if available
+    // Extract filename from Content-Disposition header.
+    // NOTE: browsers block access to this header unless the server includes it in
+    // Access-Control-Expose-Headers (which the backend now does for production).
     const contentDisposition = response.headers['content-disposition'];
-    let filename = 'download';
+    let filename = formatHint ? `deliverable.${formatHint}` : 'deliverable';
 
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+      // Use a non-greedy match so the closing quote isn't consumed by (.+)
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
       if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1].replace(/"/g, '');
+        filename = filenameMatch[1];
       }
     }
 
