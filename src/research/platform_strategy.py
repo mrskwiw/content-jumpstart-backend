@@ -694,11 +694,24 @@ Return JSON with:
 - time_savings: explanation"""
 
         response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=2000
+            messages=[{"role": "user", "content": prompt}], max_tokens=4000
         )
 
-        # Parse response
-        dist_data = self._extract_json_from_response(response)
+        # Parse response — fall back to a minimal default if JSON is truncated or malformed
+        try:
+            dist_data = self._extract_json_from_response(response)
+        except (ValueError, Exception) as e:
+            logger.warning(
+                f"Could not parse distribution strategy JSON ({e}); using default distribution"
+            )
+            primary = platform_mix.primary_platforms
+            source = primary[0].value if primary else "blog"
+            return ContentDistribution(
+                source_platform=self._map_platform_name(source),
+                distribution_flow=[f"Create on {source} → adapt for each platform"],
+                repurposing_strategy="Repurpose core content for each platform's format and audience.",
+                time_savings="Centralised creation reduces per-platform production time.",
+            )
 
         # Handle repurposing_strategy - could be string or dict
         repurposing_strategy = dist_data.get("repurposing_strategy", "")
