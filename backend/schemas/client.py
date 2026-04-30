@@ -154,6 +154,13 @@ class ClientUpdate(BaseModel):
     - Protected fields (never updatable): id, user_id, created_at
     """
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def _coerce_empty_email(cls, v: object) -> object:
+        if v == "":
+            return None
+        return v
+
     name: Optional[str] = Field(
         default=None,
         validation_alias=AliasChoices("name", "companyName"),

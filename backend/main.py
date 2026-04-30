@@ -460,7 +460,10 @@ async def spa_routing_middleware(request: Request, call_next):
         )
 
     if response is None:
-        logger.error("SPA routing middleware received None response from call_next")
+        logger.error(
+            f"SPA routing middleware received None response from call_next "
+            f"[{request.method} {path}]"
+        )
         from starlette.responses import JSONResponse
 
         return JSONResponse(
