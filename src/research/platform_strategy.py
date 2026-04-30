@@ -303,62 +303,52 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         self, client: Any, business_description: str, target_audience: str
     ) -> List[AudienceBehavior]:
         """Analyze where target audience is active"""
-        prompt = f"""CRITICAL: Analyze ALL major platforms. Fill EVERY field for EACH platform.
+        prompt = f"""Analyze where the target audience is active across all major platforms.
 
 Business: {business_description}
 Target Audience: {target_audience}
 
-EXAMPLE OUTPUT:
+Evaluate EACH of these platforms: LinkedIn, Twitter, Facebook, YouTube, TikTok, Blog, Email, Podcast
+
+For each platform, answer:
+1. Is the target audience present and actively engaged here?
+2. Activity level (high/medium/low) — based on realistic usage, not theoretical reach
+3. What content do they consume, and when?
+4. How do they engage (comments, shares, DMs, passive scrolling)?
+5. Are decision-makers or buyers present?
+
+SCORING RUBRIC — rate audience fit 0-100 using these criteria:
+- 0-30: Audience is largely absent or passive
+- 31-60: Audience present but platform is a weak fit for this business type
+- 61-80: Good fit — audience active and receptive to this type of content
+- 81-100: Excellent fit — high-intent audience, strong content-format match
+
+Return a JSON array. Use EXACTLY these field names:
 [
   {{
-    "platform": "LinkedIn",
-    "activity_level": "high",
+    "platform": "linkedin",
     "audience_present": true,
-    "consumption_patterns": "Professional content, industry news, thought leadership during business hours",
-    "engagement_style": "Comments on posts, shares within network, values expertise",
-    "decision_makers_present": true,
-    "fit_score": 95
+    "activity_level": "high",
+    "content_consumption_pattern": "Professional content, thought leadership, industry news during business hours",
+    "engagement_style": "Thoughtful comments, professional shares, direct messages to connect",
+    "decision_maker_presence": "High — C-suite and managers actively use LinkedIn for professional development"
   }},
   {{
-    "platform": "Twitter",
-    "activity_level": "medium",
+    "platform": "twitter",
     "audience_present": true,
-    "consumption_patterns": "Real-time updates, quick tips, industry conversations",
+    "activity_level": "medium",
+    "content_consumption_pattern": "Real-time updates, quick tips, trending industry conversations",
     "engagement_style": "Retweets, quick replies, follows thought leaders",
-    "decision_makers_present": false,
-    "fit_score": 60
+    "decision_maker_presence": "Medium — some executives present but less than LinkedIn"
   }}
 ]
 
-For each major platform (LinkedIn, Twitter, Facebook, Instagram, YouTube, Blog, Email, Podcast), analyze:
-1. Is the target audience present and active?
-2. Activity level (High/Medium/Low)
-3. Content consumption patterns (be specific)
-4. Engagement style (how they interact)
-5. Are decision-makers present?
-
-FIELD-BY-FIELD REQUIREMENTS:
-- "platform": Platform name (LinkedIn, Twitter, Facebook, Instagram, YouTube, Blog, Email, Podcast)
-- "activity_level": "high", "medium", or "low"
-- "audience_present": true/false
-- "consumption_patterns": Specific description of what content they consume and when
-- "engagement_style": How this audience engages (comments, shares, likes, etc.)
-- "decision_makers_present": true/false - Are C-level/decision makers active here?
-- "fit_score": 0-100 score for platform fit
-
-Return a JSON array with objects containing:
-- platform: platform name (lowercase)
-- audience_present: boolean
-- activity_level: string
-- content_consumption_pattern: string
-- engagement_style: string
-- decision_maker_presence: string
-
-Focus on platforms where the audience is ACTUALLY active, not theoretical presence."""
+Only include platforms from this list: linkedin, twitter, facebook, youtube, tiktok, blog, email, podcast
+Use lowercase platform names. Be specific — avoid generic statements that could apply to any business."""
 
         # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
         data = self._call_claude_api(
-            prompt, max_tokens=4000, temperature=0.4, extract_json=True, fallback_on_error={}
+            prompt, max_tokens=4000, temperature=0.3, extract_json=True, fallback_on_error=[]
         )
 
         behaviors = []
@@ -485,18 +475,26 @@ Content Goals: {content_goals}{voice_context}
 Audience Behavior Data:
 {behaviors_text}{demographics_context}
 
-For EACH platform, provide a recommendation with:
-1. Fit level (essential/recommended/optional/not_recommended)
-2. Priority (High/Medium/Low)
-3. Why use (3-5 reasons)
-4. Why not use / concerns (2-3 items)
+SCORING RUBRIC — apply these criteria consistently to every platform:
+- Fit level "essential": audience score 80+, content format naturally suits this platform, AND low-to-medium effort relative to ROI
+- Fit level "recommended": audience score 60-79, or strong format fit even if audience score is moderate
+- Fit level "optional": audience score 40-59, or high effort with uncertain ROI
+- Fit level "not_recommended": audience score below 40, or platform is a clear mismatch for this business type
+
+For EACH platform provide:
+1. Fit level using the rubric above (essential/recommended/optional/not_recommended)
+2. Priority (High/Medium/Low) — must align with fit level: essential→High, recommended→Medium/High, optional→Low/Medium
+3. Why use — 3-5 specific reasons grounded in the audience data above
+4. Why not use — 2-3 honest concerns or resource considerations
 5. Best content formats (short_form/long_form/video/audio/visual/carousel/live)
-6. Posting frequency
-7. Content approach
-8. Primary goal (awareness/leads/community/etc)
-9. Success metrics (3-5)
-10. Estimated effort (Small/Medium/Large)
-11. Expected ROI (High/Medium/Low)
+6. Posting frequency — realistic for a small team
+7. Content approach — cover BOTH organic and paid:
+   - Organic: what content to create, what tone and format works
+   - Paid: whether paid advertising is worth it here, best ad formats, rough targeting approach
+8. Primary goal (awareness/leads/community/sales/retention)
+9. Success metrics — 3-5 measurable KPIs
+10. Estimated effort (Small/Medium/Large) — honest assessment including paid ad management if relevant
+11. Expected ROI (High/Medium/Low) — consider both organic and paid returns
 
 Return a JSON array with one object per platform:
 [
@@ -504,17 +502,19 @@ Return a JSON array with one object per platform:
     "platform": "platform_name",
     "fit_level": "essential|recommended|optional|not_recommended",
     "priority": "High|Medium|Low",
-    "why_use": ["reason1", "reason2"],
+    "why_use": ["reason1", "reason2", "reason3"],
     "why_not_use": ["concern1", "concern2"],
     "recommended_formats": ["short_form", "video"],
     "posting_frequency": "3x per week",
-    "content_approach": "description",
+    "content_approach": "Organic: [organic strategy]. Paid: [paid advertising approach and whether it is worth the investment]",
     "primary_goal": "awareness",
-    "success_metrics": ["metric1", "metric2"],
+    "success_metrics": ["metric1", "metric2", "metric3"],
     "estimated_effort": "Medium",
     "expected_roi": "High"
   }}
-]"""
+]
+
+Be specific to this business — do not give generic advice that could apply to any company."""
 
         response = client.create_message(
             messages=[{"role": "user", "content": prompt}], max_tokens=6000
@@ -610,26 +610,33 @@ Return a JSON array with one object per platform:
             if posting_frequency
             else ""
         )
-        prompt = f"""Based on these platform recommendations, determine the optimal platform mix.
+        prompt = f"""Assign each platform to the right bucket in the platform mix.
 
 Target Audience: {target_audience}
 Content Goals: {content_goals}{frequency_context}
 
-Platform Recommendations:
+Platform Recommendations (ranked by fit):
 {json.dumps(recs_summary, indent=2)}
 
-Create a platform portfolio using the 70-25-5 rule:
-- Primary platforms (1-2): Focus 70% of effort - essential platforms with highest ROI
-- Secondary platforms (1-2): 25% of effort - supporting platforms
-- Experimental platforms (0-1): 5% of effort - testing new channels
-- Avoid platforms: Not worth time right now
+ASSIGNMENT RULES — follow these strictly:
+- Only use platforms from the list above. Do NOT invent platforms not in the list.
+- Primary (MAXIMUM 2): Only "essential" or "recommended/High" platforms go here. If no platform scores "essential", pick the top 1-2 "recommended" ones by ROI.
+- Secondary (MAXIMUM 2): "recommended" platforms not in primary, or "optional" platforms with clear supporting role.
+- Experimental (MAXIMUM 1): One "optional" platform worth testing, or a secondary platform the client hasn't tried yet.
+- Avoid: All "not_recommended" platforms, plus any "optional" platforms not assigned above.
+- A "not_recommended" platform must NEVER appear in primary, secondary, or experimental.
+
+Portfolio target — 70-25-5 rule:
+- Primary: 70% of content creation and ad budget
+- Secondary: 25% of effort
+- Experimental: 5% of effort (minimal commitment, learning mode)
 
 Return JSON with:
-- primary_platforms: array of platform names
-- secondary_platforms: array of platform names
-- experimental_platforms: array of platform names
-- avoid_platforms: array of platform names
-- rationale: explanation of this mix"""
+- primary_platforms: array of 1-2 platform names (lowercase)
+- secondary_platforms: array of 0-2 platform names (lowercase)
+- experimental_platforms: array of 0-1 platform names (lowercase)
+- avoid_platforms: array of platform names to skip (lowercase)
+- rationale: 2-3 sentences explaining why this mix fits this specific business and audience"""
 
         response = client.create_message(
             messages=[{"role": "user", "content": prompt}], max_tokens=2000
@@ -641,22 +648,51 @@ Return JSON with:
         # Handle rationale - could be string or dict
         rationale = mix_data.get("rationale", "")
         if isinstance(rationale, dict):
-            # If dict, convert to string (join values)
             rationale = " ".join(str(v) for v in rationale.values() if v)
 
+        # Build a set of platform names rated not_recommended so we can filter them out
+        not_recommended = {
+            r.platform.value.lower()
+            for r in recommendations
+            if r.fit_level == PlatformFit.NOT_RECOMMENDED
+        }
+
+        def _safe_map(names: list, cap: int) -> List[PlatformName]:
+            """Map names to enums, skip unmappable values, enforce cap."""
+            result = []
+            for p in names:
+                try:
+                    result.append(self._map_platform_name(p))
+                except Exception:  # nosec B112
+                    continue
+            return result[:cap]
+
+        primary_raw = [
+            p
+            for p in mix_data.get("primary_platforms", [])
+            if str(p).lower() not in not_recommended
+        ]
+        secondary_raw = [
+            p
+            for p in mix_data.get("secondary_platforms", [])
+            if str(p).lower() not in not_recommended
+        ]
+        experimental_raw = [
+            p
+            for p in mix_data.get("experimental_platforms", [])
+            if str(p).lower() not in not_recommended
+        ]
+
+        primary = _safe_map(primary_raw, 2)
+        secondary = _safe_map(secondary_raw, 2)
+        experimental = _safe_map(experimental_raw, 1)
+        avoid = _safe_map(mix_data.get("avoid_platforms", []), 99)
+
         return PlatformMix(
-            primary_platforms=[
-                self._map_platform_name(p) for p in mix_data.get("primary_platforms", [])
-            ],
-            secondary_platforms=[
-                self._map_platform_name(p) for p in mix_data.get("secondary_platforms", [])
-            ],
-            experimental_platforms=[
-                self._map_platform_name(p) for p in mix_data.get("experimental_platforms", [])
-            ],
-            avoid_platforms=[
-                self._map_platform_name(p) for p in mix_data.get("avoid_platforms", [])
-            ],
+            primary_platforms=primary,
+            secondary_platforms=secondary,
+            experimental_platforms=experimental,
+            avoid_platforms=avoid,
             rationale=rationale,
         )
 
