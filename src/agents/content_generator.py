@@ -1145,7 +1145,7 @@ Rules:
         cached_system_prompt: Optional[str] = None,
         base_context: Optional[Dict[str, Any]] = None,
         platform: Platform = Platform.LINKEDIN,
-        max_attempts: int = 5,
+        max_attempts: int = 100,
     ) -> Post:
         """
         Generate a single post with quality-based retry logic.
@@ -1161,7 +1161,7 @@ Rules:
             cached_system_prompt: Pre-built system prompt
             base_context: Pre-built base context
             platform: Target platform
-            max_attempts: Maximum generation attempts (default 5)
+            max_attempts: Maximum generation attempts (default 100)
 
         Returns:
             Generated Post object (either first adequate or best of attempts)
