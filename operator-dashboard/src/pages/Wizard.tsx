@@ -48,6 +48,7 @@ export default function Wizard() {
   const [maxReachedStep, setMaxReachedStep] = useState<StepKey>('profile');
   const [clientBrief, setClientBrief] = useState<ClientBrief | null>(null);
   const [selectedTemplates, setSelectedTemplates] = useState<number[]>([]);
+  const [showKeywordError, setShowKeywordError] = useState(false);
   const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
 
   // Template quantities state (new pricing model)
@@ -215,6 +216,20 @@ export default function Wizard() {
     if (targetIndex <= maxIndex) {
       setActiveStep(targetStep);
     }
+  };
+
+  // Validates keyword count before advancing to the templates step.
+  // Falls back to selectedClient.keywords in case clientBrief hasn't been
+  // hydrated yet (existing-client path: populated asynchronously via useEffect).
+  const handleAdvanceToTemplates = () => {
+    const keywordCount =
+      clientBrief?.keywords?.length ?? selectedClient?.keywords?.length ?? 0;
+    if (keywordCount < 5) {
+      setShowKeywordError(true);
+      return;
+    }
+    setShowKeywordError(false);
+    advanceToStep('templates');
   };
 
   // Handler for saving client profile
@@ -495,11 +510,31 @@ export default function Wizard() {
       )}
 
       {activeStep === 'research' && projectId && clientId && (
-        <ResearchPanel
-          projectId={projectId}
-          clientId={clientId}
-          onContinue={() => advanceToStep('templates')}
-        />
+        <div className="space-y-4">
+          {showKeywordError && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-4">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                At least 5 keywords are required before selecting templates.
+              </p>
+              <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+                You currently have {clientBrief?.keywords?.length ?? selectedClient?.keywords?.length ?? 0} keyword
+                {(clientBrief?.keywords?.length ?? selectedClient?.keywords?.length ?? 0) === 1 ? '' : 's'}.
+                Please return to the <strong>Client Profile</strong> tab and add keywords before continuing.
+              </p>
+              <button
+                onClick={() => { setShowKeywordError(false); setActiveStep('profile'); }}
+                className="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300 underline hover:text-amber-900 dark:hover:text-amber-100"
+              >
+                Go back to Client Profile
+              </button>
+            </div>
+          )}
+          <ResearchPanel
+            projectId={projectId}
+            clientId={clientId}
+            onContinue={handleAdvanceToTemplates}
+          />
+        </div>
       )}
 
       {activeStep === 'templates' && (
