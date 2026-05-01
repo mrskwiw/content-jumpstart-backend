@@ -904,7 +904,13 @@ class ContentGeneratorAgent:
 
         # Platform-specific template structure overrides (mirrors async path)
         if platform == Platform.TWITTER:
-            template_structure_to_use = f"""Write a single Twitter/X post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+            _kw = getattr(client_brief, "keywords", None) or []
+            _hashtag_rule = (
+                f"Use 1-2 hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
+                if _kw
+                else "Use 1-2 relevant hashtags"
+            )
+            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
 
 Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
 
@@ -912,7 +918,7 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- 1-2 hashtags maximum (count toward the 280-char limit)
+- {_hashtag_rule} (count toward the 280-char limit)
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
@@ -1058,7 +1064,13 @@ Your blog post should include:
 This is a blog post, not a social media post — depth and thoroughness matter. Cover the topic comprehensively."""
             template_structure_to_use = blog_template_structure
         elif platform == Platform.TWITTER:
-            template_structure_to_use = f"""Write a single Twitter/X post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+            _kw = getattr(client_brief, "keywords", None) or []
+            _hashtag_rule = (
+                f"Use 1-2 hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
+                if _kw
+                else "Use 1-2 relevant hashtags"
+            )
+            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
 
 Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
 
@@ -1066,7 +1078,7 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- 1-2 hashtags maximum (count toward the 280-char limit)
+- {_hashtag_rule} (count toward the 280-char limit)
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.

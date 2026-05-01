@@ -298,7 +298,7 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       label: 'Current Platforms (Optional — Auto-Populated)',
       type: 'text-list',
       required: false,
-      placeholder: 'e.g., LinkedIn, Twitter, Blog',
+      placeholder: 'e.g., LinkedIn, Microblog, Blog',
       helperText: '✨ Auto-populates from client profile platforms. Override to add or change platforms.'
     }, {
       key: 'content_goals',
@@ -313,7 +313,7 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       type: 'text',
       required: false,
       placeholder: 'e.g., professional, conversational, authoritative',
-      helperText: '✨ Auto-populates from client profile. Constrains platform fit — e.g., witty/casual tone favors Twitter over LinkedIn.'
+      helperText: '✨ Auto-populates from client profile. Constrains platform fit — e.g., witty/casual tone favors Microblog over LinkedIn.'
     }, {
       key: 'brand_personality',
       label: 'Brand Personality Traits (Optional — Auto-Populated)',
@@ -334,7 +334,7 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       type: 'text',
       required: false,
       placeholder: 'e.g., heavy, moderate, minimal',
-      helperText: '✨ Auto-populates from client profile. Heavy data usage favors LinkedIn and blog over Twitter/Instagram.'
+      helperText: '✨ Auto-populates from client profile. Heavy data usage favors LinkedIn and blog over Microblog/Instagram.'
     }]
   },
   content_calendar_strategy: {
@@ -350,7 +350,7 @@ const TOOL_DATA_REQUIREMENTS: Record<string, {
       label: 'Primary Platforms (Optional — Auto-Populated)',
       type: 'text-list',
       required: false,
-      placeholder: 'e.g., LinkedIn, Twitter, Blog',
+      placeholder: 'e.g., LinkedIn, Microblog, Blog',
       helperText: '✨ Auto-populates from client profile platforms. Leave empty to get recommendations.'
     }, {
       key: 'posting_frequency',

@@ -21,7 +21,7 @@ _PLATFORM_DISPLAY_NAMES: dict = {
     "blog": "Blog",
     "linkedin": "LinkedIn",
     "facebook": "Facebook",
-    "twitter": "Twitter",
+    "twitter": "Microblog",
     "email": "Email Newsletter",
 }
 
@@ -278,7 +278,7 @@ async def _generate_markdown(
             and post.target_platform
             and post.target_platform.lower() == "blog"
         ):
-            lines.append("#### Twitter/X Share Copy")
+            lines.append("#### Microblog Share Copy")
             lines.append("")
             lines.append("```")
             lines.append(post.twitter_share_copy)
@@ -510,7 +510,7 @@ async def _generate_docx(
             and post.target_platform
             and post.target_platform.lower() == "blog"
         ):
-            twitter_heading = doc.add_paragraph("Twitter/X Share Copy")
+            twitter_heading = doc.add_paragraph("Microblog Share Copy")
             twitter_heading.runs[0].font.size = Pt(10)
             twitter_heading.runs[0].font.bold = True
             twitter_para = doc.add_paragraph(post.twitter_share_copy)

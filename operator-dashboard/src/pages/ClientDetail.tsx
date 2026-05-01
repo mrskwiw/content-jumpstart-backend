@@ -1123,7 +1123,7 @@ export default function ClientDetail() {
               <select className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 px-3 py-2 text-sm focus:border-primary-500 dark:focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:focus:ring-primary-400">
                 <option value="">All Platforms</option>
                 <option value="linkedin">LinkedIn</option>
-                <option value="twitter">Twitter</option>
+                <option value="twitter">Microblog</option>
                 <option value="facebook">Facebook</option>
               </select>
             </div>

@@ -386,7 +386,7 @@ export default function ContentReview() {
           >
             <option value="all">All Platforms</option>
             <option value="linkedin">LinkedIn</option>
-            <option value="twitter">Twitter</option>
+            <option value="twitter">Microblog</option>
             <option value="facebook">Facebook</option>
             <option value="blog">Blog</option>
           </select>

@@ -176,7 +176,7 @@ export function QualityGatePanel({ posts, projectId, onRegenerated }: Props) {
                       </div>
                       {post.twitterShareCopy && post.targetPlatform === 'blog' && (
                         <div className="mt-2 rounded bg-sky-50 dark:bg-sky-900/20 px-2 py-1.5">
-                          <p className="mb-0.5 text-xs font-semibold text-sky-700 dark:text-sky-300">Twitter/X Share Copy</p>
+                          <p className="mb-0.5 text-xs font-semibold text-sky-700 dark:text-sky-300">Microblog Share Copy</p>
                           <p className="text-xs text-sky-800 dark:text-sky-200 whitespace-pre-wrap">{post.twitterShareCopy}</p>
                         </div>
                       )}

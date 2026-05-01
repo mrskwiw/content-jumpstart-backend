@@ -53,7 +53,10 @@ class CTAValidator:
 
     def validate(self, posts: List[Post]) -> Dict[str, Any]:
         """
-        Validate CTA variety across all posts (platform-aware)
+        Validate CTA variety across all posts (platform-aware).
+
+        For microblog/Twitter posts: skips CTA checks and validates
+        hashtag presence instead (see _validate_twitter_hashtags).
 
         Args:
             posts: List of Post objects to validate
@@ -68,6 +71,10 @@ class CTAValidator:
         """
         # Detect platform for platform-specific threshold
         platform = self._detect_platform(posts)
+
+        # Microblog posts use hashtags (from client keywords) instead of CTAs
+        if platform == Platform.TWITTER:
+            return self._validate_twitter_hashtags(posts)
 
         # Use platform-specific threshold if available
         if platform and platform in self.PLATFORM_VARIETY_THRESHOLDS:
@@ -110,6 +117,26 @@ class CTAValidator:
             "metric": f"{len(cta_counts)} unique CTA types across {len(posts)} posts",
             "platform": platform.value if platform else None,
             "variety_threshold": variety_threshold,
+        }
+
+    def _validate_twitter_hashtags(self, posts: List[Post]) -> Dict[str, Any]:
+        """Check that each microblog post contains at least one keyword-derived hashtag."""
+        hashtag_re = re.compile(r"#[A-Za-z]\w*")
+        issues: List[str] = []
+
+        for post in posts:
+            if not hashtag_re.search(post.content):
+                issues.append(
+                    f"Microblog post '{post.template_name or 'post'}' is missing a hashtag "
+                    "— add 1-2 hashtags drawn from the client's keywords"
+                )
+
+        posts_with_tags = sum(1 for p in posts if hashtag_re.search(p.content))
+        return {
+            "passed": len(issues) == 0,
+            "issues": issues,
+            "metric": f"{posts_with_tags}/{len(posts)} microblog posts contain hashtags",
+            "platform": Platform.TWITTER.value,
         }
 
     def _detect_platform(self, posts: List[Post]) -> Optional[Platform]:

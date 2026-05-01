@@ -352,7 +352,7 @@ export default function ProjectDetail() {
                         LinkedIn
                       </span>
                       <span className="inline-flex items-center rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 text-xs font-medium text-neutral-800 dark:text-neutral-300">
-                        Twitter
+                        Microblog
                       </span>
                     </div>
                   </div>
@@ -549,7 +549,7 @@ export default function ProjectDetail() {
                 >
                   <option value="all">All Platforms</option>
                   <option value="linkedin">LinkedIn</option>
-                  <option value="twitter">Twitter</option>
+                  <option value="twitter">Microblog</option>
                   <option value="facebook">Facebook</option>
                 </select>
 

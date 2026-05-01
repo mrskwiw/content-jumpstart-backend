@@ -23,8 +23,8 @@ const platforms: PlatformTarget[] = [
   },
   {
     id: 'twitter',
-    name: 'Twitter/X',
-    description: 'Short-form microblogging',
+    name: 'Microblog',
+    description: 'Short-form microblog posts',
     category: 'social',
     icon: Twitter,
     charLimit: 280,
