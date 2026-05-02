@@ -421,7 +421,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
-                    max_attempts=100,  # Try up to 100 times for quality
+                    max_attempts=10,  # Try up to 10 times for quality
                 )
 
         # Execute all tasks in parallel
@@ -853,7 +853,7 @@ class ContentGeneratorAgent:
                     cached_system_prompt=task_params["cached_system_prompt"],
                     base_context=task_params["base_context"],
                     platform=platform,
-                    max_attempts=100,  # Try up to 100 times for quality
+                    max_attempts=10,  # Try up to 10 times for quality
                 )
 
         # Execute all tasks in parallel
@@ -906,9 +906,9 @@ class ContentGeneratorAgent:
         if platform == Platform.TWITTER:
             _kw = getattr(client_brief, "keywords", None) or []
             _hashtag_rule = (
-                f"Use 1-2 hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
+                f"End with one or more hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
                 if _kw
-                else "Use 1-2 relevant hashtags"
+                else "End with one or more relevant hashtags"
             )
             template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
 
@@ -918,7 +918,8 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- {_hashtag_rule} (count toward the 280-char limit)
+- {_hashtag_rule} — hashtags serve as the CTA for microblog format; hashtags like #ContentStrategy or #BookACall count as both discovery and call-to-action (count toward the 280-char limit)
+- REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
@@ -1066,9 +1067,9 @@ This is a blog post, not a social media post — depth and thoroughness matter. 
         elif platform == Platform.TWITTER:
             _kw = getattr(client_brief, "keywords", None) or []
             _hashtag_rule = (
-                f"Use 1-2 hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
+                f"End with one or more hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
                 if _kw
-                else "Use 1-2 relevant hashtags"
+                else "End with one or more relevant hashtags"
             )
             template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
 
@@ -1078,7 +1079,8 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- {_hashtag_rule} (count toward the 280-char limit)
+- {_hashtag_rule} — hashtags serve as the CTA for microblog format; hashtags like #ContentStrategy or #BookACall count as both discovery and call-to-action (count toward the 280-char limit)
+- REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
@@ -1157,7 +1159,7 @@ Rules:
         cached_system_prompt: Optional[str] = None,
         base_context: Optional[Dict[str, Any]] = None,
         platform: Platform = Platform.LINKEDIN,
-        max_attempts: int = 100,
+        max_attempts: int = 10,
     ) -> Post:
         """
         Generate a single post with quality-based retry logic.
@@ -1173,7 +1175,7 @@ Rules:
             cached_system_prompt: Pre-built system prompt
             base_context: Pre-built base context
             platform: Target platform
-            max_attempts: Maximum generation attempts (default 100)
+            max_attempts: Maximum generation attempts (default 10)
 
         Returns:
             Generated Post object (either first adequate or best of attempts)
@@ -2075,6 +2077,12 @@ Say what you mean in concrete terms — avoid corporate buzzwords and marketing 
 
         if post.word_count > max_words:
             post.flag_for_review(f"Post too long: {post.word_count} words (max: {max_words})")
+            return
+
+        # Twitter/microblog posts use hashtags instead of CTAs
+        if platform == Platform.TWITTER:
+            if "#" not in post.content:
+                post.flag_for_review("No hashtag detected in microblog post")
             return
 
         # Check if CTA is present when expected
