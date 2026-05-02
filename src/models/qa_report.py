@@ -80,21 +80,24 @@ class QAReport(BaseModel):
                 lines.append(f"- {issue}")
         lines.append("")
 
-        # CTA Validation
-        lines.append("## CTA Variety")
+        # CTA / Hashtag Validation (section label depends on platform)
+        is_hashtag_check = self.cta_validation.get("is_hashtag_check", False)
+        section_title = "Hashtag Coverage" if is_hashtag_check else "CTA Variety"
+        score_label = "Hashtag Coverage" if is_hashtag_check else "Variety Score"
+        dist_label = "Hashtag Presence" if is_hashtag_check else "Distribution"
+        lines.append(f"## {section_title}")
         lines.append("")
         cta_status = "[PASS] PASSED" if self.cta_validation["passed"] else "[FAIL] FAILED"
         lines.append(f"**Status:** {cta_status}")
-        lines.append(f"**Variety Score:** {self.cta_validation['variety_score']:.1%}")
+        variety_score = self.cta_validation.get("variety_score")
+        if variety_score is not None:
+            lines.append(f"**{score_label}:** {variety_score:.1%}")
         lines.append(f"**Metric:** {self.cta_validation['metric']}")
-        if self.cta_validation["cta_distribution"]:
+        dist = self.cta_validation.get("cta_distribution") or {}
+        if dist:
             lines.append("")
-            lines.append("**Distribution:**")
-            for cta_type, count in sorted(
-                self.cta_validation["cta_distribution"].items(),
-                key=lambda x: x[1],
-                reverse=True,
-            ):
+            lines.append(f"**{dist_label}:**")
+            for cta_type, count in sorted(dist.items(), key=lambda x: x[1], reverse=True):
                 lines.append(f"- {cta_type}: {count} posts")
         if self.cta_validation["issues"]:
             lines.append("")
@@ -194,7 +197,14 @@ class QAReport(BaseModel):
                     "- **Hook Uniqueness:** Review duplicate hooks and revise for uniqueness"
                 )
             if not self.cta_validation["passed"]:
-                lines.append("- **CTA Variety:** Diversify call-to-action patterns across posts")
+                if self.cta_validation.get("is_hashtag_check"):
+                    lines.append(
+                        "- **Hashtag Coverage:** Add 1-2 keyword-derived hashtags to all microblog posts"
+                    )
+                else:
+                    lines.append(
+                        "- **CTA Variety:** Diversify call-to-action patterns across posts"
+                    )
             if not self.length_validation["passed"]:
                 lines.append("- **Length:** Adjust post lengths to optimal range (150-250 words)")
             if not self.headline_validation["passed"]:

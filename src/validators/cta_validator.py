@@ -120,23 +120,41 @@ class CTAValidator:
         }
 
     def _validate_twitter_hashtags(self, posts: List[Post]) -> Dict[str, Any]:
-        """Check that each microblog post contains at least one keyword-derived hashtag."""
+        """Check that each microblog post contains at least one keyword-derived hashtag.
+
+        Returns a dict that is shape-compatible with the standard CTA result so that
+        all downstream consumers (QAReport.to_markdown, qa_agent scoring, etc.) work
+        without branching: variety_score is the hashtag-coverage ratio, and
+        cta_distribution is repurposed to show per-post hashtag presence.
+        """
         hashtag_re = re.compile(r"#[A-Za-z]\w*")
         issues: List[str] = []
+        has_tags: List[bool] = []
 
         for post in posts:
-            if not hashtag_re.search(post.content):
+            found = bool(hashtag_re.search(post.content))
+            has_tags.append(found)
+            if not found:
                 issues.append(
                     f"Microblog post '{post.template_name or 'post'}' is missing a hashtag "
                     "— add 1-2 hashtags drawn from the client's keywords"
                 )
 
-        posts_with_tags = sum(1 for p in posts if hashtag_re.search(p.content))
+        posts_with_tags = sum(has_tags)
+        coverage = posts_with_tags / len(posts) if posts else 1.0
         return {
             "passed": len(issues) == 0,
             "issues": issues,
+            # Shape-compatible fields so QAReport.to_markdown() never KeyErrors:
+            "variety_score": coverage,  # hashtag coverage (1.0 = all posts have tags)
+            "cta_distribution": {  # repurposed: hashtag presence counts
+                "has_hashtag": posts_with_tags,
+                "missing_hashtag": len(posts) - posts_with_tags,
+            },
+            "variety_threshold": 1.0,  # every post must have a hashtag
             "metric": f"{posts_with_tags}/{len(posts)} microblog posts contain hashtags",
             "platform": Platform.TWITTER.value,
+            "is_hashtag_check": True,  # sentinel so to_markdown can label correctly
         }
 
     def _detect_platform(self, posts: List[Post]) -> Optional[Platform]:
