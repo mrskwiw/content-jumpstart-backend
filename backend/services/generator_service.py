@@ -439,17 +439,17 @@ class GeneratorService:
 
             try:
                 expected_posts = sum(template_quantities.values()) if template_quantities else 0
-                # Blog posts use max_tokens=6000 and take ~60-90s per API call;
-                # social posts at 4096 tokens complete in ~5s.
-                # Timeout covers the longest sequential retry chain, not total posts
-                # (posts run in parallel up to max_concurrent=5).
+                # Worst-case timeout = serial batches × max retry attempts × per-attempt time.
+                # Posts run concurrently (max_concurrent=5), so batches = ceil(posts / 5).
+                # Each post retries up to MAX_ATTEMPTS times before giving up.
+                # Blog posts use max_tokens=6000 (~60-90s/call); social posts ~5s/call.
+                MAX_CONCURRENT = 5
+                MAX_ATTEMPTS = 10  # matches _generate_single_post_with_retry_async
+                serial_batches = max(1, (expected_posts + MAX_CONCURRENT - 1) // MAX_CONCURRENT)
                 if platform_enum == Platform.BLOG:
-                    per_post_s = 90  # generous headroom for 6000-token responses
-                    min_timeout = 300
+                    generation_timeout = max(300, serial_batches * MAX_ATTEMPTS * 90)
                 else:
-                    per_post_s = 5
-                    min_timeout = 120
-                generation_timeout = max(min_timeout, expected_posts * per_post_s)
+                    generation_timeout = max(120, serial_batches * MAX_ATTEMPTS * 5)
                 logger.info(
                     f"Starting generation of {expected_posts} posts "
                     f"(timeout: {generation_timeout}s)"
