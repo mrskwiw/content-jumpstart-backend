@@ -3,18 +3,25 @@
 from backend.database import engine
 from sqlalchemy import text, inspect
 
+
 def main():
     conn = engine.connect()
 
     # Check existing indexes
     inspector = inspect(engine)
-    existing = {idx['name'] for idx in inspector.get_indexes('posts')}
+    existing = {idx["name"] for idx in inspector.get_indexes("posts")}
     print(f"Existing indexes: {existing}")
 
     # Apply missing indexes
     missing_indexes = [
-        ("ix_posts_project_status", "CREATE INDEX IF NOT EXISTS ix_posts_project_status ON posts(project_id, status)"),
-        ("ix_posts_template_name", "CREATE INDEX IF NOT EXISTS ix_posts_template_name ON posts(template_name)")
+        (
+            "ix_posts_project_status",
+            "CREATE INDEX IF NOT EXISTS ix_posts_project_status ON posts(project_id, status)",
+        ),
+        (
+            "ix_posts_template_name",
+            "CREATE INDEX IF NOT EXISTS ix_posts_template_name ON posts(template_name)",
+        ),
     ]
 
     for idx_name, sql in missing_indexes:
@@ -32,10 +39,11 @@ def main():
 
     # Verify final state
     inspector = inspect(engine)
-    final_indexes = inspector.get_indexes('posts')
+    final_indexes = inspector.get_indexes("posts")
     print(f"\nFinal indexes ({len(final_indexes)} total):")
     for idx in final_indexes:
         print(f"  - {idx['name']}: {idx['column_names']}")
+
 
 if __name__ == "__main__":
     main()

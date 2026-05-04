@@ -1,5 +1,6 @@
 """Post data model with metadata and quality tracking"""
 
+import re
 from datetime import datetime
 from typing import Any, Optional
 
@@ -72,23 +73,64 @@ class Post(BaseModel):
 
     @staticmethod
     def _detect_cta(content: str) -> bool:
-        """Detect if post has a CTA"""
-        content_lower = content.lower()
-        cta_indicators = [
-            "?",
-            "reply",
-            "comment",
-            "share",
-            "click",
-            "book",
-            "sign up",
-            "download",
-            "learn more",
-            "contact",
+        """Detect if post has a CTA.
+
+        Scans only the final two lines (where CTAs are placed) and uses
+        word-boundary regex for short words to avoid false positives from
+        substrings like 'already' (read), 'industry' (try), 'started' (start).
+        Aligned with CTAValidator.CTA_PATTERNS.
+        """
+        lines = content.strip().split("\n")
+        cta_section = "\n".join(lines[-2:]).lower()
+
+        # Patterns that are specific enough for substring matching
+        substring_indicators = [
+            "?",  # engagement question (broad; statement CTAs preferred)
+            "drop a comment",
+            "leave a comment",
             "dm me",
+            "message me",
             "reach out",
+            "tap the link",
+            "check out",
+            "set up a call",
+            "set up a meeting",
+            "sign up",
+            "subscribe",
+            "get your",
+            "get the",
+            "learn more",
+            "find out",
+            "listen to",
         ]
-        return any(indicator in content_lower for indicator in cta_indicators)
+        if any(ind in cta_section for ind in substring_indicators):
+            return True
+
+        # Word-boundary patterns for short words that appear inside other words
+        word_patterns = [
+            r"\breply\b",
+            r"\bcomment\b",
+            r"\bcontact\b",
+            r"\bclick\b",
+            r"\bbook\b",
+            r"\bschedule\b",
+            r"\bjoin\b",
+            r"\bdownload\b",
+            r"\bshare\b",
+            r"\bread\b",
+            r"\bwatch\b",
+            r"\btry\b",
+            r"\bstart\b",
+            r"\bbegin\b",
+            r"\bexplore\b",
+            r"\bvisit\b",
+            r"\bfollow\b",
+            r"\bconnect\b",
+            r"\bregister\b",
+            r"\bapply\b",
+            r"\bdm\b",
+        ]
+        return any(re.search(pat, cta_section) for pat in word_patterns)
 
     def flag_for_review(self, reason: str) -> None:
         """Flag post for manual review"""

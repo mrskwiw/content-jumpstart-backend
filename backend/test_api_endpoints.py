@@ -10,6 +10,7 @@ This script tests all Phase 2 endpoints to verify:
 
 Run with: python test_api_endpoints.py
 """
+
 import asyncio
 import io
 import sys
@@ -24,7 +25,7 @@ if sys.platform == "win32":
 # API configuration
 API_BASE = "http://localhost:8000"
 TEST_EMAIL = "test@example.com"
-TEST_PASSWORD = "SecurePassword123!"
+TEST_PASSWORD = "SecurePassword123!"  # nosec B105 — test credential only
 
 
 class APITester:

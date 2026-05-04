@@ -1,6 +1,7 @@
 """
 File utility functions for deliverables.
 """
+
 from pathlib import Path
 
 
@@ -47,7 +48,7 @@ def format_file_size(size_bytes: int) -> str:
     if size_bytes == 0:
         return "0 B"
 
-    units = ['B', 'KB', 'MB', 'GB', 'TB']
+    units = ["B", "KB", "MB", "GB", "TB"]
     unit_index = 0
     size = float(size_bytes)
 

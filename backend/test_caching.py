@@ -219,9 +219,9 @@ class CachingTester:
 
 def main():
     """Run caching tests"""
-    print("="*60)
+    print("=" * 60)
     print("RESPONSE CACHING TEST SUITE")
-    print("="*60)
+    print("=" * 60)
     print()
     print("Prerequisites:")
     print("  1. API server running on http://localhost:8000")
@@ -250,9 +250,9 @@ def main():
     results = []
 
     # Test 1: Cache-Control headers on GET requests
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 1: Cache-Control Headers")
-    print("="*60)
+    print("=" * 60)
 
     for endpoint in ["/api/posts", "/api/projects"]:
         result = tester.test_cache_control_headers(endpoint)
@@ -264,18 +264,18 @@ def main():
             results.append(result_304)
 
     # Test 2: ETag stability
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 2: ETag Stability")
-    print("="*60)
+    print("=" * 60)
 
     for endpoint in ["/api/posts", "/api/projects"]:
         result = tester.test_etag_changes_on_modification(endpoint)
         results.append(result)
 
     # Test 3: Cache invalidation headers (if mutations are accessible)
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST 3: Cache Invalidation Headers")
-    print("="*60)
+    print("=" * 60)
     print("Note: These tests may fail if you don't have write permissions")
 
     # We can't easily test mutations without knowing valid IDs,
@@ -285,11 +285,13 @@ def main():
     print("  POST/PUT/DELETE → X-Cache-Timestamp: <timestamp>")
 
     # Summary
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("TEST SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
-    passed = sum(1 for r in results if r.get("has_cache_control") or r.get("is_304") or r.get("etags_match"))
+    passed = sum(
+        1 for r in results if r.get("has_cache_control") or r.get("is_304") or r.get("etags_match")
+    )
     total = len(results)
 
     print(f"\nTests passed: {passed}/{total}")
@@ -303,9 +305,9 @@ def main():
                 print(f"  {key}: {value}")
         print()
 
-    print("="*60)
+    print("=" * 60)
     print("Caching implementation test complete!")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

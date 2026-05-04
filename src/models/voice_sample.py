@@ -201,16 +201,16 @@ class VoiceMatchReport(BaseModel):
             "project_id": self.project_id,
             "generated_at": self.generated_at.isoformat(),
             "match_score": self.match_score,
-            "readability_score": self.readability_score.model_dump()
-            if self.readability_score
-            else None,
-            "word_count_score": self.word_count_score.model_dump()
-            if self.word_count_score
-            else None,
+            "readability_score": (
+                self.readability_score.model_dump() if self.readability_score else None
+            ),
+            "word_count_score": (
+                self.word_count_score.model_dump() if self.word_count_score else None
+            ),
             "archetype_score": self.archetype_score.model_dump() if self.archetype_score else None,
-            "phrase_usage_score": self.phrase_usage_score.model_dump()
-            if self.phrase_usage_score
-            else None,
+            "phrase_usage_score": (
+                self.phrase_usage_score.model_dump() if self.phrase_usage_score else None
+            ),
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
             "improvements": self.improvements,

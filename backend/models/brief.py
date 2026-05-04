@@ -1,6 +1,7 @@
 """
 Brief model for client briefs.
 """
+
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -12,7 +13,7 @@ class Brief(Base):
     """Client brief (uploaded file or pasted text)"""
 
     __tablename__ = "briefs"
-    __table_args__ = {'extend_existing': True}
+    __table_args__ = {"extend_existing": True}
 
     id = Column(String, primary_key=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, unique=True)

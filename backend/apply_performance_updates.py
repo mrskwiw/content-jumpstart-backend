@@ -18,7 +18,7 @@ from sqlalchemy import inspect, text
 def check_existing_indexes():
     """Check what indexes currently exist"""
     inspector = inspect(engine)
-    posts_indexes = inspector.get_indexes('posts')
+    posts_indexes = inspector.get_indexes("posts")
 
     print("Current indexes on 'posts' table:")
     if posts_indexes:
@@ -44,7 +44,11 @@ def apply_indexes():
         sql_content = migration_file.read_text()
 
         # Split by semicolon and execute each statement
-        statements = [s.strip() for s in sql_content.split(';') if s.strip() and not s.strip().startswith('--')]
+        statements = [
+            s.strip()
+            for s in sql_content.split(";")
+            if s.strip() and not s.strip().startswith("--")
+        ]
 
         for statement in statements:
             if statement:
@@ -66,7 +70,7 @@ def recreate_database():
     print("⚠️  WARNING: This will drop all existing data!")
     response = input("Recreate database? (yes/no): ")
 
-    if response.lower() != 'yes':
+    if response.lower() != "yes":
         print("Aborted.")
         return False
 
@@ -107,11 +111,11 @@ def main():
 
     choice = input("Choose option (1/2/3): ").strip()
 
-    if choice == '1':
+    if choice == "1":
         success = apply_indexes()
         if success:
             check_existing_indexes()
-    elif choice == '2':
+    elif choice == "2":
         success = recreate_database()
         if success:
             check_existing_indexes()

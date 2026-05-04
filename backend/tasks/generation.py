@@ -7,6 +7,7 @@ Phase 2 optimization: Async content generation with progress tracking
 - Handles errors gracefully with database updates
 - Supports concurrent generation for multiple projects
 """
+
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -28,6 +29,7 @@ class DatabaseTask(Task):
     Automatically creates and closes database sessions for each task.
     Ensures proper cleanup even if task fails.
     """
+
     _db = None
 
     @property

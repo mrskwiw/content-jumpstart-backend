@@ -180,12 +180,12 @@ class ClientMemory(BaseModel):
             "total_projects": self.total_projects,
             "total_posts_generated": self.total_posts_generated,
             "total_revisions": self.total_revisions,
-            "first_project_date": self.first_project_date.isoformat()
-            if self.first_project_date
-            else None,
-            "last_project_date": self.last_project_date.isoformat()
-            if self.last_project_date
-            else None,
+            "first_project_date": (
+                self.first_project_date.isoformat() if self.first_project_date else None
+            ),
+            "last_project_date": (
+                self.last_project_date.isoformat() if self.last_project_date else None
+            ),
             "last_updated": self.last_updated.isoformat(),
             "preferred_templates": json.dumps(self.preferred_templates),
             "avoided_templates": json.dumps(self.avoided_templates),

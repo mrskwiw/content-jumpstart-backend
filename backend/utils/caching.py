@@ -6,6 +6,7 @@ Provides:
 - Cache-Control header management
 - Conditional response handling (304 Not Modified)
 """
+
 import hashlib
 import json
 from typing import Any, Dict, Optional
@@ -70,7 +71,7 @@ def generate_etag(data: Any) -> str:
     json_str = json.dumps(data, sort_keys=True, default=str)
 
     # Generate MD5 hash
-    hash_obj = hashlib.md5(json_str.encode())
+    hash_obj = hashlib.md5(json_str.encode(), usedforsecurity=False)
     etag = hash_obj.hexdigest()
 
     return f'"{etag}"'  # ETags should be quoted
@@ -251,7 +252,14 @@ class CacheInvalidator:
         """
         return {
             "X-Cache-Invalidate": ",".join(resource_types),
-            "X-Cache-Timestamp": str(int(hashlib.md5(str(resource_types).encode()).hexdigest()[:8], 16))
+            "X-Cache-Timestamp": str(
+                int(
+                    hashlib.md5(str(resource_types).encode(), usedforsecurity=False).hexdigest()[
+                        :8
+                    ],
+                    16,
+                )
+            ),
         }
 
 

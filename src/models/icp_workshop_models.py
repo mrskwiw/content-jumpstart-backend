@@ -21,18 +21,14 @@ class Demographics(BaseModel):
     technologies_used: List[str] = Field(
         default_factory=list, description="Technologies/tools they use"
     )
-    job_titles: List[str] = Field(
-        default_factory=list, description="Decision-maker job titles"
-    )
+    job_titles: List[str] = Field(default_factory=list, description="Decision-maker job titles")
 
 
 class Psychographics(BaseModel):
     """Psychological and behavioral characteristics"""
 
     goals: List[str] = Field(default_factory=list, description="Primary goals and objectives")
-    challenges: List[str] = Field(
-        default_factory=list, description="Challenges and frustrations"
-    )
+    challenges: List[str] = Field(default_factory=list, description="Challenges and frustrations")
     values: List[str] = Field(default_factory=list, description="Core values and priorities")
     decision_factors: List[str] = Field(
         default_factory=list, description="Factors influencing decisions"
@@ -62,24 +58,18 @@ class Situational(BaseModel):
     pain_triggers: List[str] = Field(
         default_factory=list, description="Events that trigger pain points"
     )
-    timing_seasonality: Optional[str] = Field(
-        None, description="Timing and seasonal factors"
-    )
+    timing_seasonality: Optional[str] = Field(None, description="Timing and seasonal factors")
     budget_constraints: Optional[str] = Field(None, description="Budget limitations")
     competitive_pressures: List[str] = Field(
         default_factory=list, description="Competitive pressures they face"
     )
-    current_solutions: Optional[str] = Field(
-        None, description="Solutions they currently use"
-    )
+    current_solutions: Optional[str] = Field(None, description="Solutions they currently use")
 
 
 class SuccessCriteria(BaseModel):
     """How the ideal customer defines and measures success"""
 
-    definition_of_success: Optional[str] = Field(
-        None, description="How they define success"
-    )
+    definition_of_success: Optional[str] = Field(None, description="How they define success")
     kpis_tracked: List[str] = Field(default_factory=list, description="KPIs they track")
     roi_expectations: Optional[str] = Field(None, description="ROI expectations")
     implementation_timeline: Optional[str] = Field(
@@ -108,20 +98,14 @@ class IdealCustomerProfile(BaseModel):
     psychographics: Psychographics = Field(
         default_factory=Psychographics, description="Psychological characteristics"
     )
-    behavioral: Behavioral = Field(
-        default_factory=Behavioral, description="Behavioral patterns"
-    )
-    situational: Situational = Field(
-        default_factory=Situational, description="Situational factors"
-    )
+    behavioral: Behavioral = Field(default_factory=Behavioral, description="Behavioral patterns")
+    situational: Situational = Field(default_factory=Situational, description="Situational factors")
     success_criteria: SuccessCriteria = Field(
         default_factory=SuccessCriteria, description="Success definition"
     )
 
     # Synthesis
-    one_sentence_summary: Optional[str] = Field(
-        None, description="One-sentence ICP summary"
-    )
+    one_sentence_summary: Optional[str] = Field(None, description="One-sentence ICP summary")
     key_insights: List[str] = Field(
         default_factory=list, description="Key insights from the profile"
     )
@@ -138,9 +122,5 @@ class ICPWorkshopAnalysis(BaseModel):
 
     profile: IdealCustomerProfile = Field(..., description="The completed ICP")
     workshop_notes: Optional[str] = Field(None, description="Notes from workshop session")
-    conversation_summary: Optional[str] = Field(
-        None, description="Summary of conversation"
-    )
-    next_steps: List[str] = Field(
-        default_factory=list, description="Recommended next steps"
-    )
+    conversation_summary: Optional[str] = Field(None, description="Summary of conversation")
+    next_steps: List[str] = Field(default_factory=list, description="Recommended next steps")

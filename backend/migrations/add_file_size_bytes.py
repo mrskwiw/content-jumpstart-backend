@@ -2,6 +2,7 @@
 Migration: Add file_size_bytes column and calculate sizes for existing deliverables
 Date: 2025-12-19
 """
+
 import sys
 from pathlib import Path
 
@@ -10,12 +11,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load environment variables before importing
 from dotenv import load_dotenv
+
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
-from backend.database import get_db, engine
-from backend.models.deliverable import Deliverable
-from sqlalchemy import text
+from backend.database import get_db, engine  # noqa: E402
+from backend.models.deliverable import Deliverable  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
 
 def calculate_file_size(file_path: str) -> int:
@@ -44,11 +46,15 @@ def run_migration():
     try:
         with engine.connect() as conn:
             # Check if column already exists (PostgreSQL syntax)
-            result = conn.execute(text("""
+            result = conn.execute(
+                text(
+                    """
                 SELECT COUNT(*)
                 FROM information_schema.columns
                 WHERE table_name='deliverables' AND column_name='file_size_bytes'
-            """))
+            """
+                )
+            )
             column_exists = result.scalar() > 0
 
             if not column_exists:
@@ -93,15 +99,21 @@ def run_migration():
     try:
         with engine.connect() as conn:
             # Check if index already exists (PostgreSQL syntax)
-            result = conn.execute(text("""
+            result = conn.execute(
+                text(
+                    """
                 SELECT COUNT(*)
                 FROM pg_indexes
                 WHERE indexname='idx_deliverables_file_size'
-            """))
+            """
+                )
+            )
             index_exists = result.scalar() > 0
 
             if not index_exists:
-                conn.execute(text("CREATE INDEX idx_deliverables_file_size ON deliverables(file_size_bytes)"))
+                conn.execute(
+                    text("CREATE INDEX idx_deliverables_file_size ON deliverables(file_size_bytes)")
+                )
                 conn.commit()
                 print("Index created successfully")
             else:
@@ -111,9 +123,9 @@ def run_migration():
         print(f"Error creating index: {e}")
         return False
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Migration completed successfully!")
-    print("="*50)
+    print("=" * 50)
     return True
 
 

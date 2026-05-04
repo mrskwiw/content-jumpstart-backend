@@ -101,9 +101,10 @@ class EnvironmentSecretsProvider(SecretsProvider):
     def list_secret_keys(self) -> list[str]:
         """List environment variable keys (filtered for security)"""
         # Only list keys that look like secrets (contain certain patterns)
-        secret_patterns = ['KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'CREDENTIALS']
+        secret_patterns = ["KEY", "SECRET", "TOKEN", "PASSWORD", "CREDENTIALS"]
         return [
-            key for key in os.environ.keys()
+            key
+            for key in os.environ.keys()
             if any(pattern in key.upper() for pattern in secret_patterns)
         ]
 
@@ -137,17 +138,17 @@ class DotEnvSecretsProvider(SecretsProvider):
             return
 
         try:
-            with open(self.env_file, 'r', encoding='utf-8') as f:
+            with open(self.env_file, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
 
                     # Skip comments and empty lines
-                    if not line or line.startswith('#'):
+                    if not line or line.startswith("#"):
                         continue
 
                     # Parse KEY=VALUE
-                    if '=' in line:
-                        key, value = line.split('=', 1)
+                    if "=" in line:
+                        key, value = line.split("=", 1)
                         key = key.strip()
                         value = value.strip().strip('"').strip("'")
 
@@ -182,8 +183,7 @@ class DotEnvSecretsProvider(SecretsProvider):
         self._secrets[key] = value
         os.environ[key] = value
         logger.warning(
-            f"Set secret '{key}' in memory only. "
-            f"Manually update {self.env_file} to persist."
+            f"Set secret '{key}' in memory only. " f"Manually update {self.env_file} to persist."
         )
 
     def delete_secret(self, key: str) -> None:
@@ -237,16 +237,16 @@ class SecretsManager:
         2. If .env file exists, use DotEnvSecretsProvider (dev)
         3. Otherwise, use EnvironmentSecretsProvider (production)
         """
-        provider_type = os.environ.get('SECRETS_PROVIDER', 'auto').lower()
+        provider_type = os.environ.get("SECRETS_PROVIDER", "auto").lower()
 
-        if provider_type == 'environment':
+        if provider_type == "environment":
             return EnvironmentSecretsProvider()
 
-        if provider_type == 'dotenv':
+        if provider_type == "dotenv":
             return DotEnvSecretsProvider()
 
         # Auto-detect
-        env_file = Path('.env')
+        env_file = Path(".env")
         if env_file.exists():
             logger.info("Detected .env file - using development mode")
             return DotEnvSecretsProvider(env_file)
@@ -273,11 +273,13 @@ class SecretsManager:
             value = self.provider.get_secret(key, default)
 
             # Log access (but never log the value!)
-            self._access_log.append({
-                'key': key,
-                'timestamp': datetime.now().isoformat(),
-                'found': True,
-            })
+            self._access_log.append(
+                {
+                    "key": key,
+                    "timestamp": datetime.now().isoformat(),
+                    "found": True,
+                }
+            )
 
             return value
 
@@ -287,11 +289,13 @@ class SecretsManager:
                 raise
 
             logger.debug(f"Optional secret '{key}' not found, using default")
-            self._access_log.append({
-                'key': key,
-                'timestamp': datetime.now().isoformat(),
-                'found': False,
-            })
+            self._access_log.append(
+                {
+                    "key": key,
+                    "timestamp": datetime.now().isoformat(),
+                    "found": False,
+                }
+            )
 
             return default
 

@@ -2,6 +2,7 @@
 Create demo deliverable files for testing download functionality.
 Also updates file_size_bytes in the database.
 """
+
 from pathlib import Path
 import sys
 
@@ -26,6 +27,7 @@ demo_files = [
     "financeflow/investment-tips-2024-12-13.txt",
     "acme-corp/blog-series-draft.docx",
 ]
+
 
 def create_demo_files():
     """Create demo files in data/outputs/ directory."""
@@ -115,6 +117,7 @@ In production, this would be a properly formatted Word document with:
     except Exception as e:
         print(f"\n⚠️  Could not update database: {e}")
         print("   Run this script again after the backend is initialized")
+
 
 if __name__ == "__main__":
     create_demo_files()

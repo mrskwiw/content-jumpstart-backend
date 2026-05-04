@@ -29,13 +29,9 @@ class Challenge(BaseModel):
     """Problem and pain points"""
 
     problem_description: str = Field(..., description="Main problem description")
-    impact_on_business: Optional[str] = Field(
-        None, description="How problem impacted business"
-    )
+    impact_on_business: Optional[str] = Field(None, description="How problem impacted business")
     urgency_level: Optional[str] = Field(None, description="Why urgent")
-    failed_attempts: List[str] = Field(
-        default_factory=list, description="Previous failed attempts"
-    )
+    failed_attempts: List[str] = Field(default_factory=list, description="Previous failed attempts")
     pain_points: List[str] = Field(default_factory=list, description="Specific pain points")
     cost_of_inaction: Optional[str] = Field(
         None, description="What would happen if problem not solved"
@@ -89,9 +85,7 @@ class Results(BaseModel):
     )
     roi_metrics: Optional[str] = Field(None, description="ROI or cost savings")
     time_savings: Optional[str] = Field(None, description="Time saved")
-    before_after_comparison: Optional[str] = Field(
-        None, description="Before vs after comparison"
-    )
+    before_after_comparison: Optional[str] = Field(None, description="Before vs after comparison")
     unexpected_benefits: List[str] = Field(
         default_factory=list, description="Unexpected positive outcomes"
     )
@@ -100,34 +94,22 @@ class Results(BaseModel):
 class Testimonials(BaseModel):
     """Customer quotes and testimonials"""
 
-    headline_quote: Optional[str] = Field(
-        None, description="Main pull quote for case study"
-    )
-    detailed_quotes: List[str] = Field(
-        default_factory=list, description="Detailed customer quotes"
-    )
+    headline_quote: Optional[str] = Field(None, description="Main pull quote for case study")
+    detailed_quotes: List[str] = Field(default_factory=list, description="Detailed customer quotes")
     specific_wins: List[str] = Field(
         default_factory=list, description="Specific wins in customer's words"
     )
-    would_recommend: Optional[str] = Field(
-        None, description="Would they recommend? Why?"
-    )
-    advice_for_others: Optional[str] = Field(
-        None, description="Advice for others considering"
-    )
+    would_recommend: Optional[str] = Field(None, description="Would they recommend? Why?")
+    advice_for_others: Optional[str] = Field(None, description="Advice for others considering")
 
 
 class FuturePlans(BaseModel):
     """Future plans and ongoing success"""
 
-    ongoing_success: Optional[str] = Field(
-        None, description="How success continues"
-    )
+    ongoing_success: Optional[str] = Field(None, description="How success continues")
     next_goals: List[str] = Field(default_factory=list, description="Next goals")
     long_term_vision: Optional[str] = Field(None, description="Long-term plans")
-    expansion_plans: Optional[str] = Field(
-        None, description="Plans to expand usage"
-    )
+    expansion_plans: Optional[str] = Field(None, description="Plans to expand usage")
 
 
 class SuccessStory(BaseModel):
@@ -154,17 +136,11 @@ class SuccessStory(BaseModel):
     testimonials: Testimonials = Field(
         default_factory=Testimonials, description="Customer testimonials"
     )
-    future_plans: FuturePlans = Field(
-        default_factory=FuturePlans, description="Future plans"
-    )
+    future_plans: FuturePlans = Field(default_factory=FuturePlans, description="Future plans")
 
     # Synthesis
-    one_sentence_summary: Optional[str] = Field(
-        None, description="One-sentence story summary"
-    )
-    key_takeaways: List[str] = Field(
-        default_factory=list, description="Key takeaways from story"
-    )
+    one_sentence_summary: Optional[str] = Field(None, description="One-sentence story summary")
+    key_takeaways: List[str] = Field(default_factory=list, description="Key takeaways from story")
     use_cases: List[str] = Field(
         default_factory=list, description="Use cases this story demonstrates"
     )
@@ -181,6 +157,4 @@ class StoryMiningAnalysis(BaseModel):
     social_proof_snippets: List[str] = Field(
         default_factory=list, description="Short snippets for social proof"
     )
-    case_study_outline: Optional[str] = Field(
-        None, description="Case study structure outline"
-    )
+    case_study_outline: Optional[str] = Field(None, description="Case study structure outline")

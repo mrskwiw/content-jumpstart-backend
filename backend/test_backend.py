@@ -1,6 +1,7 @@
 """
 Simple test script to verify backend is working.
 """
+
 import sys
 
 import requests
@@ -10,7 +11,7 @@ def test_health_check():
     """Test health check endpoint"""
     print("Testing health check endpoint...")
     try:
-        response = requests.get("http://localhost:8000/health")
+        response = requests.get("http://localhost:8000/health", timeout=10)  # nosec B113
         if response.status_code == 200:
             data = response.json()
             print("✅ Health check passed")
@@ -37,7 +38,7 @@ def test_root_endpoint():
     """Test root endpoint"""
     print("\nTesting root endpoint...")
     try:
-        response = requests.get("http://localhost:8000/")
+        response = requests.get("http://localhost:8000/", timeout=10)  # nosec B113
         if response.status_code == 200:
             data = response.json()
             print("✅ Root endpoint passed")
