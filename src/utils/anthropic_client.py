@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpx
 from anthropic import Anthropic, APIConnectionError, APIError, AsyncAnthropic, RateLimitError
 
 from ..config.constants import (
@@ -89,8 +90,13 @@ class AnthropicClient:
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment variables or settings")
 
-        self.client = Anthropic(api_key=self.api_key)
-        self.async_client = AsyncAnthropic(api_key=self.api_key)
+        # Bound individual API calls so hung connections don't block the retry loop.
+        # 120s covers blog posts at 6000 tokens (~90s typical) with margin; social
+        # posts (4096 tokens, ~5-30s typical) are well within this limit.
+        # The outer asyncio.wait_for timeout is sized as batches × retries × this value.
+        _sdk_timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+        self.client = Anthropic(api_key=self.api_key, timeout=_sdk_timeout)
+        self.async_client = AsyncAnthropic(api_key=self.api_key, timeout=_sdk_timeout)
 
         # Initialize response cache if enabled
         if enable_response_cache is None:

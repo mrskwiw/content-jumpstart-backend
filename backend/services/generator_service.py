@@ -439,19 +439,17 @@ class GeneratorService:
 
             try:
                 expected_posts = sum(template_quantities.values()) if template_quantities else 0
-                # Worst-case timeout = serial batches × max retry attempts × per-attempt time.
+                # Worst-case timeout = serial batches × max retry attempts × SDK read timeout.
                 # Posts run concurrently (max_concurrent=5), so batches = ceil(posts / 5).
                 # Each post retries up to MAX_ATTEMPTS times before giving up.
-                # Blog posts use max_tokens=6000 (~60-90s/call); social posts ~30s/call
-                # (30s accounts for API congestion; typical is 5-8s but can spike to 60s+).
-                # Floor is 300s on all platforms — covers cold starts and slow API days.
+                # SDK_READ_TIMEOUT_S matches the httpx read timeout set on AnthropicClient
+                # (120s), so the outer timeout is provably >= the maximum time all retries
+                # can take — it will never false-fire on a legitimate congested-API run.
                 MAX_CONCURRENT = 5
                 MAX_ATTEMPTS = 10  # matches _generate_single_post_with_retry_async
+                SDK_READ_TIMEOUT_S = 120  # must match httpx read timeout in AnthropicClient
                 serial_batches = max(1, (expected_posts + MAX_CONCURRENT - 1) // MAX_CONCURRENT)
-                if platform_enum == Platform.BLOG:
-                    generation_timeout = max(300, serial_batches * MAX_ATTEMPTS * 90)
-                else:
-                    generation_timeout = max(300, serial_batches * MAX_ATTEMPTS * 30)
+                generation_timeout = max(300, serial_batches * MAX_ATTEMPTS * SDK_READ_TIMEOUT_S)
                 logger.info(
                     f"Starting generation of {expected_posts} posts "
                     f"(timeout: {generation_timeout}s)"
