@@ -858,7 +858,13 @@ Generate a post following this template structure, customized for this client's 
         # Use Anthropic's prompt caching for ephemeral caching
         return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
 
-    def refine_post(self, original_post: str, feedback: str, context: Dict[str, Any]) -> str:
+    def refine_post(
+        self,
+        original_post: str,
+        feedback: str,
+        context: Dict[str, Any],
+        max_tokens: Optional[int] = None,
+    ) -> str:
         """
         Refine a post based on feedback
 
@@ -866,6 +872,8 @@ Generate a post following this template structure, customized for this client's 
             original_post: Original post content
             feedback: Feedback or revision request
             context: Client context for maintaining voice
+            max_tokens: Token budget for output (defaults to settings.MAX_TOKENS).
+                        Pass a higher value for long-form content like blog posts.
 
         Returns:
             Refined post content
@@ -887,7 +895,7 @@ Revise the post incorporating the feedback while maintaining the brand voice."""
 
         messages = [{"role": "user", "content": user_message}]
 
-        return self.create_message(messages=messages, system=system_prompt)
+        return self.create_message(messages=messages, system=system_prompt, max_tokens=max_tokens)
 
 
 # Default client instance (lazy loaded)

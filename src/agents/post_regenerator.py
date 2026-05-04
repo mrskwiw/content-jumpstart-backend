@@ -7,7 +7,7 @@ fall outside acceptable parameters for readability, length, engagement, or CTAs.
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..config.constants import POST_GENERATION_TEMPERATURE
-from ..models.client_brief import ClientBrief
+from ..models.client_brief import ClientBrief, Platform
 from ..models.post import Post
 from ..models.quality_profile import QualityProfile, get_default_profile
 from ..models.template import Template
@@ -228,6 +228,8 @@ class PostRegenerator:
         context["requires_story"] = template.requires_story
         context["requires_data"] = template.requires_data
 
+        generation_max_tokens = 6000 if post.target_platform == Platform.BLOG else None
+
         try:
             # Generate improved content
             improved_content = self.client.generate_post_content(
@@ -235,6 +237,7 @@ class PostRegenerator:
                 context=context,
                 system_prompt=system_prompt or "",
                 temperature=POST_GENERATION_TEMPERATURE,
+                max_tokens=generation_max_tokens,
             )
 
             # Clean content

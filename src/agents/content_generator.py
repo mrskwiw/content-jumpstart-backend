@@ -2118,11 +2118,14 @@ Say what you mean in concrete terms — avoid corporate buzzwords and marketing 
 
         context = client_brief.to_context_dict()
 
+        generation_max_tokens = 6000 if original_post.target_platform == Platform.BLOG else None
+
         try:
             revised_content = self.client.refine_post(
                 original_post=original_post.content,
                 feedback=feedback,
                 context=context,
+                max_tokens=generation_max_tokens,
             )
 
             revised_content = self._clean_post_content(revised_content)

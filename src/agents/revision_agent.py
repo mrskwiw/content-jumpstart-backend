@@ -7,7 +7,7 @@ Unlike auto-regeneration (quality-based), this applies specific client feedback.
 from typing import List, Optional, Tuple
 
 from ..config.constants import POST_GENERATION_TEMPERATURE
-from ..models.client_brief import ClientBrief
+from ..models.client_brief import ClientBrief, Platform
 from ..models.post import Post
 from ..models.project import RevisionDiff
 from ..models.template import Template
@@ -56,6 +56,8 @@ class RevisionAgent:
             original_post, client_feedback, client_brief, template
         )
 
+        generation_max_tokens = 6000 if original_post.target_platform == Platform.BLOG else None
+
         try:
             # Generate revised content
             revised_content = self.client.generate_post_content(
@@ -63,6 +65,7 @@ class RevisionAgent:
                 context=revision_prompt,
                 system_prompt=system_prompt or self._build_system_prompt(client_brief),
                 temperature=POST_GENERATION_TEMPERATURE,
+                max_tokens=generation_max_tokens,
             )
 
             # Clean content
