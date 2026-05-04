@@ -309,9 +309,11 @@ class AnthropicClient:
         if enable_prompt_caching is None:
             enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
 
-        # Try response cache first
+        # Try response cache first (max_tokens included in key so budget changes bust the cache)
         if use_cache and self.response_cache:
-            cached_response = self.response_cache.get(messages, system or "", temperature)
+            cached_response = self.response_cache.get(
+                messages, system or "", temperature, max_tokens
+            )
             if cached_response:
                 return cached_response
 
@@ -374,7 +376,9 @@ class AnthropicClient:
 
                     # Cache the response
                     if use_cache and self.response_cache:
-                        self.response_cache.put(messages, system or "", temperature, response_text)
+                        self.response_cache.put(
+                            messages, system or "", temperature, response_text, max_tokens
+                        )
 
                     # Record success
                     self._record_success()
@@ -508,9 +512,11 @@ class AnthropicClient:
         if enable_prompt_caching is None:
             enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
 
-        # Try response cache first
+        # Try response cache first (max_tokens included in key so budget changes bust the cache)
         if use_cache and self.response_cache:
-            cached_response = self.response_cache.get(messages, system or "", temperature)
+            cached_response = self.response_cache.get(
+                messages, system or "", temperature, max_tokens
+            )
             if cached_response:
                 return cached_response
 
@@ -573,7 +579,9 @@ class AnthropicClient:
 
                     # Cache the response
                     if use_cache and self.response_cache:
-                        self.response_cache.put(messages, system or "", temperature, response_text)
+                        self.response_cache.put(
+                            messages, system or "", temperature, response_text, max_tokens
+                        )
 
                     # Record success
                     self._record_success()

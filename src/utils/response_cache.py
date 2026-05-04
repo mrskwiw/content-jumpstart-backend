@@ -91,17 +91,24 @@ class ResponseCache:
                 self.enabled = False
 
     def _get_cache_key(
-        self, messages: List[Dict[str, str]], system: str, temperature: float
+        self,
+        messages: List[Dict[str, str]],
+        system: str,
+        temperature: float,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """Generate deterministic cache key from request parameters
 
         Uses SHA-256 hash of sorted JSON to ensure identical requests
         produce identical cache keys regardless of dict ordering.
+        max_tokens is included so that calls with different token budgets
+        (e.g. blog posts at 6000 vs default 4096) never share a cache entry.
 
         Args:
             messages: List of message dictionaries
             system: System prompt
             temperature: Sampling temperature
+            max_tokens: Maximum tokens for the response
 
         Returns:
             Hex-encoded SHA-256 hash
@@ -110,6 +117,7 @@ class ResponseCache:
         content = {
             "system": system,
             "temperature": temperature,
+            "max_tokens": max_tokens,
             "messages": messages,
         }
 
@@ -119,7 +127,13 @@ class ResponseCache:
         # Generate hash
         return hashlib.sha256(content_str.encode()).hexdigest()
 
-    def get(self, messages: List[Dict[str, str]], system: str, temperature: float) -> Optional[str]:
+    def get(
+        self,
+        messages: List[Dict[str, str]],
+        system: str,
+        temperature: float,
+        max_tokens: Optional[int] = None,
+    ) -> Optional[str]:
         """Retrieve cached response if available and valid
 
         Args:
@@ -133,7 +147,7 @@ class ResponseCache:
         if not self.enabled:
             return None
 
-        key = self._get_cache_key(messages, system, temperature)
+        key = self._get_cache_key(messages, system, temperature, max_tokens)
         cache_file = self.cache_dir / f"{key}.json"
 
         if not cache_file.exists():
@@ -179,7 +193,12 @@ class ResponseCache:
             return None
 
     def put(
-        self, messages: List[Dict[str, str]], system: str, temperature: float, response: str
+        self,
+        messages: List[Dict[str, str]],
+        system: str,
+        temperature: float,
+        response: str,
+        max_tokens: Optional[int] = None,
     ) -> None:
         """Cache API response for future use
 
@@ -188,11 +207,12 @@ class ResponseCache:
             system: System prompt
             temperature: Sampling temperature
             response: API response to cache
+            max_tokens: Maximum tokens used for this response
         """
         if not self.enabled:
             return
 
-        key = self._get_cache_key(messages, system, temperature)
+        key = self._get_cache_key(messages, system, temperature, max_tokens)
         cache_file = self.cache_dir / f"{key}.json"
 
         try:
