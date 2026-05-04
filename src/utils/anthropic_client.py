@@ -695,6 +695,7 @@ class AnthropicClient:
         context: Dict[str, Any],
         system_prompt: Optional[str] = None,
         temperature: float = POST_GENERATION_TEMPERATURE,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Generate post content from a template and context
@@ -704,6 +705,8 @@ class AnthropicClient:
             context: Dictionary of context values for filling template
             system_prompt: Optional custom system prompt
             temperature: Sampling temperature for generation
+            max_tokens: Token budget for output (defaults to settings.MAX_TOKENS).
+                        Pass a higher value for long-form content like blog posts.
 
         Returns:
             Generated post content
@@ -724,7 +727,9 @@ Generate a post following this template structure, customized for this client's 
 
         messages = [{"role": "user", "content": user_message}]
 
-        return self.create_message(messages=messages, system=system_prompt, temperature=temperature)
+        return self.create_message(
+            messages=messages, system=system_prompt, temperature=temperature, max_tokens=max_tokens
+        )
 
     async def generate_post_content_async(
         self,
@@ -732,6 +737,7 @@ Generate a post following this template structure, customized for this client's 
         context: Dict[str, Any],
         system_prompt: Optional[str] = None,
         temperature: float = POST_GENERATION_TEMPERATURE,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Async version of generate_post_content for parallel execution
@@ -741,6 +747,8 @@ Generate a post following this template structure, customized for this client's 
             context: Dictionary of context values for filling template
             system_prompt: Optional custom system prompt
             temperature: Sampling temperature for generation
+            max_tokens: Token budget for output (defaults to settings.MAX_TOKENS).
+                        Pass a higher value for long-form content like blog posts.
 
         Returns:
             Generated post content
@@ -762,7 +770,7 @@ Generate a post following this template structure, customized for this client's 
         messages = [{"role": "user", "content": user_message}]
 
         return await self.create_message_async(
-            messages=messages, system=system_prompt, temperature=temperature
+            messages=messages, system=system_prompt, temperature=temperature, max_tokens=max_tokens
         )
 
     def _format_context_optimized(self, context: Dict[str, Any]) -> str:

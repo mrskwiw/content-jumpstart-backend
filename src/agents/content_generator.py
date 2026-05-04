@@ -933,6 +933,10 @@ Rules:
         else:
             template_structure_to_use = template.structure
 
+        # Blog posts need a larger token budget: 2000-word target + ~2000 tokens
+        # of prompt leaves no headroom at the default 4096 cap.
+        generation_max_tokens = 6000 if platform == Platform.BLOG else None
+
         # Generate post content via API
         try:
             content = self.client.generate_post_content(
@@ -940,6 +944,7 @@ Rules:
                 context=context,
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
+                max_tokens=generation_max_tokens,
             )
 
             # SECURITY: Validate output for prompt leakage (TR-014)
@@ -1094,6 +1099,10 @@ Rules:
         else:
             template_structure_to_use = template.structure
 
+        # Blog posts need a larger token budget: 2000-word target + ~2000 tokens
+        # of prompt leaves no headroom at the default 4096 cap.
+        generation_max_tokens = 6000 if platform == Platform.BLOG else None
+
         # Generate post content via API (async)
         try:
             content = await self.client.generate_post_content_async(
@@ -1101,6 +1110,7 @@ Rules:
                 context=context,
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
+                max_tokens=generation_max_tokens,
             )
 
             # SECURITY: Validate output for prompt leakage (TR-014)
