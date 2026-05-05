@@ -452,9 +452,33 @@ async def spa_routing_middleware(request: Request, call_next):
 
     try:
         response = await call_next(request)
+    except RuntimeError as e:
+        # Starlette raises RuntimeError("No response returned.") when its routing
+        # finds no handler and nothing sends a response.  For SPA frontend routes
+        # that is expected — serve index.html so React Router can handle the path.
+        # All other RuntimeErrors (and all other exception types) still propagate
+        # as 500s so real server failures are never silently masked.
+        if "No response returned" in str(e) and is_frontend_route:
+            frontend_build_dir = Path(__file__).parent.parent / "operator-dashboard" / "dist"
+            index_file = frontend_build_dir / "index.html"
+            if index_file.exists():
+                spa_response = FileResponse(index_file)
+                spa_response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                spa_response.headers["Pragma"] = "no-cache"
+                spa_response.headers["Expires"] = "0"
+                return spa_response
+        logger.error(
+            f"Middleware error in spa_routing_middleware: {str(e)} [{request.method} {path}]"
+        )
+        from starlette.responses import JSONResponse
+
+        return JSONResponse(
+            {"error": "Internal Server Error"},
+            status_code=500,
+        )
     except Exception as e:
         logger.error(
-            f"Middleware error in spa_routing_middleware: {str(e)} " f"[{request.method} {path}]"
+            f"Middleware error in spa_routing_middleware: {str(e)} [{request.method} {path}]"
         )
         from starlette.responses import JSONResponse
 

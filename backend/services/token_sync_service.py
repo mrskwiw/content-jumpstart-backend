@@ -128,16 +128,17 @@ class TokenSyncService:
             + timedelta(minutes=5)
         )
 
-        # Query cost tracker for API calls in this time window
-        # Use client_id as project_id for research tools
+        # API calls are tracked under project_id in cost_tracker.db;
+        # fall back to client_id only when no project is associated.
+        lookup_id = research.project_id or client_id
         usage_data = self._get_project_usage(
-            project_id=client_id, start_time=start_time, end_time=end_time
+            project_id=lookup_id, start_time=start_time, end_time=end_time
         )
 
         if not usage_data:
             logger.warning(
                 f"No cost tracking data found for research {research_result_id} "
-                f"(client {client_id}) between {start_time} and {end_time}"
+                f"(lookup_id={lookup_id}) between {start_time} and {end_time}"
             )
             return {}
 

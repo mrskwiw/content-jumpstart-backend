@@ -926,7 +926,7 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                 for batch_attempt in range(MAX_BATCH_RETRIES):
                     try:
                         if batch_attempt > 0:
-                            time.sleep(15 * batch_attempt)  # 15s, 30s backoff
+                            time.sleep(30 * batch_attempt)  # 30s, 60s backoff
 
                         pytrends.build_payload(
                             keyword_terms,
@@ -987,7 +987,7 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                     except Exception as e:
                         is_rate_limit = "429" in str(e) or "too many" in str(e).lower()
                         if is_rate_limit and batch_attempt < MAX_BATCH_RETRIES - 1:
-                            wait = 15 * (batch_attempt + 1)
+                            wait = 30 * (batch_attempt + 1)
                             logger.warning(
                                 f"Trends batch {i // 5 + 1} hit 429 "
                                 f"(attempt {batch_attempt + 1}/{MAX_BATCH_RETRIES}), "
@@ -1353,7 +1353,23 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
 **Industry:** {strategy.industry}
 **Target Audience:** {strategy.target_audience}
 
----
+"""
+        # Warn when Google Trends enrichment was partial or absent
+        all_kw = strategy.primary_keywords + strategy.secondary_keywords
+        enriched_count = sum(1 for kw in all_kw if kw.trend_score is not None)
+        if all_kw and enriched_count < len(all_kw):
+            if enriched_count == 0:
+                md += (
+                    "> **Note:** Google Trends data was unavailable for all keywords due to "
+                    "rate limiting. Trend signals are not included in this report.\n\n"
+                )
+            else:
+                md += (
+                    f"> **Note:** Google Trends data available for {enriched_count}/{len(all_kw)} "
+                    "keywords due to rate limiting. Trend signals may be incomplete.\n\n"
+                )
+
+        md += f"""---
 
 ## Executive Summary
 
