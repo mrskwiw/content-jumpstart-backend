@@ -70,22 +70,31 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
     staleTime: 0,
   });
 
+  // Terminal = run has reached a final state (success, partial success, or failure)
+  const TERMINAL_STATUSES = ['succeeded', 'partial', 'failed'] as const;
+  const isTerminal = runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status);
+
   // Handle status changes — use ref for onStarted to avoid effect loop when parent re-renders
   useEffect(() => {
-    if ((runStatus?.status === 'succeeded' || runStatus?.status === 'failed') && !onStartedCalledRef.current) {
+    if (isTerminal && runStatus && !onStartedCalledRef.current) {
       onStartedCalledRef.current = true;
       setPollingEnabled(false);
       onStartedRef.current?.(runStatus);
     }
-  }, [runStatus]);
+  }, [isTerminal, runStatus]);
 
-  const isGenerating = generate.isPending || pollingEnabled;
-  // Keep button disabled after success to prevent accidental re-generation
-  const isSucceeded = runStatus?.status === 'succeeded';
+  // isGenerating: true during mutation AND during the gap before pollingEnabled is set.
+  // Using generate.isSuccess bridges the 1-frame race between isPending→false and
+  // pollingEnabled→true so the button never flashes back to "Generate All" mid-run.
+  const isGenerating = generate.isPending || (generate.isSuccess && !isTerminal);
+  // Keep button disabled after any terminal state to prevent accidental re-generation
+  const isSucceeded = runStatus?.status === 'succeeded' || runStatus?.status === 'partial';
   const statusMessage = runStatus?.status === 'running'
     ? 'Generating posts...'
     : runStatus?.status === 'pending'
     ? 'Queued...'
+    : runStatus?.status === 'partial'
+    ? 'Partial results ready...'
     : generate.isPending
     ? 'Starting...'
     : isSucceeded

@@ -14,7 +14,7 @@ export const ProjectStatusSchema = z.enum([
 ]);
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>;
 
-export const RunStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed']);
+export const RunStatusSchema = z.enum(['pending', 'running', 'succeeded', 'failed', 'partial']);
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 
 export const DeliverableStatusSchema = z.enum(['draft', 'ready', 'delivered']);
