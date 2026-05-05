@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 try:
     from backend.services.research_context_builder import (
         build_research_context,
+        get_brand_archetype_from_research,
         get_story_context_for_template,
     )
 
@@ -50,6 +51,7 @@ try:
 except ImportError:
     RESEARCH_CONTEXT_AVAILABLE = False
     build_research_context = None
+    get_brand_archetype_from_research = None
     get_story_context_for_template = None
 
 try:
@@ -1907,7 +1909,21 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
         Returns:
             Archetype name (Expert, Friend, Innovator, Guide, Motivator) or empty string
         """
-        # Try to get client type from classifier if available
+        # Primary source: completed brand_archetype research for this client
+        if (
+            RESEARCH_CONTEXT_AVAILABLE
+            and get_brand_archetype_from_research is not None
+            and self.backend_session
+            and hasattr(client_brief, "client_id")
+        ):
+            research_archetype = get_brand_archetype_from_research(
+                self.backend_session, client_brief.client_id
+            )
+            if research_archetype:
+                logger.info(f"Using brand_archetype from research: '{research_archetype}'")
+                return research_archetype
+
+        # Fallback: client type classification
         client_type = getattr(client_brief, "client_type", None)
 
         if client_type:

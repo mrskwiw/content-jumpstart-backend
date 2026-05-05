@@ -7,7 +7,7 @@ Provides concise, actionable insights from completed research tools with usage g
 Phase 1 Implementation - Research Context Integration Feature
 """
 
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from backend.models.research_result import ResearchResult
@@ -94,6 +94,28 @@ def build_research_context(db: Session, client_id: str) -> Dict[str, Any]:
 
 # Alias for backwards compatibility
 build_structured_context = build_research_context
+
+
+def get_brand_archetype_from_research(session: Any, client_id: str) -> Optional[str]:
+    """Return the primary_archetype from the most recent completed brand_archetype
+    research run for this client, or None if no result exists.
+
+    Used by ContentGeneratorAgent._infer_archetype to prefer research data over
+    heuristic keyword matching.
+    """
+    try:
+        from backend.services.crud import get_research_results_by_client
+
+        results = get_research_results_by_client(
+            session, client_id, tool_name="brand_archetype", status="completed"
+        )
+        if results:
+            primary = (results[0].data or {}).get("primary_archetype")
+            if primary:
+                return str(primary)
+    except Exception:
+        pass
+    return None
 
 
 def _format_all_results(tool_results: Dict[str, ResearchResult]) -> Dict[str, Any]:

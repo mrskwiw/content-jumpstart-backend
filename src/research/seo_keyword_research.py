@@ -836,8 +836,11 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
             keywords = []
 
             for kw_data in keywords_data[:30]:  # Max 30 secondary
-                # Skip if kw_data is not a dict
-                if not isinstance(kw_data, dict):
+                # Claude sometimes returns plain strings instead of keyword objects.
+                # Wrap them as minimal dicts rather than dropping them entirely.
+                if isinstance(kw_data, str):
+                    kw_data = {"keyword": kw_data}
+                elif not isinstance(kw_data, dict):
                     logger.warning(
                         f"Skipping invalid keyword entry (expected dict, got {type(kw_data)}): {kw_data}"
                     )
@@ -845,10 +848,10 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
                 keyword = Keyword(
                     keyword=kw_data["keyword"],
-                    search_intent=SearchIntent(kw_data["search_intent"]),
-                    difficulty=KeywordDifficulty(kw_data["difficulty"]),
-                    monthly_volume_estimate=kw_data["monthly_volume_estimate"],
-                    relevance_score=float(kw_data["relevance_score"]),
+                    search_intent=SearchIntent(kw_data.get("search_intent", "informational")),
+                    difficulty=KeywordDifficulty(kw_data.get("difficulty", "medium")),
+                    monthly_volume_estimate=kw_data.get("monthly_volume_estimate", "unknown"),
+                    relevance_score=float(kw_data.get("relevance_score", 5.0)),
                     long_tail=kw_data.get("long_tail", True),
                     question_based=kw_data.get("question_based", False),
                     related_topics=kw_data.get("related_topics", []),
@@ -907,91 +910,92 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
             logger.info(f"Enriching {len(keywords)} keywords with Google Trends data")
 
-            # Process keywords in batches of 5 (Google Trends limit)
+            # Process keywords in batches of 5 (Google Trends API limit).
+            # Inter-batch delay is 10s — Google aggressively rate-limits cloud IPs
+            # at shorter intervals. Each batch retries up to 3× on 429 with backoff.
+            BATCH_DELAY_S = 10
+            MAX_BATCH_RETRIES = 3
+
             for i in range(0, min(len(keywords), 10), 5):  # Limit to first 10 keywords
                 batch = keywords[i : i + 5]
                 keyword_terms = [kw.keyword for kw in batch]
 
-                try:
-                    # Rate limiting - wait 2 seconds between requests
-                    if i > 0:
-                        time.sleep(2)
+                if i > 0:
+                    time.sleep(BATCH_DELAY_S)
 
-                    # Build payload for this batch
-                    pytrends.build_payload(
-                        keyword_terms,
-                        timeframe="today 12-m",  # Last 12 months
-                        geo="",  # Worldwide
-                    )
+                for batch_attempt in range(MAX_BATCH_RETRIES):
+                    try:
+                        if batch_attempt > 0:
+                            time.sleep(15 * batch_attempt)  # 15s, 30s backoff
 
-                    # Get interest over time
-                    interest_df = pytrends.interest_over_time()
+                        pytrends.build_payload(
+                            keyword_terms,
+                            timeframe="today 12-m",
+                            geo="",
+                        )
+                        interest_df = pytrends.interest_over_time()
 
-                    if not interest_df.empty:
-                        # Remove "isPartial" column if present
-                        if "isPartial" in interest_df.columns:
-                            interest_df = interest_df.drop("isPartial", axis=1)
+                        if not interest_df.empty:
+                            if "isPartial" in interest_df.columns:
+                                interest_df = interest_df.drop("isPartial", axis=1)
 
-                        # Enrich each keyword with trends data
-                        for keyword_obj in batch:
-                            keyword_term = keyword_obj.keyword
-
-                            if keyword_term in interest_df.columns:
-                                values = interest_df[keyword_term].tolist()
-
-                                # Calculate trend score (average of recent values)
-                                if values:
-                                    mean_score = float(statistics.mean(values[-4:]))
-                                    keyword_obj.trend_score = mean_score
-                                    keyword_obj.trend_momentum_score = mean_score
-
-                                    # Determine trend direction
-                                    if len(values) >= 8:
-                                        recent_avg = statistics.mean(values[-4:])
-                                        older_avg = statistics.mean(values[-8:-4])
-
-                                        # Check for seasonality (high variance)
-                                        variance = (
-                                            statistics.stdev(values) if len(values) > 1 else 0
-                                        )
-                                        keyword_obj.seasonal = (
-                                            variance > 25
-                                        )  # High variance = seasonal
-
-                                        if keyword_obj.seasonal:
-                                            keyword_obj.trend_direction = "seasonal"
-                                        elif recent_avg > older_avg * 1.2:
-                                            keyword_obj.trend_direction = "rising"
-                                        elif recent_avg < older_avg * 0.8:
-                                            keyword_obj.trend_direction = "declining"
+                            for keyword_obj in batch:
+                                keyword_term = keyword_obj.keyword
+                                if keyword_term in interest_df.columns:
+                                    values = interest_df[keyword_term].tolist()
+                                    if values:
+                                        mean_score = float(statistics.mean(values[-4:]))
+                                        keyword_obj.trend_score = mean_score
+                                        keyword_obj.trend_momentum_score = mean_score
+                                        if len(values) >= 8:
+                                            recent_avg = statistics.mean(values[-4:])
+                                            older_avg = statistics.mean(values[-8:-4])
+                                            variance = (
+                                                statistics.stdev(values) if len(values) > 1 else 0
+                                            )
+                                            keyword_obj.seasonal = variance > 25
+                                            if keyword_obj.seasonal:
+                                                keyword_obj.trend_direction = "seasonal"
+                                            elif recent_avg > older_avg * 1.2:
+                                                keyword_obj.trend_direction = "rising"
+                                            elif recent_avg < older_avg * 0.8:
+                                                keyword_obj.trend_direction = "declining"
+                                            else:
+                                                keyword_obj.trend_direction = "stable"
                                         else:
                                             keyword_obj.trend_direction = "stable"
-                                    else:
-                                        keyword_obj.trend_direction = "stable"
 
-                    # Get related queries (top queries only)
-                    try:
-                        related_queries = pytrends.related_queries()
+                        # Related queries — failure here doesn't block trend scores
+                        try:
+                            related_queries = pytrends.related_queries()
+                            for keyword_obj in batch:
+                                keyword_term = keyword_obj.keyword
+                                if (
+                                    keyword_term in related_queries
+                                    and related_queries[keyword_term]["top"] is not None
+                                ):
+                                    top_queries = related_queries[keyword_term]["top"]
+                                    if not top_queries.empty:
+                                        keyword_obj.related_queries = (
+                                            top_queries["query"].head(5).tolist()
+                                        )
+                        except Exception as e:
+                            logger.debug(f"Could not fetch related queries: {e}")
 
-                        for keyword_obj in batch:
-                            keyword_term = keyword_obj.keyword
+                        break  # success — exit retry loop
 
-                            if (
-                                keyword_term in related_queries
-                                and related_queries[keyword_term]["top"] is not None
-                            ):
-                                top_queries = related_queries[keyword_term]["top"]
-                                if not top_queries.empty:
-                                    # Get top 5 related queries
-                                    keyword_obj.related_queries = (
-                                        top_queries["query"].head(5).tolist()
-                                    )
                     except Exception as e:
-                        logger.debug(f"Could not fetch related queries: {e}")
-
-                except Exception as e:
-                    logger.warning(f"Failed to fetch trends for batch {i//5 + 1}: {e}")
-                    continue
+                        is_rate_limit = "429" in str(e) or "too many" in str(e).lower()
+                        if is_rate_limit and batch_attempt < MAX_BATCH_RETRIES - 1:
+                            wait = 15 * (batch_attempt + 1)
+                            logger.warning(
+                                f"Trends batch {i // 5 + 1} hit 429 "
+                                f"(attempt {batch_attempt + 1}/{MAX_BATCH_RETRIES}), "
+                                f"retrying in {wait}s"
+                            )
+                        else:
+                            logger.warning(f"Failed to fetch trends for batch {i // 5 + 1}: {e}")
+                            break
 
             # Count how many keywords were enriched
             enriched_count = sum(1 for kw in keywords if kw.trend_score is not None)
