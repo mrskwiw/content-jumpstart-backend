@@ -1052,17 +1052,45 @@ Rules:
         # Note: When using cached prompt, platform info is already embedded from the cache
         system_prompt = cached_system_prompt or self._build_system_prompt(client_brief, platform)
 
-        # On retries, repeat the full banned-word list so the model cannot simply
-        # swap one banned word for another (which is what happens when the feedback
-        # only says "don't use that phrase").
+        # On retries, tailor the feedback to the actual failure reason so the model
+        # knows what to fix. Wrong instruction → wasted retry.
         if quality_feedback:
-            banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
-            system_prompt = (
-                system_prompt
-                + f"\n\nREVISION REQUIRED: Your previous draft was rejected because it contained a banned phrase: {quality_feedback}\n"
-                + f"Every word in this list is banned — do not use any of them:\n{banned_words_str}\n"
-                + "Write a completely new version using plain, direct, conversational language only."
-            )
+            feedback_lower = quality_feedback.lower()
+            if "too short" in feedback_lower:
+                # Length failure — the model needs to write substantially more content.
+                # Re-state the target length and explain how to expand, not just "try again".
+                if platform == Platform.BLOG:
+                    system_prompt = (
+                        system_prompt
+                        + f"\n\nREVISION REQUIRED: {quality_feedback}\n"
+                        + "Your previous draft was too short. You MUST write a full blog article of at least 1500 words.\n"
+                        + "Expand every section: add concrete examples, patient stories, data points, and actionable how-to steps.\n"
+                        + "Add a Section 4 (case study or FAQ, 200-300 words) if needed to reach length.\n"
+                        + "Do not submit until your word count is at least 1500 words."
+                    )
+                else:
+                    system_prompt = (
+                        system_prompt
+                        + f"\n\nREVISION REQUIRED: {quality_feedback}\n"
+                        + "Write a longer version that fully develops the idea with more detail and examples."
+                    )
+            elif "too long" in feedback_lower:
+                system_prompt = (
+                    system_prompt
+                    + f"\n\nREVISION REQUIRED: {quality_feedback}\n"
+                    + "Your previous draft was too long. Trim it: shorten examples to 1-2 sentences, "
+                    + "cut any section that does not add new information, remove redundant paragraphs."
+                )
+            else:
+                # Banned phrase or other issue — re-emit the full banned word list so the
+                # model cannot simply swap one banned word for another.
+                banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
+                system_prompt = (
+                    system_prompt
+                    + f"\n\nREVISION REQUIRED: Your previous draft was rejected: {quality_feedback}\n"
+                    + f"Every word in this list is banned — do not use any of them:\n{banned_words_str}\n"
+                    + "Write a completely new version using plain, direct, conversational language only."
+                )
 
         # Platform-specific template structure overrides.
         # LinkedIn templates are multi-part and long-form; short-form platforms need a
