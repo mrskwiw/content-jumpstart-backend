@@ -96,12 +96,33 @@ def build_research_context(db: Session, client_id: str) -> Dict[str, Any]:
 build_structured_context = build_research_context
 
 
-def get_brand_archetype_from_research(session: Any, client_id: str) -> Optional[str]:
-    """Return the primary_archetype from the most recent completed brand_archetype
-    research run for this client, or None if no result exists.
+# Maps the 12 Jungian archetypes returned by the brand_archetype research tool
+# to the 5 content archetypes understood by get_archetype_guidance() in
+# brand_frameworks.py. Without this mapping, get_archetype_guidance() silently
+# returns "" for any research-sourced archetype name.
+_JUNGIAN_TO_CONTENT_ARCHETYPE: Dict[str, str] = {
+    "sage": "Expert",
+    "ruler": "Expert",
+    "hero": "Motivator",
+    "explorer": "Innovator",
+    "creator": "Innovator",
+    "magician": "Innovator",
+    "outlaw": "Innovator",
+    "caregiver": "Guide",
+    "innocent": "Guide",
+    "everyman": "Friend",
+    "jester": "Friend",
+    "lover": "Friend",
+}
 
-    Used by ContentGeneratorAgent._infer_archetype to prefer research data over
-    heuristic keyword matching.
+
+def get_brand_archetype_from_research(session: Any, client_id: str) -> Optional[str]:
+    """Return the content archetype ('Expert', 'Guide', etc.) derived from the most
+    recent completed brand_archetype research run for this client, or None.
+
+    The brand_archetype tool stores Jungian archetype IDs ('caregiver', 'sage', …).
+    This function maps those to the 5 content archetypes that get_archetype_guidance()
+    understands so the guidance is actually injected into the generation prompt.
     """
     try:
         from backend.services.crud import get_research_results_by_client
@@ -112,7 +133,13 @@ def get_brand_archetype_from_research(session: Any, client_id: str) -> Optional[
         if results:
             primary = (results[0].data or {}).get("primary_archetype")
             if primary:
-                return str(primary)
+                jungian = str(primary).lower()
+                content_archetype = _JUNGIAN_TO_CONTENT_ARCHETYPE.get(jungian)
+                if content_archetype:
+                    return content_archetype
+                # If the stored value is already a content archetype name, use it directly
+                if jungian.capitalize() in {"Expert", "Friend", "Innovator", "Guide", "Motivator"}:
+                    return jungian.capitalize()
     except Exception:
         pass
     return None
