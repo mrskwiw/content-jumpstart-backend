@@ -650,7 +650,13 @@ Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
             if isinstance(gaps_data, dict) and "gaps" in gaps_data:
                 gaps_data = gaps_data["gaps"]
 
-            return [ContentGap(**gap) for gap in gaps_data]
+            # Guard against Claude returning a list of strings instead of dicts
+            valid_gaps = [gap for gap in gaps_data if isinstance(gap, dict)]
+            if not valid_gaps:
+                raise ValueError(
+                    f"No valid gap dicts in response — got {type(gaps_data[0]).__name__ if gaps_data else 'empty list'}"
+                )
+            return [ContentGap(**gap) for gap in valid_gaps]
         except Exception as e:
             logger.error(f"Error parsing topic gaps: {e}")
             # Return fallback gaps

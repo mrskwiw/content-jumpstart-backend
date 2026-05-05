@@ -445,12 +445,14 @@ class GeneratorService:
                 # → APIConnectionError, and the retry loop kept running in the background
                 # while the run was already marked failed.
                 logger.info(f"Starting generation of {expected_posts} posts")
+                from src.config.constants import DEFAULT_MAX_CONCURRENT_CALLS
+
                 posts = await generator.generate_posts_async(
                     client_brief=brief,
                     template_quantities=template_quantities,
                     platform=platform_enum,
                     randomize=True,
-                    max_concurrent=5,
+                    max_concurrent=DEFAULT_MAX_CONCURRENT_CALLS,
                     use_client_memory=False,
                 )
                 logger.info(
@@ -471,6 +473,7 @@ class GeneratorService:
             logger.info(f"Creating {len(posts)} Post records in database for project {project.id}")
             posts_created = 0
             posts_failed = 0
+            placeholder_count = 0
 
             for idx, post in enumerate(posts):
                 try:
@@ -479,6 +482,7 @@ class GeneratorService:
                         f"Creating post {idx+1}/{len(posts)}: {post_id} (template: {post.template_name})"
                     )
 
+                    is_placeholder = post.content.startswith("[ERROR:")
                     db_post = Post(
                         id=post_id,
                         project_id=project.id,
@@ -492,12 +496,15 @@ class GeneratorService:
                         word_count=post.word_count,
                         has_cta=post.has_cta,
                         readability_score=_calculate_readability(post.content),
-                        status="approved",  # Template quantities are deliberate choices
+                        status="flagged" if is_placeholder else "approved",
+                        flags=["placeholder"] if is_placeholder else [],
                         created_at=datetime.utcnow(),
                         twitter_share_copy=getattr(post, "twitter_share_copy", None),
                     )
                     db.add(db_post)
                     posts_created += 1
+                    if is_placeholder:
+                        placeholder_count += 1
                     logger.info(f"Successfully created post record {post_id}")
 
                 except Exception as e:
@@ -578,6 +585,7 @@ class GeneratorService:
             return {
                 "posts_created": posts_created,
                 "posts_failed": posts_failed,
+                "placeholder_count": placeholder_count,
                 "output_dir": None,  # No file output for direct generation
                 "files": {},
                 "platform_warning": platform_warning,  # Bug #110: None if platform was valid

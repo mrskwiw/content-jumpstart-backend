@@ -151,7 +151,7 @@ class Settings(BaseSettings):
 
     # Content Generation
     PARALLEL_GENERATION: bool = True
-    MAX_CONCURRENT_API_CALLS: int = 5
+    MAX_CONCURRENT_API_CALLS: int = 10
 
     # File Upload
     MAX_UPLOAD_SIZE_MB: int = 10

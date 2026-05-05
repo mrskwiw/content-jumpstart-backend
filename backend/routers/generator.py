@@ -148,6 +148,8 @@ async def run_generation_background(
 
         posts_created = result["posts_created"]
         posts_failed = result.get("posts_failed", 0)
+        placeholder_count = result.get("placeholder_count", 0)
+        succeeded_count = posts_created - placeholder_count
         expected_count = sum(template_quantities.values()) if template_quantities else num_posts
 
         timestamp = datetime.now().isoformat()
@@ -166,7 +168,7 @@ async def run_generation_background(
         if platform_warning:
             logs.append(LogEntry(timestamp=timestamp, message=platform_warning))
 
-        # Surface any count shortfall prominently in the run log
+        # Surface count shortfall (DB save failures)
         if posts_created < expected_count:
             shortfall = expected_count - posts_created
             warning_msg = (
@@ -176,6 +178,17 @@ async def run_generation_background(
             )
             logger.warning(warning_msg)
             logs.append(LogEntry(timestamp=timestamp, message=warning_msg))
+
+        # Surface placeholder posts (generation failures after all QA retries)
+        if placeholder_count > 0:
+            placeholder_msg = (
+                f"⚠️ PARTIAL RESULTS: {succeeded_count} of {posts_created} posts generated "
+                f"successfully. {placeholder_count} post(s) failed after all retry attempts "
+                f"and were saved as placeholders — they are flagged for review and will not "
+                f"appear in exports. Check the Posts tab to regenerate individual posts."
+            )
+            logger.warning(placeholder_msg)
+            logs.append(LogEntry(timestamp=timestamp, message=placeholder_msg))
 
         # Capture token usage and cost (Task #32)
         try:
@@ -192,10 +205,11 @@ async def run_generation_background(
                 )
             )
 
+            run_status = "partial" if placeholder_count > 0 else "succeeded"
             crud.update_run(
                 db,
                 run_id,
-                status="succeeded",
+                status=run_status,
                 logs=[log.model_dump() for log in logs],
                 total_input_tokens=project_cost.total_input_tokens,
                 total_output_tokens=project_cost.total_output_tokens,
@@ -215,7 +229,8 @@ async def run_generation_background(
                     message=f"WARNING: Cost tracking failed - {str(cost_err)[:100]}",
                 )
             )
-            crud.update_run(db, run_id, status="succeeded", logs=[log.model_dump() for log in logs])
+            run_status = "partial" if placeholder_count > 0 else "succeeded"
+            crud.update_run(db, run_id, status=run_status, logs=[log.model_dump() for log in logs])
 
         logger.info(f"Background generation completed successfully for run {run_id}")
 

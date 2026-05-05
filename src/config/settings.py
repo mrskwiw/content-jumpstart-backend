@@ -96,8 +96,7 @@ class Settings(BaseSettings):
     # Performance
     CACHE_PROMPTS: bool = True
     PARALLEL_GENERATION: bool = True  # Phase 2 - Async parallel generation
-    MAX_CONCURRENT_API_CALLS: int = 5  # Limit concurrent API requests
-    BATCH_SIZE: int = 10  # Number of posts per batch
+    MAX_CONCURRENT_API_CALLS: int = 10  # Limit concurrent API requests
 
     # API Response Caching (dev/testing only)
     ENABLE_RESPONSE_CACHE: bool = False  # Enable disk-based response cache

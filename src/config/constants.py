@@ -43,10 +43,7 @@ MIN_HEADLINE_ELEMENTS = 3
 # ============================================================================
 
 # Maximum concurrent API calls to prevent rate limiting
-DEFAULT_MAX_CONCURRENT_CALLS = 5
-
-# Batch size for parallel processing
-DEFAULT_BATCH_SIZE = 10
+DEFAULT_MAX_CONCURRENT_CALLS = 10
 
 # Initial retry delay in seconds (exponential backoff)
 DEFAULT_RETRY_DELAY = 1.0

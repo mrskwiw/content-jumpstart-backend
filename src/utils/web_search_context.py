@@ -85,6 +85,15 @@ def build_web_search_context(
 
     try:
         response = web_search_client.search(query, max_results=config["max_results"])
+        # Brave (and other providers) fall back to stub results on 429; the
+        # provider attribute stays unchanged so the check above misses it.
+        # Detect stub results by source field and refuse to inject fake data.
+        if response.results and all(r.source == "stub" for r in response.results):
+            logger.warning(
+                f"Web search returned stub results for template {template_id} "
+                f"(likely provider rate-limit) — skipping context injection"
+            )
+            return None
         return _format_results(response, config["focus"])
     except Exception as exc:
         logger.warning(f"Web search failed for template {template_id} (query={query!r}): {exc}")
