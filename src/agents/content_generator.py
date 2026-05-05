@@ -1049,12 +1049,16 @@ Rules:
         # Note: When using cached prompt, platform info is already embedded from the cache
         system_prompt = cached_system_prompt or self._build_system_prompt(client_brief, platform)
 
-        # On retries, append specific feedback so the model knows what to fix
+        # On retries, repeat the full banned-word list so the model cannot simply
+        # swap one banned word for another (which is what happens when the feedback
+        # only says "don't use that phrase").
         if quality_feedback:
+            banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
             system_prompt = (
                 system_prompt
-                + f"\n\nREVISION REQUIRED: Your previous draft was rejected for this reason: {quality_feedback}\n"
-                + "Write a completely new version. Do not reuse the flagged word or phrase."
+                + f"\n\nREVISION REQUIRED: Your previous draft was rejected because it contained a banned phrase: {quality_feedback}\n"
+                + f"Every word in this list is banned — do not use any of them:\n{banned_words_str}\n"
+                + "Write a completely new version using plain, direct, conversational language only."
             )
 
         # Platform-specific template structure overrides.
@@ -1778,15 +1782,15 @@ If web_search_results are NOT present in the context, do not invent statistics.
 Use the client's own measurable results and data from their brief instead.
 """
 
-        # Add banned word list — these trigger automatic QA failure and retry
+        # Add banned word list — injected as a hard writing constraint, not a process note,
+        # so the model treats avoidance as a content rule rather than a downstream concern.
         banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
         prompt += f"""
 
-BANNED WORDS AND PHRASES (posts containing these will fail validation — never use them):
+HARD WRITING RULE — NEVER USE THESE WORDS OR PHRASES:
 {banned_words_str}
 
-These are the most common AI-sounding phrases. Use plain, direct language instead.
-Say what you mean in concrete terms — avoid corporate buzzwords and marketing clichés."""
+Do not use any of the above, even in passing. They are AI clichés that will cause the post to be rejected and regenerated. Write in plain, direct, conversational language. Say exactly what you mean — no corporate buzzwords, no marketing speak, no motivational filler."""
 
         return prompt
 
