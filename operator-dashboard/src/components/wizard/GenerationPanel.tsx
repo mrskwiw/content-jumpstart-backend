@@ -79,14 +79,21 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
     return () => clearTimeout(timer);
   }, [generate.isSuccess, isTerminal]);
 
-  // Handle status changes — use ref for onStarted to avoid effect loop when parent re-renders
+  // Handle status changes — use ref for onStarted to avoid effect loop when parent re-renders.
+  // isTerminal can be set by a real status OR by the safety timeout; the parent callback
+  // must only fire when the run actually reached a terminal state, never on a timeout
+  // against a still-running job.
+  const hasRealTerminalStatus = runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status);
   useEffect(() => {
-    if (isTerminal && runStatus && !onStartedCalledRef.current) {
+    if (!isTerminal || onStartedCalledRef.current) return;
+    setPollingEnabled(false);
+    if (hasRealTerminalStatus && runStatus) {
       onStartedCalledRef.current = true;
-      setPollingEnabled(false);
       onStartedRef.current?.(runStatus);
     }
-  }, [isTerminal, runStatus]);
+    // If timeout fired on a still-running job, polling stops and button clears
+    // but the parent is not notified — the run is still in progress server-side.
+  }, [isTerminal, hasRealTerminalStatus, runStatus]);
 
   // isGenerating: true during mutation AND during the gap before pollingEnabled is set.
   // Using generate.isSuccess bridges the 1-frame race between isPending→false and
