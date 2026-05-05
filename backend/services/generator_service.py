@@ -8,7 +8,6 @@ Handles:
 - Run status tracking
 """
 
-import asyncio
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -439,42 +438,20 @@ class GeneratorService:
 
             try:
                 expected_posts = sum(template_quantities.values()) if template_quantities else 0
-                # True worst-case timeout accounts for both retry layers:
-                #
-                #   outer loop: MAX_ATTEMPTS quality retries per post
-                #   inner loop: INNER_RETRIES SDK-level retries (rate-limit / connection)
-                #               each bounded by SDK_READ_TIMEOUT_S (httpx read timeout)
-                #               plus exponential backoff: 1s + 2s = 3s total between attempts
-                #
-                # Worst case per outer attempt = INNER_RETRIES × SDK_READ_TIMEOUT_S
-                #                               + INNER_BACKOFF_TOTAL_S
-                #                             = 3 × 120 + 3 = 363 s
-                #
-                # Posts run concurrently (max_concurrent=5) so
-                #   serial_batches = ceil(posts / MAX_CONCURRENT)
-                # and total = serial_batches × MAX_ATTEMPTS × worst_case_per_outer_attempt.
-                MAX_CONCURRENT = 5
-                MAX_ATTEMPTS = 10  # _generate_single_post_with_retry_async
-                INNER_RETRIES = 3  # DEFAULT_MAX_RETRIES in AnthropicClient
-                SDK_READ_TIMEOUT_S = 120  # httpx read timeout set on AnthropicClient
-                INNER_BACKOFF_TOTAL_S = 3  # sum(1*2^i for i in range(INNER_RETRIES-1)) = 1+2
-                worst_per_outer = INNER_RETRIES * SDK_READ_TIMEOUT_S + INNER_BACKOFF_TOTAL_S
-                serial_batches = max(1, (expected_posts + MAX_CONCURRENT - 1) // MAX_CONCURRENT)
-                generation_timeout = max(300, serial_batches * MAX_ATTEMPTS * worst_per_outer)
-                logger.info(
-                    f"Starting generation of {expected_posts} posts "
-                    f"(timeout: {generation_timeout}s)"
-                )
-                posts = await asyncio.wait_for(
-                    generator.generate_posts_async(
-                        client_brief=brief,
-                        template_quantities=template_quantities,
-                        platform=platform_enum,
-                        randomize=True,
-                        max_concurrent=5,
-                        use_client_memory=False,
-                    ),
-                    timeout=generation_timeout,
+                # No outer asyncio.wait_for timeout. Individual API calls are bounded by
+                # the 120s httpx read timeout set on AnthropicClient, and each post caps
+                # at MAX_ATTEMPTS=10 quality retries. An outer timeout caused zombie tasks:
+                # wait_for cancelled the outer coroutine, the SDK converted CancelledError
+                # → APIConnectionError, and the retry loop kept running in the background
+                # while the run was already marked failed.
+                logger.info(f"Starting generation of {expected_posts} posts")
+                posts = await generator.generate_posts_async(
+                    client_brief=brief,
+                    template_quantities=template_quantities,
+                    platform=platform_enum,
+                    randomize=True,
+                    max_concurrent=5,
+                    use_client_memory=False,
                 )
                 logger.info(
                     f"Successfully generated {len(posts)} posts (expected: {expected_posts})"
@@ -486,16 +463,6 @@ class GeneratorService:
                         f"Expected posts based on template_quantities: {sum(template_quantities.values())}"
                     )
 
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"Content generation timed out after {generation_timeout}s "
-                    f"(expected {expected_posts} posts). "
-                    "Reduce post count or check API latency."
-                )
-                raise RuntimeError(
-                    f"Content generation timed out after {generation_timeout} seconds. "
-                    "The AI is taking too long — please try again with fewer posts or contact support."
-                )
             except Exception as e:
                 logger.error(f"Failed to generate posts: {str(e)}", exc_info=True)
                 raise
