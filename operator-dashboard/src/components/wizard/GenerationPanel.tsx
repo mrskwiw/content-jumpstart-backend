@@ -20,18 +20,14 @@ interface Props {
 export function GenerationPanel({ projectId, clientId, templateQuantities, customTopics, targetPlatform, onStarted }: Props) {
   const [runId, setRunId] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
+  // timedOut feeds into isTerminal so the safety timeout also releases the button
+  const [timedOut, setTimedOut] = useState(false);
   // Ref to prevent onStarted firing multiple times when parent re-renders
   const onStartedCalledRef = useRef(false);
   const onStartedRef = useRef(onStarted);
   useEffect(() => { onStartedRef.current = onStarted; }, [onStarted]);
-  // Reset the guard when a new run starts
-  useEffect(() => { onStartedCalledRef.current = false; }, [runId]);
-  // Safety: stop polling after 5 minutes to prevent infinite spinner
-  useEffect(() => {
-    if (!pollingEnabled) return;
-    const timeout = setTimeout(() => setPollingEnabled(false), 5 * 60 * 1000);
-    return () => clearTimeout(timeout);
-  }, [pollingEnabled]);
+  // Reset guards when a new run starts
+  useEffect(() => { onStartedCalledRef.current = false; setTimedOut(false); }, [runId]);
 
   // Fetch credit balance — don't retry on 401/403 (token expired; avoids console spam)
   const { data: creditBalance } = useQuery({
@@ -70,9 +66,18 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
     staleTime: 0,
   });
 
-  // Terminal = run has reached a final state (success, partial success, or failure)
+  // Terminal = run reached a final state OR the safety timeout fired.
+  // Both paths must set isTerminal so the button is never permanently locked.
   const TERMINAL_STATUSES = ['succeeded', 'partial', 'failed'] as const;
-  const isTerminal = runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status);
+  const isTerminal = timedOut || (runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status));
+
+  // Safety: stop polling AND release the button after 5 minutes regardless of run state.
+  // Setting timedOut (not just pollingEnabled) ensures isGenerating also clears.
+  useEffect(() => {
+    if (!generate.isSuccess || isTerminal) return;
+    const timer = setTimeout(() => { setPollingEnabled(false); setTimedOut(true); }, 5 * 60 * 1000);
+    return () => clearTimeout(timer);
+  }, [generate.isSuccess, isTerminal]);
 
   // Handle status changes — use ref for onStarted to avoid effect loop when parent re-renders
   useEffect(() => {
