@@ -972,12 +972,20 @@ async def export_package(
                 .filter(
                     PostModel.project_id == input.project_id,
                     PostModel.run_id == latest_run.id,
+                    PostModel.is_placeholder.isnot(True),  # Exclude placeholder posts
                 )
                 .all()
             )
         else:
             # No run record — fall back to all posts for backward compatibility
-            posts = db.query(PostModel).filter(PostModel.project_id == input.project_id).all()
+            posts = (
+                db.query(PostModel)
+                .filter(
+                    PostModel.project_id == input.project_id,
+                    PostModel.is_placeholder.isnot(True),  # Exclude placeholder posts
+                )
+                .all()
+            )
 
         if not posts:
             raise HTTPException(

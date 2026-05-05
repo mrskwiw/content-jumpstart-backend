@@ -50,6 +50,10 @@ class Post(Base, SoftDeleteMixin):
     # Twitter/X share copy for blog posts (≤280 chars, [YOUR_BLOG_URL] placeholder)
     twitter_share_copy = Column(String(280), nullable=True)
 
+    # True when the generator exhausted all QA retries and saved an [ERROR:…] stub.
+    # Placeholder posts are excluded from exports and deliverables.
+    is_placeholder = Column(Boolean, nullable=True, default=False)
+
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     project = relationship("backend.models.project.Project", back_populates="posts")
     run = relationship("backend.models.run.Run", back_populates="posts")

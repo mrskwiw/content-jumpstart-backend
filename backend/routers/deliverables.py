@@ -177,6 +177,8 @@ async def download_deliverable(
                     run_id=deliverable.run_id,
                     limit=500,
                 )
+                # Exclude placeholder posts (failed generation) from deliverables
+                posts = [p for p in posts if not p.is_placeholder]
                 if not posts:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,

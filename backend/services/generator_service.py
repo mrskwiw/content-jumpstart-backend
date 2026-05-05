@@ -498,6 +498,7 @@ class GeneratorService:
                         readability_score=_calculate_readability(post.content),
                         status="flagged" if is_placeholder else "approved",
                         flags=["placeholder"] if is_placeholder else [],
+                        is_placeholder=is_placeholder,
                         created_at=datetime.utcnow(),
                         twitter_share_copy=getattr(post, "twitter_share_copy", None),
                     )
