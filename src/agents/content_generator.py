@@ -975,8 +975,9 @@ Rules:
             if platform == Platform.BLOG:
                 post.twitter_share_copy = self._generate_twitter_share_copy(content)
 
-            # Check if post needs review
-            self._check_quality_flags(post, template, client_brief)
+            # Check if post needs review — pass generation platform explicitly so
+            # the correct word-count limits apply even if post.target_platform is None
+            self._check_quality_flags(post, template, client_brief, generation_platform=platform)
 
             # Mark story as used for this template+project if story context was injected
             _used_story_id = context.get("_story_id_for_template")
@@ -1141,8 +1142,8 @@ Rules:
                 target_platform=platform,
             )
 
-            # Check if post needs review
-            self._check_quality_flags(post, template, client_brief)
+            # Check if post needs review — pass generation platform explicitly
+            self._check_quality_flags(post, template, client_brief, generation_platform=platform)
 
             # Log completion
             log_post_generated(post_number, template.name, post.word_count)
@@ -2080,9 +2081,18 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
         return tweet
 
     def _check_quality_flags(
-        self, post: Post, template: Template, client_brief: ClientBrief
+        self,
+        post: Post,
+        template: Template,
+        client_brief: ClientBrief,
+        generation_platform: Optional[Platform] = None,
     ) -> None:
-        """Check post for quality issues and flag if needed"""
+        """Check post for quality issues and flag if needed.
+
+        generation_platform: the platform passed to the generator — used as the
+        authoritative source for word-count limits instead of post.target_platform,
+        which can be None if the Post object wasn't constructed with it yet.
+        """
         content_lower = post.content.lower()
 
         # Check for AI tells using module constant
@@ -2091,8 +2101,11 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
                 post.flag_for_review(f"Contains AI tell: '{tell}'")
                 return
 
-        # Use platform-specific word count limits when available
-        platform = post.target_platform
+        # Prefer the generation platform passed in; fall back to post.target_platform.
+        # post.target_platform can be None when _check_quality_flags is called from
+        # paths that don't set it, causing silent fallback to the LinkedIn defaults
+        # (min 75 words) instead of the platform-specific minimum.
+        platform = generation_platform or post.target_platform
         if platform and platform in PLATFORM_LENGTH_SPECS:
             specs = PLATFORM_LENGTH_SPECS[platform]
             min_words = specs["min_words"]
@@ -2100,6 +2113,11 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
         else:
             min_words = MIN_POST_WORD_COUNT
             max_words = MAX_POST_WORD_COUNT
+
+        logger.debug(
+            f"Quality check: {post.word_count} words, platform={platform}, "
+            f"min={min_words}, max={max_words}"
+        )
 
         if post.word_count < min_words:
             post.flag_for_review(f"Post too short: {post.word_count} words (min: {min_words})")
