@@ -1534,10 +1534,13 @@ async def execute_research_batch(
         {"tool_name": tool.tool_name, "params": tool.params or {}} for tool in batch_request.tools
     ]
 
-    # Execute batch
-    result = await research_service.execute_research_tools_batch(
-        db, batch_request.project_id, batch_request.client_id, tool_configs
-    )
+    # Execute batch — raises ValueError on circular dependency (→ 422)
+    try:
+        result = await research_service.execute_research_tools_batch(
+            db, batch_request.project_id, batch_request.client_id, tool_configs
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return BatchResearchResponse(
         execution_order=result["execution_order"],

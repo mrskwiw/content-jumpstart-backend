@@ -359,9 +359,9 @@ class ResearchPrerequisites:
 
         # Check for circular dependencies
         if len(ordered) != len(tool_ids):
-            logger.error(f"Circular dependency detected in tools: {tool_ids}")
-            # Return original order as fallback
-            return tool_ids
+            cyclic = [t for t in tool_ids if t not in ordered]
+            logger.error(f"Circular dependency detected in tools: {cyclic}")
+            raise ValueError(f"Circular dependency detected among research tools: {cyclic}")
 
         logger.info(f"Execution order: {ordered}")
         return ordered

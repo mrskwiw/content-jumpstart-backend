@@ -804,7 +804,9 @@ class ResearchService:
         # Extract tool names
         tool_names = [config["tool_name"] for config in tool_configs]
 
-        # Determine execution order based on dependencies
+        # Determine execution order based on dependencies.
+        # Raises ValueError on circular dependencies — let it propagate so the
+        # batch endpoint returns a 422 rather than silently running tools out of order.
         ordered_tools = self.prerequisites.get_execution_order(tool_names)
 
         logger.info(f"Batch execution order for {len(tool_names)} tools: {ordered_tools}")
