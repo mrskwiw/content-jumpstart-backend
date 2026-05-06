@@ -575,10 +575,10 @@ def _generate_audit_section(project_id: str, db: Session) -> List[str]:
         audit_logs = (
             db.query(AuditLog)
             .filter(
-                (AuditLog.target_id == project_id)
-                | (AuditLog.metadata.contains({"project_id": project_id}))
+                (AuditLog.resource_id == project_id)
+                | (AuditLog.extra_metadata.contains({"project_id": project_id}))
             )
-            .order_by(AuditLog.timestamp.asc())
+            .order_by(AuditLog.created_at.asc())
             .limit(100)
             .all()
         )
@@ -587,8 +587,9 @@ def _generate_audit_section(project_id: str, db: Session) -> List[str]:
             return []
 
         for log in audit_logs:
-            timestamp = log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if log.timestamp else "N/A"
-            lines.append(f"[{timestamp}] {log.actor}: {log.action} on {log.target_type}")
+            timestamp = log.created_at.strftime("%Y-%m-%d %H:%M:%S") if log.created_at else "N/A"
+            actor = log.user_email or log.user_name or log.user_id or "system"
+            lines.append(f"[{timestamp}] {actor}: {log.action} on {log.resource_type}")
 
     except Exception as e:
         logger.warning(f"Could not generate audit section: {e}")

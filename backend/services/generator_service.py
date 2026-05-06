@@ -469,11 +469,48 @@ class GeneratorService:
                 logger.error(f"Failed to generate posts: {str(e)}", exc_info=True)
                 raise
 
+            # --- Batch QA (pre-commit) ---
+            # Run before writing to DB so the score and per-post flags are
+            # available when records are created. The per-post QA retries
+            # already ran during generation; this pass catches batch-level
+            # issues (hook uniqueness, CTA variety, SEO, headlines).
+            qa_score_pre: float | None = None
+            if run_id and posts:
+                try:
+                    from src.agents.qa_agent import QAAgent
+
+                    qa_report = QAAgent().validate_posts(posts, client.name or "")
+                    qa_score_pre = qa_report.quality_score
+                    logger.info(
+                        f"Pre-commit QA: {qa_score_pre:.1%} "
+                        f"({'PASSED' if qa_report.overall_passed else 'NEEDS REVIEW'}), "
+                        f"issues: {qa_report.total_issues}"
+                    )
+                    if not qa_report.overall_passed:
+                        logger.warning(
+                            f"Batch QA failed before commit — {qa_report.total_issues} issue(s). "
+                            f"Posts will be saved with needs_review=True."
+                        )
+                except Exception as e:
+                    logger.warning(f"Pre-commit QA failed (non-critical): {e}")
+
+            # Store qa_score on the run record now so it's committed together with posts
+            if qa_score_pre is not None and run_id:
+                try:
+                    run_record = db.get(Run, run_id)
+                    if run_record:
+                        run_record.qa_score = qa_score_pre
+                except Exception as e:
+                    logger.warning(f"Failed to set run qa_score before commit: {e}")
+
             # Create Post records in database
             logger.info(f"Creating {len(posts)} Post records in database for project {project.id}")
             posts_created = 0
             posts_failed = 0
             placeholder_count = 0
+
+            # When batch QA failed, flag every post for review before saving
+            batch_qa_failed = qa_score_pre is not None and qa_score_pre < 0.70
 
             for idx, post in enumerate(posts):
                 try:
@@ -483,6 +520,14 @@ class GeneratorService:
                     )
 
                     is_placeholder = post.content.startswith("[ERROR:")
+                    # A post is flagged if it's a generation placeholder OR if
+                    # the batch QA run (before commit) found quality issues.
+                    needs_flag = is_placeholder or (batch_qa_failed and not is_placeholder)
+                    post_flags: list[str] = []
+                    if is_placeholder:
+                        post_flags.append("placeholder")
+                    if batch_qa_failed and not is_placeholder:
+                        post_flags.append("qa_review")
                     db_post = Post(
                         id=post_id,
                         project_id=project.id,
@@ -496,8 +541,8 @@ class GeneratorService:
                         word_count=post.word_count,
                         has_cta=post.has_cta,
                         readability_score=_calculate_readability(post.content),
-                        status="flagged" if is_placeholder else "approved",
-                        flags=["placeholder"] if is_placeholder else [],
+                        status="flagged" if needs_flag else "approved",
+                        flags=post_flags,
                         is_placeholder=is_placeholder,
                         created_at=datetime.utcnow(),
                         twitter_share_copy=getattr(post, "twitter_share_copy", None),
@@ -532,22 +577,7 @@ class GeneratorService:
                 db.rollback()
                 raise
 
-            # Run QA validation and persist the composite score on the Run record
-            if run_id and posts:
-                try:
-                    from src.agents.qa_agent import QAAgent
-
-                    qa_report = QAAgent().validate_posts(posts, client.name or "")
-                    run_record = db.get(Run, run_id)
-                    if run_record:
-                        run_record.qa_score = qa_report.quality_score
-                        db.commit()
-                    logger.info(
-                        f"QA score for run {run_id}: {qa_report.quality_score:.1%} "
-                        f"({'PASSED' if qa_report.overall_passed else 'NEEDS REVIEW'})"
-                    )
-                except Exception as e:
-                    logger.warning(f"QA scoring failed (non-critical): {e}")
+            # qa_score already set and committed above (pre-commit QA block)
 
             # Verify posts were saved — filter by run_id to avoid counting prior-run posts
             saved_posts = crud.get_posts(db, project_id=project.id, run_id=run_id, limit=100)
