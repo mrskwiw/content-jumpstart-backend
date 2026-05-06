@@ -69,7 +69,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   // Terminal = run reached a final state OR the safety timeout fired.
   // Both paths must set isTerminal so the button is never permanently locked.
   const TERMINAL_STATUSES = ['succeeded', 'partial', 'failed'] as const;
-  const isTerminal = timedOut || (runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status));
+  const isTerminal = timedOut || (TERMINAL_STATUSES as readonly string[]).includes(runStatus?.status ?? '');
 
   // Safety: stop polling AND release the button after 5 minutes regardless of run state.
   // Setting timedOut (not just pollingEnabled) ensures isGenerating also clears.
@@ -83,7 +83,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   // isTerminal can be set by a real status OR by the safety timeout; the parent callback
   // must only fire when the run actually reached a terminal state, never on a timeout
   // against a still-running job.
-  const hasRealTerminalStatus = runStatus != null && (TERMINAL_STATUSES as readonly string[]).includes(runStatus.status);
+  const hasRealTerminalStatus = (TERMINAL_STATUSES as readonly string[]).includes(runStatus?.status ?? '');
   useEffect(() => {
     if (!isTerminal || onStartedCalledRef.current) return;
     setPollingEnabled(false);
