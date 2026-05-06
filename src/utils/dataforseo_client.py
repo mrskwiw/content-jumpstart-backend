@@ -79,12 +79,15 @@ class DataForSEOClient:
                 logger.debug(f"DataForSEO: no items for '{keyword}'")
                 return None
 
-            # items[0].data is a list of {"date": "...", "values": [{"value": N}]}
+            # items[0].data is a list of {"date_from": "...", "values": [N]}
+            # values is a plain integer array — e.g. [54], not [{"value": 54}]
             data_points = items[0].get("data") or []
             values = [
-                pt["values"][0]["value"]
+                int(pt["values"][0])
                 for pt in data_points
-                if pt.get("values") and pt["values"][0].get("value") is not None
+                if pt.get("values")
+                and pt["values"][0] is not None
+                and not pt.get("missing_data", False)
             ]
 
             if len(values) < 4:
