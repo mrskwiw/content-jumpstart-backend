@@ -22,7 +22,7 @@ from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
-from ..utils.web_search import WebSearchClient
+from ..utils.web_search import get_search_client
 
 
 class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
@@ -243,6 +243,17 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         current_content_topics = inputs["current_content_topics"]
         industry = inputs.get("industry", "Not specified")
         competitors = inputs.get("competitors", [])
+
+        # Fall back to competitor names from the competitive_analysis prerequisite.
+        # The service injects them as competitor_insights (list of dicts or strings);
+        # extract just the names so _analyze_competitor_content receives the right type.
+        if not competitors:
+            raw = inputs.get("competitor_insights", [])
+            if raw:
+                competitors = [
+                    (c.get("name") or c.get("company") or str(c)) if isinstance(c, dict) else str(c)
+                    for c in raw
+                ][:5]
         known_misconceptions = inputs.get("known_misconceptions", [])
         customer_questions = inputs.get("customer_questions", [])
         customer_pain_points = inputs.get("customer_pain_points", [])
@@ -414,7 +425,7 @@ Return ONLY valid JSON with these exact keys: coverage_areas, depth_assessment, 
     ) -> List[Dict[str, str]]:
         """Search for competitor content using web search."""
         try:
-            web_client = WebSearchClient()
+            web_client = get_search_client()
             query = f"{competitor} {industry} content marketing strategy blog"
             search_response = web_client.search(query, max_results=max_results, search_type="web")
 
@@ -436,7 +447,7 @@ Return ONLY valid JSON with these exact keys: coverage_areas, depth_assessment, 
     ) -> List[str]:
         """Use web search to discover competitors when none are provided."""
         try:
-            web_client = WebSearchClient()
+            web_client = get_search_client()
             query = f"top competitors {industry} content marketing"
             search_response = web_client.search(query, max_results=5, search_type="web")
 

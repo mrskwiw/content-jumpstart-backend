@@ -296,6 +296,8 @@ class ResearchTool(ABC):
                 temperature=temperature,
                 system=prompt,
                 messages=[{"role": "user", "content": "Please provide the requested analysis."}],
+                project_id=self.project_id,
+                operation=self.tool_name,
             )
 
             response_text = response  # Wrapper already extracts text
