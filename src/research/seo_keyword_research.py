@@ -998,15 +998,18 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
                     except Exception as e:
                         is_rate_limit = "429" in str(e) or "too many" in str(e).lower()
-                        if is_rate_limit and attempt < MAX_RETRIES - 1:
-                            base = 35 * (attempt + 1)
-                            wait = random.uniform(base * 0.7, base * 1.3)  # nosec B311
+                        if is_rate_limit:
+                            # Retries never recover a 429 within a single run — Google's
+                            # rate-limit window far exceeds the backoff budget. Try
+                            # DataForSEO as a fallback before giving up.
+                            if self._try_dataforseo_fallback(keyword_term, keyword_obj):
+                                consecutive_failures = 0
+                                break  # DataForSEO succeeded — treat as success
                             logger.warning(
-                                f"Trends 429 for '{keyword_term}' "
-                                f"(attempt {attempt + 1}/{MAX_RETRIES}), "
-                                f"retrying in {wait:.0f}s"
+                                f"Trends 429 for '{keyword_term}' — skipping (IP rate-limited, no fallback)"
                             )
-                            time.sleep(wait)
+                            consecutive_failures += 1
+                            break
                         else:
                             logger.warning(
                                 f"Trends failed for '{keyword_term}' after {attempt + 1} attempt(s): {e}"
@@ -1033,6 +1036,36 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
         except Exception as e:
             logger.error(f"Error during Google Trends enrichment: {e}")
             # Continue without trends data - not critical to fail the entire analysis
+
+    def _try_dataforseo_fallback(self, keyword_term: str, keyword_obj: "Keyword") -> bool:
+        """Attempt to enrich keyword_obj via DataForSEO when pytrends is rate-limited.
+
+        Returns True if DataForSEO returned usable data and keyword_obj was updated.
+        Returns False if DataForSEO is not configured, failed, or returned no data.
+        """
+        try:
+            from ..utils.dataforseo_client import DataForSEOClient
+
+            client = DataForSEOClient()
+            if not client.configured:
+                return False
+
+            result = client.get_trends(keyword_term)
+            if not result:
+                return False
+
+            keyword_obj.trend_score = result["trend_score"]
+            keyword_obj.trend_direction = result["trend_direction"]
+            keyword_obj.trend_momentum_score = result["trend_momentum_score"]
+            logger.info(
+                f"DataForSEO fallback succeeded for '{keyword_term}': "
+                f"score={result['trend_score']:.1f}, direction={result['trend_direction']}"
+            )
+            return True
+
+        except Exception as exc:
+            logger.warning(f"DataForSEO fallback error for '{keyword_term}': {exc}")
+            return False
 
     def _create_keyword_clusters(
         self,

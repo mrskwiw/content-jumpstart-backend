@@ -210,6 +210,11 @@ class Settings(BaseSettings):
     # Free key at: https://api.census.gov/data/key_signup.html
     CENSUS_API_KEY: str = ""
 
+    # DataForSEO (optional — Google Trends fallback when pytrends is rate-limited)
+    # Sign up at: https://dataforseo.com — ~$0.002/keyword, pay-as-you-go
+    DATAFORSEO_LOGIN: str = ""
+    DATAFORSEO_PASSWORD: str = ""
+
     model_config = SettingsConfigDict(env_file=ENV_FILE, case_sensitive=True, extra="ignore")
 
 

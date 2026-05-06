@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Search, Check, X, AlertCircle, Loader2, ExternalLink, Trash2 } from 'lucide-react';
-import { settingsApi, WebSearchConfig } from '../../api/settings';
+import { settingsApi, WebSearchConfig, IntegrationStatus } from '../../api/settings';
 
 export default function Integrations() {
   const queryClient = useQueryClient();
@@ -31,8 +31,11 @@ export default function Integrations() {
   const [showSerpapiKey, setShowSerpapiKey] = useState(false);
 
   // Load current configuration
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
+
   useEffect(() => {
     loadConfig();
+    loadIntegrationStatus();
   }, []);
 
   const loadConfig = async () => {
@@ -44,6 +47,15 @@ export default function Integrations() {
     } catch (error) {
       console.error('Failed to load config:', error);
       setLoading(false);
+    }
+  };
+
+  const loadIntegrationStatus = async () => {
+    try {
+      const status = await settingsApi.getIntegrationStatus();
+      setIntegrationStatus(status);
+    } catch (error) {
+      console.error('Failed to load integration status:', error);
     }
   };
 
@@ -503,6 +515,50 @@ export default function Integrations() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* DataForSEO Trends Fallback — read-only status, configured via env vars */}
+      <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              DataForSEO — Trends Fallback
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Provides Google Trends data when pytrends is rate-limited (~$0.002/keyword).
+              Configured via environment variables — not stored in the database.
+            </p>
+          </div>
+          {integrationStatus?.dataforseo ? (
+            <span className="flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-400">
+              <Check className="w-4 h-4" />
+              Active
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-400 dark:text-gray-500">
+              <X className="w-4 h-4" />
+              Not configured
+            </span>
+          )}
+        </div>
+        {!integrationStatus?.dataforseo && (
+          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+            <p>To enable, set the following in your Render environment (or <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">.env</code>):</p>
+            <pre className="mt-2 bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs font-mono">
+{`DATAFORSEO_LOGIN=your@email.com
+DATAFORSEO_PASSWORD=your_password`}
+            </pre>
+            <a
+              href="https://dataforseo.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 mt-2"
+            >
+              Sign up at dataforseo.com
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Info Section */}

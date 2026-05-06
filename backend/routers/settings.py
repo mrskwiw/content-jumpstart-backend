@@ -97,6 +97,7 @@ class IntegrationStatusResponse(BaseModel):
     brave: bool = Field(..., description="Whether Brave Search is configured")
     tavily: bool = Field(..., description="Whether Tavily is configured")
     serpapi: bool = Field(..., description="Whether SerpAPI is configured")
+    dataforseo: bool = Field(..., description="Whether DataForSEO Trends fallback is configured")
 
     class Config:
         json_schema_extra = {
@@ -105,6 +106,7 @@ class IntegrationStatusResponse(BaseModel):
                 "brave": True,
                 "tavily": False,
                 "serpapi": False,
+                "dataforseo": False,
             }
         }
 
@@ -222,7 +224,9 @@ async def test_web_search_connection(
 
 @router.delete("/web-search/keys/{provider}")
 async def delete_web_search_key(
-    provider: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    provider: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Delete API key for a specific provider.
@@ -241,7 +245,8 @@ async def delete_web_search_key(
 
     if not deleted:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"No API key found for {provider}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No API key found for {provider}",
         )
 
     return {"message": f"{provider.title()} API key deleted successfully"}
@@ -257,6 +262,8 @@ async def get_integrations_status(
     Returns which integrations are configured and available for use.
     Used by frontend to disable tools that require missing integrations.
     """
+    from backend.config import settings as app_settings
+
     # Get web search configuration
     config = settings_service.get_web_search_config(db, current_user.id)
 
@@ -264,6 +271,9 @@ async def get_integrations_status(
     brave_configured = bool(config.get("brave_api_key", ""))
     tavily_configured = bool(config.get("tavily_api_key", ""))
     serpapi_configured = bool(config.get("serpapi_api_key", ""))
+
+    # DataForSEO is env-var only — not stored per-user in the database
+    dataforseo_configured = bool(app_settings.DATAFORSEO_LOGIN and app_settings.DATAFORSEO_PASSWORD)
 
     # web_search is true if ANY web search provider is configured
     web_search = brave_configured or tavily_configured or serpapi_configured
@@ -273,4 +283,5 @@ async def get_integrations_status(
         brave=brave_configured,
         tavily=tavily_configured,
         serpapi=serpapi_configured,
+        dataforseo=dataforseo_configured,
     )

@@ -1399,6 +1399,7 @@ class ExecutionOrderResponse(BaseModel):
 
     execution_order: List[str]
     tool_count: int
+    parallel_groups: List[List[str]]
 
 
 @router.post("/execution-order", response_model=ExecutionOrderResponse)
@@ -1418,23 +1419,25 @@ async def get_execution_order(
         order_request: List of tool names to order
 
     Returns:
-        Optimal execution order (prerequisites first)
+        Optimal execution order (prerequisites first) and parallel_groups for
+        concurrent frontend execution (tools in each group are independent).
     """
     from backend.services.research_prerequisites import ResearchPrerequisites
 
     prerequisites = ResearchPrerequisites()
 
-    # Get optimal execution order using topological sort
     execution_order = prerequisites.get_execution_order(order_request.tool_names)
+    parallel_groups = prerequisites.get_parallel_groups(order_request.tool_names)
 
     logger.info(
         f"Calculated execution order for {len(order_request.tool_names)} tools: "
-        f"{execution_order}"
+        f"{execution_order}, parallel_groups: {parallel_groups}"
     )
 
     return ExecutionOrderResponse(
         execution_order=execution_order,
         tool_count=len(execution_order),
+        parallel_groups=parallel_groups,
     )
 
 

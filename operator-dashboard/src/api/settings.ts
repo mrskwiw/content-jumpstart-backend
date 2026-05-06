@@ -35,6 +35,7 @@ export interface IntegrationStatus {
   brave: boolean;
   tavily: boolean;
   serpapi: boolean;
+  dataforseo: boolean;
 }
 
 export const settingsApi = {

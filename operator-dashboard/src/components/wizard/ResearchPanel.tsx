@@ -61,7 +61,7 @@ interface Props {
 type Step = 'selection' | 'data-collection' | 'executing';
 
 interface ExecutionState {
-  currentTool: string | null;
+  currentTools: string[];
   completed: string[];
   failed: Array<{ tool: string; error: string }>;
   isComplete: boolean;
@@ -74,7 +74,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
   const [collectedData, setCollectedData] = useState<Record<string, any>>({});
   const [results, setResults] = useState<Map<string, any>>(new Map());
   const [executionState, setExecutionState] = useState<ExecutionState>({
-    currentTool: null,
+    currentTools: [],
     completed: [],
     failed: [],
     isComplete: false,
@@ -96,7 +96,16 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         // Only restore if we were in the executing step
         if (savedStep === 'executing') {
           setStep(savedStep);
-          setExecutionState(savedExecution);
+          // Migrate from old shape (currentTool: string|null) to new (currentTools: string[])
+          const normalized: ExecutionState = {
+            currentTools: Array.isArray(savedExecution.currentTools)
+              ? savedExecution.currentTools
+              : [],
+            completed: savedExecution.completed ?? [],
+            failed: savedExecution.failed ?? [],
+            isComplete: savedExecution.isComplete ?? false,
+          };
+          setExecutionState(normalized);
           setSelected(new Set(savedSelected));
           setCollectedData(savedData);
         }
@@ -246,7 +255,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         params: params || {},
       }),
     onSuccess: (data, variables) => {
-      setResults(new Map(results).set(variables.tool, data));
+      setResults(prev => new Map(prev).set(variables.tool, data));
 
       // Extract metrics from research outputs
       const metrics = extractResearchMetrics(data.outputs);
@@ -379,7 +388,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
 
     // Reset execution state
     setExecutionState({
-      currentTool: null,
+      currentTools: [],
       completed: [],
       failed: [],
       isComplete: false,
@@ -388,48 +397,67 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     const completed: string[] = [];
     const failed: Array<{ tool: string; error: string }> = [];
 
-    // Feature 3: Get optimal execution order from backend
-    let executionOrder: string[];
+    // Get execution order + parallel groups from backend
+    let parallelGroups: string[][];
     try {
       const orderResult = await researchApi.getExecutionOrder(Array.from(selected));
-      executionOrder = orderResult.executionOrder;
+      parallelGroups = orderResult.parallelGroups;
     } catch (error) {
-      console.error('Failed to get execution order, using selection order as fallback', error);
-      // Fallback to original selection order if API fails
-      executionOrder = Array.from(selected);
+      console.error('Failed to get execution order, falling back to sequential', error);
+      // Fallback: run every tool individually in selection order
+      parallelGroups = Array.from(selected).map(t => [t]);
     }
 
-    // Execute tools in dependency order (prerequisites first)
-    for (const tool of executionOrder) {
-      // Update current tool being executed
-      setExecutionState(prev => ({ ...prev, currentTool: tool }));
+    // Per-tool stall guard. 20 min covers the worst-case SEO run (Trends
+    // rate-limited, circuit breaker fires after 3 fast skips) with headroom.
+    const TOOL_TIMEOUT_MS = 20 * 60 * 1000;
 
-      const toolParams = params[tool] || params;
-      try {
-        // Add 5 minute timeout per tool
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Tool execution timed out after 5 minutes')), 5 * 60 * 1000)
+    const withTimeout = (tool: string, promise: Promise<{ tool: string; result: unknown }>) => {
+      let timerId: ReturnType<typeof setTimeout>;
+      const guard = new Promise<never>((_, reject) => {
+        timerId = setTimeout(
+          () => reject({ tool, err: new Error(`Tool stalled — no response after 20 minutes`) }),
+          TOOL_TIMEOUT_MS
         );
+      });
+      return Promise.race([promise, guard]).finally(() => clearTimeout(timerId));
+    };
 
-        const executionPromise = runResearchMutation.mutateAsync({ tool, params: toolParams });
+    // Execute each group sequentially; tools within a group run in parallel
+    for (const group of parallelGroups) {
+      setExecutionState(prev => ({ ...prev, currentTools: [...prev.currentTools, ...group] }));
 
-        await Promise.race([executionPromise, timeoutPromise]);
+      const groupSettled = await Promise.allSettled(
+        group.map(tool => {
+          const toolParams = params[tool] || params;
+          return withTimeout(
+            tool,
+            runResearchMutation.mutateAsync({ tool, params: toolParams })
+              .then(result => ({ tool, result }))
+              .catch((err: unknown) => Promise.reject({ tool, err }))
+          );
+        })
+      );
 
-        completed.push(tool);
-        setExecutionState(prev => ({
-          ...prev,
-          completed: [...prev.completed, tool],
-          currentTool: null,
-        }));
-      } catch (error) {
-        // Tool failed - record error and continue
-        const errorMsg = error instanceof Error ? error.message : getApiErrorMessage(error);
-        failed.push({ tool, error: errorMsg });
-        setExecutionState(prev => ({
-          ...prev,
-          failed: [...prev.failed, { tool, error: errorMsg }],
-          currentTool: null,
-        }));
+      for (const outcome of groupSettled) {
+        if (outcome.status === 'fulfilled') {
+          const { tool } = outcome.value;
+          completed.push(tool);
+          setExecutionState(prev => ({
+            ...prev,
+            completed: [...prev.completed, tool],
+            currentTools: prev.currentTools.filter(t => t !== tool),
+          }));
+        } else {
+          const { tool, err } = outcome.reason as { tool: string; err: unknown };
+          const errorMsg = err instanceof Error ? err.message : getApiErrorMessage(err);
+          failed.push({ tool, error: errorMsg });
+          setExecutionState(prev => ({
+            ...prev,
+            failed: [...prev.failed, { tool, error: errorMsg }],
+            currentTools: prev.currentTools.filter(t => t !== tool),
+          }));
+        }
       }
     }
 
@@ -455,7 +483,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     // Go back to selection
     setStep('selection');
     setExecutionState({
-      currentTool: null,
+      currentTools: [],
       completed: [],
       failed: [],
       isComplete: false,
@@ -582,11 +610,11 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
 
   // Show executing step
   if (step === 'executing') {
-    const { currentTool, completed, failed, isComplete } = executionState;
+    const { currentTools, completed, failed, isComplete } = executionState;
     const totalTools = selected.size;
     const successCount = completed.length;
     const failedCount = failed.length;
-    const inProgress = !isComplete && currentTool !== null;
+    const inProgress = !isComplete && currentTools.length > 0;
 
     return (
       <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-neutral-900 p-8 shadow-sm">
@@ -613,7 +641,10 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
             </h3>
             {inProgress && (
               <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                Currently executing: <span className="font-medium">{TOOL_LABELS[currentTool] || currentTool}</span>
+                Currently executing:{' '}
+                <span className="font-medium">
+                  {currentTools.map(t => TOOL_LABELS[t] || t).join(', ')}
+                </span>
               </p>
             )}
           </div>

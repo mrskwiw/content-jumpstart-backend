@@ -3284,6 +3284,8 @@ export interface components {
             execution_order: string[];
             /** Tool Count */
             tool_count: number;
+            /** Parallel Groups — tools within each group can run concurrently */
+            parallel_groups: string[][];
         };
         /**
          * ExportInput

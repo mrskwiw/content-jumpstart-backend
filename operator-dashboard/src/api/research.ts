@@ -300,7 +300,7 @@ export const researchApi = {
   /**
    * Get optimal execution order for research tools based on dependencies
    */
-  async getExecutionOrder(toolNames: string[]): Promise<{ executionOrder: string[]; toolCount: number }> {
+  async getExecutionOrder(toolNames: string[]): Promise<{ executionOrder: string[]; toolCount: number; parallelGroups: string[][] }> {
     const { data } = await apiClient.post(
       '/api/research/execution-order',
       { tool_names: toolNames }
@@ -308,11 +308,13 @@ export const researchApi = {
     const schema = z.object({
       execution_order: z.array(z.string()),
       tool_count: z.number(),
+      parallel_groups: z.array(z.array(z.string())),
     });
     const parsed = schema.parse(data);
     return {
       executionOrder: parsed.execution_order,
       toolCount: parsed.tool_count,
+      parallelGroups: parsed.parallel_groups,
     };
   },
 

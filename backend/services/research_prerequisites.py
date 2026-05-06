@@ -366,6 +366,54 @@ class ResearchPrerequisites:
         logger.info(f"Execution order: {ordered}")
         return ordered
 
+    def get_parallel_groups(self, tool_ids: List[str]) -> List[List[str]]:
+        """
+        Group tools into parallel execution batches based on dependencies.
+
+        Tools within the same group have no inter-dependencies and can run concurrently.
+        Groups must be executed sequentially (group N+1 waits for group N to finish).
+
+        Args:
+            tool_ids: List of tool IDs to execute
+
+        Returns:
+            List of groups; each group is a list of tool IDs safe to run in parallel
+        """
+        graph: Dict[str, Set[str]] = {tool_id: set() for tool_id in tool_ids}
+        in_degree: Dict[str, int] = {tool_id: 0 for tool_id in tool_ids}
+
+        for tool_id in tool_ids:
+            deps = self.get_dependencies(tool_id)
+            if not deps:
+                continue
+            for prereq in deps.prerequisites:
+                if prereq.tool_id in tool_ids:
+                    graph[prereq.tool_id].add(tool_id)
+                    in_degree[tool_id] += 1
+
+        def _tier(t: str) -> int:
+            return self.dependencies.get(t, ToolDependencies("", 999, [], [], "")).tier
+
+        groups: List[List[str]] = []
+        current_level = sorted([t for t in tool_ids if in_degree[t] == 0], key=_tier)
+
+        while current_level:
+            groups.append(current_level)
+            next_level: List[str] = []
+            for tool in current_level:
+                for dependent in graph[tool]:
+                    in_degree[dependent] -= 1
+                    if in_degree[dependent] == 0:
+                        next_level.append(dependent)
+            current_level = sorted(next_level, key=_tier)
+
+        if sum(len(g) for g in groups) != len(tool_ids):
+            logger.error(f"Circular dependency detected, falling back to sequential: {tool_ids}")
+            return [[t] for t in tool_ids]
+
+        logger.info(f"Parallel groups: {groups}")
+        return groups
+
     def get_missing_prerequisites_message(
         self, tool_id: str, missing_required: List[str], missing_recommended: List[str]
     ) -> str:
