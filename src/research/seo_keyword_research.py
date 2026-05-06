@@ -984,6 +984,11 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                                         top_queries["query"].head(5).tolist()
                                     )
                         except Exception as rq_err:
+                            # Re-raise 429s so the outer handler increments
+                            # consecutive_failures and can trigger early exit.
+                            # Swallow everything else — related queries are optional.
+                            if "429" in str(rq_err) or "too many" in str(rq_err).lower():
+                                raise
                             logger.debug(
                                 f"Could not fetch related queries for '{keyword_term}': {rq_err}"
                             )
