@@ -475,18 +475,20 @@ class GeneratorService:
             # already ran during generation; this pass catches batch-level
             # issues (hook uniqueness, CTA variety, SEO, headlines).
             qa_score_pre: float | None = None
+            qa_overall_passed: bool | None = None  # None = QA didn't run
             if run_id and posts:
                 try:
                     from src.agents.qa_agent import QAAgent
 
                     qa_report = QAAgent().validate_posts(posts, client.name or "")
                     qa_score_pre = qa_report.quality_score
+                    qa_overall_passed = qa_report.overall_passed
                     logger.info(
                         f"Pre-commit QA: {qa_score_pre:.1%} "
-                        f"({'PASSED' if qa_report.overall_passed else 'NEEDS REVIEW'}), "
+                        f"({'PASSED' if qa_overall_passed else 'NEEDS REVIEW'}), "
                         f"issues: {qa_report.total_issues}"
                     )
-                    if not qa_report.overall_passed:
+                    if not qa_overall_passed:
                         logger.warning(
                             f"Batch QA failed before commit — {qa_report.total_issues} issue(s). "
                             f"Posts will be saved with needs_review=True."
@@ -509,8 +511,9 @@ class GeneratorService:
             posts_failed = 0
             placeholder_count = 0
 
-            # When batch QA failed, flag every post for review before saving
-            batch_qa_failed = qa_score_pre is not None and qa_score_pre < 0.70
+            # When batch QA failed (using the validators' own pass/fail signal,
+            # not an arbitrary score threshold), flag every post for review.
+            batch_qa_failed = qa_overall_passed is False
 
             for idx, post in enumerate(posts):
                 try:
