@@ -146,9 +146,19 @@ async def download_database_backup(
         logger.info("Backing up in-memory SQLite database via sqlite3 backup API")
         _backup_in_memory_db(backup_path)
     else:
-        # File-based SQLite: safe to copy the file directly
+        # Use sqlite3 backup API instead of shutil.copy2 so that WAL-mode changes
+        # that haven't been checkpointed yet are included in the backup.
         db_path = get_database_path()
-        shutil.copy2(db_path, backup_path)
+        logger.info("Backing up file-based SQLite database via sqlite3 backup API")
+        src = sqlite3.connect(str(db_path))
+        try:
+            dest = sqlite3.connect(str(backup_path))
+            try:
+                src.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            src.close()
 
     # Return file for download
     return FileResponse(

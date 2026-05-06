@@ -191,16 +191,15 @@ class GeneratorService:
         if not client:
             raise ValueError(f"Client {project.client_id} not found")
 
-        # Get original posts to regenerate
-        original_posts = []
-        for post_id in post_ids:
-            post = crud.get_post(db, post_id)
-            if post and post.project_id == project_id:
-                original_posts.append(post)
-            else:
-                logger.warning(
-                    f"Post {post_id} not found or doesn't belong to project {project_id}"
-                )
+        # Fetch all requested posts in one query — avoids N individual lookups
+        # and any identity-map interference from the cached project object.
+        original_posts = (
+            db.query(Post).filter(Post.id.in_(post_ids), Post.project_id == project_id).all()
+        )
+        found_ids = {p.id for p in original_posts}
+        for pid in post_ids:
+            if pid not in found_ids:
+                logger.warning(f"Post {pid} not found or doesn't belong to project {project_id}")
 
         if not original_posts:
             return {
@@ -258,6 +257,7 @@ class GeneratorService:
                 tone_preference=project.tone or client.tone_preference or "Professional",
                 customer_pain_points=client.customer_pain_points or [],
                 customer_questions=client.customer_questions or [],
+                project_id=project_id,
             )
 
             # Generate new posts
@@ -403,6 +403,7 @@ class GeneratorService:
                     tone_preference=project.tone or client.tone_preference or "Professional",
                     customer_pain_points=client.customer_pain_points or [],
                     customer_questions=client.customer_questions or [],
+                    project_id=project.id,
                 )
                 logger.info(f"Successfully created ClientBrief for {brief.company_name}")
             except Exception as e:
@@ -511,9 +512,11 @@ class GeneratorService:
             posts_failed = 0
             placeholder_count = 0
 
-            # When batch QA failed (using the validators' own pass/fail signal,
-            # not an arbitrary score threshold), flag every post for review.
-            batch_qa_failed = qa_overall_passed is False
+            # Determine per-post CTA status so only posts that genuinely lack a
+            # CTA are flagged — not every post in the batch when one fails.
+            from src.validators.cta_validator import CTAValidator as _CTAValidator
+
+            _cta_types = _CTAValidator()._extract_cta_types(posts)
 
             for idx, post in enumerate(posts):
                 try:
@@ -523,14 +526,15 @@ class GeneratorService:
                     )
 
                     is_placeholder = post.content.startswith("[ERROR:")
-                    # A post is flagged if it's a generation placeholder OR if
-                    # the batch QA run (before commit) found quality issues.
-                    needs_flag = is_placeholder or (batch_qa_failed and not is_placeholder)
+                    # Flag only posts that genuinely have no CTA of any kind.
+                    # Engagement questions are a valid CTA type and must not be flagged.
+                    post_has_no_cta = _cta_types[idx] == "no_cta"
+                    needs_flag = is_placeholder or post_has_no_cta
                     post_flags: list[str] = []
                     if is_placeholder:
                         post_flags.append("placeholder")
-                    if batch_qa_failed and not is_placeholder:
-                        post_flags.append("qa_review")
+                    if post_has_no_cta and not is_placeholder:
+                        post_flags.append("no_cta")
                     db_post = Post(
                         id=post_id,
                         project_id=project.id,

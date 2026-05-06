@@ -104,10 +104,9 @@ class CTAValidator:
         if missing_cta > 0:
             issues.append(f"{missing_cta} post(s) missing clear CTA")
 
-        # Check CTA placement and form per-post
+        # Check CTA placement per-post (engagement questions handled by _extract_cta_types)
         for post in posts:
             issues.extend(self._check_post_cta_placement(post))
-            issues.extend(self._check_post_ends_with_question(post))
 
         return {
             "passed": len(issues) == 0,
@@ -184,12 +183,19 @@ class CTAValidator:
             lines = post.content.strip().split("\n")
             cta_section = "\n".join(lines[-2:]).lower()
 
-            # Match against patterns
+            # Match against imperative CTA patterns
             cta_type = "no_cta"
             for pattern, type_name in self.CTA_PATTERNS:
                 if re.search(pattern, cta_section, re.IGNORECASE):
                     cta_type = type_name
                     break
+
+            # Engagement question on the last line is a valid CTA type for
+            # templates like Question Post, Contrarian Take, Prediction Post, Q&A.
+            if cta_type == "no_cta":
+                last_line = lines[-1].strip() if lines else ""
+                if last_line.endswith("?"):
+                    cta_type = "engagement_question"
 
             cta_types.append(cta_type)
 

@@ -752,6 +752,7 @@ Generate a post following this template structure, customized for this client's 
         system_prompt: Optional[str] = None,
         temperature: float = POST_GENERATION_TEMPERATURE,
         max_tokens: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> str:
         """
         Async version of generate_post_content for parallel execution
@@ -763,6 +764,7 @@ Generate a post following this template structure, customized for this client's 
             temperature: Sampling temperature for generation
             max_tokens: Token budget for output (defaults to settings.MAX_TOKENS).
                         Pass a higher value for long-form content like blog posts.
+            project_id: Backend project ID forwarded to cost tracker.
 
         Returns:
             Generated post content
@@ -784,7 +786,12 @@ Generate a post following this template structure, customized for this client's 
         messages = [{"role": "user", "content": user_message}]
 
         return await self.create_message_async(
-            messages=messages, system=system_prompt, temperature=temperature, max_tokens=max_tokens
+            messages=messages,
+            system=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            project_id=project_id,
+            operation="post_generation",
         )
 
     def _format_context_optimized(self, context: Dict[str, Any]) -> str:

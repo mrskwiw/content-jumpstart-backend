@@ -732,7 +732,7 @@ def init_db():
                     if col_name not in columns:
                         import re
 
-                        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*dollar", col_name):
+                        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col_name):
                             print(
                                 f">> ERROR: Invalid column name '{col_name}' (security check failed)"
                             )

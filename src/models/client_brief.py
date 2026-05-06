@@ -132,6 +132,9 @@ class ClientBrief(BaseModel):
 
     # Metadata
     delivery_date: Optional[str] = Field(None, description="Requested delivery date")
+    project_id: Optional[str] = Field(
+        None, description="Backend database project ID for cost tracking"
+    )
 
     @field_validator("customer_questions")
     @classmethod

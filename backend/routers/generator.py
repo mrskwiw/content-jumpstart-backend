@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db, SessionLocal
 from backend.middleware.auth_dependency import get_current_user
 from backend.models import User
+from backend.models.project import Project
 from backend.models.research_result import ResearchResult
 from backend.schemas.run import RunResponse, LogEntry
 from backend.schemas.deliverable import DeliverableResponse
@@ -770,16 +771,16 @@ async def regenerate(
 
     Used for quality gate - regenerate flagged posts.
     """
-    # Verify project exists
-    project = crud.get_project(db, input.project_id)
+    # Verify project exists — query directly so the session never holds a stale
+    # posts collection from the cache.  db.merge(cached_project) would import an
+    # old Project.posts list that, combined with cascade="all, delete-orphan",
+    # causes SQLAlchemy to DELETE freshly-generated posts on the next commit.
+    project = db.query(Project).filter(Project.id == input.project_id).first()
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project {input.project_id} not found",
         )
-
-    # Reattach detached object to session for attribute access
-    project = db.merge(project)
 
     # TR-021: Verify user owns the project
     if project.user_id != current_user.id and not current_user.is_superuser:
