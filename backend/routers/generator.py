@@ -207,16 +207,14 @@ async def run_generation_background(
             )
 
             run_status = "partial" if placeholder_count > 0 else "succeeded"
+            # Token fields are already set per-run by sync_run_token_usage inside
+            # _generate_with_template_quantities.  get_project_cost returns all-time
+            # project totals, not per-run, so we must not overwrite them here.
             crud.update_run(
                 db,
                 run_id,
                 status=run_status,
                 logs=[log.model_dump() for log in logs],
-                total_input_tokens=project_cost.total_input_tokens,
-                total_output_tokens=project_cost.total_output_tokens,
-                total_cache_creation_tokens=project_cost.total_cache_creation_tokens,
-                total_cache_read_tokens=project_cost.total_cache_read_tokens,
-                total_cost_usd=project_cost.total_cost,
             )
         except Exception as cost_err:
             # If cost tracking fails, still update run status (Bug #59 diagnostic)

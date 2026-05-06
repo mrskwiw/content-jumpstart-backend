@@ -710,6 +710,7 @@ class AnthropicClient:
         system_prompt: Optional[str] = None,
         temperature: float = POST_GENERATION_TEMPERATURE,
         max_tokens: Optional[int] = None,
+        project_id: Optional[str] = None,
     ) -> str:
         """
         Generate post content from a template and context
@@ -721,6 +722,7 @@ class AnthropicClient:
             temperature: Sampling temperature for generation
             max_tokens: Token budget for output (defaults to settings.MAX_TOKENS).
                         Pass a higher value for long-form content like blog posts.
+            project_id: Backend project ID forwarded to cost tracker.
 
         Returns:
             Generated post content
@@ -742,7 +744,12 @@ Generate a post following this template structure, customized for this client's 
         messages = [{"role": "user", "content": user_message}]
 
         return self.create_message(
-            messages=messages, system=system_prompt, temperature=temperature, max_tokens=max_tokens
+            messages=messages,
+            system=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            project_id=project_id,
+            operation="post_generation",
         )
 
     async def generate_post_content_async(

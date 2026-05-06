@@ -947,6 +947,7 @@ Rules:
                 system_prompt=system_prompt,
                 temperature=0.7,  # Balanced creativity
                 max_tokens=generation_max_tokens,
+                project_id=getattr(client_brief, "project_id", None),
             )
 
             # SECURITY: Validate output for prompt leakage (TR-014)
