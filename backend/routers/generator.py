@@ -844,43 +844,33 @@ async def regenerate(
             ),
         ]
 
-        # Capture token usage and cost (Task #32)
-        from src.utils.cost_tracker import get_default_tracker
+        # Sync per-run token usage from cost_tracker.db (same approach as generation).
+        # get_project_cost returns all-time project totals, not per-run, so we use
+        # sync_run_token_usage with a time window to get accurate per-run figures.
+        from backend.services.token_sync_service import token_sync_service
 
         try:
-            cost_tracker = get_default_tracker()
-            project_cost = cost_tracker.get_project_cost(input.project_id)
-
-            # Add token usage log entry
-            logs.append(
-                LogEntry(
-                    timestamp=timestamp,
-                    message=f"Token usage: {project_cost.total_input_tokens:,} input, "
-                    f"{project_cost.total_output_tokens:,} output "
-                    f"(${project_cost.total_cost:.2f})",
+            usage_data = token_sync_service.sync_run_token_usage(
+                db=db, run_id=db_run.id, project_id=input.project_id
+            )
+            if usage_data:
+                logs.append(
+                    LogEntry(
+                        timestamp=timestamp,
+                        message=f"Token usage: {usage_data.get('total_input_tokens', 0):,} input, "
+                        f"{usage_data.get('total_output_tokens', 0):,} output "
+                        f"(${usage_data.get('total_cost', 0):.2f})",
+                    )
                 )
-            )
-
-            crud.update_run(
-                db,
-                db_run.id,
-                status="succeeded",
-                logs=[log.model_dump() for log in logs],
-                total_input_tokens=project_cost.total_input_tokens,
-                total_output_tokens=project_cost.total_output_tokens,
-                total_cache_creation_tokens=project_cost.total_cache_creation_tokens,
-                total_cache_read_tokens=project_cost.total_cache_read_tokens,
-                total_cost_usd=project_cost.total_cost,
-            )
         except Exception as cost_err:
-            # If cost tracking fails, still update run status
-            logger.warning(f"Failed to track costs for run {db_run.id}: {cost_err}")
-            crud.update_run(
-                db,
-                db_run.id,
-                status="succeeded",
-                logs=[log.model_dump() for log in logs],
-            )
+            logger.warning(f"Failed to sync token usage for run {db_run.id}: {cost_err}")
+
+        crud.update_run(
+            db,
+            db_run.id,
+            status="succeeded",
+            logs=[log.model_dump() for log in logs],
+        )
 
         db.refresh(db_run)
         logger.info(f"Regeneration completed successfully for run {db_run.id}")
