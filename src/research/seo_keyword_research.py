@@ -879,7 +879,13 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
         """
         Enrich keywords with Google Trends data (in-place modification).
 
-        Fetches trend data for up to 5 keywords at a time and updates:
+        Fetches trend data one keyword at a time with randomised inter-request
+        delays to stay under Google's scraper detector.  Batching 5 keywords
+        per request produces a traffic burst that triggers 429s immediately on
+        cloud IPs; sequential single-keyword requests with jittered delays look
+        much more like organic browsing.
+
+        Updates per keyword:
         - trend_score: Average interest score (0-100)
         - trend_direction: rising/stable/declining/seasonal
         - seasonal: Boolean indicating seasonal variation
@@ -889,12 +895,12 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
             keywords: List of Keyword objects to enrich (modified in-place)
         """
         try:
-            from pytrends.request import TrendReq
-            import time
+            import random
             import statistics
+            import time
 
-            # Initialize pytrends client with compatibility handling
-            # Note: urllib3 2.0+ uses 'allowed_methods' instead of 'method_whitelist'
+            from pytrends.request import TrendReq
+
             try:
                 pytrends = TrendReq(
                     hl="en-US",
@@ -904,32 +910,33 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                     backoff_factor=0.5,
                 )
             except TypeError:
-                # Fallback for older pytrends/urllib3 compatibility
-                # Create without retry parameters and let pytrends use defaults
                 pytrends = TrendReq(hl="en-US", tz=360, timeout=(10, 25))
 
-            logger.info(f"Enriching {len(keywords)} keywords with Google Trends data")
+            # Cap at 10 keywords — beyond that the marginal value doesn't justify
+            # the extra request volume and latency.
+            targets = keywords[: min(len(keywords), 10)]
+            logger.info(f"Enriching {len(targets)} keywords with Google Trends data")
 
-            # Process keywords in batches of 5 (Google Trends API limit).
-            # Inter-batch delay is 10s — Google aggressively rate-limits cloud IPs
-            # at shorter intervals. Each batch retries up to 3× on 429 with backoff.
-            BATCH_DELAY_S = 10
-            MAX_BATCH_RETRIES = 3
+            MAX_RETRIES = 3
+            consecutive_failures = 0
 
-            for i in range(0, min(len(keywords), 10), 5):  # Limit to first 10 keywords
-                batch = keywords[i : i + 5]
-                keyword_terms = [kw.keyword for kw in batch]
+            for idx, keyword_obj in enumerate(targets):
+                # Randomised inter-request delay: 2–5 s for the first request,
+                # 3–7 s after the first to let the previous response settle.
+                if idx > 0:
+                    time.sleep(random.uniform(3.0, 7.0))  # nosec B311 — timing jitter, not crypto
 
-                if i > 0:
-                    time.sleep(BATCH_DELAY_S)
+                keyword_term = keyword_obj.keyword
 
-                for batch_attempt in range(MAX_BATCH_RETRIES):
+                for attempt in range(MAX_RETRIES):
                     try:
-                        if batch_attempt > 0:
-                            time.sleep(30 * batch_attempt)  # 30s, 60s backoff
+                        if attempt > 0:
+                            # Jittered backoff: 25–45 s on attempt 2, 50–90 s on attempt 3
+                            base = 35 * attempt
+                            time.sleep(random.uniform(base * 0.7, base * 1.3))  # nosec B311
 
                         pytrends.build_payload(
-                            keyword_terms,
+                            [keyword_term],
                             timeframe="today 12-m",
                             geo="",
                         )
@@ -939,68 +946,81 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
                             if "isPartial" in interest_df.columns:
                                 interest_df = interest_df.drop("isPartial", axis=1)
 
-                            for keyword_obj in batch:
-                                keyword_term = keyword_obj.keyword
-                                if keyword_term in interest_df.columns:
-                                    values = interest_df[keyword_term].tolist()
-                                    if values:
-                                        mean_score = float(statistics.mean(values[-4:]))
-                                        keyword_obj.trend_score = mean_score
-                                        keyword_obj.trend_momentum_score = mean_score
-                                        if len(values) >= 8:
-                                            recent_avg = statistics.mean(values[-4:])
-                                            older_avg = statistics.mean(values[-8:-4])
-                                            variance = (
-                                                statistics.stdev(values) if len(values) > 1 else 0
-                                            )
-                                            keyword_obj.seasonal = variance > 25
-                                            if keyword_obj.seasonal:
-                                                keyword_obj.trend_direction = "seasonal"
-                                            elif recent_avg > older_avg * 1.2:
-                                                keyword_obj.trend_direction = "rising"
-                                            elif recent_avg < older_avg * 0.8:
-                                                keyword_obj.trend_direction = "declining"
-                                            else:
-                                                keyword_obj.trend_direction = "stable"
+                            if keyword_term in interest_df.columns:
+                                values = interest_df[keyword_term].tolist()
+                                if values:
+                                    mean_score = float(statistics.mean(values[-4:]))
+                                    keyword_obj.trend_score = mean_score
+                                    keyword_obj.trend_momentum_score = mean_score
+                                    if len(values) >= 8:
+                                        recent_avg = statistics.mean(values[-4:])
+                                        older_avg = statistics.mean(values[-8:-4])
+                                        variance = (
+                                            statistics.stdev(values) if len(values) > 1 else 0
+                                        )
+                                        keyword_obj.seasonal = variance > 25
+                                        if keyword_obj.seasonal:
+                                            keyword_obj.trend_direction = "seasonal"
+                                        elif recent_avg > older_avg * 1.2:
+                                            keyword_obj.trend_direction = "rising"
+                                        elif recent_avg < older_avg * 0.8:
+                                            keyword_obj.trend_direction = "declining"
                                         else:
                                             keyword_obj.trend_direction = "stable"
+                                    else:
+                                        keyword_obj.trend_direction = "stable"
 
-                        # Related queries — failure here doesn't block trend scores
+                        # Related queries — extra request, so add a short delay first
                         try:
+                            time.sleep(random.uniform(1.0, 2.5))  # nosec B311
                             related_queries = pytrends.related_queries()
-                            for keyword_obj in batch:
-                                keyword_term = keyword_obj.keyword
-                                if (
-                                    keyword_term in related_queries
-                                    and related_queries[keyword_term]["top"] is not None
-                                ):
-                                    top_queries = related_queries[keyword_term]["top"]
-                                    if not top_queries.empty:
-                                        keyword_obj.related_queries = (
-                                            top_queries["query"].head(5).tolist()
-                                        )
-                        except Exception as e:
-                            logger.debug(f"Could not fetch related queries: {e}")
+                            if (
+                                keyword_term in related_queries
+                                and related_queries[keyword_term]["top"] is not None
+                            ):
+                                top_queries = related_queries[keyword_term]["top"]
+                                if not top_queries.empty:
+                                    keyword_obj.related_queries = (
+                                        top_queries["query"].head(5).tolist()
+                                    )
+                        except Exception as rq_err:
+                            logger.debug(
+                                f"Could not fetch related queries for '{keyword_term}': {rq_err}"
+                            )
 
-                        break  # success — exit retry loop
+                        consecutive_failures = 0
+                        break  # success
 
                     except Exception as e:
                         is_rate_limit = "429" in str(e) or "too many" in str(e).lower()
-                        if is_rate_limit and batch_attempt < MAX_BATCH_RETRIES - 1:
-                            wait = 30 * (batch_attempt + 1)
+                        if is_rate_limit and attempt < MAX_RETRIES - 1:
+                            base = 35 * (attempt + 1)
+                            wait = random.uniform(base * 0.7, base * 1.3)  # nosec B311
                             logger.warning(
-                                f"Trends batch {i // 5 + 1} hit 429 "
-                                f"(attempt {batch_attempt + 1}/{MAX_BATCH_RETRIES}), "
-                                f"retrying in {wait}s"
+                                f"Trends 429 for '{keyword_term}' "
+                                f"(attempt {attempt + 1}/{MAX_RETRIES}), "
+                                f"retrying in {wait:.0f}s"
                             )
+                            time.sleep(wait)
                         else:
-                            logger.warning(f"Failed to fetch trends for batch {i // 5 + 1}: {e}")
+                            logger.warning(
+                                f"Trends failed for '{keyword_term}' after {attempt + 1} attempt(s): {e}"
+                            )
+                            consecutive_failures += 1
                             break
 
-            # Count how many keywords were enriched
+                # If 3 keywords in a row have failed we're likely fully blocked —
+                # stop early rather than burning time on guaranteed failures.
+                if consecutive_failures >= 3:
+                    logger.warning(
+                        "3 consecutive Trends failures — stopping enrichment early "
+                        "(IP likely blocked; remaining keywords will have no trend data)"
+                    )
+                    break
+
             enriched_count = sum(1 for kw in keywords if kw.trend_score is not None)
             logger.info(
-                f"Successfully enriched {enriched_count}/{len(keywords)} keywords with Google Trends data"
+                f"Successfully enriched {enriched_count}/{len(targets)} keywords with Google Trends data"
             )
 
         except ImportError:
