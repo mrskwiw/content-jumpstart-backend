@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Circle, FlaskConical, ArrowRight, Loader2, Coins, Clock, Link2, AlertCircle, Settings } from 'lucide-react';
 import { researchApi, ResearchTool } from '@/api/research';
@@ -79,6 +79,10 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     failed: [],
     isComplete: false,
   });
+  // Tracks tools already settled by the execution loop so late onSuccess/onError
+  // callbacks (e.g. after a 20-min stall timeout) are no-ops rather than
+  // writing stale data into results or triggering spurious notifications.
+  const settledInRun = useRef<Set<string>>(new Set());
 
   // Bug #58 Fix: Persist execution state across tab navigation using sessionStorage
   const storageKey = `research-execution-${projectId}`;
@@ -100,7 +104,9 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
           const normalized: ExecutionState = {
             currentTools: Array.isArray(savedExecution.currentTools)
               ? savedExecution.currentTools
-              : [],
+              : typeof savedExecution.currentTool === 'string'
+                ? [savedExecution.currentTool]
+                : [],
             completed: savedExecution.completed ?? [],
             failed: savedExecution.failed ?? [],
             isComplete: savedExecution.isComplete ?? false,
@@ -255,6 +261,9 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         params: params || {},
       }),
     onSuccess: (data, variables) => {
+      // Skip if the execution loop already settled this tool (e.g. via timeout)
+      if (settledInRun.current.has(variables.tool)) return;
+
       setResults(prev => new Map(prev).set(variables.tool, data));
 
       // Extract metrics from research outputs
@@ -274,6 +283,9 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
       historyQuery.refetch();
     },
     onError: (error, variables) => {
+      // Skip if the execution loop already settled this tool (e.g. via timeout)
+      if (settledInRun.current.has(variables.tool)) return;
+
       const errorMessage = getApiErrorMessage(error);
 
       // Show error notification
@@ -387,6 +399,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     }
 
     // Reset execution state
+    settledInRun.current = new Set();
     setExecutionState({
       currentTools: [],
       completed: [],
@@ -442,6 +455,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
       for (const outcome of groupSettled) {
         if (outcome.status === 'fulfilled') {
           const { tool } = outcome.value;
+          settledInRun.current.add(tool);
           completed.push(tool);
           setExecutionState(prev => ({
             ...prev,
@@ -450,6 +464,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
           }));
         } else {
           const { tool, err } = outcome.reason as { tool: string; err: unknown };
+          settledInRun.current.add(tool);
           const errorMsg = err instanceof Error ? err.message : getApiErrorMessage(err);
           failed.push({ tool, error: errorMsg });
           setExecutionState(prev => ({

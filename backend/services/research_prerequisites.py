@@ -408,8 +408,9 @@ class ResearchPrerequisites:
             current_level = sorted(next_level, key=_tier)
 
         if sum(len(g) for g in groups) != len(tool_ids):
-            logger.error(f"Circular dependency detected, falling back to sequential: {tool_ids}")
-            return [[t] for t in tool_ids]
+            cyclic = [t for t in tool_ids if not any(t in g for g in groups)]
+            logger.error(f"Circular dependency detected in tools: {cyclic}")
+            raise ValueError(f"Circular dependency detected among research tools: {cyclic}")
 
         logger.info(f"Parallel groups: {groups}")
         return groups

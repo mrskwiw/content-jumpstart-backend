@@ -1057,6 +1057,7 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
             keyword_obj.trend_score = result["trend_score"]
             keyword_obj.trend_direction = result["trend_direction"]
             keyword_obj.trend_momentum_score = result["trend_momentum_score"]
+            keyword_obj.seasonal = result["trend_direction"] == "seasonal"
             logger.info(
                 f"DataForSEO fallback succeeded for '{keyword_term}': "
                 f"score={result['trend_score']:.1f}, direction={result['trend_direction']}"
