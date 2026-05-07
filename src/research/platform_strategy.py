@@ -222,6 +222,21 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             self.client, business_description, target_audience
         )
 
+        # Deduplicate audience_behavior by platform value right here so every
+        # downstream method — _generate_platform_recommendations, _determine_platform_mix,
+        # and the stored analysis result — all work with unique platform entries.
+        # _map_platform_name collapses several platform variants (Instagram, Google
+        # Business Profile, etc.) onto the same enum value, so the same platform
+        # can appear 2-3 times in the raw output, multiplying prompt size and
+        # pushing _generate_platform_recommendations past its token budget.
+        _seen_platforms: set = set()
+        audience_behavior = [
+            b
+            for b in audience_behavior
+            if b.platform.value not in _seen_platforms
+            and not _seen_platforms.add(b.platform.value)  # type: ignore[func-returns-value]
+        ]
+
         # Step 2: Generate platform recommendations (with optional live demographics)
         print("[Step 2/5] Evaluating platform fit and recommendations...")
         active_platform_names = [b.platform.value for b in audience_behavior if b.audience_present]
@@ -558,7 +573,7 @@ Return a JSON array with one object per platform:
 Be specific to this business — do not give generic advice that could apply to any company."""
 
         response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=6000
+            messages=[{"role": "user", "content": prompt}], max_tokens=16000
         )
 
         # Parse response — expect an array

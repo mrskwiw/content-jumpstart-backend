@@ -119,7 +119,7 @@ FIELD-BY-FIELD GENERATION CHECKLIST:
 7. **Length Optimization:**
    - LinkedIn: 220-280 words (MINIMUM 200 — posts under 200 words will be rejected)
    - Twitter: 70-100 characters for standalone posts
-   - Facebook: 10-15 words for standalone posts, or 40-80 characters for short teaser copy
+   - Facebook: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected)
    - Count words/characters before finishing — if under the minimum, expand
 
 8. **Quality Validation:**
@@ -144,9 +144,9 @@ PLATFORM-SPECIFIC GUIDELINES:
 
 **Facebook:**
 - Casual and relatable
-- Short and complete (10-15 words or 40-80 characters for short-form posts)
-- Storytelling works well
-- Community engagement focus
+- 50-80 words (MINIMUM 40 words — never submit under 40 words)
+- Storytelling and relatable observations work well
+- Community engagement focus — one clear point per post
 
 **Instagram:**
 - Visual description helpful
@@ -158,7 +158,7 @@ PRE-OUTPUT LENGTH CHECK (MANDATORY):
 
 Before returning your post, count the words mentally:
 - LinkedIn / Email: If under 200 words → DO NOT OUTPUT YET. Add one of: a specific supporting example, a relevant data point, a brief story or scenario, or a "what this looks like in practice" paragraph. Then recount.
-- Facebook: If under 10 words → add a sentence of context or a supporting detail.
+- Facebook: If under 40 words → DO NOT OUTPUT YET. Expand with a supporting detail, a brief relatable scenario, or one extra sentence of context. Then recount.
 - Twitter: If over 20 words or 100 characters → cut ruthlessly; if over 280 characters, rewrite from scratch.
 
 A post that is too short FAILS quality validation and will be regenerated. It is faster to write it correctly now than to be asked to fix it.
@@ -176,7 +176,7 @@ FINAL REMINDERS:
 - Strong HOOK
 - Clear CTA (statement, never a question, always the final line)
 - No AI phrases
-- MINIMUM WORD COUNT: LinkedIn 200 words, Facebook 50 words"""
+- MINIMUM WORD COUNT: LinkedIn 200 words, Facebook 40 words"""
 
     BRIEF_PARSER = """You are an expert content strategist analyzing client briefs.
 

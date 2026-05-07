@@ -35,14 +35,14 @@ PLATFORM_LENGTH_SPECS: Dict[Platform, Dict[str, int]] = {
         "thread_max_posts": 8,
     },
     Platform.FACEBOOK: {
-        "min_words": 8,
-        "optimal_min_words": 10,
-        "optimal_max_words": 15,
-        "max_words": 25,
-        "min_chars": 40,
-        "optimal_min_chars": 40,
-        "optimal_max_chars": 80,
-        "max_chars": 125,
+        "min_words": 40,
+        "optimal_min_words": 50,
+        "optimal_max_words": 80,
+        "max_words": 100,
+        "min_chars": 200,
+        "optimal_min_chars": 300,
+        "optimal_max_chars": 500,
+        "max_chars": 650,
     },
     Platform.BLOG: {
         "min_words": 800,
@@ -137,18 +137,18 @@ Guidelines:
 - Direct CTAs work well
 """,
     Platform.FACEBOOK: """
-Target length: 10-15 words (40-80 characters).
+Target length: 50-80 words (MINIMUM 40 words — posts under 40 words will fail validation).
 
 Complete, self-contained post. Does NOT rely on an image to make sense.
 
 Guidelines:
-- Write a COMPLETE post — do NOT write a teaser or headline that implies more content follows
+- Write a COMPLETE post — not a teaser or headline
 - Conversational and relatable tone
 - Short paragraphs (2-3 sentences max)
-- Questions or relatable observations drive engagement
-- Include one clear point or insight — no cliffhangers
+- Tell a small story, share a relatable observation, or deliver one clear insight
+- Questions or relatable hooks drive engagement
 - Emoji usage OK (1-2 max, if appropriate to brand voice)
-- End with a CTA: a question, invitation to comment, or soft call-to-action
+- End with a CTA statement or a soft engagement question on the final line
 """,
     Platform.BLOG: """
 Target length: 1,500-2,000 words (MINIMUM 800 words — posts under 800 will fail validation).
@@ -190,7 +190,7 @@ def get_platform_target_length(platform: Platform) -> str:
     if platform == Platform.TWITTER:
         return "70-100 characters (~12-18 words)"
     if platform == Platform.FACEBOOK:
-        return "10-15 words (40-80 characters)"
+        return "50-80 words"
 
     optimal_min = specs.get("optimal_min_words", specs.get("min_words", 100))
     optimal_max = specs.get("optimal_max_words", specs.get("max_words", 250))

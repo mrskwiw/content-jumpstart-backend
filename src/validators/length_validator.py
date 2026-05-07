@@ -169,7 +169,7 @@ class LengthValidator:
         if platform == Platform.TWITTER:
             return ["0-10", "10-15", "15-20", "20-30", "30+"]
         elif platform == Platform.FACEBOOK:
-            return ["0-8", "8-12", "12-18", "18-25", "25+"]
+            return ["0-40", "40-50", "50-80", "80-100", "100+"]
         elif platform == Platform.LINKEDIN:
             return ["0-150", "150-200", "200-250", "250-300", "300+"]
         elif platform == Platform.BLOG:

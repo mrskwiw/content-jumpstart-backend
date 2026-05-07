@@ -924,14 +924,16 @@ Rules:
 - REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
-            template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
+            template_structure_to_use = f"""Write a Facebook post. Target: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected). Maximum: 100 words.
 
-Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+Template theme: {template.name}
 
 Rules:
-- Complete, self-contained observation or insight — no teasers
+- Complete, self-contained post — not a teaser or headline
 - Conversational and relatable tone
-- End with a soft question or invitation if it fits naturally"""
+- Tell a small story, share a relatable observation, or deliver one clear insight
+- End with a statement CTA or a soft engagement question on the final line
+- Count words before outputting — if under 40, expand before submitting"""
         else:
             template_structure_to_use = template.structure
 
@@ -1124,14 +1126,16 @@ Rules:
 - REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
 - Count characters before outputting — rewrite from scratch if over 280"""
         elif platform == Platform.FACEBOOK:
-            template_structure_to_use = f"""Write a Facebook post. Target: 10-15 words (40-80 characters). Maximum: 125 characters.
+            template_structure_to_use = f"""Write a Facebook post. Target: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected). Maximum: 100 words.
 
-Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
+Template theme: {template.name}
 
 Rules:
-- Complete, self-contained observation or insight — no teasers
+- Complete, self-contained post — not a teaser or headline
 - Conversational and relatable tone
-- End with a soft question or invitation if it fits naturally"""
+- Tell a small story, share a relatable observation, or deliver one clear insight
+- End with a statement CTA or a soft engagement question on the final line
+- Count words before outputting — if under 40, expand before submitting"""
         else:
             template_structure_to_use = template.structure
 
@@ -1579,7 +1583,7 @@ Think: billboard, not paragraph. Punchy, not explanatory.
 
 📘 FACEBOOK POST REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TARGET: 10-15 words (40-80 characters) for standalone posts
+TARGET: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected)
 
 CRITICAL: Write a COMPLETE, self-contained post.
 Do NOT write a teaser or headline that implies more content follows.
@@ -1587,10 +1591,12 @@ Do NOT write a teaser or headline that implies more content follows.
 ❌ WRONG: "Most teams make this mistake. Here's the fix." (teaser with no follow-through)
 ✓ RIGHT: Deliver the actual insight, story, or value IN the post itself.
 
+COUNT WORDS BEFORE OUTPUTTING — if under 40, expand before submitting.
+
 STRUCTURE:
 1. Hook (1 sentence) — relatable observation or bold statement
-2. Core insight or story (2-3 sentences) — the actual point, not a promise of it
-3. CTA (1 sentence) — question, invitation to comment, or soft next step
+2. Core insight or story (2-4 sentences) — the actual point, not a promise of it
+3. CTA (1 sentence) — statement or engagement question on the final line
 
 EXAMPLE:
 "Most content teams burn time on the wrong posts.
@@ -2390,7 +2396,7 @@ REQUIREMENTS:
 4. Target length: {target_length}
 
 For Twitter: Hook + key insight teaser + link + 1-2 hashtags. Target 70-100 characters for standalone copy, or 240-280 characters when including a link. HARD FAIL at 280 characters — count before outputting and rewrite if over.
-For Facebook: Ultra-short teaser + link (10-15 words or 40-80 chars total)
+For Facebook: Short engaging hook + key insight + link (50-80 words total)
 
 Example Twitter format:
 "Your content strategy is backwards → {blog_meta['link_placeholder']}"
