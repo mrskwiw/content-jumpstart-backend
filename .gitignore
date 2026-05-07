@@ -111,6 +111,3 @@ test_*.db
 
 # Cache directories
 .cache/
-
-# Env files (never commit real or example credentials)
-.env.example
