@@ -425,15 +425,23 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
       return Promise.race([promise, guard]).finally(() => clearTimeout(timerId));
     };
 
-    // Fetch the in-run dependency map from the backend. Falls back to an
-    // empty map (all tools independent) if the call fails — every tool fires
-    // immediately and the backend's own prereq check handles blocking.
-    let dependencyMap: Record<string, string[]> = {};
+    // Fetch the in-run dependency map from the backend.
+    // On failure, build an equivalent map from the frontend's hardcoded
+    // TOOL_PREREQUISITES so that known required dependencies (e.g.
+    // determine_competitors → competitive_analysis) are still respected and
+    // tools don't race each other when the /execution-order endpoint is down.
+    let dependencyMap: Record<string, string[]>;
     try {
       const orderResult = await researchApi.getExecutionOrder(Array.from(selected));
       dependencyMap = orderResult.dependencyMap;
     } catch (error) {
-      console.error('Failed to get execution order, running all tools independently', error);
+      console.error('Failed to get execution order, falling back to local dependency map', error);
+      dependencyMap = Object.fromEntries(
+        Array.from(selected).map(tool => [
+          tool,
+          (TOOL_PREREQUISITES[tool]?.required ?? []).filter(dep => selected.has(dep)),
+        ])
+      );
     }
 
     // Per-tool Promise + resolver/rejector so dependency chains can wait on
