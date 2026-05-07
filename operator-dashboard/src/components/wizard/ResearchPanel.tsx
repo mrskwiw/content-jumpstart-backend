@@ -710,47 +710,82 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
             )}
           </div>
 
-          {/* Progress Summary */}
-          <div className="mt-4 rounded-lg bg-neutral-50 dark:bg-neutral-800 px-4 py-3 max-w-md w-full">
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-neutral-600 dark:text-neutral-400">Progress:</span>
-              <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                {successCount + failedCount} of {totalTools}
-              </span>
-            </div>
-            {successCount > 0 && (
-              <div className="flex items-center justify-between text-sm text-emerald-600 dark:text-emerald-400">
-                <span>✓ Completed:</span>
-                <span className="font-medium">{successCount}</span>
-              </div>
-            )}
-            {failedCount > 0 && (
-              <div className="flex items-center justify-between text-sm text-red-600 dark:text-red-400">
-                <span>✗ Failed:</span>
-                <span className="font-medium">{failedCount}</span>
-              </div>
-            )}
-          </div>
+          {/* Compact progress headline */}
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+            {successCount + failedCount} of {totalTools} settled
+            {currentTools.length > 0 && ` · ${currentTools.length} running`}
+            {totalTools - successCount - failedCount - currentTools.length > 0 &&
+              ` · ${totalTools - successCount - failedCount - currentTools.length} pending`}
+          </p>
 
-          {/* Failed Tools Details */}
-          {failed.length > 0 && (
-            <div className="mt-4 w-full max-w-2xl rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
-              <h4 className="font-medium text-red-900 dark:text-red-100 mb-2 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Failed Tools
-              </h4>
-              <div className="space-y-2">
-                {failed.map(({ tool, error }) => (
-                  <div key={tool} className="text-sm">
-                    <p className="font-medium text-red-800 dark:text-red-200">
-                      {TOOL_LABELS[tool] || tool}
-                    </p>
-                    <p className="text-red-700 dark:text-red-300 text-xs mt-1">{error}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Per-tool status list */}
+          <div className="mt-4 w-full max-w-2xl divide-y divide-neutral-100 dark:divide-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
+            {Array.from(selected).map(toolName => {
+              const isRunning = currentTools.includes(toolName);
+              const isCompleted = completed.includes(toolName);
+              const failedEntry = failed.find(f => f.tool === toolName);
+              const isFailed = !!failedEntry;
+              const isBlocked = failedEntry?.error?.startsWith('Blocked:');
+              const isPending = !isRunning && !isCompleted && !isFailed;
+
+              return (
+                <div
+                  key={toolName}
+                  className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
+                    isRunning
+                      ? 'bg-blue-50 dark:bg-blue-900/20'
+                      : isCompleted
+                      ? 'bg-white dark:bg-neutral-800'
+                      : isFailed && !isBlocked
+                      ? 'bg-red-50 dark:bg-red-900/10'
+                      : isBlocked
+                      ? 'bg-amber-50 dark:bg-amber-900/10'
+                      : 'bg-neutral-50 dark:bg-neutral-800/50'
+                  }`}
+                >
+                  {/* Status icon */}
+                  <span className="shrink-0">
+                    {isRunning && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
+                    {isCompleted && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+                    {isFailed && !isBlocked && <AlertCircle className="h-4 w-4 text-red-500" />}
+                    {isBlocked && <AlertCircle className="h-4 w-4 text-amber-500" />}
+                    {isPending && <Circle className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />}
+                  </span>
+
+                  {/* Tool label + error */}
+                  <span className={`flex-1 font-medium ${
+                    isRunning ? 'text-blue-700 dark:text-blue-300' :
+                    isCompleted ? 'text-neutral-800 dark:text-neutral-200' :
+                    isFailed && !isBlocked ? 'text-red-700 dark:text-red-300' :
+                    isBlocked ? 'text-amber-700 dark:text-amber-300' :
+                    'text-neutral-400 dark:text-neutral-500'
+                  }`}>
+                    {TOOL_LABELS[toolName] || toolName}
+                    {isFailed && failedEntry?.error && (
+                      <span className={`ml-2 text-xs font-normal ${
+                        isBlocked
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        — {isBlocked ? 'prerequisite failed' : failedEntry.error}
+                      </span>
+                    )}
+                  </span>
+
+                  {/* Status badge */}
+                  <span className={`shrink-0 text-xs font-medium ${
+                    isRunning ? 'text-blue-600 dark:text-blue-400' :
+                    isCompleted ? 'text-emerald-600 dark:text-emerald-400' :
+                    isFailed && !isBlocked ? 'text-red-600 dark:text-red-400' :
+                    isBlocked ? 'text-amber-600 dark:text-amber-400' :
+                    'text-neutral-400 dark:text-neutral-500'
+                  }`}>
+                    {isRunning ? 'Running' : isCompleted ? 'Done' : isBlocked ? 'Blocked' : isFailed ? 'Failed' : 'Pending'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Action Buttons */}
           {isComplete && (
