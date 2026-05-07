@@ -410,17 +410,6 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     const completed: string[] = [];
     const failed: Array<{ tool: string; error: string }> = [];
 
-    // Get execution order + parallel groups from backend
-    let parallelGroups: string[][];
-    try {
-      const orderResult = await researchApi.getExecutionOrder(Array.from(selected));
-      parallelGroups = orderResult.parallelGroups;
-    } catch (error) {
-      console.error('Failed to get execution order, falling back to sequential', error);
-      // Fallback: run every tool individually in selection order
-      parallelGroups = Array.from(selected).map(t => [t]);
-    }
-
     // Per-tool stall guard. 20 min covers the worst-case SEO run (Trends
     // rate-limited, circuit breaker fires after 3 fast skips) with headroom.
     const TOOL_TIMEOUT_MS = 20 * 60 * 1000;
@@ -436,45 +425,102 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
       return Promise.race([promise, guard]).finally(() => clearTimeout(timerId));
     };
 
-    // Execute each group sequentially; tools within a group run in parallel
-    for (const group of parallelGroups) {
-      setExecutionState(prev => ({ ...prev, currentTools: [...prev.currentTools, ...group] }));
+    // Fetch the in-run dependency map from the backend. Falls back to an
+    // empty map (all tools independent) if the call fails — every tool fires
+    // immediately and the backend's own prereq check handles blocking.
+    let dependencyMap: Record<string, string[]> = {};
+    try {
+      const orderResult = await researchApi.getExecutionOrder(Array.from(selected));
+      dependencyMap = orderResult.dependencyMap;
+    } catch (error) {
+      console.error('Failed to get execution order, running all tools independently', error);
+    }
 
-      const groupSettled = await Promise.allSettled(
-        group.map(tool => {
-          const toolParams = params[tool] || params;
-          return withTimeout(
-            tool,
-            runResearchMutation.mutateAsync({ tool, params: toolParams })
-              .then(result => ({ tool, result }))
-              .catch((err: unknown) => Promise.reject({ tool, err }))
-          );
-        })
-      );
+    // Per-tool Promise + resolver/rejector so dependency chains can wait on
+    // each other without polling. Resolves on success; rejects on failure or
+    // when a required dependency fails (cascading block).
+    const toolResolvers: Record<string, () => void> = {};
+    const toolRejectors: Record<string, () => void> = {};
+    const toolPromises: Record<string, Promise<void>> = {};
 
-      for (const outcome of groupSettled) {
-        if (outcome.status === 'fulfilled') {
-          const { tool } = outcome.value;
-          settledInRun.current.add(tool);
-          completed.push(tool);
-          setExecutionState(prev => ({
-            ...prev,
-            completed: [...prev.completed, tool],
-            currentTools: prev.currentTools.filter(t => t !== tool),
-          }));
-        } else {
-          const { tool, err } = outcome.reason as { tool: string; err: unknown };
-          settledInRun.current.add(tool);
-          const errorMsg = err instanceof Error ? err.message : getApiErrorMessage(err);
-          failed.push({ tool, error: errorMsg });
-          setExecutionState(prev => ({
-            ...prev,
-            failed: [...prev.failed, { tool, error: errorMsg }],
-            currentTools: prev.currentTools.filter(t => t !== tool),
-          }));
-        }
+    for (const tool of Array.from(selected)) {
+      toolPromises[tool] = new Promise<void>((resolve, reject) => {
+        toolResolvers[tool] = resolve;
+        toolRejectors[tool] = reject;
+      });
+    }
+
+    // Run one tool: update UI state, hit the API, resolve/reject its promise.
+    const executeTool = async (toolName: string) => {
+      setExecutionState(prev => ({
+        ...prev,
+        currentTools: [...prev.currentTools, toolName],
+      }));
+
+      const toolParams = params[toolName] || params;
+
+      try {
+        await withTimeout(
+          toolName,
+          runResearchMutation.mutateAsync({ tool: toolName, params: toolParams })
+            .then(result => ({ tool: toolName, result }))
+            .catch((err: unknown) => Promise.reject({ tool: toolName, err }))
+        );
+
+        settledInRun.current.add(toolName);
+        completed.push(toolName);
+        setExecutionState(prev => ({
+          ...prev,
+          completed: [...prev.completed, toolName],
+          currentTools: prev.currentTools.filter(t => t !== toolName),
+        }));
+        toolResolvers[toolName]();
+
+      } catch (reason: unknown) {
+        const errorObj = reason as { tool?: string; err?: unknown };
+        const err = errorObj.err ?? reason;
+        const errorMsg = err instanceof Error ? err.message : getApiErrorMessage(err);
+
+        settledInRun.current.add(toolName);
+        failed.push({ tool: toolName, error: errorMsg });
+        setExecutionState(prev => ({
+          ...prev,
+          failed: [...prev.failed, { tool: toolName, error: errorMsg }],
+          currentTools: prev.currentTools.filter(t => t !== toolName),
+        }));
+        toolRejectors[toolName]();
+      }
+    };
+
+    // Wire up dependency chains and fire all initially-ready tools.
+    // A tool is ready if none of its in-run required deps are pending.
+    for (const tool of Array.from(selected)) {
+      // Only track deps that are actually in this run
+      const deps = (dependencyMap[tool] || []).filter(d => selected.has(d));
+
+      if (deps.length === 0) {
+        // No in-run deps — fire immediately (don't await, runs concurrently)
+        executeTool(tool);
+      } else {
+        // Wait for every required in-run dep to resolve, then fire
+        Promise.all(deps.map(dep => toolPromises[dep]))
+          .then(() => executeTool(tool))
+          .catch(() => {
+            // A required dependency failed — cascade the block
+            const blockMsg = 'Blocked: a required prerequisite tool failed';
+            settledInRun.current.add(tool);
+            failed.push({ tool, error: blockMsg });
+            setExecutionState(prev => ({
+              ...prev,
+              failed: [...prev.failed, { tool, error: blockMsg }],
+            }));
+            toolRejectors[tool]();
+          });
       }
     }
+
+    // Wait for every tool to settle (completed, failed, or blocked)
+    await Promise.allSettled(Object.values(toolPromises));
 
     // Mark execution as complete
     setExecutionState(prev => ({ ...prev, isComplete: true }));

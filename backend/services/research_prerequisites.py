@@ -421,6 +421,31 @@ class ResearchPrerequisites:
         logger.info(f"Parallel groups: {groups}")
         return groups
 
+    def get_dependency_map(self, tool_ids: List[str]) -> Dict[str, List[str]]:
+        """
+        Return the in-run REQUIRED dependency map for adaptive execution.
+
+        For each tool in tool_ids, returns the subset of tool_ids that are
+        REQUIRED prerequisites for it.  Tools not in tool_ids are excluded —
+        the backend's single-tool executor handles those via DB history checks.
+
+        This powers event-driven execution: fire a tool the instant every entry
+        in its dependency list resolves, without waiting for unrelated tools.
+        """
+        tool_set = set(tool_ids)
+        result: Dict[str, List[str]] = {}
+        for tool_id in tool_ids:
+            tool_deps = self.dependencies.get(tool_id)
+            if not tool_deps:
+                result[tool_id] = []
+                continue
+            result[tool_id] = [
+                prereq.tool_id
+                for prereq in tool_deps.prerequisites
+                if prereq.type == PrerequisiteType.REQUIRED and prereq.tool_id in tool_set
+            ]
+        return result
+
     def get_missing_prerequisites_message(
         self, tool_id: str, missing_required: List[str], missing_recommended: List[str]
     ) -> str:

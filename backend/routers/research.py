@@ -1400,6 +1400,7 @@ class ExecutionOrderResponse(BaseModel):
     execution_order: List[str]
     tool_count: int
     parallel_groups: List[List[str]]
+    dependency_map: Dict[str, List[str]]
 
 
 @router.post("/execution-order", response_model=ExecutionOrderResponse)
@@ -1429,6 +1430,7 @@ async def get_execution_order(
     try:
         execution_order = prerequisites.get_execution_order(order_request.tool_names)
         parallel_groups = prerequisites.get_parallel_groups(order_request.tool_names)
+        dependency_map = prerequisites.get_dependency_map(order_request.tool_names)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -1441,6 +1443,7 @@ async def get_execution_order(
         execution_order=execution_order,
         tool_count=len(execution_order),
         parallel_groups=parallel_groups,
+        dependency_map=dependency_map,
     )
 
 
