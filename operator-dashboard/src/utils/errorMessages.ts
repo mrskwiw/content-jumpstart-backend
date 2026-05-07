@@ -3,10 +3,18 @@ import axios from 'axios';
 /**
  * Map auth/login errors to user-friendly messages without exposing internal details.
  */
+interface ApiErrorResponse {
+  code?: string;
+  error?: string;
+  type?: string;
+  detail?: string;
+  message?: string;
+}
+
 export function getAuthErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;
-    const data = (error.response?.data || {}) as any;
+    const data = (error.response?.data || {}) as ApiErrorResponse;
     const code = data.code || data.error || data.type;
     const detail = data.detail || data.message;
     const bodyAsString = typeof data === 'string' ? data : '';

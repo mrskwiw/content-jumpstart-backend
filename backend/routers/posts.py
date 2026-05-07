@@ -256,21 +256,11 @@ async def update_post(
     else:
         post.readability_score = 0
 
-    # Recalculate CTA presence
-    cta_keywords = [
-        "learn more",
-        "click here",
-        "sign up",
-        "get started",
-        "contact us",
-        "download",
-        "subscribe",
-        "join",
-        "register",
-        "buy now",
-        "shop now",
-    ]
-    post.has_cta = any(keyword in post_update.content.lower() for keyword in cta_keywords)
+    # Recalculate CTA presence — delegate to Post._detect_cta so that backend
+    # and validator share the same last-2-lines detection logic.
+    from src.models.post import Post as _CLIPost
+
+    post.has_cta = _CLIPost._detect_cta(post_update.content)
 
     # Commit changes
     db.commit()

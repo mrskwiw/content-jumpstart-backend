@@ -4,6 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAuthErrorMessage } from '@/utils/errorMessages';
 import { Button, Input, Alert, AlertDescription } from '@/components/ui';
+import { ROUTES } from '@/config/routes';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export default function Login() {
   // Redirect to the splash screen first for authenticated sessions.
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/portfolio-notice', { replace: true });
+      navigate(ROUTES.PORTFOLIO_NOTICE, { replace: true });
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -29,7 +30,7 @@ export default function Login() {
 
     try {
       await login({ email, password });
-      navigate('/portfolio-notice', { replace: true });
+      navigate(ROUTES.PORTFOLIO_NOTICE, { replace: true });
     } catch (err: unknown) {
       const friendlyMessage = getAuthErrorMessage(err);
       setError(friendlyMessage);

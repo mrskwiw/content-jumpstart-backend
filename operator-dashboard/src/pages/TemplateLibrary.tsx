@@ -18,6 +18,7 @@ import {
 import apiClient from '@/api/client';
 import { clientsApi } from '@/api';
 import { researchApi } from '@/api';
+import type { Client } from '@/types/domain';
 
 // Shape returned by GET /api/generator/templates
 interface Template {
@@ -85,7 +86,7 @@ export default function TemplateLibrary() {
     },
   });
 
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
   });
@@ -194,9 +195,9 @@ export default function TemplateLibrary() {
               className="rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             >
               <option value="">Select a client…</option>
-              {(clients as any[]).map((c: any) => (
+              {clients.map((c: Client) => (
                 <option key={c.id} value={c.id}>
-                  {c.companyName ?? c.name}
+                  {c.name}
                 </option>
               ))}
             </select>

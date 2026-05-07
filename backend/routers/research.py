@@ -324,6 +324,8 @@ RESEARCH_TOOLS = [
     ),
 ]
 
+_TOOL_LABEL: dict[str, str] = {t.name: t.label for t in RESEARCH_TOOLS}
+
 
 # Validation schema mapping for each research tool
 VALIDATION_SCHEMAS = {
@@ -573,10 +575,7 @@ async def execute_research(
         user_id=current_user.id,
         client_id=body.client_id,
         tool_name=body.tool_name,
-        tool_label=next(
-            (t.label for t in RESEARCH_TOOLS if t.name == body.tool_name),
-            body.tool_name,
-        ),
+        tool_label=_TOOL_LABEL.get(body.tool_name, body.tool_name),
         tool_price=tool_price if tool_price > 0 else None,
         params=validated_inputs,
         status="pending",

@@ -1,0 +1,15 @@
+export const ROUTES = {
+  LOGIN: '/login',
+  PORTFOLIO_NOTICE: '/portfolio-notice',
+  DASHBOARD: '/dashboard',
+  WIZARD: '/dashboard/wizard',
+  CLIENTS: '/dashboard/clients',
+  CLIENT_NEW: '/dashboard/clients/new',
+  CLIENT_DETAIL: (id: string) => `/dashboard/clients/${id}`,
+  PROJECTS: '/dashboard/projects',
+  PROJECT_DETAIL: (id: string) => `/dashboard/projects/${id}`,
+  DELIVERABLES: '/dashboard/deliverables',
+  RESEARCH_TOOLS: '/dashboard/research-tools',
+  SETTINGS: '/dashboard/settings',
+  CONTENT_REVIEW: '/dashboard/content-review',
+} as const;

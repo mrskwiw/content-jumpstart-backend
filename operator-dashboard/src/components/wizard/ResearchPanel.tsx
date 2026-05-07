@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Circle, FlaskConical, ArrowRight, Loader2, Coins, Clock, Link2, AlertCircle, Settings } from 'lucide-react';
+import { ToolRunStatusList, type ToolStatusItem } from './ToolRunStatusList';
 import { researchApi, ResearchTool } from '@/api/research';
 import { clientsApi } from '@/api/clients';
 import { settingsApi } from '@/api/settings';
@@ -150,7 +151,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
 
 
   // Fetch available research tools
-  const { data: rawTools = [], isLoading } = useQuery({
+  const { data: rawTools = [], isLoading, isError: toolsError } = useQuery({
     queryKey: ['research', 'tools'],
     queryFn: () => researchApi.listTools(),
   });
@@ -174,7 +175,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
   const historyData = historyQuery.data;
 
   // Fetch completed tools for current project (for prerequisite checking)
-  const { data: completedToolsData } = useQuery({
+  const { data: completedToolsData, isError: completedError } = useQuery({
     queryKey: ['research', 'completed', projectId],
     queryFn: () => projectId ? researchApi.getProjectResearchResults(projectId) : Promise.resolve(null),
     enabled: !!projectId,
@@ -182,14 +183,14 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
   });
 
   // Fetch integration status to check which tools can be enabled
-  const { data: integrationStatus } = useQuery({
+  const { data: integrationStatus, isError: integrationError } = useQuery({
     queryKey: ['integrations', 'status'],
     queryFn: () => settingsApi.getIntegrationStatus(),
     staleTime: 30 * 1000, // 30 seconds
   });
 
   // Fetch client data for pre-populating research tool inputs
-  const { data: clientData } = useQuery({
+  const { data: clientData, isError: clientDataError } = useQuery({
     queryKey: ['client', clientId],
     queryFn: () => clientId ? clientsApi.get(clientId) : Promise.resolve(null),
     enabled: !!clientId,
@@ -664,6 +665,14 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     );
   }
 
+  if (toolsError) {
+    return (
+      <div className="flex items-center justify-center h-32 text-red-500 text-sm">
+        <span>Failed to load research tools. Please refresh.</span>
+      </div>
+    );
+  }
+
   // Show data collection step
   if (step === 'data-collection') {
     return (
@@ -727,73 +736,26 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
           </p>
 
           {/* Per-tool status list */}
-          <div className="mt-4 w-full max-w-2xl divide-y divide-neutral-100 dark:divide-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 overflow-hidden">
-            {Array.from(selected).map(toolName => {
+          <ToolRunStatusList
+            items={Array.from(selected).map((toolName): ToolStatusItem => {
               const isRunning = currentTools.includes(toolName);
               const isCompleted = completed.includes(toolName);
               const failedEntry = failed.find(f => f.tool === toolName);
-              const isFailed = !!failedEntry;
               const isBlocked = failedEntry?.error?.startsWith('Blocked:');
-              const isPending = !isRunning && !isCompleted && !isFailed;
-
-              return (
-                <div
-                  key={toolName}
-                  className={`flex items-center gap-3 px-4 py-2.5 text-sm ${
-                    isRunning
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : isCompleted
-                      ? 'bg-white dark:bg-neutral-800'
-                      : isFailed && !isBlocked
-                      ? 'bg-red-50 dark:bg-red-900/10'
-                      : isBlocked
-                      ? 'bg-amber-50 dark:bg-amber-900/10'
-                      : 'bg-neutral-50 dark:bg-neutral-800/50'
-                  }`}
-                >
-                  {/* Status icon */}
-                  <span className="shrink-0">
-                    {isRunning && <Loader2 className="h-4 w-4 animate-spin text-blue-500" />}
-                    {isCompleted && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                    {isFailed && !isBlocked && <AlertCircle className="h-4 w-4 text-red-500" />}
-                    {isBlocked && <AlertCircle className="h-4 w-4 text-amber-500" />}
-                    {isPending && <Circle className="h-4 w-4 text-neutral-300 dark:text-neutral-600" />}
-                  </span>
-
-                  {/* Tool label + error */}
-                  <span className={`flex-1 font-medium ${
-                    isRunning ? 'text-blue-700 dark:text-blue-300' :
-                    isCompleted ? 'text-neutral-800 dark:text-neutral-200' :
-                    isFailed && !isBlocked ? 'text-red-700 dark:text-red-300' :
-                    isBlocked ? 'text-amber-700 dark:text-amber-300' :
-                    'text-neutral-400 dark:text-neutral-500'
-                  }`}>
-                    {TOOL_LABELS[toolName] || toolName}
-                    {isFailed && failedEntry?.error && (
-                      <span className={`ml-2 text-xs font-normal ${
-                        isBlocked
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        — {isBlocked ? 'prerequisite failed' : failedEntry.error}
-                      </span>
-                    )}
-                  </span>
-
-                  {/* Status badge */}
-                  <span className={`shrink-0 text-xs font-medium ${
-                    isRunning ? 'text-blue-600 dark:text-blue-400' :
-                    isCompleted ? 'text-emerald-600 dark:text-emerald-400' :
-                    isFailed && !isBlocked ? 'text-red-600 dark:text-red-400' :
-                    isBlocked ? 'text-amber-600 dark:text-amber-400' :
-                    'text-neutral-400 dark:text-neutral-500'
-                  }`}>
-                    {isRunning ? 'Running' : isCompleted ? 'Done' : isBlocked ? 'Blocked' : isFailed ? 'Failed' : 'Pending'}
-                  </span>
-                </div>
-              );
+              return {
+                name: toolName,
+                label: TOOL_LABELS[toolName] || toolName,
+                status: isRunning
+                  ? 'running'
+                  : isCompleted
+                  ? 'complete'
+                  : failedEntry
+                  ? isBlocked ? 'blocked' : 'failed'
+                  : 'pending',
+                error: failedEntry?.error,
+              };
             })}
-          </div>
+          />
 
           {/* Action Buttons */}
           {isComplete && (

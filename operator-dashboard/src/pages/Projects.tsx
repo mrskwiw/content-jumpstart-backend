@@ -6,6 +6,7 @@ import { Project, ProjectStatus } from '@/types/domain';
 import { format } from 'date-fns';
 import { RefreshCw, Filter, Play, Sparkles, FileText, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ROUTES } from '@/config/routes';
 import { Pagination } from '@/components/ui/Pagination';
 import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
 import { StatusProgressBar } from '@/components/ui/StatusProgressBar';
@@ -207,7 +208,7 @@ export default function Projects() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="primary" size="sm" onClick={() => navigate('/dashboard/wizard')}>
+              <Button variant="primary" size="sm" onClick={() => navigate(ROUTES.WIZARD)}>
                 New Project
               </Button>
             </div>
@@ -310,7 +311,7 @@ export default function Projects() {
                     <Button
                       variant="link"
                       size="sm"
-                      onClick={() => navigate(`/dashboard/projects?clientId=${project.clientId}`)}
+                      onClick={() => navigate(`${ROUTES.PROJECTS}?clientId=${project.clientId}`)}
                       title={`View all projects for ${getClientName(project.clientId)}`}
                       className="p-0 h-auto"
                     >
@@ -351,17 +352,17 @@ export default function Projects() {
                           {
                             label: 'View Details',
                             icon: 'view',
-                            onClick: () => navigate(`/dashboard/projects/${project.id}`),
+                            onClick: () => navigate(ROUTES.PROJECT_DETAIL(project.id)),
                           },
                           {
                             label: 'Open Wizard',
                             icon: 'edit',
-                            onClick: () => navigate('/dashboard/wizard', { state: { projectId: project.id } }),
+                            onClick: () => navigate(ROUTES.WIZARD, { state: { projectId: project.id } }),
                           },
                           {
                             label: 'View Deliverables',
                             icon: 'download',
-                            onClick: () => navigate(`/dashboard/deliverables?projectId=${project.id}`),
+                            onClick: () => navigate(`${ROUTES.DELIVERABLES}?projectId=${project.id}`),
                             dividerAfter: true,
                           },
                           {

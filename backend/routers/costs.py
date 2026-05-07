@@ -5,6 +5,7 @@ Provides endpoints for querying token usage and API costs across projects,
 runs, and research tools.
 """
 
+import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,6 +28,8 @@ from backend.schemas.costs import (
 
 router = APIRouter(prefix="/api/costs", tags=["costs"])
 
+logger = logging.getLogger(__name__)
+
 
 @router.get("/project/{project_id}", response_model=ProjectCostSummary)
 def get_project_costs(
@@ -46,54 +49,58 @@ def get_project_costs(
     if project.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Aggregate run costs
-    run_stats = (
-        db.query(
-            func.count(Run.id).label("total_runs"),
-            func.sum(Run.total_input_tokens).label("total_input_tokens"),
-            func.sum(Run.total_output_tokens).label("total_output_tokens"),
-            func.sum(Run.total_cache_creation_tokens).label("total_cache_creation_tokens"),
-            func.sum(Run.total_cache_read_tokens).label("total_cache_read_tokens"),
-            func.sum(Run.total_cost_usd).label("total_cost_usd"),
+    try:
+        # Aggregate run costs
+        run_stats = (
+            db.query(
+                func.count(Run.id).label("total_runs"),
+                func.sum(Run.total_input_tokens).label("total_input_tokens"),
+                func.sum(Run.total_output_tokens).label("total_output_tokens"),
+                func.sum(Run.total_cache_creation_tokens).label("total_cache_creation_tokens"),
+                func.sum(Run.total_cache_read_tokens).label("total_cache_read_tokens"),
+                func.sum(Run.total_cost_usd).label("total_cost_usd"),
+            )
+            .filter(Run.project_id == project_id)
+            .first()
         )
-        .filter(Run.project_id == project_id)
-        .first()
-    )
 
-    # Count posts generated
-    total_posts = db.query(func.count(Post.id)).filter(Post.project_id == project_id).scalar()
+        # Count posts generated
+        total_posts = db.query(func.count(Post.id)).filter(Post.project_id == project_id).scalar()
 
-    # Get research costs for this project
-    research_stats = (
-        db.query(
-            func.count(ResearchResult.id).label("total_research_tools"),
-            func.sum(ResearchResult.actual_cost_usd).label("total_research_cost"),
+        # Get research costs for this project
+        research_stats = (
+            db.query(
+                func.count(ResearchResult.id).label("total_research_tools"),
+                func.sum(ResearchResult.actual_cost_usd).label("total_research_cost"),
+            )
+            .filter(ResearchResult.project_id == project_id)
+            .first()
         )
-        .filter(ResearchResult.project_id == project_id)
-        .first()
-    )
 
-    # Calculate cost per post
-    cost_per_post = None
-    if total_posts and run_stats.total_cost_usd:
-        cost_per_post = run_stats.total_cost_usd / total_posts
+        # Calculate cost per post
+        cost_per_post = None
+        if total_posts and run_stats.total_cost_usd:
+            cost_per_post = run_stats.total_cost_usd / total_posts
 
-    return ProjectCostSummary(
-        project_id=project_id,
-        project_name=project.name,
-        total_runs=run_stats.total_runs or 0,
-        total_posts=total_posts or 0,
-        total_input_tokens=run_stats.total_input_tokens or 0,
-        total_output_tokens=run_stats.total_output_tokens or 0,
-        total_cache_creation_tokens=run_stats.total_cache_creation_tokens or 0,
-        total_cache_read_tokens=run_stats.total_cache_read_tokens or 0,
-        total_generation_cost_usd=run_stats.total_cost_usd or 0.0,
-        total_research_tools=research_stats.total_research_tools or 0,
-        total_research_cost_usd=research_stats.total_research_cost or 0.0,
-        total_cost_usd=(run_stats.total_cost_usd or 0.0)
-        + (research_stats.total_research_cost or 0.0),
-        cost_per_post=cost_per_post,
-    )
+        return ProjectCostSummary(
+            project_id=project_id,
+            project_name=project.name,
+            total_runs=run_stats.total_runs or 0,
+            total_posts=total_posts or 0,
+            total_input_tokens=run_stats.total_input_tokens or 0,
+            total_output_tokens=run_stats.total_output_tokens or 0,
+            total_cache_creation_tokens=run_stats.total_cache_creation_tokens or 0,
+            total_cache_read_tokens=run_stats.total_cache_read_tokens or 0,
+            total_generation_cost_usd=run_stats.total_cost_usd or 0.0,
+            total_research_tools=research_stats.total_research_tools or 0,
+            total_research_cost_usd=research_stats.total_research_cost or 0.0,
+            total_cost_usd=(run_stats.total_cost_usd or 0.0)
+            + (research_stats.total_research_cost or 0.0),
+            cost_per_post=cost_per_post,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching costs for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve project costs")
 
 
 @router.get("/run/{run_id}", response_model=RunCostBreakdown)

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { ROUTES } from '@/config/routes';
 import {
   ArrowLeft,
   Edit,
@@ -50,20 +51,20 @@ export default function ProjectDetail() {
   const [templateFilter, setTemplateFilter] = useState<string>('all');
 
   // Fetch project data
-  const { data: project, isLoading: projectLoading } = useQuery({
+  const { data: project, isLoading: projectLoading, isError: projectError } = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => projectsApi.get(projectId!),
     enabled: !!projectId,
   });
 
   // Fetch client data
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [], isError: clientsError } = useQuery({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
   });
 
   // Fetch posts for this project
-  const { data: postsResponse } = useQuery<PaginatedResponse<PostDraft>>({
+  const { data: postsResponse, isError: postsError } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts'],
     queryFn: () => postsApi.list(),
     staleTime: 0,
@@ -73,17 +74,26 @@ export default function ProjectDetail() {
   const allPosts: PostWithMeta[] = (postsResponse?.items ?? []) as PostWithMeta[];
 
   // Fetch deliverables
-  const { data: allDeliverables = [] } = useQuery({
+  const { data: allDeliverables = [], isError: deliverablesError } = useQuery({
     queryKey: ['deliverables'],
     queryFn: () => deliverablesApi.list(),
   });
 
   // Fetch runs for this project
-  const { data: projectRuns = [] } = useQuery({
+  const { data: projectRuns = [], isError: runsError } = useQuery({
     queryKey: ['runs', projectId],
     queryFn: () => runsApi.listByProject(projectId!),
     enabled: !!projectId,
   });
+
+  if (projectError) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500">
+        <AlertCircle className="h-5 w-5 mr-2" />
+        <span>Failed to load project. Please refresh the page.</span>
+      </div>
+    );
+  }
 
   if (projectLoading || !project) {
     return (
@@ -187,7 +197,7 @@ export default function ProjectDetail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/dashboard/projects')}
+            onClick={() => navigate(ROUTES.PROJECTS)}
             className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -319,7 +329,7 @@ export default function ProjectDetail() {
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Client</p>
                     <button
-                      onClick={() => client && navigate(`/dashboard/clients/${client.id}`)}
+                      onClick={() => client && navigate(ROUTES.CLIENT_DETAIL(client.id))}
                       className="mt-1 flex items-center gap-1 font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                     >
                       <User className="h-4 w-4" />
@@ -864,7 +874,7 @@ export default function ProjectDetail() {
           <div className="space-y-4">
             <div className="flex justify-end">
               <button
-                onClick={() => navigate(`/dashboard/deliverables?projectId=${project.id}`)}
+                onClick={() => navigate(`${ROUTES.DELIVERABLES}?projectId=${project.id}`)}
                 className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700"
               >
                 <ExternalLink className="h-4 w-4" />

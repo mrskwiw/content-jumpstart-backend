@@ -58,22 +58,30 @@ export default function ContentReview() {
   const [editContent, setEditContent] = useState('');
 
   // Fetch data
-  const { data: postsResponse } = useQuery<PaginatedResponse<PostDraft>>({
+  const { data: postsResponse, isError: postsError } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts'],
     queryFn: () => postsApi.list(),
     staleTime: 0,
     gcTime: 0, // Disable caching entirely
   });
 
-  const { data: projectsResponse } = useQuery<PaginatedResponse<Project>>({
+  const { data: projectsResponse, isError: projectsError } = useQuery<PaginatedResponse<Project>>({
     queryKey: ['projects'],
     queryFn: () => projectsApi.list(),
   });
 
-  const { data: clients = [] } = useQuery<Client[]>({
+  const { data: clients = [], isError: clientsError } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
   });
+
+  if (postsError || projectsError || clientsError) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500">
+        <span>Failed to load content. Please refresh the page.</span>
+      </div>
+    );
+  }
 
   const posts: PostDraft[] = postsResponse?.items ?? [];
   const projects: Project[] = projectsResponse?.items ?? [];

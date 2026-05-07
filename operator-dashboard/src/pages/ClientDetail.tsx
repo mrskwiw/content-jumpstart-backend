@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { ROUTES } from '@/config/routes';
 import {
   ArrowLeft,
   Mail,
@@ -188,7 +189,7 @@ export default function ClientDetail() {
   const deleteClientMutation = useMutation({
     mutationFn: () => clientsApi.delete(clientId!),
     onSuccess: () => {
-      navigate('/clients');
+      navigate(ROUTES.CLIENTS);
     },
     onError: (error) => {
       alert(`Failed to delete client: ${getApiErrorMessage(error)}`);
@@ -199,7 +200,7 @@ export default function ClientDetail() {
   const permanentDeleteMutation = useMutation({
     mutationFn: () => clientsApi.permanentDelete(clientId!),
     onSuccess: () => {
-      navigate('/clients');
+      navigate(ROUTES.CLIENTS);
     },
     onError: (error) => {
       alert(`Permanent deletion failed: ${getApiErrorMessage(error)}`);
@@ -210,7 +211,7 @@ export default function ClientDetail() {
   const archiveClientMutation = useMutation({
     mutationFn: () => clientsApi.archive(clientId!),
     onSuccess: () => {
-      navigate('/clients');
+      navigate(ROUTES.CLIENTS);
     },
     onError: (error) => {
       alert(`Failed to archive client: ${getApiErrorMessage(error)}`);
@@ -363,7 +364,7 @@ export default function ClientDetail() {
         </p>
         <button
           className="mt-4 text-sm text-blue-600 hover:underline dark:text-blue-400"
-          onClick={() => navigate('/dashboard/clients')}
+          onClick={() => navigate(ROUTES.CLIENTS)}
         >
           Back to Clients
         </button>
@@ -411,7 +412,7 @@ export default function ClientDetail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/dashboard/clients')}
+            onClick={() => navigate(ROUTES.CLIENTS)}
             className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -470,7 +471,7 @@ export default function ClientDetail() {
               )}
             </button>
             <button
-              onClick={() => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } })}
+              onClick={() => navigate(ROUTES.WIZARD, { state: { clientId: client.id, clientName: client.name } })}
               className="inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
             >
               <Plus className="h-4 w-4" />
@@ -659,7 +660,7 @@ export default function ClientDetail() {
                       <td colSpan={6} className="px-6 py-12 text-center">
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">No projects yet</p>
                         <button
-                          onClick={() => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } })}
+                          onClick={() => navigate(ROUTES.WIZARD, { state: { clientId: client.id, clientName: client.name } })}
                           className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 dark:hover:bg-primary-600"
                         >
                           <Plus className="h-4 w-4" />
@@ -692,7 +693,7 @@ export default function ClientDetail() {
                           <tr key={project.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800">
                             <td className="whitespace-nowrap px-6 py-4">
                               <button
-                                onClick={() => navigate(`/dashboard/projects/${project.id}`)}
+                                onClick={() => navigate(ROUTES.PROJECT_DETAIL(project.id))}
                                 className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                               >
                                 {project.name}
@@ -718,7 +719,7 @@ export default function ClientDetail() {
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                               <button
-                                onClick={() => navigate(`/dashboard/projects/${project.id}`)}
+                                onClick={() => navigate(ROUTES.PROJECT_DETAIL(project.id))}
                                 className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                               >
                                 View
@@ -1173,7 +1174,7 @@ export default function ClientDetail() {
           <div className="space-y-4">
             <div className="flex justify-end">
               <button
-                onClick={() => navigate(`/dashboard/deliverables?clientId=${client.id}`)}
+                onClick={() => navigate(`${ROUTES.DELIVERABLES}?clientId=${client.id}`)}
                 className="inline-flex items-center gap-2 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700"
               >
                 <ExternalLink className="h-4 w-4" />
@@ -1242,7 +1243,7 @@ export default function ClientDetail() {
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                           <div className="flex items-center justify-end gap-3">
                             <button
-                              onClick={() => navigate(`/dashboard/content-review?projectId=${deliverable.projectId}`)}
+                              onClick={() => navigate(`${ROUTES.CONTENT_REVIEW}?projectId=${deliverable.projectId}`)}
                               className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
                               title="Review in QA"
                             >

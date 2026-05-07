@@ -584,7 +584,7 @@ export default function Settings() {
   const getConfigValue = (rule: WorkflowRule, key: string): number => {
     const localConfig = workflowConfigs[rule.id];
     if (localConfig && key in localConfig) {
-      return (localConfig as any)[key];
+      return (localConfig as Record<string, number>)[key];
     }
     return rule.config?.[key as keyof typeof rule.config] ?? 0;
   };
@@ -677,7 +677,7 @@ export default function Settings() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'integrations' | 'workflows' | 'notifications' | 'preferences' | 'security' | 'database' | 'credits' | 'users')}
                 className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400'
@@ -1425,6 +1425,7 @@ export default function Settings() {
                     </span>
                   </div>
                   <button
+                    aria-label="Remove backup file"
                     onClick={() => setUploadFile(null)}
                     className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   >
@@ -1508,6 +1509,7 @@ export default function Settings() {
                     </span>
                   </div>
                   <button
+                    aria-label="Remove merge file"
                     onClick={() => { setMergeFile(null); setMergePreview(null); }}
                     className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300"
                   >
@@ -2182,6 +2184,7 @@ function ConfigureIntegrationModal({
             </div>
           </div>
           <button
+            aria-label="Close integration configuration"
             onClick={onClose}
             className="rounded-lg p-2 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-600 dark:hover:text-neutral-300"
           >
@@ -2205,6 +2208,7 @@ function ConfigureIntegrationModal({
                   className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 px-3 py-2 pr-10 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 />
                 <button
+                  aria-label={showKey ? "Hide API key" : "Show API key"}
                   type="button"
                   onClick={() => setShowKey(!showKey)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"

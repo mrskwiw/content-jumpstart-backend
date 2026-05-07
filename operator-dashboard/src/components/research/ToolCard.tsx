@@ -37,6 +37,10 @@ export const ToolCard = memo(function ToolCard({ tool, isSelected, onToggle, exe
   return (
     <div
       onClick={disabled ? undefined : onToggle}
+      role="button"
+      aria-label={`Select ${tool.label}`}
+      tabIndex={disabled ? -1 : 0}
+      onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(); } }}
       className={`relative p-4 rounded-lg border-2 transition-all ${
         disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
       } ${

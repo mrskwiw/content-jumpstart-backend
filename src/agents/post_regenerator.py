@@ -6,14 +6,34 @@ fall outside acceptable parameters for readability, length, engagement, or CTAs.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import re
+
 from ..config.constants import POST_GENERATION_TEMPERATURE
 from ..models.client_brief import ClientBrief, Platform
 from ..models.post import Post
 from ..models.quality_profile import QualityProfile, get_default_profile
-from ..models.template import Template
+from ..models.template import Template, TemplateType
 from ..utils.anthropic_client import AnthropicClient
 from ..utils.logger import logger
 from ..utils.voice_metrics import VoiceMetrics
+from ..validators.cta_validator import CTAValidator
+
+# Template name keywords whose posts are designed to end with engagement questions.
+# These are exempt from the post_ends_with_question regeneration trigger.
+# Keyed by template_name substrings (case-insensitive) because post.template_name
+# stores the display name, not the TemplateType enum value.
+#   Template 3 stored name: "Against the Grain"  (TemplateType.CONTRARIAN)
+#   Template 5 stored name: "Question"            (TemplateType.QUESTION)
+#   Template 14 stored name: "Reader Question"    (TemplateType.Q_AND_A)
+_ENGAGEMENT_QUESTION_TYPES: frozenset[str] = frozenset(
+    {
+        "against the grain",  # Template 3 actual stored name — does NOT contain "contrarian"
+        TemplateType.QUESTION.value,  # "question" — covers Template 5 and Template 14
+        TemplateType.CONTRARIAN.value,  # "contrarian" — future-proof if name ever changes
+        TemplateType.Q_AND_A.value,  # "q_and_a"
+        "q&a",  # matches any template literally named "Q&A ..."
+    }
+)
 
 
 class RegenerationReason:
@@ -116,23 +136,10 @@ class PostRegenerator:
             if lines:
                 last_line = lines[-1]
                 body = "\n".join(lines[:-1]).lower()
-                cta_patterns = [
-                    r"(?:drop|share|leave) (?:your|a) comment",
-                    r"(?:dm|message|reach out|contact) me",
-                    r"reply (?:with|below)",
-                    r"(?:click|tap|check out) (?:the )?link",
-                    r"(?:book|schedule|set up) (?:a )?(?:call|meeting|demo)",
-                    r"sign up|subscribe|join",
-                    r"download|get (?:the |your )",
-                    r"learn more|find out",
-                    r"(?:tell|share) me (?:in|about)",
-                    r"\b(?:read|watch|listen to|try|start|begin|explore)",
-                    r"\b(?:visit|follow|connect|register|apply)",
-                ]
-                import re as _re
-
-                for pat in cta_patterns:
-                    if _re.search(pat, body, _re.IGNORECASE):
+                # Body scan: use strict placement patterns only — avoids false
+                # positives from broad terms like "appointment" in body sentences.
+                for pat in CTAValidator._PLACEMENT_PATTERNS:
+                    if re.search(pat, body, re.IGNORECASE):
                         reasons.append(
                             RegenerationReason(
                                 "cta_not_last",
@@ -140,8 +147,14 @@ class PostRegenerator:
                             )
                         )
                         break
-                for pat in cta_patterns:
-                    if _re.search(pat, last_line, _re.IGNORECASE):
+
+                # Last-line question check: use full CTA_PATTERNS so every form
+                # the validator recognises (including "Appointment?",
+                # "Let's book?", "Ask us?") is caught and queued for repair.
+                cta_pattern_matched = False
+                for pat, _ in CTAValidator.CTA_PATTERNS:
+                    if re.search(pat, last_line, re.IGNORECASE):
+                        cta_pattern_matched = True
                         if last_line.rstrip().endswith("?"):
                             reasons.append(
                                 RegenerationReason(
@@ -151,17 +164,26 @@ class PostRegenerator:
                             )
                         break
 
-                # Catch any post whose final line ends with ?, even when no CTA
-                # pattern was matched (e.g. an engagement question used as a closer)
-                if last_line.rstrip().endswith("?"):
-                    # Avoid double-reporting if cta_is_question already added
-                    if not any(r.reason_type == "cta_is_question" for r in reasons):
-                        reasons.append(
-                            RegenerationReason(
-                                "post_ends_with_question",
-                                "Post ends with a question — the final line must be a statement",
-                            )
+                # Generic question closer: last line ends with "?" but matches
+                # no CTA pattern (e.g. "What do you think?").  Exempt templates
+                # that are designed to end with engagement questions (Question
+                # Post, Contrarian Take, Reader Q&A) — their question endings
+                # are intentional and valid.  Flag all other templates.
+                template_name_lower = (post.template_name or "").lower()
+                is_engagement_question_template = any(
+                    t in template_name_lower for t in _ENGAGEMENT_QUESTION_TYPES
+                )
+                if (
+                    not cta_pattern_matched
+                    and last_line.rstrip().endswith("?")
+                    and not is_engagement_question_template
+                ):
+                    reasons.append(
+                        RegenerationReason(
+                            "post_ends_with_question",
+                            "Post ends with a question — the final line must be a statement CTA",
                         )
+                    )
 
         # Check headline engagement (if available from review reason)
         if post.needs_review and post.review_reason:

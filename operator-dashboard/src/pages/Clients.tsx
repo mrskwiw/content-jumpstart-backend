@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/config/routes';
 import { clientsApi } from '@/api/clients';
 import { projectsApi } from '@/api/projects';
 import { deliverablesApi } from '@/api/deliverables';
@@ -58,8 +59,8 @@ export default function Clients() {
       toast.success('Client deleted successfully');
       setDeleteDialogOpen(false);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to delete client');
+    onError: (error: Error) => {
+      toast.error((error as Error & { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Failed to delete client');
     },
   });
 
@@ -209,7 +210,7 @@ export default function Clients() {
           >
             {showArchived ? 'Hide Archived' : 'Show Archived'}
           </button>
-          <Button variant="primary" onClick={() => navigate('/dashboard/clients/new')}>
+          <Button variant="primary" onClick={() => navigate(ROUTES.CLIENT_NEW)}>
             <Plus className="h-4 w-4" />
             Add Client
           </Button>
@@ -344,7 +345,7 @@ export default function Clients() {
                 filteredClients.map((client) => (
                   <TableRow
                     key={client.id}
-                    onClick={() => navigate(`/dashboard/clients/${client.id}`)}
+                    onClick={() => navigate(ROUTES.CLIENT_DETAIL(client.id))}
                     className="cursor-pointer"
                   >
                     <TableCell>
@@ -403,12 +404,12 @@ export default function Clients() {
                           {
                             label: 'View Details',
                             icon: 'view',
-                            onClick: () => navigate(`/dashboard/clients/${client.id}`),
+                            onClick: () => navigate(ROUTES.CLIENT_DETAIL(client.id)),
                           },
                           {
                             label: 'Create Project',
                             icon: 'edit',
-                            onClick: () => navigate('/dashboard/wizard', { state: { clientId: client.id, clientName: client.name } }),
+                            onClick: () => navigate(ROUTES.WIZARD, { state: { clientId: client.id, clientName: client.name } }),
                           },
                           {
                             label: 'Send Email',

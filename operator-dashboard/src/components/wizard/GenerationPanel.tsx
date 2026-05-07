@@ -30,7 +30,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   useEffect(() => { onStartedCalledRef.current = false; setTimedOut(false); }, [runId]);
 
   // Fetch credit balance — don't retry on 401/403 (token expired; avoids console spam)
-  const { data: creditBalance } = useQuery({
+  const { data: creditBalance, isError: creditError } = useQuery({
     queryKey: ['credits', 'balance'],
     queryFn: () => creditsApi.getBalance(),
     refetchInterval: 30000,
@@ -58,7 +58,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   });
 
   // Poll for run status every 2s while pollingEnabled; effect handles stopping
-  const { data: runStatus } = useQuery({
+  const { data: runStatus, isError: runStatusError } = useQuery({
     queryKey: ['run-status', runId],
     queryFn: () => (runId ? runsApi.get(runId) : null),
     enabled: pollingEnabled && !!runId,

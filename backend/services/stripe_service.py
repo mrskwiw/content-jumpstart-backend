@@ -7,6 +7,7 @@ and payment fulfillment via webhooks.
 
 import json
 import logging
+import time
 from typing import Optional
 
 import stripe
@@ -88,6 +89,7 @@ def create_checkout_session(
         cancel_url=cancel_url,
         client_reference_id=user.id,
         metadata=metadata,
+        idempotency_key=f"checkout_{user.id}_{package.id}_{int(time.time() // 300)}",
     )
 
     payment = StripePayment(

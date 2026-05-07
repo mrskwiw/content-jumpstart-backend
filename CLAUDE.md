@@ -1,256 +1,147 @@
-# CLAUDE.md - Technical Implementation Guide
+# CLAUDE.md
 
-## Project Overview
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Agent implementation for 30-Day Content Jumpstart - AI content generator using Claude 3.5 Sonnet. Business templates are in parent directory (`../templates/`).
+## This directory
 
-## Development Workflow
+`project/` is the deployable application. Tests live at `../tests/`, docs at `../docs/`, task tracking at `../TODO.md`. Never put tests, docs, or planning files here.
 
-**Repository Structure:**
-- This is the development machine; remote repo is deployment-only
-- Exclude: *.md (except README), docs, reports, analysis files, data/outputs/*
-- Include: src/, backend/, operator-dashboard/src/, tests/, config files, Docker files
+## Commands
 
-## Development Commands
-
-**Windows paths:** Use backslashes (`\\`) and quotes for spaces. Example: `cd "C:\\path\\with spaces"`
-
-### Setup
 ```bash
+# Setup
 python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env  # Set ANTHROPIC_API_KEY
+cp .env.example .env   # add ANTHROPIC_API_KEY
+
+# Run
+uvicorn backend.main:app --reload --port 8000   # API + Swagger at :8000/docs
+python run_jumpstart.py --interactive            # CLI brief builder
+python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5}'
+python agent_cli_enhanced.py chat               # interactive agent
+
+# Tests — must run from project/ targeting ../tests/
+pytest ../tests                             # all 4,743 tests
+pytest ../tests/unit/                       # unit only
+pytest ../tests/integration/               # integration only
+pytest ../tests/unit/path/to/test_foo.py -v
+pytest --cov=src --cov=backend --cov-report=html --cov-report=term
+
+# Quality (run before every commit)
+black src/ backend/
+ruff check src/ backend/
+mypy src/
+
+# Frontend
+cd operator-dashboard
+npm run dev           # http://localhost:5173
+npm run build         # production build (FastAPI serves from dist/)
+npm run lint:fix
+npm run typecheck     # tsc --noEmit
+npx jest              # unit tests
+npx playwright test   # e2e tests
 ```
 
-### Running
-```bash
-# Recommended CLI
-python run_jumpstart.py tests/fixtures/sample_brief.txt
-python run_jumpstart.py --interactive  # Brief builder
-python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5, "9": 2}'
+**`pyproject.toml` says `testpaths = ["tests"]` — this is wrong.** Always use `../tests/` from this directory. `conftest.py` adds `project/` to `sys.path` automatically.
 
-# Backend API
-uvicorn backend.main:app --reload --port 8000  # http://localhost:8000/docs
-
-# Dashboard
-cd operator-dashboard && npm install && npm run dev  # http://localhost:5173
-
-# Interactive Agent
-python agent_cli_enhanced.py chat
-```
-
-### Testing & Quality
-```bash
-# IMPORTANT: Run tests FROM project/ directory, targeting ../tests/
-cd project
-
-pytest ../tests                  # All tests (4,743 tests, 95% coverage)
-pytest ../tests/unit/            # Unit tests only
-pytest ../tests/integration/     # Integration tests only
-pytest ../tests -q               # Quick run without verbose output
-pytest --cov=src --cov=backend --cov-report=html --cov-report=term  # With detailed coverage
-
-# Quality checks
-black src/ backend/ && ruff check src/ backend/ && mypy src/
-```
-
-**View coverage report:** Open `htmlcov/index.html` in browser after running coverage tests
-
-### Docker Deployment
-```bash
-docker-compose up -d api  # Frontend + backend at http://localhost:8000
-```
+**Windows UTF-8:** `src/agents/03_post_generator.py` lines 13–15 force UTF-8 output. Never remove them.
 
 ## Architecture
 
-### Agent Pipeline
+### Agent pipeline (src/)
+
 ```
 BriefParserAgent → ClientClassifier → TemplateLoader → ContentGeneratorAgent → QAAgent → OutputFormatter
 ```
 
-**Key behaviors:**
-- **Async parallel generation:** 5 concurrent API calls (~60s for 30 posts)
-- **Quality validation:** 8 validators (hooks, CTAs, length, headlines, keywords, SEO, prompt injection, research inputs)
-- **Target quality:** 85-90% pass rate on first generation
-- **Template selection:** Automatic selection by client type (B2B_SAAS, AGENCY, COACH, CREATOR)
-- **Error recovery:** Automatic retry (3 attempts with exponential backoff), placeholder posts on failure
-- **Research integration:** Context builder injects research findings into generation prompts
+Entry point: `src/agents/coordinator.py` → `CoordinatorAgent.run_complete_workflow()`.
 
-### File Organization
+- **ContentGeneratorAgent** (`src/agents/content_generator.py`): asyncio semaphore limits 5 concurrent Anthropic calls; ~60s for 30 posts. Reduce `MAX_CONCURRENT_API_CALLS` if rate-limited.
+- **QAAgent** runs 5 validators: hook similarity (MinHash/LSH dedup), CTA presence, platform length, SEO, headline quality.
+- **ClientClassifier** emits one of: `B2B_SAAS | AGENCY | COACH | CREATOR`. Template selection depends on this.
+- **Error recovery**: 3 retries with exponential backoff; failed posts become placeholder entries to keep the batch count intact.
+
+Token budget: ~15.5K tokens/client (~$0.40–0.60). `research_context_builder.py` injects research findings and limits injected lists to 5 items to stay within budget.
+
+Temperature: 0.3 for parsing agents, 0.7 for generation.
+
+### FastAPI backend (backend/)
+
+27 routers, ~200 endpoints. Middleware stack in `backend/main.py` (order matters):
+
 ```
-src/agents/       # 14 AI agents
-src/models/       # Pydantic models
-src/validators/   # 5 QA validators
-src/utils/        # Utilities (anthropic_client, logger)
-src/config/       # Settings, template rules
-
-backend/routers/  # API endpoints (/auth, /clients, /projects, /briefs, /generator, /posts)
-backend/services/ # Business logic (generator, crud, export, research, trends)
-backend/models/   # SQLAlchemy models
-
-operator-dashboard/src/  # React + TypeScript UI
-
-agent/            # Interactive agent (core_enhanced.py, tools.py - 58 tools)
-
-# Parent directory (../)
-../templates/     # Business templates (client brief, post library, checklists)
-../docs/          # Documentation and archives
+RequestIDMiddleware → MetricsMiddleware → CSRFProtectionMiddleware
+→ security_headers → gzip_compression → rate_limiters (slowapi, 3 tiers)
 ```
 
-### API Routes
-- `/api/auth/*` - JWT authentication (login, register, refresh tokens)
-- `/api/clients/*` - Client management (CRUD, profile fields)
-- `/api/projects/*` - Project management (CRUD, workflow states)
-- `/api/briefs/*` - Brief upload/parse (AI extraction with confidence scores)
-- `/api/generator/*` - Content generation (batch generation, template selection)
-- `/api/posts/*` - Post management (CRUD, QA validation, regeneration)
-- `/api/deliverables/*` - Export management (DOCX/PDF/TXT, delivery tracking)
-- `/api/research/*` - Research tools (12 tools, $300-$600 each, dependency validation)
-- `/api/trends/*` - Google Trends integration (30/hour rate limit)
-- `/api/costs/*` - Cost tracking and analytics
-- `/api/settings/*` - User settings (API keys, web search providers)
-- `/api/admin/users/*` - Admin panel (user management)
+SPA fallback in `backend/main.py` catches unmatched routes and serves `operator-dashboard/dist/index.html` — deep-link routing only works with a production build or the Vite dev server.
+
+Key services:
+- `backend/services/generator_service.py` — orchestrates agents from the API layer
+- `backend/services/export_service.py` — DOCX/PDF/TXT deliverable assembly
+- `backend/services/research_context_builder.py` — injects research JSON into generation prompts
+- `backend/services/crud.py` — shared SQLAlchemy CRUD layer
+
+### Research tools (src/research/ + backend/services/research_prerequisites.py)
+
+12 tools, $300–$600 per run. All extend `src/research/base.py:ResearchTool`.
+
+**Dependency system:** each tool declares `ToolPrerequisite` entries typed `REQUIRED | RECOMMENDED | OPTIONAL`. `get_parallel_groups()` in `research_prerequisites.py` builds topological execution batches — currently **only REQUIRED edges** are wired into the sort. Running `competitive_analysis` in the same batch as `determine_competitors` causes HTTP 400 (active P0 — see `../TODO.md`).
+
+Adding a new research tool touches 10 files in order:
+1. `src/models/[tool]_models.py` — Pydantic output schema
+2. `src/research/[tool].py` — extends `ResearchTool`, implements `validate_inputs` + `run_analysis`
+3. `backend/schemas/research_schemas.py` — request schema
+4. `backend/routers/research.py` — add to `RESEARCH_TOOLS` + `VALIDATION_SCHEMAS`
+5. `backend/services/research_service.py` — add to `RESEARCH_TOOL_MAP`
+6. `backend/services/research_prerequisites.py` — declare tier + prerequisites
+7. `backend/services/export_service.py` — section formatter
+8. `backend/services/research_context_builder.py` — prompt injection
+9. `operator-dashboard/src/components/wizard/ResearchPanel.tsx` — tool card + TOOL_PREREQUISITES mirror
+10. `operator-dashboard/src/components/wizard/ResearchDataCollectionPanel.tsx` — input form fields
+    + tests: `../tests/research/` + `../tests/integration/`
+
+### Frontend (operator-dashboard/src/)
+
+Stack: React 18 + TypeScript + Vite + Tailwind + shadcn/ui + React Query 5 + Zustand 5.
+
+- Data fetching: `useQuery` / `useMutation` (React Query)
+- Global state: `useAuthStore`, `useProjectStore` (Zustand)
+- **Null safety:** always `(value?.prop ?? fallback).toFixed(n)` — missing optional chaining is the #1 runtime error source
+- Dark mode: `className="bg-white dark:bg-neutral-900"`
+- API clients: `src/api/` — one module per domain, all use shared Axios instance with auth interceptor
+- Types: `src/types/domain.ts` is the canonical TypeScript model source
+
+Adding a new endpoint: schema → router → service → `src/api/[domain].ts` → `domain.ts` types → integration test.
+
+### Interactive agent (agent/)
+
+58 tools in `agent/tools.py`. Entry: `python agent_cli_enhanced.py chat`.
+SQLite session store at `data/agent_sessions.db`. In-chat commands: `help`, `pending`, `scheduled`, `reset`, `new`, `exit`.
 
 ## Configuration
 
-**Environment (`.env`):**
-- `ANTHROPIC_API_KEY` (required)
-- `ANTHROPIC_MODEL` (default: claude-3-5-sonnet-latest)
-- `PARALLEL_GENERATION` (True)
-- `MAX_CONCURRENT_API_CALLS` (5)
-- `DEBUG_MODE`, `LOG_LEVEL`
-
-**Temperature:** 0.3 for parsing, 0.7 for generation.
-
-## Implementation Details
-
-**Token Optimization:** ~15.5K tokens/client ($0.40-0.60). Context filtering excludes empty fields, limits lists to 5 items, caches system prompt.
-
-**Rate Limiting:** Semaphore limits 5 concurrent requests. Reduce `MAX_CONCURRENT_API_CALLS` if hitting limits.
-
-**UTF-8 (Windows):** Lines 13-15 of 03_post_generator.py force UTF-8 - never remove.
-
-**Template Paths:** Loaded from `../templates/02_POST_TEMPLATE_LIBRARY.md`.
-
-**Error Recovery:** Failed posts create placeholders to maintain batch count.
-
-**Research Tools Integration:**
-- 12 tools available: Voice Analysis, Brand Archetype, SEO Keywords, Competitive Analysis, Content Gap, Market Trends, Content Audit, Platform Strategy, Content Calendar, Audience Research, ICP Workshop, Story Mining
-- Tools follow base class pattern in `src/research/base.py`
-- Results stored in `backend/models/research_result.py` with JSON metadata
-- Prerequisites enforced via `backend/services/research_prerequisites.py`
-- Context injection via `backend/services/research_context_builder.py` (builds prompts for generation)
-- Export formatting in `backend/services/export_service.py`
-
-**Test Path Warning:**
-- Tests are in `../tests/` (parent directory), NOT `project/tests/`
-- `pyproject.toml` shows `testpaths = ["tests"]` but this is INCORRECT
-- ALWAYS run `pytest ../tests` from `project/` directory
-- conftest.py handles path setup automatically
-
-## Common Pitfalls
-
-**1. Test Path Confusion**
-- ❌ WRONG: `pytest tests/` (won't work - tests aren't in project/tests/)
-- ✅ CORRECT: `pytest ../tests/` (from project/ directory)
-
-**2. Missing API Key**
-- Error: "ANTHROPIC_API_KEY not found"
-- Fix: Copy `.env.example` to `.env` and add your API key
-
-**3. Import Errors**
-- Backend imports use absolute paths: `from backend.models import User`
-- Research tools use relative: `from ..utils.anthropic_client import get_default_client`
-
-**4. Null Safety in Frontend**
-- Pattern: `(value?.property ?? 0).toFixed(2)` (use optional chaining + nullish coalescing)
-- Common error: `Cannot read properties of undefined (reading 'toFixed')`
-
-**5. Research Tool Prerequisites**
-- Some tools REQUIRE others (e.g., Content Calendar needs SEO + Platform Strategy)
-- Check `backend/services/research_prerequisites.py` for dependency tree
-
-## Debugging
-
-```bash
-# Enable debug logging
-DEBUG_MODE=True LOG_LEVEL=DEBUG
-
-# Check logs
-logs/content_jumpstart.log
-
-# Verify templates (loads from ../templates/02_POST_TEMPLATE_LIBRARY.md)
-python 03_post_generator.py list-templates  # Should show 15
-
-# Check outputs
-data/outputs/{ClientName}/  # deliverable.md, brand_voice.md, qa_report.md
-
-# Test single file
-pytest ../tests/unit/test_specific.py -v
-
-# Frontend build issues
-cd operator-dashboard && npm run build && npm run preview
+```
+ANTHROPIC_API_KEY          required
+ANTHROPIC_MODEL            default: claude-3-5-sonnet-latest
+MAX_CONCURRENT_API_CALLS   default: 5
+PARALLEL_GENERATION        True
+DEBUG_MODE / LOG_LEVEL
+DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD   optional — Google Trends fallback
 ```
 
-**UI debugging:** Walk through all steps, take screenshots, check console errors, verify state changes, read error-context.md files.
+## Import conventions
 
-## Bug Tracking
+- Backend: absolute — `from backend.models import User`
+- Research/src: relative — `from ..utils.anthropic_client import get_default_client`
 
-Document unresolved bugs in `BUGS.md` with: description, steps to reproduce, expected vs actual, component, severity, status.
+## Known pitfalls
 
-UI/UX revisions tracked in `../docs/todo.md`.
+- **Test path**: `pyproject.toml` is wrong — use `pytest ../tests/` always
+- **Template path**: `.env` must have `TEMPLATE_LIBRARY_PATH=02_POST_TEMPLATE_LIBRARY.md` (not `../02_...`)
+- **Deep-link 404**: only works with a production build (`npm run build`) or Vite dev server
+- **Research race condition**: `competitive_analysis` must run after `determine_competitors` — see P0 in `../TODO.md`
+- **Google Trends rate limit**: 30 req/hour; circuit-breaker stops after 3 consecutive failures; DataForSEO fallback configured via `DATAFORSEO_LOGIN`
 
-## Key Patterns
+## Coverage gaps (as of 2026-03-19)
 
-- **Agent-based design:** Each function is a separate agent
-- **Async-first:** Default async, sync for debugging
-- **Pydantic validation:** All data models validated
-- **Fail gracefully:** Placeholder posts on error
-- **Business template separation:** Templates in `../templates/`, never modify
-
-## Known Issues
-
-**Deep-Link Routing:** ~~Dashboard refresh on deep routes returns 404.~~ **FIXED** - SPA routing middleware in backend/main.py now handles deep-links correctly. Works when:
-- Running production build from FastAPI (serves operator-dashboard/dist)
-- Running Vite dev server (automatic SPA fallback)
-
-If issues persist, ensure the frontend is built (`cd operator-dashboard && npm run build`).
-
-## Recent Fixes (February 2, 2026)
-
-**Template Path Issue:** ~~24 coordinator tests failing with FileNotFoundError.~~ **FIXED**
-- Root cause: `.env` file had `TEMPLATE_LIBRARY_PATH=../02_POST_TEMPLATE_LIBRARY.md`
-- Solution: Updated to `TEMPLATE_LIBRARY_PATH=02_POST_TEMPLATE_LIBRARY.md`
-- Template file exists at `Project/02_POST_TEMPLATE_LIBRARY.md`
-- All 25 coordinator tests now pass ✅
-
-**Test Organization:** Agent tests moved to correct locations
-- Moved 4 tests from `tests/unit/` to `tests/unit/agents/`
-- Improved test directory consistency
-
-**Integration Test Coverage:** Added 67 new router integration tests
-- `test_router_research.py` - 20 tests (P0 priority, $300-600 features)
-- `test_router_trends.py` - 29 tests (Google Trends integration)
-- `test_router_assistant.py` - 18 tests (AI assistant chat)
-
-**Test Suite Status:** 4,743 passing tests, **95% coverage achieved** ✅ (target: 90%)
-
-## Operator Dashboard
-
-React + TypeScript + Vite + Tailwind + shadcn/ui + React Query + Zustand
-
-```bash
-cd operator-dashboard
-npm run dev        # Development
-npm run build      # Production
-npm run lint:fix   # ESLint
-npm run typecheck  # TypeScript
-```
-
-## Interactive Agent
-
-58 tools: content generation, project/client management, research, Google Trends, backend API wrappers.
-
-**Commands:** `chat`, `sessions`, `pending`, `export`, `search`, `summary`
-**In-chat:** `help`, `pending`, `scheduled`, `reset`, `new`, `exit`
-
-**Database:** SQLite `data/agent_sessions.db` (sessions, messages, scheduled_tasks)
+Lowest coverage files: `export_service.py` 75%, `market_trends_research.py` 70%, `seo_keyword_research.py` 75%, `content_generator.py` 85%. Full gap analysis: `../docs/TESTING_GAP_ANALYSIS.md`.

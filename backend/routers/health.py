@@ -8,9 +8,12 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from backend.config import settings
+from backend.database import get_db
 from backend.utils.db_monitor import get_pool_events, get_pool_status
 from backend.utils.query_cache import clear_cache, get_cache_info, reset_cache_stats
 from backend.utils.query_profiler import (
@@ -32,6 +35,19 @@ async def health_check() -> Dict[str, Any]:
         "service": "Content Jumpstart API",
         "version": settings.API_VERSION,
     }
+
+
+@router.get("/ready")
+async def readiness_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Kubernetes-style readiness probe — verifies the app and DB are ready."""
+    db.execute(text("SELECT 1"))
+    return {"status": "ready", "database": "connected"}
+
+
+@router.get("/live")
+async def liveness_check() -> Dict[str, Any]:
+    """Kubernetes-style liveness probe — returns immediately."""
+    return {"status": "ok"}
 
 
 @router.get("/database")

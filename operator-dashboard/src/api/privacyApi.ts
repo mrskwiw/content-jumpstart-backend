@@ -2,6 +2,7 @@
  * Privacy API Client - GDPR/CCPA Compliance
  */
 import apiClient from './client';
+import type { Client, Project, ResearchResult } from '@/types/domain';
 
 export interface DeleteClientResponse {
   status: string;
@@ -30,9 +31,9 @@ export interface ExportClientDataResponse {
     exported_at: string;
     format: string;
   };
-  client: any;
-  projects: any[];
-  research_results: any[];
+  client: Client;
+  projects: Project[];
+  research_results: ResearchResult[];
 }
 
 /**

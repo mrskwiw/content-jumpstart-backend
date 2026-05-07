@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge } from '@/components/ui';
+import { ROUTES } from '@/config/routes';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -8,7 +9,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate(ROUTES.LOGIN);
   };
 
   return (

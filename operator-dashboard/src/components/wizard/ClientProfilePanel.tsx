@@ -233,7 +233,7 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
         if (field === 'tonePreference' && Array.isArray(importedValue)) {
           importedValue = importedValue[0];
         }
-        merged[field] = importedValue as any;
+        (merged as Record<string, unknown>)[field as string] = importedValue;
       }
     });
 
@@ -251,9 +251,11 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
     ];
 
     arrayFields.forEach((field) => {
-      const currentArray = (merged[field] as any[]) || [];
-      const importedArray = (importedData.fields[field]?.value as any[]) || [];
-      merged[field] = [...new Set([...currentArray, ...importedArray])] as any;
+      const currentArray: string[] = Array.isArray(merged[field]) ? (merged[field] as string[]) : [];
+      const importedArray: string[] = Array.isArray(importedData.fields[field]?.value)
+        ? (importedData.fields[field]!.value as string[])
+        : [];
+      (merged as Record<string, unknown>)[field as string] = [...new Set([...currentArray, ...importedArray])];
     });
 
     setFormData(merged);

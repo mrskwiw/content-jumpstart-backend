@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { researchApi, costsApi, ResearchTool, clientsApi } from "@/api";
+import type { Client } from '@/types/domain';
 import { deliverablesApi } from '@/api/deliverables';
 import { getDisabledToolIds } from '@/config/featureRegistry';
 import { ToolCard } from '../../components/research/ToolCard';
 import { PricingSummaryCard } from '../../components/research/PricingSummaryCard';
-import { Search, Filter, AlertCircle, Link2, Info, Loader2 } from 'lucide-react';
+import { Search, Filter, AlertCircle, Link2, Info, Loader2, FileOutput } from 'lucide-react';
+import { ToolRunStatusList, type ToolStatusItem } from '@/components/wizard/ToolRunStatusList';
 
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
@@ -15,7 +18,7 @@ const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: stri
   seo_keyword_research: { required: [], recommended: [] },
   audience_research: { required: [], recommended: [] },
   determine_competitors: { required: [], recommended: [] },
-  competitive_analysis: { required: [], recommended: ['determine_competitors'] },
+  competitive_analysis: { required: ['determine_competitors'], recommended: [] },
 
   // Tier 2 - Analysis
   business_report: { required: [], recommended: ['determine_competitors'] },
@@ -58,33 +61,43 @@ export default function ResearchToolsLibrary() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('docx');
   const [executionStatus, setExecutionStatus] = useState<Record<string, string>>({});
+  const navigate = useNavigate();
 
   // Fetch available tools
-  const { data: tools = [], isLoading: toolsLoading } = useQuery({
+  const { data: tools = [], isLoading: toolsLoading, isError: toolsError } = useQuery({
     queryKey: ['research-tools'],
     queryFn: () => researchApi.listTools()
   });
 
   // Fetch clients for client selector
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [], isError: clientsError } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
   });
 
   // Fetch client prerequisite status when client is selected
-  const { data: clientPrerequisites } = useQuery({
+  const { data: clientPrerequisites, isError: prerequisitesError } = useQuery({
     queryKey: ['client-prerequisites', selectedClientId],
     queryFn: () => selectedClientId ? researchApi.getClientPrerequisites(selectedClientId) : null,
     enabled: selectedClientId !== null,
   });
 
   // Fetch run history for the selected client to show completion indicators on cards
-  const { data: clientHistory } = useQuery({
+  const { data: clientHistory, isError: historyError } = useQuery({
     queryKey: ['research-history', selectedClientId],
     queryFn: () => selectedClientId ? researchApi.getClientHistory(selectedClientId) : null,
     enabled: selectedClientId !== null,
     staleTime: 60 * 1000,
   });
+
+  // Fetch deliverable count to enable/disable the "View Deliverables" CTA — runs
+  // regardless of client selection so the button is reachable on initial load.
+  const { data: deliverablesList = [] } = useQuery({
+    queryKey: ['deliverables', 'list'],
+    queryFn: () => deliverablesApi.list(),
+    staleTime: 30 * 1000,
+  });
+  const hasDeliverables = deliverablesList.length > 0;
 
   // Build per-tool execution status map: tool_name → { executed, executionCount, lastRun }
   const toolExecutionStatus = useMemo(() => {
@@ -223,6 +236,15 @@ export default function ResearchToolsLibrary() {
     generateReportMutation.mutate();
   };
 
+  if (toolsError) {
+    return (
+      <div className="flex items-center justify-center h-96 text-red-500">
+        <AlertCircle className="h-5 w-5 mr-2" />
+        <span>Failed to load research tools. Please refresh the page.</span>
+      </div>
+    );
+  }
+
   if (toolsLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -243,6 +265,15 @@ export default function ResearchToolsLibrary() {
             Generate comprehensive research reports tailored to your client
           </p>
         </div>
+        <button
+          onClick={() => navigate('/dashboard/deliverables')}
+          disabled={!hasDeliverables}
+          title={!hasDeliverables ? 'Generate a deliverable first' : 'View your deliverables'}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 enabled:border-blue-600 enabled:text-blue-600 enabled:dark:text-blue-400 enabled:hover:bg-blue-50 enabled:dark:hover:bg-blue-950"
+        >
+          <FileOutput className="h-4 w-4" />
+          View Deliverables
+        </button>
       </div>
 
       {/* Client & Format Selector */}
@@ -259,9 +290,9 @@ export default function ResearchToolsLibrary() {
               className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Choose a client...</option>
-              {clients.map((client: any) => (
+              {clients.map((client: Client) => (
                 <option key={client.id} value={client.id}>
-                  {client.companyName || client.name}
+                  {client.name}
                 </option>
               ))}
             </select>
@@ -299,6 +330,7 @@ export default function ResearchToolsLibrary() {
             <input
               type="text"
               placeholder="Search tools..."
+              aria-label="Search research tools"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -384,30 +416,13 @@ export default function ResearchToolsLibrary() {
           <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
             Tool Execution Status
           </h3>
-          <div className="space-y-2">
-            {selectedTools.map(tool => {
-              const status = executionStatus[tool] || 'pending';
-              return (
-                <div key={tool} className="flex items-center gap-3">
-                  {status === 'running' && (
-                    <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
-                  )}
-                  {status === 'complete' && (
-                    <div className="h-4 w-4 rounded-full bg-green-600 dark:bg-green-400"></div>
-                  )}
-                  {status === 'failed' && (
-                    <div className="h-4 w-4 rounded-full bg-red-600 dark:bg-red-400"></div>
-                  )}
-                  {status === 'pending' && (
-                    <div className="h-4 w-4 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                  )}
-                  <span className="text-sm text-blue-900 dark:text-blue-100">
-                    {TOOL_LABELS[tool]} - {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <ToolRunStatusList
+            items={selectedTools.map((tool): ToolStatusItem => ({
+              name: tool,
+              label: TOOL_LABELS[tool] || tool,
+              status: (executionStatus[tool] ?? 'pending') as ToolStatusItem['status'],
+            }))}
+          />
         </div>
       )}
 

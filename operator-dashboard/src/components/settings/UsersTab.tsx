@@ -104,6 +104,7 @@ function AddUserModal({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Add New User</h2>
           <button
+            aria-label="Close dialog"
             onClick={onClose}
             className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
           >
@@ -224,6 +225,7 @@ function UserActionsMenu({
   return (
     <div className="relative">
       <button
+        aria-label="User actions menu"
         onClick={() => setOpen(!open)}
         className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded"
       >
@@ -652,6 +654,7 @@ export default function UsersTab() {
                 Reset Password
               </h3>
               <button
+                aria-label="Close password reset dialog"
                 onClick={() => {
                   setShowPasswordResetModal(false);
                   setNewPassword('');

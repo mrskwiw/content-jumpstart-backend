@@ -11,6 +11,7 @@ Endpoints:
 - POST /credits/admin/adjust - Admin credit adjustment
 """
 
+import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -34,6 +35,8 @@ from backend.schemas.credit_schemas import (
 from backend.services import credit_service
 
 router = APIRouter(prefix="/credits", tags=["credits"])
+
+logger = logging.getLogger(__name__)
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -60,13 +63,17 @@ def get_credit_balance(
     db: Session = Depends(get_db),
 ):
     """Get current user's credit balance."""
-    return CreditBalanceResponse(
-        balance=current_user.credit_balance,
-        total_purchased=current_user.total_credits_purchased,
-        total_used=current_user.total_credits_used,
-        is_enterprise=current_user.is_enterprise,
-        custom_credit_rate=current_user.custom_credit_rate,
-    )
+    try:
+        return CreditBalanceResponse(
+            balance=current_user.credit_balance,
+            total_purchased=current_user.total_credits_purchased,
+            total_used=current_user.total_credits_used,
+            is_enterprise=current_user.is_enterprise,
+            custom_credit_rate=current_user.custom_credit_rate,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching credit balance for user {current_user.id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve credit balance")
 
 
 @router.get("/transactions", response_model=List[CreditTransactionResponse])
@@ -80,15 +87,17 @@ def get_transactions(
     db: Session = Depends(get_db),
 ):
     """Get user's transaction history."""
-    transactions = credit_service.get_transactions(
-        db=db,
-        user_id=current_user.id,
-        limit=limit,
-        offset=offset,
-        transaction_type=transaction_type,
-    )
-
-    return transactions
+    try:
+        return credit_service.get_transactions(
+            db=db,
+            user_id=current_user.id,
+            limit=limit,
+            offset=offset,
+            transaction_type=transaction_type,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching transactions for user {current_user.id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve transactions")
 
 
 @router.post(

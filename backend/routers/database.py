@@ -271,6 +271,7 @@ async def restore_database_from_backup(
                 "restored_from": file.filename,
                 "target": "in-memory",
                 "timestamp": timestamp,
+                "backup_created": None,
                 "warning": (
                     "User settings (API keys, web search provider) have been restored from "
                     "this backup. If those settings were configured after the backup was "
@@ -309,6 +310,7 @@ async def restore_database_from_backup(
                         "migration_applied": False,
                         "backup_version": backup_version,
                         "current_version": current_version,
+                        "backup_created": str(pre_restore_backup),
                         "warning": (
                             "User settings (API keys, web search provider) have been restored "
                             "from this backup. If those settings were configured after the "

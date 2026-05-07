@@ -59,7 +59,7 @@ export function EditClientDialog({
     if (mainProblemSolved !== (client.mainProblemSolved ?? '')) updates.mainProblemSolved = mainProblemSolved || undefined;
     if (tonePreference !== (client.tonePreference ?? '')) updates.tonePreference = tonePreference || undefined;
     if (JSON.stringify(platforms) !== JSON.stringify(client.platforms ?? [])) {
-      updates.platforms = platforms.length > 0 ? platforms as any[] : undefined;
+      updates.platforms = platforms.length > 0 ? platforms as UpdateClientInput['platforms'] : undefined;
     }
     if (JSON.stringify(keywords) !== JSON.stringify(client.keywords ?? [])) {
       updates.keywords = keywords.length > 0 ? keywords : undefined;

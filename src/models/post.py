@@ -102,11 +102,24 @@ class Post(BaseModel):
             "learn more",
             "find out",
             "listen to",
+            # Soft/service CTAs added to match CTAValidator.CTA_PATTERNS
+            "ask us",
+            "ask me",
+            "ask your",  # covers "ask your dentist/doctor/team/..."
+            "ask our team",  # CTAValidator also accepts "our team" form
+            "let’s ",  # ASCII apostrophe
+            "let’s ",  # right curly quote (common in LLM output)
+            "give us a",
+            "give me a",
+            "give us your",  # CTAValidator accepts give ... your
+            "give me your",
         ]
         if any(ind in cta_section for ind in substring_indicators):
             return True
 
-        # Word-boundary patterns for short words that appear inside other words
+        # Word-boundary patterns for short words that appear inside other words.
+        # "appointment" and "consultation" are here (not in substring_indicators)
+        # to avoid false matches inside e.g. "disappointment".
         word_patterns = [
             r"\breply\b",
             r"\bcomment\b",
@@ -129,6 +142,9 @@ class Post(BaseModel):
             r"\bregister\b",
             r"\bapply\b",
             r"\bdm\b",
+            r"\bsession\b",
+            r"\bappointment\b",
+            r"\bconsultation\b",
         ]
         return any(re.search(pat, cta_section) for pat in word_patterns)
 

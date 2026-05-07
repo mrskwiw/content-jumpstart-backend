@@ -6,6 +6,40 @@ import { ContentAuditCollector } from './ContentAuditCollector';
 import { researchApi } from '@/api/research';
 import type { Client } from '@/types/domain';
 
+// Minimal interfaces for reading research tool result data
+interface DetermineCompetitorsData {
+  primary_competitors?: Array<string | { name?: string }>;
+}
+interface SEOKeywordData {
+  primary_keywords?: Array<string | { keyword?: string }>;
+  keywords?: Array<string | { keyword?: string }>;
+}
+interface ContentGapData {
+  content_gaps?: Array<string | { topic?: string; title?: string }>;
+  gaps?: Array<string | { topic?: string; title?: string }>;
+}
+interface VoiceAnalysisData {
+  brand_voice_guide?: string;
+  voice_characteristics?: string;
+  primary_tone?: string;
+  dominant_tone?: string;
+  tone?: string;
+}
+interface BrandArchetypeData {
+  primary_archetype?: string;
+  archetype?: string;
+  messaging_framework?: string;
+  content_recommendations?: string;
+  brand_voice?: string;
+}
+interface AudienceResearchData {
+  pain_points?: string[];
+  behaviors_pain?: { pain_points?: string[]; information_sources?: string[] };
+  information_sources?: string[];
+  psychographics?: string | object;
+  demographics_psycho?: { psychographics?: string | object };
+}
+
 interface ResearchDataCollectionPanelProps {
   selectedTools: string[];
   clientData: Client | null;
@@ -608,10 +642,11 @@ export function ResearchDataCollectionPanel({
       // Populate competitors from determine_competitors results if available
       const dcResult = completedResults.find(r => r.toolName === 'determine_competitors');
       if (dcResult?.data) {
-        const primary = (dcResult.data as any).primary_competitors ?? [];
+        const dcData = dcResult.data as DetermineCompetitorsData;
+        const primary = dcData.primary_competitors ?? [];
         const names: string[] = primary
-          .map((c: any) => (typeof c === 'string' ? c : c?.name))
-          .filter(Boolean)
+          .map((c) => (typeof c === 'string' ? c : c?.name))
+          .filter((x): x is string => Boolean(x))
           .slice(0, 5);
         if (names.length > 0) maybeSet('competitors', names.join(', '));
       }
@@ -621,11 +656,12 @@ export function ResearchDataCollectionPanel({
       // Populate focus_areas from seo_keyword_research if available
       const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
       if (seoResult?.data) {
-        const keywords = (seoResult.data as any).primary_keywords ?? (seoResult.data as any).keywords ?? [];
+        const seoData = seoResult.data as SEOKeywordData;
+        const keywords = seoData.primary_keywords ?? seoData.keywords ?? [];
         const topKeywords: string[] = keywords
           .slice(0, 8)
-          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
-          .filter(Boolean);
+          .map((k) => (typeof k === 'string' ? k : k?.keyword))
+          .filter((x): x is string => Boolean(x));
         if (topKeywords.length > 0) maybeSet('focus_areas', topKeywords.join(', '));
       }
     }
@@ -634,11 +670,12 @@ export function ResearchDataCollectionPanel({
       // Populate current_content_topics from seo_keyword_research if available
       const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
       if (seoResult?.data) {
-        const keywords = (seoResult.data as any).primary_keywords ?? (seoResult.data as any).keywords ?? [];
+        const seoData2 = seoResult.data as SEOKeywordData;
+        const keywords = seoData2.primary_keywords ?? seoData2.keywords ?? [];
         const topKeywords: string[] = keywords
           .slice(0, 10)
-          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
-          .filter(Boolean);
+          .map((k) => (typeof k === 'string' ? k : k?.keyword))
+          .filter((x): x is string => Boolean(x));
         if (topKeywords.length > 0) maybeSet('current_content_topics', topKeywords.join(', '));
       }
     }
@@ -647,11 +684,11 @@ export function ResearchDataCollectionPanel({
       // Populate audit_focus_areas from content_gap_analysis results if available
       const gapResult = completedResults.find(r => r.toolName === 'content_gap_analysis');
       if (gapResult?.data) {
-        const data = gapResult.data as any;
-        const gaps: string[] = (data.content_gaps ?? data.gaps ?? [])
+        const gapData = gapResult.data as ContentGapData;
+        const gaps: string[] = (gapData.content_gaps ?? gapData.gaps ?? [])
           .slice(0, 5)
-          .map((g: any) => (typeof g === 'string' ? g : g?.topic ?? g?.title))
-          .filter(Boolean);
+          .map((g) => (typeof g === 'string' ? g : g?.topic ?? g?.title))
+          .filter((x): x is string => Boolean(x));
         if (gaps.length > 0) maybeSet('audit_focus_areas', gaps.join(', '));
       }
     }
@@ -660,9 +697,9 @@ export function ResearchDataCollectionPanel({
     if (selectedTools.includes('platform_strategy')) {
       const voiceResult = completedResults.find(r => r.toolName === 'voice_analysis');
       if (voiceResult?.data) {
-        const data = voiceResult.data as any;
-        const voiceGuide = data.brand_voice_guide ?? data.voice_characteristics ?? '';
-        const primaryTone = data.primary_tone ?? data.dominant_tone ?? data.tone ?? '';
+        const voiceData = voiceResult.data as VoiceAnalysisData;
+        const voiceGuide = voiceData.brand_voice_guide ?? voiceData.voice_characteristics ?? '';
+        const primaryTone = voiceData.primary_tone ?? voiceData.dominant_tone ?? voiceData.tone ?? '';
         const voiceContext = voiceGuide || (primaryTone ? `Tone: ${primaryTone}` : '');
         if (voiceContext) maybeSet('tone_preference', voiceContext);
       }
@@ -672,9 +709,9 @@ export function ResearchDataCollectionPanel({
     if (selectedTools.includes('content_calendar_strategy')) {
       const archetypeResult = completedResults.find(r => r.toolName === 'brand_archetype');
       if (archetypeResult?.data) {
-        const data = archetypeResult.data as any;
-        const primaryArchetype = data.primary_archetype ?? data.archetype ?? '';
-        const messaging = data.messaging_framework ?? data.content_recommendations ?? data.brand_voice ?? '';
+        const archetypeData = archetypeResult.data as BrandArchetypeData;
+        const primaryArchetype = archetypeData.primary_archetype ?? archetypeData.archetype ?? '';
+        const messaging = archetypeData.messaging_framework ?? archetypeData.content_recommendations ?? archetypeData.brand_voice ?? '';
         if (primaryArchetype) {
           const archetypeGoals = messaging
             ? `${primaryArchetype} archetype — ${messaging}`
@@ -688,10 +725,16 @@ export function ResearchDataCollectionPanel({
     if (selectedTools.includes('icp_workshop')) {
       const audienceResult = completedResults.find(r => r.toolName === 'audience_research');
       if (audienceResult?.data) {
-        const data = audienceResult.data as any;
-        const painPoints: string[] = (data.pain_points ?? data.behaviors_pain?.pain_points ?? []).slice(0, 5);
-        const infoSources: string[] = (data.information_sources ?? data.behaviors_pain?.information_sources ?? []).slice(0, 5);
-        const psycho = typeof data.psychographics === 'string' ? data.psychographics : (data.demographics_psycho?.psychographics ?? '');
+        const audienceData = audienceResult.data as AudienceResearchData;
+        const painPoints: string[] = (audienceData.pain_points ?? audienceData.behaviors_pain?.pain_points ?? []).slice(0, 5);
+        const infoSources: string[] = (audienceData.information_sources ?? audienceData.behaviors_pain?.information_sources ?? []).slice(0, 5);
+        const psychoRaw = audienceData.psychographics ?? audienceData.demographics_psycho?.psychographics ?? '';
+        const psycho = typeof psychoRaw === 'string'
+          ? psychoRaw
+          : Object.values(psychoRaw as Record<string, unknown>)
+              .flatMap((v) => (Array.isArray(v) ? v : [v]))
+              .filter((v): v is string => typeof v === 'string' && Boolean(v))
+              .join('; ');
 
         const parts: string[] = [];
         if (painPoints.length > 0) parts.push(`Known Pain Points: ${painPoints.join('; ')}`);
@@ -706,11 +749,11 @@ export function ResearchDataCollectionPanel({
     if (selectedTools.includes('platform_strategy')) {
       const seoResult = completedResults.find(r => r.toolName === 'seo_keyword_research');
       if (seoResult?.data) {
-        const data = seoResult.data as any;
-        const keywords: string[] = (data.primary_keywords ?? data.keywords ?? [])
+        const seoData3 = seoResult.data as SEOKeywordData;
+        const keywords: string[] = (seoData3.primary_keywords ?? seoData3.keywords ?? [])
           .slice(0, 5)
-          .map((k: any) => (typeof k === 'string' ? k : k?.keyword))
-          .filter(Boolean);
+          .map((k) => (typeof k === 'string' ? k : k?.keyword))
+          .filter((x): x is string => Boolean(x));
         if (keywords.length > 0) maybeSet('content_goals', `Content topics: ${keywords.join(', ')}`);
       }
     }
