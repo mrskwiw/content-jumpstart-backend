@@ -222,20 +222,31 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             self.client, business_description, target_audience
         )
 
-        # Deduplicate audience_behavior by platform value right here so every
-        # downstream method — _generate_platform_recommendations, _determine_platform_mix,
-        # and the stored analysis result — all work with unique platform entries.
-        # _map_platform_name collapses several platform variants (Instagram, Google
-        # Business Profile, etc.) onto the same enum value, so the same platform
-        # can appear 2-3 times in the raw output, multiplying prompt size and
-        # pushing _generate_platform_recommendations past its token budget.
-        _seen_platforms: set = set()
-        audience_behavior = [
-            b
-            for b in audience_behavior
-            if b.platform.value not in _seen_platforms
-            and not _seen_platforms.add(b.platform.value)  # type: ignore[func-returns-value]
-        ]
+        # Deduplicate audience_behavior by platform value, keeping the highest-quality
+        # entry per platform. _map_platform_name collapses unknown platforms (Instagram,
+        # Google Business Profile, etc.) onto existing enum values, so the same enum
+        # value can appear 2-3 times. Simply taking the first entry would be lossy —
+        # it might keep a mis-mapped platform and discard the genuine one. Instead we
+        # rank by (audience_present, activity_level) and keep the best-scoring entry.
+        _activity_rank = {"extremely high": 4, "high": 3, "medium": 2, "low-medium": 1, "low": 1}
+        _best: dict = {}
+        for _b in audience_behavior:
+            _key = _b.platform.value
+            if _key not in _best:
+                _best[_key] = _b
+            else:
+                _cur = _best[_key]
+                _cur_score = int(_cur.audience_present) * 10 + _activity_rank.get(
+                    _cur.activity_level.lower(), 0
+                )
+                _new_score = int(_b.audience_present) * 10 + _activity_rank.get(
+                    _b.activity_level.lower(), 0
+                )
+                if _new_score > _cur_score:
+                    _best[_key] = _b
+        # Restore insertion order of first occurrence
+        _order = list(dict.fromkeys(_b.platform.value for _b in audience_behavior))
+        audience_behavior = [_best[_k] for _k in _order]
 
         # Step 2: Generate platform recommendations (with optional live demographics)
         print("[Step 2/5] Evaluating platform fit and recommendations...")
@@ -354,7 +365,8 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
 Business: {business_description}
 Target Audience: {target_audience}
 
-Evaluate EACH of these platforms: LinkedIn, Twitter, Facebook, YouTube, TikTok, Blog, Email, Podcast
+Evaluate EXACTLY these 8 platforms and return EXACTLY 8 JSON objects, one per platform, in this order:
+LinkedIn, Twitter, Facebook, YouTube, TikTok, Blog, Email, Podcast
 
 For each platform, answer:
 1. Is the target audience present and actively engaged here?
@@ -362,6 +374,8 @@ For each platform, answer:
 3. What content do they consume, and when?
 4. How do they engage (comments, shares, DMs, passive scrolling)?
 5. Are decision-makers or buyers present?
+
+CRITICAL: Return EXACTLY 8 entries — one per platform above. Do NOT add Instagram, Google Business Profile, Pinterest, or any other platform. Use only these exact lowercase platform names: linkedin, twitter, facebook, youtube, tiktok, blog, email, podcast.
 
 SCORING RUBRIC — rate audience fit 0-100 using these criteria:
 - 0-30: Audience is largely absent or passive
