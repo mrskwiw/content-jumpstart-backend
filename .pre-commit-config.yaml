@@ -18,13 +18,10 @@ repos:
           - '--baseline'
           - '.secrets.baseline'
           - '--exclude-files'
-          - '\.env\.example$'
-          - '--exclude-files'
           - 'tests/fixtures/.*'
         exclude: |
           (?x)^(
             \.secrets\.baseline|
-            \.env\.example|
             tests/fixtures/.*
           )$
 
