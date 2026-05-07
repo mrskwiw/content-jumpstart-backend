@@ -188,8 +188,21 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
 
         return True
 
+    def _derive_resource_level(self, posting_frequency: str) -> str:
+        """Map posting_frequency string to a standard resource level label."""
+        freq = (posting_frequency or "").lower()
+        if any(x in freq for x in ["daily", "7x", "6x", "every day"]):
+            return "high (posts daily — 3+ platforms sustainable)"
+        if any(x in freq for x in ["5x", "4x", "3x"]):
+            return "medium (3-5 posts/week — 2-3 platforms sustainable)"
+        if any(x in freq for x in ["2x", "twice"]):
+            return "low (2 posts/week — 1-2 platforms sustainable)"
+        if any(x in freq for x in ["1x", "weekly", "once", "monthly"]):
+            return "low (1 post/week — 1 platform sustainable)"
+        return "unknown — assume low (1-2 platforms sustainable)"
+
     def run_analysis(self, inputs: Dict[str, Any]) -> PlatformStrategyAnalysis:
-        """Execute 5-step platform strategy analysis"""
+        """Execute platform strategy analysis with self-validation"""
         business_description = inputs["business_description"]
         target_audience = inputs["target_audience"]
         business_name = inputs.get("business_name", "Client")
@@ -200,6 +213,8 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
         brand_personality = inputs.get("brand_personality", [])
         posting_frequency = inputs.get("posting_frequency", "")
         data_usage = inputs.get("data_usage", "")
+
+        resource_level = self._derive_resource_level(posting_frequency)
 
         # Step 1: Analyze audience platform behavior
         print("[Step 1/5] Analyzing target audience platform behavior...")
@@ -223,6 +238,7 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             brand_personality=brand_personality,
             data_usage=data_usage,
             platform_demographics=platform_demographics,
+            resource_level=resource_level,
         )
 
         # Step 3: Determine optimal platform mix
@@ -233,6 +249,21 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             target_audience,
             content_goals,
             posting_frequency=posting_frequency,
+            resource_level=resource_level,
+        )
+
+        # Step 3b: Self-check — validate mix against client profile; fix obvious mismatches
+        print("[Step 3b] Validating recommendations against client profile...")
+        platform_mix, platform_recommendations = self._validate_recommendations(
+            self.client,
+            business_description,
+            target_audience,
+            industry,
+            tone_preference,
+            brand_personality,
+            resource_level,
+            platform_mix,
+            platform_recommendations,
         )
 
         # Step 4: Create content distribution strategy
@@ -421,6 +452,7 @@ Use lowercase platform names. Be specific — avoid generic statements that coul
         brand_personality: "list | str" = "",
         data_usage: str = "",
         platform_demographics: str = "",
+        resource_level: str = "",
     ) -> List[PlatformRecommendation]:
         """Generate detailed recommendations for all relevant platforms in a single API call"""
         # Filter to platforms where audience is present
@@ -466,34 +498,43 @@ Use lowercase platform names. Be specific — avoid generic statements that coul
             else ""
         )
 
+        resource_context = f"\nTeam Resource Level: {resource_level}" if resource_level else ""
+
         prompt = f"""Create detailed platform recommendations for ALL of these platforms: {platform_names}
 
 Business: {business_description}
 Target Audience: {target_audience}
-Content Goals: {content_goals}{voice_context}
+Content Goals: {content_goals}{voice_context}{resource_context}
 
 Audience Behavior Data:
 {behaviors_text}{demographics_context}
 
+PLATFORM GUARDRAILS — apply these BEFORE scoring. These are hard constraints, not suggestions:
+- TikTok / Instagram Reels: auto "not_recommended" if the target audience is primarily 40+ professionals, B2B enterprise buyers, or C-suite executives. Only "recommended" or higher if content can be entertainment-first and the audience includes 18-40 yr olds.
+- LinkedIn: "essential" or "recommended" for B2B, professional services, consulting, recruiting, SaaS, finance. "optional" or lower for pure consumer brands, youth products, or local services with no B2B angle.
+- Pinterest: "recommended" or higher ONLY if content is visually oriented (food, fashion, home decor, weddings, travel, crafts). "not_recommended" for B2B SaaS, industrial, finance, or healthcare.
+- Podcast: only "recommended" or higher if the business already produces long-form audio content, OR the client explicitly wants to build thought leadership via audio. Default to "optional" otherwise.
+- Resource cap: If resource level indicates low capacity (1-2 posts/week), rate no more than 2 platforms as "essential" or "recommended". A small team cannot sustain more than 2 active platforms well.
+
 SCORING RUBRIC — apply these criteria consistently to every platform:
-- Fit level "essential": audience score 80+, content format naturally suits this platform, AND low-to-medium effort relative to ROI
-- Fit level "recommended": audience score 60-79, or strong format fit even if audience score is moderate
+- Fit level "essential": audience score 80+, content format naturally suits this platform, AND within the team's resource capacity
+- Fit level "recommended": audience score 60-79, or strong format fit even if audience score is moderate, AND within resource capacity
 - Fit level "optional": audience score 40-59, or high effort with uncertain ROI
-- Fit level "not_recommended": audience score below 40, or platform is a clear mismatch for this business type
+- Fit level "not_recommended": audience score below 40, violates a guardrail above, or platform is a clear mismatch for this business type
 
 For EACH platform provide:
-1. Fit level using the rubric above (essential/recommended/optional/not_recommended)
+1. Fit level (essential/recommended/optional/not_recommended) — apply rubric and guardrails strictly
 2. Priority (High/Medium/Low) — must align with fit level: essential→High, recommended→Medium/High, optional→Low/Medium
 3. Why use — 3-5 specific reasons grounded in the audience data above
-4. Why not use — 2-3 honest concerns or resource considerations
+4. Why not use — 2-3 honest concerns including resource realism
 5. Best content formats (short_form/long_form/video/audio/visual/carousel/live)
 6. Posting frequency — realistic for a small team
-7. Content approach — cover BOTH organic and paid:
-   - Organic: what content to create, what tone and format works
-   - Paid: whether paid advertising is worth it here, best ad formats, rough targeting approach
+7. Content approach — TWO separate paragraphs:
+   ORGANIC: specific content types, tone, format, posting rhythm that works on this platform for this audience.
+   PAID: Only recommend paid advertising if this platform has proven B2B or B2C ad ROI for this business type (LinkedIn Sponsored Content for B2B, Meta/Instagram for B2C/ecommerce, Google Search for service businesses). If recommending paid: name the specific ad format, rough budget range, and targeting approach. If not recommending paid: state explicitly "Paid advertising not recommended here — [one-line reason]."
 8. Primary goal (awareness/leads/community/sales/retention)
 9. Success metrics — 3-5 measurable KPIs
-10. Estimated effort (Small/Medium/Large) — honest assessment including paid ad management if relevant
+10. Estimated effort (Small/Medium/Large) — include ad management overhead if paid was recommended
 11. Expected ROI (High/Medium/Low) — consider both organic and paid returns
 
 Return a JSON array with one object per platform:
@@ -506,7 +547,7 @@ Return a JSON array with one object per platform:
     "why_not_use": ["concern1", "concern2"],
     "recommended_formats": ["short_form", "video"],
     "posting_frequency": "3x per week",
-    "content_approach": "Organic: [organic strategy]. Paid: [paid advertising approach and whether it is worth the investment]",
+    "content_approach": "ORGANIC: [specific organic strategy]. PAID: [paid recommendation or explicit rejection with reason]",
     "primary_goal": "awareness",
     "success_metrics": ["metric1", "metric2", "metric3"],
     "estimated_effort": "Medium",
@@ -590,6 +631,7 @@ Be specific to this business — do not give generic advice that could apply to 
         target_audience: str,
         content_goals: str,
         posting_frequency: str = "",
+        resource_level: str = "",
     ) -> PlatformMix:
         """Determine optimal portfolio of platforms"""
         # Build context
@@ -606,23 +648,28 @@ Be specific to this business — do not give generic advice that could apply to 
             )
 
         frequency_context = (
-            f"\nClient's Posting Frequency: {posting_frequency} (factor this into how many primary platforms are realistic)"
-            if posting_frequency
-            else ""
+            f"\nClient's Posting Frequency: {posting_frequency}" if posting_frequency else ""
         )
+        resource_context = f"\nTeam Resource Level: {resource_level}" if resource_level else ""
         prompt = f"""Assign each platform to the right bucket in the platform mix.
 
 Target Audience: {target_audience}
-Content Goals: {content_goals}{frequency_context}
+Content Goals: {content_goals}{frequency_context}{resource_context}
 
 Platform Recommendations (ranked by fit):
 {json.dumps(recs_summary, indent=2)}
 
+RESOURCE-BASED CAPS — enforce before applying fit-level rules:
+- If resource level is "low" or "unknown": Primary maximum 1, Secondary maximum 1 (total active = 2 platforms). Reduce further if posting frequency is weekly or less.
+- If resource level is "medium": Primary maximum 2, Secondary maximum 2 (total active = 4).
+- If resource level is "high": Apply standard caps below.
+This is mandatory — reduce Primary/Secondary counts to match resource capacity even if fit levels suggest more.
+
 ASSIGNMENT RULES — follow these strictly:
 - Only use platforms from the list above. Do NOT invent platforms not in the list.
-- Primary (MAXIMUM 2): Only "essential" or "recommended/High" platforms go here. If no platform scores "essential", pick the top 1-2 "recommended" ones by ROI.
-- Secondary (MAXIMUM 2): "recommended" platforms not in primary, or "optional" platforms with clear supporting role.
-- Experimental (MAXIMUM 1): One "optional" platform worth testing, or a secondary platform the client hasn't tried yet.
+- Primary (MAXIMUM 2, subject to resource cap): Only "essential" or "recommended/High" platforms. If no "essential" exists, pick top 1-2 "recommended" by ROI.
+- Secondary (MAXIMUM 2, subject to resource cap): "recommended" not in primary, or "optional" with clear supporting role.
+- Experimental (MAXIMUM 1): One "optional" platform worth testing. Omit if resource level is low.
 - Avoid: All "not_recommended" platforms, plus any "optional" platforms not assigned above.
 - A "not_recommended" platform must NEVER appear in primary, secondary, or experimental.
 
@@ -632,11 +679,11 @@ Portfolio target — 70-25-5 rule:
 - Experimental: 5% of effort (minimal commitment, learning mode)
 
 Return JSON with:
-- primary_platforms: array of 1-2 platform names (lowercase)
-- secondary_platforms: array of 0-2 platform names (lowercase)
+- primary_platforms: array of platform names (lowercase)
+- secondary_platforms: array of platform names (lowercase)
 - experimental_platforms: array of 0-1 platform names (lowercase)
 - avoid_platforms: array of platform names to skip (lowercase)
-- rationale: 2-3 sentences explaining why this mix fits this specific business and audience"""
+- rationale: 2-3 sentences explaining why this mix fits this specific business, audience, AND team capacity"""
 
         response = client.create_message(
             messages=[{"role": "user", "content": prompt}], max_tokens=2000
@@ -698,6 +745,141 @@ Return JSON with:
             avoid_platforms=avoid,
             rationale=rationale,
         )
+
+    def _validate_recommendations(
+        self,
+        client: Any,
+        business_description: str,
+        target_audience: str,
+        industry: str,
+        tone_preference: str,
+        brand_personality: "list | str",
+        resource_level: str,
+        platform_mix: PlatformMix,
+        recommendations: List[PlatformRecommendation],
+    ) -> tuple["PlatformMix", "List[PlatformRecommendation]"]:
+        """Self-check: validate the generated mix against the client profile.
+
+        Catches obvious mismatches (wrong audience, resource overload, guardrail
+        violations) that passed through earlier steps.  Falls back to the original
+        mix if the validation call fails or returns unexpected output.
+        """
+        primary_names = [p.value for p in platform_mix.primary_platforms]
+        secondary_names = [p.value for p in platform_mix.secondary_platforms]
+
+        if not primary_names and not secondary_names:
+            return platform_mix, recommendations
+
+        brand_context = ""
+        if tone_preference:
+            brand_context += f"Tone: {tone_preference}. "
+        if brand_personality:
+            traits = (
+                ", ".join(brand_personality)
+                if isinstance(brand_personality, list)
+                else str(brand_personality)
+            )
+            brand_context += f"Brand personality: {traits}."
+
+        prompt = f"""You are doing a final quality check on a platform strategy before it goes to the client.
+Identify ONLY clear, unambiguous problems — do not second-guess reasonable choices.
+
+Client Profile:
+- Business: {business_description[:400]}
+- Target Audience: {target_audience[:300]}
+- Industry: {industry}
+- Brand: {brand_context or "not specified"}
+- Team capacity: {resource_level}
+
+Current Recommendation:
+- Primary (70% of effort): {', '.join(primary_names) or 'none'}
+- Secondary (25% of effort): {', '.join(secondary_names) or 'none'}
+
+Check for these SPECIFIC problems:
+1. AUDIENCE MISMATCH — Is any primary or secondary platform clearly wrong for this audience?
+   Flag only obvious cases: TikTok/Reels as primary for 40+ executive B2B audience; LinkedIn as primary for teen/youth consumer brand; Pinterest for B2B SaaS or industrial; Podcast with zero stated audio content intent.
+2. RESOURCE OVERLOAD — Does the active platform count (primary + secondary) exceed what "{resource_level}" can sustain?
+   Flag if "low" capacity has 3+ active platforms; "medium" has 5+ active platforms.
+3. ORGANIC/PAID GAP — Does any primary platform's content_approach cover ONLY organic with no mention of paid, despite being a platform with proven paid ad ROI for this business type (e.g. LinkedIn for B2B with no paid mention)?
+
+Return JSON only. No extra text.
+If no issues: {{"valid": true, "issues": [], "remove_from_primary": [], "remove_from_secondary": [], "add_to_avoid": []}}
+If issues found: {{"valid": false, "issues": ["<concise issue description>"], "remove_from_primary": ["<platform_name>"], "remove_from_secondary": ["<platform_name>"], "add_to_avoid": ["<platform_name>"]}}"""
+
+        try:
+            response = client.create_message(
+                messages=[{"role": "user", "content": prompt}], max_tokens=800
+            )
+            validation = self._extract_json_from_response(response)
+            if not isinstance(validation, dict):
+                return platform_mix, recommendations
+
+            if validation.get("valid", True):
+                return platform_mix, recommendations
+
+            issues = validation.get("issues", [])
+            if issues:
+                logger.warning(f"platform_strategy validation flagged issues: {issues}")
+
+            to_remove_primary = {p.lower() for p in validation.get("remove_from_primary", [])}
+            to_remove_secondary = {p.lower() for p in validation.get("remove_from_secondary", [])}
+            to_avoid = {p.lower() for p in validation.get("add_to_avoid", [])}
+
+            if not to_remove_primary and not to_remove_secondary and not to_avoid:
+                return platform_mix, recommendations
+
+            # Apply corrections to the mix
+            new_primary = [
+                p for p in platform_mix.primary_platforms if p.value not in to_remove_primary
+            ]
+            new_secondary = [
+                p for p in platform_mix.secondary_platforms if p.value not in to_remove_secondary
+            ]
+            # Demoted primaries → avoid (not secondary — if they were flagged as mismatches, don't rescue them)
+            new_avoid = list(platform_mix.avoid_platforms)
+            for name in to_remove_primary | to_remove_secondary | to_avoid:
+                try:
+                    new_avoid.append(self._map_platform_name(name))
+                except Exception:
+                    pass
+
+            new_mix = PlatformMix(
+                primary_platforms=new_primary,
+                secondary_platforms=new_secondary,
+                experimental_platforms=platform_mix.experimental_platforms,
+                avoid_platforms=new_avoid,
+                rationale=platform_mix.rationale,
+            )
+
+            # Update fit_level on affected recommendations to not_recommended
+            corrected_recs = []
+            for rec in recommendations:
+                if rec.platform.value in to_remove_primary | to_remove_secondary | to_avoid:
+                    from ..models.platform_strategy_models import PlatformFit
+
+                    rec = PlatformRecommendation(
+                        platform=rec.platform,
+                        fit_level=PlatformFit.NOT_RECOMMENDED,
+                        priority="Low",
+                        why_use=rec.why_use,
+                        why_not_use=rec.why_not_use + ["Removed by self-check validation"],
+                        recommended_formats=rec.recommended_formats,
+                        posting_frequency=rec.posting_frequency,
+                        content_approach=rec.content_approach,
+                        primary_goal=rec.primary_goal,
+                        success_metrics=rec.success_metrics,
+                        estimated_effort=rec.estimated_effort,
+                        expected_roi=rec.expected_roi,
+                    )
+                corrected_recs.append(rec)
+
+            return new_mix, corrected_recs
+
+        except Exception as exc:
+            logger.warning(
+                f"platform_strategy: validation step failed, keeping original output — {exc}"
+            )
+            return platform_mix, recommendations
 
     def _create_distribution_strategy(
         self,
