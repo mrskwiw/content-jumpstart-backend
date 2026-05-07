@@ -17,7 +17,7 @@ const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: stri
   seo_keyword_research: { required: [], recommended: [] },
   audience_research: { required: [], recommended: [] },
   determine_competitors: { required: [], recommended: [] },
-  competitive_analysis: { required: [], recommended: ['determine_competitors'] },
+  competitive_analysis: { required: ['determine_competitors'], recommended: [] },
 
   // Tier 2 - Analysis
   business_report: { required: [], recommended: ['determine_competitors'] },
