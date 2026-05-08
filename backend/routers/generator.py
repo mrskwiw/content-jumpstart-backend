@@ -823,14 +823,10 @@ async def regenerate(
             f"Starting regeneration for {len(input.post_ids)} posts in project {input.project_id}"
         )
 
-        # Execute regeneration via service — pass run_id so regenerated posts
-        # are stamped with the new run, making them visible to export queries
-        # that filter by latest_run.id.
         result = await generator_service.regenerate_posts(
             db=db,
             project_id=input.project_id,
             post_ids=input.post_ids,
-            run_id=db_run.id,
         )
 
         # Update run status to succeeded (use LogEntry format)
@@ -946,35 +942,46 @@ async def export_package(
                 detail=f"Client {project.client_id} not found",
             )
 
-        # Get posts for this project, scoped to the latest run to prevent stale
-        # posts from previous runs (including test runs with wrong client data)
-        # from appearing in the export.
+        # Get posts scoped to the latest run that actually contains posts.
+        # Regeneration runs update existing posts in-place (preserving their
+        # original run_id) rather than creating new Post rows, so the most
+        # recent RunModel entry may have zero associated posts.  Falling back
+        # to the latest run WITH posts ensures:
+        #   - full-batch exports include all 30 posts (not just the N regenerated)
+        #   - the Celery regen path (which also preserves original run_id) works
+        #   - the original "latest run" scoping still prevents stale prior-run posts
         from backend.models import Post as PostModel, Run as RunModel
+        from sqlalchemy import exists as sa_exists
 
-        latest_run = (
+        latest_run_with_posts = (
             db.query(RunModel)
             .filter(RunModel.project_id == input.project_id)
+            .filter(
+                sa_exists().where(
+                    (PostModel.run_id == RunModel.id) & PostModel.is_placeholder.isnot(True)
+                )
+            )
             .order_by(RunModel.started_at.desc())
             .first()
         )
 
-        if latest_run:
+        if latest_run_with_posts:
             posts = (
                 db.query(PostModel)
                 .filter(
                     PostModel.project_id == input.project_id,
-                    PostModel.run_id == latest_run.id,
-                    PostModel.is_placeholder.isnot(True),  # Exclude placeholder posts
+                    PostModel.run_id == latest_run_with_posts.id,
+                    PostModel.is_placeholder.isnot(True),
                 )
                 .all()
             )
         else:
-            # No run record — fall back to all posts for backward compatibility
+            # No run with posts — fall back to all project posts (backward compat)
             posts = (
                 db.query(PostModel)
                 .filter(
                     PostModel.project_id == input.project_id,
-                    PostModel.is_placeholder.isnot(True),  # Exclude placeholder posts
+                    PostModel.is_placeholder.isnot(True),
                 )
                 .all()
             )
@@ -987,7 +994,7 @@ async def export_package(
 
         logger.info(
             f"Creating deliverable export for project {input.project_id} in format {input.format} "
-            f"with {len(posts)} posts from run {latest_run.id if latest_run else 'N/A'} "
+            f"with {len(posts)} posts from run {latest_run_with_posts.id if latest_run_with_posts else 'N/A'} "
             f"(audit_log={input.include_audit_log})"
         )
 
@@ -1026,7 +1033,7 @@ async def export_package(
             id=f"del-{uuid.uuid4().hex[:12]}",
             project_id=input.project_id,
             client_id=project.client_id,
-            run_id=latest_run.id if latest_run else None,
+            run_id=latest_run_with_posts.id if latest_run_with_posts else None,
             format=actual_format,
             path=actual_path,
             status="ready",

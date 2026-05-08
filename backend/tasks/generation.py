@@ -266,6 +266,9 @@ def regenerate_posts_task(
                     project_id=project_id,
                     post_ids=post_ids,
                     feedback=feedback,
+                    # run_id intentionally omitted: regeneration updates posts
+                    # in-place preserving their original run_id.  Export uses
+                    # "latest run with posts" to find the full batch.
                 )
             )
         finally:

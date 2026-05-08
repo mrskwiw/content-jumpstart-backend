@@ -167,7 +167,6 @@ class GeneratorService:
         project_id: str,
         post_ids: List[str],
         feedback: Optional[str] = None,
-        run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Regenerate specific posts with new content
@@ -282,15 +281,15 @@ class GeneratorService:
                 try:
                     new_post = next(new_posts_iter, None)
                     if new_post:
-                        # Update the post record
+                        # Update the post record in-place; run_id intentionally
+                        # preserved so the export query finds all posts via the
+                        # original generation run (partial regen would otherwise
+                        # leave a mixed-run_id set that exports incompletely).
                         original_post.content = new_post.content
                         original_post.word_count = new_post.word_count
                         original_post.has_cta = new_post.has_cta
                         original_post.status = "approved"  # Reset status after regeneration
                         original_post.flags = None  # Clear any flags
-                        # Stamp post with regeneration run so export queries find it
-                        if run_id:
-                            original_post.run_id = run_id
                         posts_updated += 1
                         logger.info(f"Updated post {original_post.id} with new content")
                 except Exception as e:
