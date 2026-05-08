@@ -167,6 +167,7 @@ class GeneratorService:
         project_id: str,
         post_ids: List[str],
         feedback: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Regenerate specific posts with new content
@@ -287,6 +288,9 @@ class GeneratorService:
                         original_post.has_cta = new_post.has_cta
                         original_post.status = "approved"  # Reset status after regeneration
                         original_post.flags = None  # Clear any flags
+                        # Stamp post with regeneration run so export queries find it
+                        if run_id:
+                            original_post.run_id = run_id
                         posts_updated += 1
                         logger.info(f"Updated post {original_post.id} with new content")
                 except Exception as e:

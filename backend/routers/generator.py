@@ -823,11 +823,14 @@ async def regenerate(
             f"Starting regeneration for {len(input.post_ids)} posts in project {input.project_id}"
         )
 
-        # Execute regeneration via service
+        # Execute regeneration via service — pass run_id so regenerated posts
+        # are stamped with the new run, making them visible to export queries
+        # that filter by latest_run.id.
         result = await generator_service.regenerate_posts(
             db=db,
             project_id=input.project_id,
             post_ids=input.post_ids,
+            run_id=db_run.id,
         )
 
         # Update run status to succeeded (use LogEntry format)
