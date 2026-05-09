@@ -71,6 +71,7 @@ class PostUpdate(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
+        extra="forbid",  # TR-022: Reject unknown fields like status, quality_score
     )
 
 
