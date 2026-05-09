@@ -262,6 +262,13 @@ async def update_post(
 
     post.has_cta = _CLIPost._detect_cta(post_update.content)
 
+    # Operator override: clear flags and force approved status so a human
+    # judgment call can bypass automatic validation results.
+    if post_update.approve_override:
+        post.status = "approved"
+        post.flags = None
+        logger.info(f"Post {post.id} manually approved by {current_user.email} (override)")
+
     # Commit changes
     db.commit()
     db.refresh(post)

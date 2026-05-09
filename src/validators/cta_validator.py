@@ -29,13 +29,19 @@ class CTAValidator:
     # Full detection patterns — used on the LAST 2 LINES only.
     # These are comprehensive and may be too broad for body-scanning.
     CTA_PATTERNS = [
-        (r"(?:drop|share|leave) (?:your|a) comment", "comment_request"),
+        (
+            r"(?:drop|share|leave) (?:your|a) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective)",
+            "comment_request",
+        ),
         (r"(?:dm|message|reach out|contact) me", "direct_contact"),
         (r"reply (?:with|below)", "reply_request"),
         (r"(?:click|tap|check out) (?:the )?link", "link_click"),
-        # Booking: "book/schedule [optional adjectives] call/visit/appointment/..."
+        # Booking: "book/schedule [optional adjectives] <service noun>"
+        # Noun list covers clinical, service-business, and general scheduling forms.
         (
-            r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*(?:call|meeting|demo|visit|appointment|consultation|session)\b",
+            r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
+            r"(?:call|meeting|demo|visit|appointment|consultation|session"
+            r"|conversation|exam|evaluation|assessment|checkup|walkthrough|tour|screening)\b",
             "booking",
         ),
         # Standalone appointment/consultation in the CTA line
@@ -61,11 +67,13 @@ class CTAValidator:
     # - start/try/begin (opener phrases: "start with a question", "try to imagine")
     # - bare "visit" (dental: "visit our office for care")
     _PLACEMENT_PATTERNS = [
-        r"(?:drop|share|leave) (?:your|a) comment",
+        r"(?:drop|share|leave) (?:your|a) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective)",
         r"(?:dm|message|reach out|contact) me",
         r"reply (?:with|below)",
         r"(?:click|tap|check out) (?:the )?link",
-        r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*(?:call|meeting|demo|visit|appointment|consultation|session)\b",
+        r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
+        r"(?:call|meeting|demo|visit|appointment|consultation|session"
+        r"|conversation|exam|evaluation|assessment|checkup|walkthrough|tour|screening)\b",
         r"sign up|subscribe|join",
         r"download|get (?:the |your )",
         r"learn more|find out",

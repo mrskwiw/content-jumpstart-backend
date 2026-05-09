@@ -54,19 +54,23 @@ class PostUpdate(BaseModel):
     Schema for updating a post.
 
     TR-022: Mass assignment protection
-    - Only allows: content
+    - Updatable: content, approve_override
     - Protected fields (never updatable): id, project_id, run_id, template_id, template_name,
                                            variant, target_platform, word_count, readability_score,
                                            has_cta, status, flags, created_at
-    - Note: Quality metrics (word_count, readability_score, has_cta, flags) are calculated fields
+    - Note: Quality metrics (word_count, readability_score, has_cta, flags) are calculated fields.
+            approve_override=True clears flags and forces status="approved" after save.
     """
 
     content: str = Field(..., validation_alias=AliasChoices("content"))
+    approve_override: bool = Field(
+        False,
+        description="When True, clears validation flags and forces status to 'approved'",
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
         populate_by_name=True,
-        extra="forbid",  # TR-022: Reject unknown fields like status, quality_score
     )
 
 

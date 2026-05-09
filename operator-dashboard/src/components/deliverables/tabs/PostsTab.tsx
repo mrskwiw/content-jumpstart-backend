@@ -31,8 +31,8 @@ export function PostsTab({ deliverable }: Props) {
 
   // Mutation to update post
   const updatePost = useMutation({
-    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
-      postsApi.update(postId, { content }),
+    mutationFn: ({ postId, content, approveOverride }: { postId: string; content: string; approveOverride?: boolean }) =>
+      postsApi.update(postId, { content, approve_override: approveOverride }),
     onSuccess: () => {
       // No cache invalidation needed - posts are never cached
       setEditingPostId(null);
@@ -55,7 +55,7 @@ export function PostsTab({ deliverable }: Props) {
         post={editingPost}
         currentIndex={editingPostIndex}
         totalPosts={deliverable.posts.length}
-        onSave={(content) => updatePost.mutateAsync({ postId: editingPost.id, content })}
+        onSave={(content, approveOverride) => updatePost.mutateAsync({ postId: editingPost.id, content, approveOverride })}
         onCancel={() => setEditingPostId(null)}
       />
     );

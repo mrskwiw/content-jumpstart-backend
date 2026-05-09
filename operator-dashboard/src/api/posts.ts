@@ -10,6 +10,7 @@ export interface PostFilters extends PaginationParams {
 
 export interface UpdatePostInput {
   content: string;
+  approve_override?: boolean;
 }
 
 export const postsApi = {

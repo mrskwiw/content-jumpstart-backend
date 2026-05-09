@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Save, RotateCcw, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, RotateCcw, Loader2, AlertCircle, ShieldCheck } from 'lucide-react';
 import type { Post } from '@/types/domain';
 import { Button, Textarea, Badge } from '@/components/ui';
 
 interface PostEditorProps {
   post: Post;
-  onSave: (content: string) => Promise<void> | Promise<Post>;
+  onSave: (content: string, approveOverride?: boolean) => Promise<void> | Promise<Post>;
   onCancel: () => void;
   onRegenerate?: () => void;
   totalPosts: number;
@@ -63,8 +63,8 @@ export function PostEditor({
     return { wordCount, readability, hasChanges };
   }, [content, post.content]);
 
-  const handleSave = async () => {
-    if (!metrics.hasChanges) {
+  const handleSave = async (approveOverride = false) => {
+    if (!approveOverride && !metrics.hasChanges) {
       onCancel();
       return;
     }
@@ -72,7 +72,7 @@ export function PostEditor({
     try {
       setIsSaving(true);
       setError(null);
-      await onSave(content);
+      await onSave(content, approveOverride);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save post');
     } finally {
@@ -168,7 +168,29 @@ export function PostEditor({
         </div>
       </div>
 
-      {/* Error Message */}
+      {/* Validation Flags */}
+      {post.flags && post.flags.length > 0 && (
+        <div className="mx-6 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Validation flags
+            </p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {post.flags.map((flag: string) => (
+                <span
+                  key={flag}
+                  className="inline-block text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded"
+                >
+                  {flag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Error */}
       {error && (
         <div className="mx-6 mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-start gap-2">
           <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
@@ -213,23 +235,40 @@ export function PostEditor({
               </Button>
             )}
           </div>
-          <Button
-            variant="primary"
-            onClick={handleSave}
-            disabled={!metrics.hasChanges || isSaving}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Save Changes
-              </>
+          <div className="flex items-center gap-2">
+            {post.flags && post.flags.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                title="Save and mark as approved, ignoring validation flags"
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" />
+                )}
+                Approve anyway
+              </Button>
             )}
-          </Button>
+            <Button
+              variant="primary"
+              onClick={() => handleSave(false)}
+              disabled={!metrics.hasChanges || isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
