@@ -10,6 +10,25 @@ import { PricingSummaryCard } from '../../components/research/PricingSummaryCard
 import { Search, Filter, AlertCircle, Link2, Info, Loader2, FileOutput } from 'lucide-react';
 import { ToolRunStatusList, type ToolStatusItem } from '@/components/wizard/ToolRunStatusList';
 
+// Tier ordering mirrors research_prerequisites.py — used to sort selectedTools
+// before execution so prerequisites always complete before dependent tools.
+const TOOL_TIER: Record<string, number> = {
+  voice_analysis: 1,
+  brand_archetype: 1,
+  seo_keyword_research: 1,
+  audience_research: 1,
+  determine_competitors: 1,
+  competitive_analysis: 2,
+  content_gap_analysis: 2,
+  market_trends_research: 2,
+  icp_workshop: 2,
+  content_audit: 2,
+  business_report: 2,
+  platform_strategy: 3,
+  story_mining: 3,
+  content_calendar: 4,
+};
+
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
   // Tier 1 - Foundation (no prerequisites)
@@ -137,12 +156,14 @@ export default function ResearchToolsLibrary() {
       // Step 1: Get research project ID
       const { projectId } = await researchApi.getResearchProject(selectedClientId);
 
-      // Step 2: Execute each tool sequentially.
-      // Bug #147: pass all selected tools as plannedTools so the backend treats
-      // co-selected tools as satisfying each other's prerequisites (same logic the
-      // wizard uses when running a batch via the check_prerequisites endpoint).
+      // Step 2: Execute tools in tier order so prerequisites always complete
+      // before dependent tools run. Tools with the same tier run sequentially
+      // (parallel execution is a future optimisation — see TODO).
+      const orderedTools = [...selectedTools].sort(
+        (a, b) => (TOOL_TIER[a] ?? 99) - (TOOL_TIER[b] ?? 99)
+      );
       setExecutionStatus({});
-      for (const tool of selectedTools) {
+      for (const tool of orderedTools) {
         setExecutionStatus(prev => ({ ...prev, [tool]: 'running' }));
         try {
           await researchApi.run({
@@ -150,7 +171,6 @@ export default function ResearchToolsLibrary() {
             clientId: selectedClientId,
             tool,
             params: {},
-            plannedTools: selectedTools,
           });
           setExecutionStatus(prev => ({ ...prev, [tool]: 'complete' }));
         } catch (err) {

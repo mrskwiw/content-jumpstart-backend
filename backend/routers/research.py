@@ -827,8 +827,7 @@ async def run_research(
                 project_id=input.project_id,
                 client_id=input.client_id,
                 tool_name=input.tool,
-                params=sanitized_params,  # Use sanitized params for LLM safety
-                planned_tools=input.planned_tools,  # Bug #147: batch context for prereq check
+                params=sanitized_params,
             )
 
             # Cache successful results for 48 hours
