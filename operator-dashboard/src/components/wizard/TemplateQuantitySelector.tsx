@@ -218,6 +218,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   const [quantities, setQuantities] = useState<Record<number, number>>(initialQuantities);
   const [includeResearch, setIncludeResearch] = useState(initialIncludeResearch);
   const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);
+  const [rawTopicInput, setRawTopicInput] = useState<string>(initialTopics.join(', '));
   const [targetPlatform, setTargetPlatform] = useState<string>(initialTargetPlatform);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [dependencies, setDependencies] = useState<Map<number, TemplateDependencies>>(new Map());
@@ -541,8 +542,9 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
             Specify topics to guide content generation. Leave empty to use research results or AI suggestions. Separate with commas.
           </p>
           <textarea
-            value={customTopics.join(', ')}
-            onChange={(e) => setCustomTopics(
+            value={rawTopicInput}
+            onChange={(e) => setRawTopicInput(e.target.value)}
+            onBlur={(e) => setCustomTopics(
               e.target.value.split(',').map(s => s.trim()).filter(Boolean)
             )}
             placeholder="e.g., customer retention, churn prediction, product analytics"
@@ -556,7 +558,11 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                   {topic}
                   <X
                     className="h-3 w-3 cursor-pointer hover:text-amber-900 dark:hover:text-amber-100"
-                    onClick={() => setCustomTopics(prev => prev.filter((_, idx) => idx !== i))}
+                    onClick={() => setCustomTopics(prev => {
+                      const next = prev.filter((_, idx) => idx !== i);
+                      setRawTopicInput(next.join(', '));
+                      return next;
+                    })}
                   />
                 </span>
               ))}

@@ -384,7 +384,7 @@ Your analysis:"""
         if not primary:
             return "Position as a category leader in this emerging market, focusing on unique value proposition and target audience needs."
 
-        prompt = f"""Based on the competitive analysis and market gaps, recommend a 2-3 sentence positioning strategy.
+        prompt = f"""Based on the competitive analysis and market gaps, write a competitive positioning recommendation.
 
 **Business Description:** {business_desc}
 
@@ -394,18 +394,17 @@ Your analysis:"""
 **Key Competitors:**
 {self._format_competitors_for_prompt(primary[:3])}
 
-Recommendation should:
-- Leverage identified market gaps
-- Differentiate from competitors
-- Be specific and actionable
+Write a positioning recommendation that:
+- Identifies the 2-3 most important market gaps
+- States how to differentiate from each named competitor
+- Provides a clear positioning statement
 
-Keep it concise (2-3 sentences).
-
-Your recommendation:"""
+Format as plain prose paragraphs. Do NOT use Markdown headers (##, ###), bullet lists, or code blocks.
+Write 3-5 complete paragraphs and end with a clear, complete sentence."""
 
         try:
             recommendation = self._call_claude_api(
-                prompt=prompt, max_tokens=500, temperature=0.4, extract_json=False
+                prompt=prompt, max_tokens=2000, temperature=0.4, extract_json=False
             )
 
             return str(recommendation).strip()

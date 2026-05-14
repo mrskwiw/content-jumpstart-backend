@@ -910,6 +910,24 @@ If issues found: {{"valid": false, "issues": ["<concise issue description>"], "r
             )
             return platform_mix, recommendations
 
+    @staticmethod
+    def _flatten_to_text(obj: Any, depth: int = 0) -> str:
+        """Recursively extract readable text from a string, list, or nested dict.
+
+        Prevents raw Python dict literals appearing in client deliverables when the
+        LLM returns a more complex structure than the prompt's simple string fields
+        requested (repurposing_strategy, time_savings).
+        """
+        if isinstance(obj, str):
+            return obj.strip()
+        if isinstance(obj, list):
+            parts = [PlatformStrategist._flatten_to_text(item, depth) for item in obj if item]
+            return " ".join(p for p in parts if p)
+        if isinstance(obj, dict):
+            parts = [PlatformStrategist._flatten_to_text(v, depth + 1) for v in obj.values() if v]
+            return " ".join(p for p in parts if p)
+        return str(obj).strip() if obj else ""
+
     def _create_distribution_strategy(
         self,
         client: Any,
@@ -923,28 +941,42 @@ If issues found: {{"valid": false, "issues": ["<concise issue description>"], "r
             + platform_mix.secondary_platforms
             + platform_mix.experimental_platforms
         )
+        avoided_platforms = getattr(platform_mix, "avoid_platforms", [])
 
         platforms_str = ", ".join([p.value for p in all_platforms])
+        primary_str = ", ".join([p.value for p in platform_mix.primary_platforms])
+        avoided_str = (
+            ", ".join([p.value for p in avoided_platforms]) if avoided_platforms else "none"
+        )
 
-        prompt = f"""Create a content distribution strategy for these platforms: {platforms_str}
+        # Derive the safe default hub: first primary platform (never a platform in the avoid list)
+        default_hub = (
+            platform_mix.primary_platforms[0].value if platform_mix.primary_platforms else "email"
+        )
+
+        prompt = f"""Create a content distribution strategy for these recommended platforms: {platforms_str}
 
 Business: {business_description}
 Target Audience: {target_audience}
 
-Design an efficient content creation and distribution system:
-1. Where should content originate? (source platform)
-2. How should content flow across platforms?
-3. What's the repurposing strategy?
-4. What time savings does this create?
+IMPORTANT: The source_platform (content hub) MUST be one of the recommended platforms above.
+Do NOT select any of these — they are in the avoid list: {avoided_str}
+The primary platforms (highest priority) are: {primary_str}
 
-Return JSON with:
-- source_platform: where content is created first
-- distribution_flow: array of strings showing content flow
-- repurposing_strategy: explanation
-- time_savings: explanation"""
+Design an efficient content creation and distribution system:
+1. Where should content originate? (source_platform — must be from the recommended list)
+2. How should content flow across platforms?
+3. What's the repurposing strategy? (plain prose, 2-4 sentences)
+4. What time savings does this create? (plain prose, 1-2 sentences)
+
+Return JSON with exactly these string fields — all values must be plain strings, not nested objects:
+- source_platform: single platform name from the recommended list
+- distribution_flow: array of strings showing content flow steps
+- repurposing_strategy: plain text explanation (no nested JSON or dict)
+- time_savings: plain text explanation (no nested JSON or dict)"""
 
         response = client.create_message(
-            messages=[{"role": "user", "content": prompt}], max_tokens=4000
+            messages=[{"role": "user", "content": prompt}], max_tokens=2000
         )
 
         # Parse response — fall back to a minimal default if JSON is truncated or malformed
@@ -954,29 +986,29 @@ Return JSON with:
             logger.warning(
                 f"Could not parse distribution strategy JSON ({e}); using default distribution"
             )
-            primary = platform_mix.primary_platforms
-            source = primary[0].value if primary else "blog"
             return ContentDistribution(
-                source_platform=self._map_platform_name(source),
-                distribution_flow=[f"Create on {source} → adapt for each platform"],
+                source_platform=self._map_platform_name(default_hub),
+                distribution_flow=[f"Create on {default_hub} → adapt for each platform"],
                 repurposing_strategy="Repurpose core content for each platform's format and audience.",
                 time_savings="Centralised creation reduces per-platform production time.",
             )
 
-        # Handle repurposing_strategy - could be string or dict
-        repurposing_strategy = dist_data.get("repurposing_strategy", "")
-        if isinstance(repurposing_strategy, dict):
-            # If dict, convert to string (join values)
-            repurposing_strategy = " ".join(str(v) for v in repurposing_strategy.values() if v)
+        # Flatten repurposing_strategy and time_savings — LLM sometimes returns nested dicts
+        repurposing_strategy = self._flatten_to_text(dist_data.get("repurposing_strategy", ""))
+        time_savings = self._flatten_to_text(dist_data.get("time_savings", ""))
 
-        # Handle time_savings - could be string or dict
-        time_savings = dist_data.get("time_savings", "")
-        if isinstance(time_savings, dict):
-            # If dict, convert to string (join values)
-            time_savings = " ".join(str(v) for v in time_savings.values() if v)
+        # Validate source_platform is not in the avoid list; fall back to default if so
+        raw_source = dist_data.get("source_platform", default_hub)
+        source_platform = self._map_platform_name(raw_source)
+        if avoided_platforms and source_platform in avoided_platforms:
+            logger.warning(
+                f"LLM chose avoided platform '{raw_source}' as content hub; "
+                f"falling back to '{default_hub}'"
+            )
+            source_platform = self._map_platform_name(default_hub)
 
         return ContentDistribution(
-            source_platform=self._map_platform_name(dist_data.get("source_platform", "blog")),
+            source_platform=source_platform,
             distribution_flow=dist_data.get("distribution_flow", []),
             repurposing_strategy=repurposing_strategy,
             time_savings=time_savings,

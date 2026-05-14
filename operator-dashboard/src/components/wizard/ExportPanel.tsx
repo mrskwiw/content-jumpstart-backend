@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { generatorApi } from '@/api/generator';
 import { researchApi } from '@/api/research';
+import { deliverablesApi } from '@/api/deliverables';
 import type { ExportInput, ExportTarget } from '@/types/domain';
-import { Download, Loader2, CheckCircle, FlaskConical, DollarSign, Info } from 'lucide-react';
+import { Download, Loader2, CheckCircle, FlaskConical, FileOutput, Info } from 'lucide-react';
 
 interface Props {
   projectId: string;
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export function ExportPanel({ projectId, clientId, onExported }: Props) {
+  const navigate = useNavigate();
   const [format, setFormat] = useState<'txt' | 'md' | 'docx'>('docx');
   // Auto-set export target based on format (no UI selection needed)
   const [includeAuditLog, setIncludeAuditLog] = useState(false);
@@ -24,6 +27,15 @@ export function ExportPanel({ projectId, clientId, onExported }: Props) {
     queryFn: () => researchApi.getProjectResearchResults(projectId),
     enabled: !!projectId,
   });
+
+  // Check if the client has any deliverables to enable the "View Deliverables" CTA
+  const { data: clientDeliverables = [] } = useQuery({
+    queryKey: ['deliverables', 'list', clientId],
+    queryFn: () => deliverablesApi.list({ clientId }),
+    enabled: !!clientId,
+    staleTime: 30 * 1000,
+  });
+  const hasDeliverables = clientDeliverables.length > 0;
 
   const completedResearch = researchResults?.results?.filter(r => r.status === 'completed') || [];
   // REMOVED: totalInvestment calculation (credit-only system)
@@ -50,9 +62,20 @@ export function ExportPanel({ projectId, clientId, onExported }: Props) {
   return (
     <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm space-y-4">
       {/* Header */}
-      <div>
-        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Export Package</h3>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400">Select file format for your content package.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Export Package</h3>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">Select file format for your content package.</p>
+        </div>
+        <button
+          onClick={() => navigate('/dashboard/deliverables')}
+          disabled={!hasDeliverables}
+          title={!hasDeliverables ? 'Generate a deliverable first' : 'View your deliverables'}
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:border-neutral-300 disabled:text-neutral-400 dark:disabled:border-neutral-600 dark:disabled:text-neutral-500"
+        >
+          <FileOutput className="h-3.5 w-3.5" />
+          View Deliverables
+        </button>
       </div>
 
       {/* File Format & Options */}

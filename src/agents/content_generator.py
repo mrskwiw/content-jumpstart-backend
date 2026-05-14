@@ -1323,6 +1323,11 @@ Rules:
         if not post.has_cta:
             score -= 0.1
 
+        # Bug #145 — penalise low readability (Flesch Reading Ease < 60)
+        readability = getattr(post, "readability_score", None)
+        if readability is not None and readability < 60:
+            score -= 0.15
+
         # Ensure score stays in valid range
         return max(0.0, min(1.0, score))
 
@@ -1464,9 +1469,12 @@ Rules:
                 "If web_search_results are present above, open with one specific, "
                 "citable statistic from those results and cite the source naturally. "
                 "If NO web search results are present, anchor to a concrete number "
-                "from the client's own measurable_results (the 'results' field above) "
-                "or state 'industry data shows' with a plausible directional claim — "
-                "never fabricate a precise percentage or dollar figure."
+                "from the client's own measurable_results (the 'results' field above). "
+                "If no measurable_results are available, use directional language only "
+                "(e.g., 'Most adults...', 'Studies suggest...') — do NOT cite a specific "
+                "percentage, dollar figure, or named organization (ADA, CDC, etc.) that "
+                "you cannot verify from the context above. Fabricated sourced statistics "
+                "damage the client's credibility."
             ),
             3: (  # Contrarian Take
                 "WEB SEARCH GUIDANCE (Template 3 — Contrarian Take): "
@@ -1489,6 +1497,33 @@ Rules:
         }
         if template.template_id in _WEB_SEARCH_TEMPLATE_GUIDANCE:
             context["web_search_guidance"] = _WEB_SEARCH_TEMPLATE_GUIDANCE[template.template_id]
+
+        # Bug #140 — Myth-Busting template (7): enforce required structure on all platforms.
+        # Blog override replaces template.structure entirely, so the Myth/But-actually/This-changes
+        # markers can be lost. Inject them as an explicit context constraint.
+        if template.template_id == 7:
+            context["template_structure_enforcement"] = (
+                "STRUCTURE REQUIRED (Myth-Busting Post): "
+                "Your post MUST follow this exact format — do NOT use Option A / Option B comparison format:\n"
+                '1. Open with: Myth: "[a specific false belief in the client\'s industry]"\n'
+                '2. Explain why it seems true: "This seems true because..."\n'
+                '3. Correct it: "But actually: [the truth with evidence]"\n'
+                '4. State impact: "This changes everything because..."\n'
+                '5. Give the alternative: "Instead of [myth], try [better approach]"\n'
+                "Posts that open with 'Option A / Option B' or do not contain a 'Myth:' statement "
+                "will be rejected and regenerated."
+            )
+
+        # Bug #144 — Learning Post template (11): prohibit fabricated direct book quotes.
+        if template.template_id == 11:
+            context["template_structure_enforcement"] = (
+                "QUOTE RULE (Learning Post): "
+                "When referencing a book, article, or other source, do NOT wrap the idea in "
+                "quotation marks unless you are 100% certain it is the verbatim published text. "
+                "Instead write: 'In [Book], [Author] describes...' or '[Author] argues that...' "
+                "and paraphrase the idea. Presenting a paraphrase as a direct quote is a "
+                "factual error that will damage the client's credibility."
+            )
 
         # FIX (Bug #42): Add competitors for comparison template (Template 10)
         if template.template_id == 10 and context.get("competitors"):
@@ -1825,6 +1860,14 @@ Use the client's own measurable results and data from their brief instead.
         # so the model treats avoidance as a content rule rather than a downstream concern.
         banned_words_str = ", ".join(f'"{w}"' for w in AI_TELL_PHRASES)
         prompt += f"""
+
+HARD WRITING RULE — NEVER FABRICATE PRACTICE-LEVEL DATA:
+Do NOT invent specific numbers, percentages, survey results, or clinical outcomes that appear to come from the practice's own records. This includes:
+- Patient counts or survey samples: "we asked 200 patients", "87% of our patients"
+- Conversion rates: "9 out of 10 patients book an appointment", "95% of patients report..."
+- Internal survey results: "only 16% said yes", "91% agreed"
+These can ONLY appear if the exact data is present in the client's measurable_results field above.
+If no measurable_results are available, use directional language: "most patients", "patients consistently tell us", "the majority" — never a fabricated specific number.
 
 HARD WRITING RULE — NEVER USE THESE WORDS OR PHRASES:
 {banned_words_str}

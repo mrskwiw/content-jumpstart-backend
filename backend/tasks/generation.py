@@ -150,43 +150,26 @@ def generate_all_posts_task(
             },
         )
 
-        # Placeholder: In real implementation, call generator service here
-        # For now, we'll simulate success
-        logger.warning("Using placeholder generator - integrate real generator service")
-        generated_posts = []  # Real implementation will populate this
-
-        # Update progress: 90% (generation complete)
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "progress": 90,
-                "status": "Validating quality...",
-                "run_id": run_id,
-            },
+        # Celery generation path is not implemented — the FastAPI background task
+        # in generator.py (run_generation_background) is the active code path.
+        # Mark the run failed and return (do NOT raise — raising would trigger
+        # Celery's FAILURE state and retry machinery, and would bypass credit refund).
+        run.status = "failed"
+        run.error_message = (
+            "Celery generation path is not implemented. "
+            "Runs must be triggered via the FastAPI /generate-all endpoint."
         )
-
-        # 4. Update run with success status
-        run.status = "succeeded"
         run.completed_at = datetime.utcnow()
         self.db.commit()
-
-        logger.info(f"Generation task completed successfully for run {run_id}")
-
-        # Update progress: 100% (complete)
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "progress": 100,
-                "status": "Complete",
-                "run_id": run_id,
-            },
+        logger.error(
+            f"Celery generate_all_posts_task called for run {run_id} "
+            "but this path is not implemented — run marked failed."
         )
-
         return {
             "run_id": run_id,
-            "status": "succeeded",
-            "posts_generated": len(generated_posts),
-            "platform": platform,
+            "status": "failed",
+            "posts_generated": 0,
+            "error": "Generation path not implemented via Celery",
         }
 
     except Exception as e:

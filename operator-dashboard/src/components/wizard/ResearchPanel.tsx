@@ -215,19 +215,26 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     return map;
   }, [historyData]);
 
-  // Process completed tools for prerequisite checking
+  // Process completed tools for prerequisite checking.
+  // Union project-level results with client-level history so tools completed in a
+  // previous project for the same client count as satisfied prerequisites.
   const completedTools = useMemo(() => {
-    if (!completedToolsData?.results) return new Set<string>();
-
     const completed = new Set<string>();
-    completedToolsData.results.forEach((result) => {
+
+    completedToolsData?.results?.forEach((result) => {
+      if (result.status === 'completed') {
+        completed.add(result.toolName);
+      }
+    });
+
+    historyData?.results?.forEach((result) => {
       if (result.status === 'completed') {
         completed.add(result.toolName);
       }
     });
 
     return completed;
-  }, [completedToolsData]);
+  }, [completedToolsData, historyData]);
 
   // Helper: Check if a prerequisite is fulfilled
   const isPrerequisiteFulfilled = (prereqToolName: string): boolean => {
@@ -433,7 +440,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     // tools don't race each other when the /execution-order endpoint is down.
     let dependencyMap: Record<string, string[]>;
     try {
-      const orderResult = await researchApi.getExecutionOrder(Array.from(selected));
+      const orderResult = await researchApi.getExecutionOrder(Array.from(selected), { projectId, clientId });
       dependencyMap = orderResult.dependencyMap;
     } catch (error) {
       console.error('Failed to get execution order, falling back to local dependency map', error);

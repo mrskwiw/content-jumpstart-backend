@@ -36,6 +36,7 @@ async def list_deliverables(
     limit: int = Query(100, ge=1, le=1000),
     status: Optional[str] = None,
     client_id: Optional[str] = None,
+    project_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -59,6 +60,8 @@ async def list_deliverables(
         query = query.filter(Deliverable.status == status)
     if client_id:
         query = query.filter(Deliverable.client_id == client_id)
+    if project_id:
+        query = query.filter(Deliverable.project_id == project_id)
 
     # Apply pagination
     deliverables = query.offset(skip).limit(limit).all()
@@ -293,7 +296,11 @@ async def generate_research_report(
 
     # Generate research-only report (no posts, research context only)
     try:
-        output_path = f"{client.name.replace(' ', '_')}/research_report.{format}"
+        from datetime import datetime as _dt
+
+        timestamp = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = client.name.replace(" ", "_")
+        output_path = f"{safe_name}/{safe_name}_research_report_{timestamp}.{format}"
         file_path, file_size = await generate_export_file(
             posts=[],  # No posts - research only
             client=client,
@@ -306,13 +313,18 @@ async def generate_research_report(
             db=db,
         )
 
+        # Store the ACTUAL path/format — export_service may fall back (e.g. python-docx
+        # absent → .txt) and return a different extension than what was requested.
+        actual_format = file_path.suffix.lstrip(".")
+        actual_path = file_path.relative_to(Path("data/outputs")).as_posix()
+
         # Create deliverable record
         deliverable = Deliverable(
             id=f"del-{uuid.uuid4().hex[:12]}",
             project_id=research_project.id,  # Use research project
             client_id=client.id,
-            path=file_path.relative_to(Path("data/outputs")).as_posix(),
-            format=format,
+            path=actual_path,
+            format=actual_format,
             status="ready",
             file_size_bytes=file_size,
         )

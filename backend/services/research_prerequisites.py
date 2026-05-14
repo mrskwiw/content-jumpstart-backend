@@ -321,6 +321,8 @@ class ResearchPrerequisites:
         Determine optimal execution order for a list of tools based on dependencies.
 
         Uses topological sort to ensure prerequisites run before dependent tools.
+        Only in-batch edges are considered — a prerequisite not present in tool_ids
+        is treated as already satisfied (the backend reads its result from the DB).
 
         Args:
             tool_ids: List of tool IDs to execute
@@ -337,7 +339,6 @@ class ResearchPrerequisites:
             if not deps:
                 continue
 
-            # Add edges for prerequisites that are in the current batch
             for prereq in deps.prerequisites:
                 if prereq.tool_id in tool_ids:
                     # prereq.tool_id must run before tool_id
@@ -378,6 +379,8 @@ class ResearchPrerequisites:
 
         Tools within the same group have no inter-dependencies and can run concurrently.
         Groups must be executed sequentially (group N+1 waits for group N to finish).
+        Only in-batch edges are considered — a prerequisite absent from tool_ids is
+        treated as already satisfied (its DB result will be read at execution time).
 
         Args:
             tool_ids: List of tool IDs to execute
@@ -427,7 +430,7 @@ class ResearchPrerequisites:
 
         For each tool in tool_ids, returns the subset of tool_ids that are
         REQUIRED prerequisites for it.  Tools not in tool_ids are excluded —
-        the backend's single-tool executor handles those via DB history checks.
+        the backend's single-tool executor reads their results from the DB.
 
         This powers event-driven execution: fire a tool the instant every entry
         in its dependency list resolves, without waiting for unrelated tools.

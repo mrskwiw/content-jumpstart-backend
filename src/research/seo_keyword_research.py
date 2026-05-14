@@ -174,6 +174,12 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
             negative_keywords=negative_keywords,
         )
 
+        # Deduplicate: remove any secondary keyword already present in primary list
+        primary_kw_set = {kw.keyword.lower().strip() for kw in primary_keywords}
+        secondary_keywords = [
+            kw for kw in secondary_keywords if kw.keyword.lower().strip() not in primary_kw_set
+        ]
+
         # Step 2.5: Enrich keywords with Google Trends data (if available)
         all_keywords = primary_keywords + secondary_keywords
         self._enrich_with_google_trends(all_keywords)

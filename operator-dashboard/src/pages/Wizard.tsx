@@ -477,6 +477,7 @@ export default function Wizard() {
                         name: `${selectedClient?.name || 'Client'} - Content Project`,
                         clientId: clientId,
                         platforms: [] as Platform[],
+                        targetPlatform: targetPlatform || 'linkedin',
                         templates: [], // Legacy field
                         templateQuantities: {}, // Will be set in template selection step
                         // pricePerPost removed - credits only,

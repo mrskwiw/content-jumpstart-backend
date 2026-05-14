@@ -8,7 +8,9 @@ Handles:
 - Run status tracking
 """
 
+import re
 import uuid
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,6 +21,58 @@ from backend.models import Post, Project, Run
 from backend.services import crud
 from backend.utils.cli_executor import cli_executor
 from backend.utils.logger import logger
+
+# Patterns for Bug #143 (contradictory stats) and Bug #139 (duplicate book sources)
+_STAT_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
+_BOOK_PATTERN = re.compile(
+    r"(?:reading|from|in)\s+[\"']?([A-Z][^\"'\n]{3,60})[\"']?\s+by\s+([A-Z][a-z]+ [A-Z][a-z]+)",
+    re.IGNORECASE,
+)
+
+
+def _check_batch_consistency(posts: list) -> List[str]:
+    """Bug #139 + #143: detect same-book reuse and contradictory stat values."""
+    warnings: List[str] = []
+
+    # Bug #139 — same book cited more than once across the batch
+    book_occurrences: Dict[str, List[int]] = defaultdict(list)
+    for i, post in enumerate(posts, 1):
+        content = getattr(post, "content", "") or ""
+        for match in _BOOK_PATTERN.finditer(content):
+            key = match.group(1).strip().lower()[:40]
+            book_occurrences[key].append(i)
+
+    for book_key, post_indices in book_occurrences.items():
+        if len(post_indices) > 1:
+            warnings.append(
+                f"Same source '{book_key}' cited in posts {post_indices}. "
+                f"Consider using a different source in one of these posts."
+            )
+
+    # Bug #143 — same topic cited with different specific percentages
+    # Group % figures by the 5-word window preceding them (rough topic fingerprint)
+    topic_stats: Dict[str, Dict[float, List[int]]] = defaultdict(lambda: defaultdict(list))
+    for i, post in enumerate(posts, 1):
+        content = getattr(post, "content", "") or ""
+        for m in _STAT_PATTERN.finditer(content):
+            pct = float(m.group(1))
+            # Use the 5 words before the match as the topic key
+            char_pos = m.start()
+            pre_text = content[:char_pos].split()
+            topic_key = " ".join(pre_text[-5:]).lower().strip()
+            topic_stats[topic_key][pct].append(i)
+
+    for topic_key, pct_map in topic_stats.items():
+        if len(pct_map) > 1:
+            conflict_str = ", ".join(
+                f"{p}% (post {idx})" for p, idxs in pct_map.items() for idx in idxs
+            )
+            warnings.append(
+                f"Contradictory statistics near '{topic_key}': {conflict_str}. "
+                f"Verify before publishing."
+            )
+
+    return warnings
 
 
 def _calculate_readability(content: str) -> float:
@@ -102,6 +156,15 @@ class GeneratorService:
         # Priority 3: Use num_posts parameter (legacy mode)
         quantities_to_use = template_quantities or project.template_quantities
         if quantities_to_use:
+            # Validate regardless of source — project-saved quantities are not
+            # gated by the API request validator and can contain zero/negative values.
+            bad = {tid: qty for tid, qty in quantities_to_use.items() if qty < 1}
+            if bad:
+                raise ValueError(
+                    f"template_quantities contains invalid values (must be >= 1): {bad}. "
+                    f"Source: {'request parameter' if template_quantities else 'project record'}."
+                )
+
             # Convert string keys to integers (JSON stores keys as strings)
             template_quantities_int = {int(k): v for k, v in quantities_to_use.items()}
             total_posts = sum(template_quantities_int.values())
@@ -440,6 +503,7 @@ class GeneratorService:
                 f"Expected total posts: {sum(template_quantities.values()) if template_quantities else 0}"
             )
 
+            skipped_tasks = 0  # posts whose template ID was not found in the library
             try:
                 expected_posts = sum(template_quantities.values()) if template_quantities else 0
                 # No outer asyncio.wait_for timeout. Individual API calls are bounded by
@@ -459,8 +523,14 @@ class GeneratorService:
                     max_concurrent=DEFAULT_MAX_CONCURRENT_CALLS,
                     use_client_memory=False,
                 )
+                # Posts whose template ID was not found in the library are silently
+                # excluded by the generator — they never become tasks at all.
+                # Compute the count here so it can surface in the dashboard run log.
+                skipped_tasks = max(0, expected_posts - len(posts))
                 logger.info(
-                    f"Successfully generated {len(posts)} posts (expected: {expected_posts})"
+                    f"Successfully generated {len(posts)} posts (expected: {expected_posts}"
+                    + (f", skipped: {skipped_tasks}" if skipped_tasks else "")
+                    + ")"
                 )
 
                 if len(posts) == 0:
@@ -472,6 +542,14 @@ class GeneratorService:
             except Exception as e:
                 logger.error(f"Failed to generate posts: {str(e)}", exc_info=True)
                 raise
+
+            # --- Batch consistency checks (pre-commit) ---
+            # Bug #143: flag contradictory specific percentages for the same topic
+            # Bug #139: flag same book/source cited more than once in the batch
+            if posts:
+                _batch_consistency_warnings = _check_batch_consistency(posts)
+                for w in _batch_consistency_warnings:
+                    logger.warning(f"⚠️ BATCH CONSISTENCY: {w}")
 
             # --- Batch QA (pre-commit) ---
             # Run before writing to DB so the score and per-post flags are
@@ -627,6 +705,7 @@ class GeneratorService:
                 "posts_created": posts_created,
                 "posts_failed": posts_failed,
                 "placeholder_count": placeholder_count,
+                "skipped_tasks": skipped_tasks,
                 "output_dir": None,  # No file output for direct generation
                 "files": {},
                 "platform_warning": platform_warning,  # Bug #110: None if platform was valid

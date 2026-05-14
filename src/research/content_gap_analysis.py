@@ -670,21 +670,23 @@ Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
             return [ContentGap(**gap) for gap in valid_gaps]
         except Exception as e:
             logger.error(f"Error parsing topic gaps: {e}")
-            # Return fallback gaps
             return [
                 ContentGap(
-                    gap_title="Getting Started Guide",
+                    gap_title="Insufficient data to identify gaps",
                     gap_type=GapType.TOPIC,
-                    priority=GapPriority.CRITICAL,
-                    description="New users need onboarding content",
-                    search_volume="High: 3K/mo",
-                    competition="3 of 5 competitors have this",
-                    business_impact="Reduces time-to-value for new customers",
+                    priority=GapPriority.LOW,
+                    description=(
+                        "The gap analysis could not be completed — the API response could not be parsed. "
+                        "Re-run with competitor data and current content topics for accurate results."
+                    ),
+                    search_volume="Unknown",
+                    competition="Unknown",
+                    business_impact="Unknown — re-run required",
                     target_audience=target_audience,
-                    buyer_stage="Decision",
-                    content_angle="Step-by-step walkthrough with screenshots",
-                    example_topics=["Quick start guide", "First steps", "Setup tutorial"],
-                    estimated_effort="Medium",
+                    buyer_stage="Awareness",
+                    content_angle="Re-run this tool with fuller client profile data",
+                    example_topics=[],
+                    estimated_effort="Small",
                 )
             ]
 
@@ -1011,10 +1013,13 @@ Return ONLY a valid JSON array of buyer journey gap objects. No markdown. No exp
         competitor_analysis: List[CompetitorContentAnalysis],
     ) -> str:
         """Create executive summary of gap analysis"""
-        summary = f"Identified {total_gaps} content gaps across topics, formats, and buyer journey stages. "
+        gap_word = "gap" if total_gaps == 1 else "gaps"
+        summary = f"Identified {total_gaps} content {gap_word} across topics, formats, and buyer journey stages. "
 
         if critical_gaps:
-            summary += f"{len(critical_gaps)} critical gaps require immediate attention. "
+            n = len(critical_gaps)
+            critical_word = "gap" if n == 1 else "gaps"
+            summary += f"{n} critical {critical_word} require immediate attention. "
 
         if high_priority_gaps:
             summary += f"{len(high_priority_gaps)} high-priority opportunities present strong ROI potential. "

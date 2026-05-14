@@ -90,11 +90,11 @@ export default function ResearchToolsLibrary() {
     staleTime: 60 * 1000,
   });
 
-  // Fetch deliverable count to enable/disable the "View Deliverables" CTA — runs
-  // regardless of client selection so the button is reachable on initial load.
+  // Fetch deliverable count filtered by selected client to enable/disable the CTA.
+  // Re-runs when selectedClientId changes so the button reflects the current client.
   const { data: deliverablesList = [] } = useQuery({
-    queryKey: ['deliverables', 'list'],
-    queryFn: () => deliverablesApi.list(),
+    queryKey: ['deliverables', 'list', selectedClientId],
+    queryFn: () => deliverablesApi.list(selectedClientId ? { clientId: selectedClientId } : {}),
     staleTime: 30 * 1000,
   });
   const hasDeliverables = deliverablesList.length > 0;

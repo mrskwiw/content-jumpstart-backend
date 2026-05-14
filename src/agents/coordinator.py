@@ -138,7 +138,9 @@ class CoordinatorAgent:
             )
 
         logger.info(f"   Generated: {len(posts)} posts")
-        logger.info(f"   Avg length: {sum(p.word_count for p in posts) // len(posts)} words")
+        logger.info(
+            f"   Avg length: {sum(p.word_count for p in posts) // max(len(posts), 1)} words"
+        )
 
         # Step 5: Run QA validation
         logger.info("\n[5/7] Running quality validation...")

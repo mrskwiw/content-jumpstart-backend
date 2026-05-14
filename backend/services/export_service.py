@@ -3421,10 +3421,20 @@ def _format_determine_competitors(data: dict) -> List[str]:
                 lines.append(f"**How to Differentiate:** {diff}")
             lines.append("")
 
-    # Positioning recommendation
+    # Positioning recommendation — strip markdown heading syntax the LLM sometimes emits
     if "recommended_positioning" in data:
         lines.append("**Recommended Positioning:**")
-        lines.append(data["recommended_positioning"])
+        raw_positioning = data["recommended_positioning"]
+        cleaned_lines = [
+            line.lstrip("#").strip() if line.startswith("#") else line
+            for line in str(raw_positioning).splitlines()
+        ]
+        cleaned = "\n".join(cleaned_lines)
+        # Detect truncation: content that ends without sentence-closing punctuation
+        last_nonempty = next((line for line in reversed(cleaned_lines) if line.strip()), "")
+        if last_nonempty and not last_nonempty.rstrip().endswith((".", "!", "?")):
+            cleaned += "\n\n[Note: This section may be incomplete — re-run the Determine Competitors tool to regenerate.]"
+        lines.append(cleaned)
         lines.append("")
 
     return lines

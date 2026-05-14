@@ -1391,6 +1391,8 @@ class ExecutionOrderRequest(BaseModel):
     """Request to get execution order for tools"""
 
     tool_names: List[str]
+    project_id: Optional[str] = None
+    client_id: Optional[str] = None
 
 
 class ExecutionOrderResponse(BaseModel):
@@ -1413,10 +1415,13 @@ async def get_execution_order(
     Get optimal execution order for research tools based on dependencies.
 
     Uses topological sort to ensure prerequisites run before dependent tools.
-    This is a read-only endpoint that doesn't execute anything - just calculates order.
+    This is a read-only endpoint that doesn't execute anything — just calculates order.
+
+    project_id / client_id are accepted but reserved for future use (e.g. skipping
+    tools whose results are already fresh in the DB without re-running them).
 
     Args:
-        order_request: List of tool names to order
+        order_request: List of tool names and optional client/project context
 
     Returns:
         Optimal execution order (prerequisites first) and parallel_groups for

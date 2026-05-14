@@ -19,7 +19,12 @@ export interface CreateDeliverableInput {
 
 export const deliverablesApi = {
   async list(filters?: DeliverableFilters) {
-    const { data } = await apiClient.get<Deliverable[]>('/api/deliverables/', { params: filters });
+    // Convert camelCase to snake_case — backend expects client_id / project_id
+    const params: Record<string, string | undefined> = {};
+    if (filters?.clientId) params.client_id = filters.clientId;
+    if (filters?.projectId) params.project_id = filters.projectId;
+    if (filters?.status) params.status = filters.status;
+    const { data } = await apiClient.get<Deliverable[]>('/api/deliverables/', { params });
     return data;
   },
 

@@ -298,12 +298,18 @@ export const researchApi = {
   },
 
   /**
-   * Get optimal execution order for research tools based on dependencies
+   * Get optimal execution order for research tools based on dependencies.
+   * Pass clientId so the backend can treat already-completed tools as satisfied
+   * prerequisites, allowing their dependents to start without waiting for a re-run.
    */
-  async getExecutionOrder(toolNames: string[]): Promise<{ executionOrder: string[]; toolCount: number; parallelGroups: string[][]; dependencyMap: Record<string, string[]> }> {
+  async getExecutionOrder(toolNames: string[], options?: { projectId?: string; clientId?: string }): Promise<{ executionOrder: string[]; toolCount: number; parallelGroups: string[][]; dependencyMap: Record<string, string[]> }> {
     const { data } = await apiClient.post(
       '/api/research/execution-order',
-      { tool_names: toolNames }
+      {
+        tool_names: toolNames,
+        ...(options?.projectId && { project_id: options.projectId }),
+        ...(options?.clientId && { client_id: options.clientId }),
+      }
     );
     const schema = z.object({
       execution_order: z.array(z.string()),

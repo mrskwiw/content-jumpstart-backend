@@ -60,6 +60,20 @@ class GenerateAllInput(BaseModel):
             raise ValueError("num_posts must be greater than 0")
         return v
 
+    @field_validator("template_quantities")
+    @classmethod
+    def validate_template_quantities(cls, v):
+        """Reject empty dicts and quantities < 1 at the API layer so the background
+        task never starts a run that is guaranteed to produce zero posts."""
+        if v is None:
+            return v
+        if not v:
+            raise ValueError("template_quantities must not be empty")
+        bad = {tid: qty for tid, qty in v.items() if qty < 1}
+        if bad:
+            raise ValueError(f"template_quantities values must be >= 1; invalid entries: {bad}")
+        return v
+
 
 class ValidateTemplatesInput(BaseModel):
     """Input for template validation endpoint"""
@@ -150,6 +164,7 @@ async def run_generation_background(
         posts_created = result["posts_created"]
         posts_failed = result.get("posts_failed", 0)
         placeholder_count = result.get("placeholder_count", 0)
+        skipped_tasks = result.get("skipped_tasks", 0)
         succeeded_count = posts_created - placeholder_count
         expected_count = sum(template_quantities.values()) if template_quantities else num_posts
 
@@ -169,16 +184,40 @@ async def run_generation_background(
         if platform_warning:
             logs.append(LogEntry(timestamp=timestamp, message=platform_warning))
 
-        # Surface count shortfall (DB save failures)
+        # Surface count shortfall — covers both generator-level skips (unknown template
+        # IDs) and DB-save failures, with distinct reasons so operators know what to fix.
         if posts_created < expected_count:
             shortfall = expected_count - posts_created
+            reasons = []
+            if skipped_tasks:
+                reasons.append(f"{skipped_tasks} skipped — template ID(s) not found in library")
+            if posts_failed:
+                reasons.append(f"{posts_failed} failed to save to DB")
+            reason_str = "; ".join(reasons) if reasons else "cause unknown"
             warning_msg = (
                 f"⚠️ WARNING: {posts_created} of {expected_count} posts were saved. "
-                f"{shortfall} posts missing"
-                + (f" ({posts_failed} failed to save to DB)." if posts_failed else ".")
+                f"{shortfall} posts missing ({reason_str})."
             )
             logger.warning(warning_msg)
             logs.append(LogEntry(timestamp=timestamp, message=warning_msg))
+
+        # Bug #145 — surface low-readability posts to the operator run log
+        try:
+            run_posts = crud.get_posts(db, run_id=run_id, limit=500)
+            low_readability = [
+                p for p in run_posts if p.readability_score is not None and p.readability_score < 60
+            ]
+            if low_readability:
+                scores = ", ".join(f"{p.readability_score:.1f}" for p in low_readability)
+                readability_warning = (
+                    f"⚠️ READABILITY: {len(low_readability)} post(s) scored below 60 "
+                    f"(Flesch Reading Ease — 'Fairly Difficult'). Scores: {scores}. "
+                    f"Consider simplifying language before publishing."
+                )
+                logger.warning(readability_warning)
+                logs.append(LogEntry(timestamp=timestamp, message=readability_warning))
+        except Exception as _re:
+            logger.warning(f"Readability check failed for run {run_id}: {_re}")
 
         # Surface placeholder posts (generation failures after all QA retries)
         if placeholder_count > 0:
@@ -206,7 +245,14 @@ async def run_generation_background(
                 )
             )
 
-            run_status = "partial" if placeholder_count > 0 else "succeeded"
+            # Mark partial when posts are missing for ANY reason — placeholder failures
+            # OR generation-level skips (unknown template ID). Both result in an
+            # incomplete deliverable, so "succeeded" would be misleading to operators.
+            run_status = (
+                "partial"
+                if (placeholder_count > 0 or posts_created < expected_count)
+                else "succeeded"
+            )
             # Token fields are already set per-run by sync_run_token_usage inside
             # _generate_with_template_quantities.  get_project_cost returns all-time
             # project totals, not per-run, so we must not overwrite them here.
@@ -228,7 +274,11 @@ async def run_generation_background(
                     message=f"WARNING: Cost tracking failed - {str(cost_err)[:100]}",
                 )
             )
-            run_status = "partial" if placeholder_count > 0 else "succeeded"
+            run_status = (
+                "partial"
+                if (placeholder_count > 0 or posts_created < expected_count)
+                else "succeeded"
+            )
             crud.update_run(db, run_id, status=run_status, logs=[log.model_dump() for log in logs])
 
         logger.info(f"Background generation completed successfully for run {run_id}")
@@ -636,12 +686,17 @@ async def generate_all(
             detail="Access denied: You don't own this project",
         )
 
-    # Verify client exists
+    # Verify client exists and belongs to the current user (TR-021: IDOR prevention)
     client = crud.get_client(db, input.client_id)
     if not client:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Client {input.client_id} not found",
+        )
+    if client.user_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't own this client",
         )
 
     # TEMPLATE PREREQUISITES: Validate templates have required data
