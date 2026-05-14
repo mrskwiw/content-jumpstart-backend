@@ -137,15 +137,50 @@ export default function ResearchToolsLibrary() {
       // Step 1: Get research project ID
       const { projectId } = await researchApi.getResearchProject(selectedClientId);
 
-      // Step 2: Ask the backend for the correct topological execution order.
-      // Tier-only sorting is insufficient — same-tier tools can depend on each
-      // other (e.g. content_gap_analysis requires competitive_analysis, both
-      // tier 2). get_execution_order() runs a proper dependency-aware topo sort.
-      const { executionOrder } = await researchApi.getExecutionOrder(selectedTools, {
-        clientId: selectedClientId,
-      });
+      // Step 2: Ask the backend for the topologically-correct execution order.
+      // Falls back to a local TOOL_PREREQUISITES sort when the endpoint is
+      // unavailable (transient error, schema mismatch, etc.) so a network blip
+      // never aborts the run before any tool has executed — matching the wizard's
+      // behaviour at ResearchPanel.tsx:442-453.
+      let orderedTools: string[];
+      try {
+        const { executionOrder } = await researchApi.getExecutionOrder(selectedTools, {
+          clientId: selectedClientId,
+        });
+        orderedTools = executionOrder;
+      } catch (orderErr) {
+        console.error('execution-order endpoint unavailable, falling back to local topo sort', orderErr);
+        // Local fallback: Kahn's algorithm over TOOL_PREREQUISITES required edges,
+        // restricted to the selected set so unselected deps are never injected.
+        const selected = new Set(selectedTools);
+        const inDegree: Record<string, number> = {};
+        const dependents: Record<string, string[]> = {};
+        for (const tool of selectedTools) {
+          inDegree[tool] = 0;
+          dependents[tool] = [];
+        }
+        for (const tool of selectedTools) {
+          for (const dep of (TOOL_PREREQUISITES[tool]?.required ?? [])) {
+            if (selected.has(dep)) {
+              inDegree[tool] = (inDegree[tool] ?? 0) + 1;
+              dependents[dep].push(tool);
+            }
+          }
+        }
+        const queue = selectedTools.filter(t => inDegree[t] === 0);
+        orderedTools = [];
+        while (queue.length > 0) {
+          const t = queue.shift()!;
+          orderedTools.push(t);
+          for (const dep of dependents[t]) {
+            if (--inDegree[dep] === 0) queue.push(dep);
+          }
+        }
+        // If a cycle exists (shouldn't happen with valid prereq data) fall back to original order
+        if (orderedTools.length !== selectedTools.length) orderedTools = [...selectedTools];
+      }
       setExecutionStatus({});
-      for (const tool of executionOrder) {
+      for (const tool of orderedTools) {
         setExecutionStatus(prev => ({ ...prev, [tool]: 'running' }));
         try {
           await researchApi.run({
