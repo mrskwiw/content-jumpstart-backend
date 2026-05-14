@@ -137,7 +137,10 @@ export default function ResearchToolsLibrary() {
       // Step 1: Get research project ID
       const { projectId } = await researchApi.getResearchProject(selectedClientId);
 
-      // Step 2: Execute each tool sequentially
+      // Step 2: Execute each tool sequentially.
+      // Bug #147: pass all selected tools as plannedTools so the backend treats
+      // co-selected tools as satisfying each other's prerequisites (same logic the
+      // wizard uses when running a batch via the check_prerequisites endpoint).
       setExecutionStatus({});
       for (const tool of selectedTools) {
         setExecutionStatus(prev => ({ ...prev, [tool]: 'running' }));
@@ -147,6 +150,7 @@ export default function ResearchToolsLibrary() {
             clientId: selectedClientId,
             tool,
             params: {},
+            plannedTools: selectedTools,
           });
           setExecutionStatus(prev => ({ ...prev, [tool]: 'complete' }));
         } catch (err) {

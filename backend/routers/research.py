@@ -184,6 +184,7 @@ class RunResearchInput(BaseModel):
     client_id: str
     tool: str
     params: Optional[Dict[str, Any]] = {}
+    planned_tools: Optional[List[str]] = None  # Bug #147: other tools in same batch run
 
 
 class ResearchRunResult(BaseModel):
@@ -827,6 +828,7 @@ async def run_research(
                 client_id=input.client_id,
                 tool_name=input.tool,
                 params=sanitized_params,  # Use sanitized params for LLM safety
+                planned_tools=input.planned_tools,  # Bug #147: batch context for prereq check
             )
 
             # Cache successful results for 48 hours

@@ -28,6 +28,7 @@ export interface RunResearchInput {
   clientId: string;
   tool: string;
   params?: Record<string, unknown>;
+  plannedTools?: string[];
 }
 
 const ResearchRunResultSchema = z.object({
@@ -198,6 +199,7 @@ export const researchApi = {
       client_id: input.clientId,
       tool: input.tool,
       params: input.params,
+      planned_tools: input.plannedTools,
     };
     const { data } = await apiClient.post('/api/research/run', backendInput);
     return ResearchRunResultSchema.parse(data);

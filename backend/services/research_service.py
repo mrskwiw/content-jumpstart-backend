@@ -395,6 +395,7 @@ class ResearchService:
         client_id: str,
         tool_name: str,
         params: Optional[Dict] = None,
+        planned_tools: Optional[list[str]] = None,
     ) -> Dict[str, Any]:
         """
         Execute a research tool
@@ -469,9 +470,15 @@ class ResearchService:
             logger.info(f"Web search configured for {tool_name}: using {message}")
 
         # Check prerequisites — client-scoped so tools completed in any prior
-        # project for this client count (prevents false "missing prerequisite" errors)
-        can_run, missing_required, missing_recommended = self.check_client_prerequisites(
-            db, client_id, tool_name
+        # project for this client count (prevents false "missing prerequisite" errors).
+        # Bug #147: also treat tools in the same batch run as "planned" so that
+        # e.g. content_calendar doesn't block when seo_keyword_research is selected
+        # alongside it but hasn't saved to DB yet.
+        completed_tools = self._get_completed_tools_for_client(db, client_id)
+        if planned_tools:
+            completed_tools.update(planned_tools)
+        can_run, missing_required, missing_recommended = self.prerequisites.check_prerequisites_met(
+            tool_name, completed_tools
         )
 
         if not can_run:
