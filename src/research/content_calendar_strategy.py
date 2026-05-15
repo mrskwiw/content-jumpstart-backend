@@ -55,35 +55,68 @@ _MONTH_NUM = {
 }
 
 
-def _filter_past_events(events: List[str], calendar_start: datetime) -> List[str]:
-    """Remove seasonal event strings that explicitly reference a past date.
+_MONTH_PATTERN = (
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b"
+)
+# Full date: "May 10, 2026" or "May 10 2026"
+_FULL_DATE_RE = _re.compile(
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+    r"\.?\s+(\d{1,2}),?\s+(20\d{2})\b"
+)
+_MONTH_RE = _re.compile(_MONTH_PATTERN)
+_YEAR_RE = _re.compile(r"\b(20\d{2})\b")
 
-    Strategy: only filter on unambiguous signals — a 4-digit year that is
-    before the calendar start year, or the same year with all cited month names
-    before the start month. Events with no year citation are kept (the prompt
-    already instructed the model to omit past events; this is a safety net only).
+
+def _filter_past_events(events: List[str], calendar_start: datetime) -> List[str]:
+    """Remove event strings that cite a date before calendar_start.
+
+    Three-level check, most specific first:
+    1. Full date (month + day + year) — exact datetime comparison.
+    2. Year + month only — filter if all cited months are strictly before
+       the start month in the same year, or if the year is past.
+    3. No year — keep (the prompt already told the model to use future events).
     """
     start_year = calendar_start.year
+    start_month = calendar_start.month
     filtered = []
+
     for event in events:
         lower = event.lower()
-        years = [int(y) for y in _re.findall(r"\b(20\d{2})\b", lower)]
-        if not years:
-            filtered.append(event)
-            continue
-        if any(y < start_year for y in years):
-            continue
-        if all(y == start_year for y in years):
-            month_matches = _re.findall(
-                r"\b(january|february|march|april|may|june|july|august|"
-                r"september|october|november|december|jan|feb|mar|apr|"
-                r"jun|jul|aug|sep|oct|nov|dec)\b",
-                lower,
-            )
-            cited = [_MONTH_NUM[m] for m in month_matches if m in _MONTH_NUM]
-            if cited and all(m < calendar_start.month for m in cited):
-                continue
+
+        # Level 1: full date with day
+        m = _FULL_DATE_RE.search(lower)
+        if m:
+            month_num = _MONTH_NUM.get(m.group(1)[:3])
+            if month_num:
+                try:
+                    event_date = datetime(int(m.group(3)), month_num, int(m.group(2)))
+                    if event_date < calendar_start:
+                        continue  # past — drop
+                    filtered.append(event)
+                    continue
+                except ValueError:
+                    pass  # invalid day (e.g. Feb 30) — fall through
+
+        # Level 2: year ± month
+        years = [int(y) for y in _YEAR_RE.findall(lower)]
+        if years:
+            if any(y < start_year for y in years):
+                continue  # past year — drop
+            if all(y == start_year for y in years):
+                cited_months = [
+                    _MONTH_NUM[mo[:3]] for mo in _MONTH_RE.findall(lower) if mo[:3] in _MONTH_NUM
+                ]
+                # Drop only when every cited month is strictly before the start month.
+                # Same month without a day was handled by Level 1; if Level 1 found
+                # no day, we conservatively keep the event.
+                if cited_months and all(mo < start_month for mo in cited_months):
+                    continue
+
+        # Level 3: no year — keep
         filtered.append(event)
+
     return filtered
 
 
