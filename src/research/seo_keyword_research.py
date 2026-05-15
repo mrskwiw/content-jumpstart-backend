@@ -1271,9 +1271,9 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
         for kw in primary_keywords:
             intent_counts[kw.search_intent.value] = intent_counts.get(kw.search_intent.value, 0) + 1
 
-        # Count difficulty distribution
+        # Count difficulty distribution — primary keywords only (matches the visible table)
         difficulty_counts: Dict[str, int] = {}
-        for kw in primary_keywords + secondary_keywords:
+        for kw in primary_keywords:
             difficulty_counts[kw.difficulty.value] = (
                 difficulty_counts.get(kw.difficulty.value, 0) + 1
             )

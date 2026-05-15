@@ -145,15 +145,38 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
         # Step 1: Web search for company information
         web_results = self._search_web(company_name, location, max_web_results)
 
+        # Bug #148: warn when zero location-specific results were found — this
+        # usually means the client's location is missing and all results may describe
+        # a different business sharing the same name.
+        if not web_results:
+            logger.warning(
+                f"Business Report: no location-matched web results for '{company_name}' in "
+                f"'{location}'. Report may reflect a similarly-named business. Ensure the "
+                f"client's location is set correctly in their profile."
+            )
+
+        # Bug #148: inject known staff names from client brief so Claude can cross-check.
+        # The business_description and founder_name fields are injected by research_service
+        # via the standard inputs dict — pass them to the synthesis step as context.
+        known_staff_hint = inputs.get("founder_name") or ""
+        if not known_staff_hint:
+            # Try to extract from business_description ("Dr. Kim", "Dr. Smith", etc.)
+            import re as _re
+
+            desc = inputs.get("business_description", "")
+            names = _re.findall(r"\bDr\.?\s+[A-Z][a-z]+\b", desc)
+            known_staff_hint = ", ".join(dict.fromkeys(names))  # unique, ordered
+
         # Step 2: Google Maps search for reviews
         maps_data = self._search_google_maps(company_name, location, max_reviews)
 
-        # Step 3: AI synthesis
+        # Step 3: AI synthesis — pass known staff names so Claude can flag mismatches
         report = self._synthesize_report(
             company_name,
             location,
             web_results,
             maps_data,
+            known_staff_hint=known_staff_hint,
         )
 
         logger.info(f"Business report generated for {company_name}")
@@ -180,19 +203,39 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
 
             search_client = get_search_client()
 
-            # Search query: company name + location + reviews/information
-            query = f"{company_name} {location} reviews information"
+            # Bug #148: include authoritative review sites and location in query so results
+            # are specific to this client's location, not other businesses sharing the name.
+            query = (
+                f'"{company_name}" {location} reviews'
+                f" site:google.com OR site:yelp.com OR site:healthgrades.com"
+                f" OR site:zocdoc.com OR site:facebook.com"
+            )
 
             response = search_client.search(query, max_results=max_results)
 
-            results = []
+            # Bug #148: Filter results to those that reference the client's location.
+            # This prevents data from a similarly-named business in another city from
+            # contaminating the report (e.g., multiple "Cascade Family Dentistry" chains).
+            location_tokens = {
+                tok.lower() for tok in location.replace(",", " ").split() if len(tok) > 2
+            }
+            results: List[Dict[str, Any]] = []
             for result in response.results:
-                results.append(
-                    {
-                        "title": result.title,
-                        "snippet": result.snippet,
-                        "url": result.url,
-                    }
+                combined = (result.title + " " + result.snippet).lower()
+                # Keep result if any location token appears in title+snippet, or if we have < 3 results
+                if any(tok in combined for tok in location_tokens) or len(results) < 3:
+                    results.append(
+                        {
+                            "title": result.title,
+                            "snippet": result.snippet,
+                            "url": result.url,
+                        }
+                    )
+
+            if len(results) < len(response.results):
+                logger.info(
+                    f"Business Report: filtered {len(response.results) - len(results)} results "
+                    f"not matching location '{location}' (prevents data from similarly-named businesses)"
                 )
 
             logger.info(f"Found {len(results)} web results")
@@ -292,6 +335,7 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
         location: str,
         web_results: List[Dict[str, Any]],
         maps_data: Dict[str, Any],
+        known_staff_hint: str = "",
     ) -> BusinessReportOutput:
         """Synthesize web and maps data into structured business report
 
@@ -318,7 +362,7 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
         web_summary = self._format_web_results(web_results)
         reviews_summary = self._format_reviews(maps_data.get("reviews", []))
 
-        # Build analysis prompt
+        # Build analysis prompt — include known staff hint for entity verification (Bug #148)
         prompt = self._build_analysis_prompt(
             company_name,
             location,
@@ -326,6 +370,7 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
             reviews_summary,
             maps_data.get("rating"),
             maps_data.get("total_reviews"),
+            known_staff_hint=known_staff_hint,
         )
 
         # Call Claude API with JSON extraction
@@ -411,6 +456,7 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
         reviews_summary: str,
         avg_rating: Optional[float],
         total_reviews: Optional[int],
+        known_staff_hint: str = "",
     ) -> str:
         """Build AI analysis prompt for business report synthesis"""
 
@@ -420,10 +466,21 @@ class BusinessReportTool(ResearchTool, CommonValidationMixin):
         # Remove metadata fields that we'll add manually
         schema_str = json.dumps(schema, indent=2)
 
+        # Bug #148: warn Claude about entity disambiguation when a known staff name exists
+        entity_guard = ""
+        if known_staff_hint:
+            entity_guard = (
+                f"\nIMPORTANT — ENTITY VERIFICATION: The client's known staff include: {known_staff_hint}. "
+                f"If the web results or reviews mention different staff names (e.g. dentists, doctors) "
+                f"not matching these, those results likely describe a DIFFERENT business sharing the "
+                f"same name. Exclude quotes, reviews, or data that reference unrecognised staff names "
+                f"— only synthesise information that plausibly describes THIS specific practice.\n"
+            )
+
         prompt = f"""You are a business analyst specializing in market perception and competitive positioning.
 
 Analyze the following data about {company_name} in {location} and provide a comprehensive business report.
-
+{entity_guard}
 WEB SEARCH RESULTS ({len(web_summary.split('URL:'))} sources):
 {web_summary}
 

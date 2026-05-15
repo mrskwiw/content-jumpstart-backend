@@ -917,11 +917,56 @@ The calendar focuses on {', '.join([g.value for g in primary_goals[:2]])} throug
 With {total_posts} posts planned across {len(weekly_calendar)} weeks, the strategy balances consistency with quality,
 using a {frequency.value.replace('_', ' ')} posting rhythm."""
 
-        # Collect seasonal opportunities from weekly calendar
+        # Collect seasonal opportunities from weekly calendar and filter past events (Bug #150)
         seasonal_opportunities = []
         for week in weekly_calendar:
             seasonal_opportunities.extend(week.holidays_events)
-        seasonal_opportunities = list(set(seasonal_opportunities))[:10]  # Unique, max 10
+        seasonal_opportunities = list(set(seasonal_opportunities))
+
+        # Drop events whose date reference is clearly in the past relative to start_date
+        try:
+            calendar_start = datetime.strptime(start_date, "%Y-%m-%d")
+            _PAST_SEASON_TOKENS = {
+                "spring break": 3,  # March
+                "spring season": 3,
+                "spring begins": 3,
+                "mother's day": 5,
+                "mothers day": 5,
+                "valentine": 2,
+                "new year": 1,
+                "tax season": 4,
+            }
+            filtered = []
+            for opp in seasonal_opportunities:
+                opp_lower = opp.lower()
+                keep = True
+                # Check explicit year-month dates like "May 10, 2026"
+                import re as _re
+
+                date_match = _re.search(
+                    r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(\d{4})",
+                    opp_lower,
+                )
+                if date_match:
+                    try:
+                        parsed = datetime.strptime(date_match.group(0).replace(",", ""), "%B %d %Y")
+                        if parsed < calendar_start:
+                            keep = False
+                    except ValueError:
+                        pass
+                # Check known seasonal tokens by typical month
+                if keep:
+                    for token, month in _PAST_SEASON_TOKENS.items():
+                        if token in opp_lower and calendar_start.month > month:
+                            keep = False
+                            break
+                if keep:
+                    filtered.append(opp)
+            seasonal_opportunities = filtered
+        except Exception:
+            pass  # If date parsing fails, keep all events
+
+        seasonal_opportunities = seasonal_opportunities[:10]
 
         return CalendarStrategy(
             business_name=business_name,

@@ -208,6 +208,10 @@ Your analysis:"""
                 DiscoveredCompetitor(**comp) for comp in result.get("emerging", [])[:2]  # Max 2
             ]
 
+            # Bug #149: verify each competitor is still operating before including
+            primary = self._filter_defunct_competitors(primary, search_client)
+            emerging = self._filter_defunct_competitors(emerging, search_client)
+
             logger.info(
                 f"Discovered {len(primary)} primary and {len(emerging)} emerging competitors from web search"
             )
@@ -218,6 +222,46 @@ Your analysis:"""
             logger.error(f"AI competitor discovery failed: {e}", exc_info=True)
             # Fallback: Return empty lists
             return {"primary": [], "emerging": []}
+
+    def _filter_defunct_competitors(
+        self, competitors: "List[DiscoveredCompetitor]", search_client: "Any"
+    ) -> "List[DiscoveredCompetitor]":
+        """Bug #149: remove competitors confirmed closed/bankrupt via web search."""
+        from datetime import datetime as _dt
+
+        year = _dt.now().year
+        active = []
+        for comp in competitors:
+            try:
+                query = f'"{comp.name}" closed OR bankrupt OR "ceased operations" OR "shut down" {year - 1} OR {year}'
+                response = search_client.search(query, max_results=3)
+                closure_signals = [
+                    r
+                    for r in response.results
+                    if any(
+                        kw in (r.title + r.snippet).lower()
+                        for kw in (
+                            "bankrupt",
+                            "closed",
+                            "cease",
+                            "shut down",
+                            "no longer",
+                            "dissolved",
+                        )
+                    )
+                ]
+                if closure_signals:
+                    logger.warning(
+                        f"Competitor '{comp.name}' may be defunct — found {len(closure_signals)} "
+                        f"closure signal(s). Excluding from analysis. "
+                        f"First signal: {closure_signals[0].title}"
+                    )
+                else:
+                    active.append(comp)
+            except Exception as exc:
+                logger.debug(f"Closure check failed for '{comp.name}': {exc} — keeping")
+                active.append(comp)
+        return active
 
     def _format_search_results(self, search_response: SearchResponse) -> str:
         """Format web search results for Claude prompt"""
