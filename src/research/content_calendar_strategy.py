@@ -839,7 +839,7 @@ Return JSON array for weeks {weeks_in_batch}:
                 # start date so we can apply the year-based filter here rather than only
                 # on the aggregated seasonal_opportunities list (which is a summary view).
                 raw_events = week_data.get("holidays_events", [])
-                filtered_events = _filter_past_events(raw_events, start_date)
+                filtered_events = _filter_past_events(raw_events, week_start)
 
                 calendar_week = CalendarWeek(
                     week_number=week_num,
