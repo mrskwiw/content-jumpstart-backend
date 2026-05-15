@@ -6,6 +6,7 @@ content pillars, themes, and platform-specific schedules.
 
 import json
 import logging
+import re as _re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,64 @@ from src.utils.web_search import get_search_client
 from src.validators.research_input_validator import ResearchInputValidator
 
 logger = logging.getLogger(__name__)
+
+_MONTH_NUM = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
+
+
+def _filter_past_events(events: List[str], calendar_start: datetime) -> List[str]:
+    """Remove seasonal event strings that explicitly reference a past date.
+
+    Strategy: only filter on unambiguous signals — a 4-digit year that is
+    before the calendar start year, or the same year with all cited month names
+    before the start month. Events with no year citation are kept (the prompt
+    already instructed the model to omit past events; this is a safety net only).
+    """
+    start_year = calendar_start.year
+    filtered = []
+    for event in events:
+        lower = event.lower()
+        years = [int(y) for y in _re.findall(r"\b(20\d{2})\b", lower)]
+        if not years:
+            filtered.append(event)
+            continue
+        if any(y < start_year for y in years):
+            continue
+        if all(y == start_year for y in years):
+            month_matches = _re.findall(
+                r"\b(january|february|march|april|may|june|july|august|"
+                r"september|october|november|december|jan|feb|mar|apr|"
+                r"jun|jul|aug|sep|oct|nov|dec)\b",
+                lower,
+            )
+            cited = [_MONTH_NUM[m] for m in month_matches if m in _MONTH_NUM]
+            if cited and all(m < calendar_start.month for m in cited):
+                continue
+        filtered.append(event)
+    return filtered
 
 
 class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
@@ -743,6 +802,12 @@ Return JSON array for weeks {weeks_in_batch}:
                 goal_value = self._normalize_goal(week_data.get("goal", "awareness"))
                 pillar_value = self._normalize_pillar(week_data.get("pillar", "education"))
 
+                # Bug #150: filter past events at the source — each week knows its own
+                # start date so we can apply the year-based filter here rather than only
+                # on the aggregated seasonal_opportunities list (which is a summary view).
+                raw_events = week_data.get("holidays_events", [])
+                filtered_events = _filter_past_events(raw_events, start_date)
+
                 calendar_week = CalendarWeek(
                     week_number=week_num,
                     start_date=week_start.strftime("%Y-%m-%d"),
@@ -754,7 +819,7 @@ Return JSON array for weeks {weeks_in_batch}:
                     goal=ContentGoal(goal_value),
                     key_message=week_data.get("key_message", ""),
                     cta_focus=week_data.get("cta_focus", ""),
-                    holidays_events=week_data.get("holidays_events", []),
+                    holidays_events=filtered_events,
                     notes=week_data.get("notes"),
                 )
                 weekly_calendar.append(calendar_week)
@@ -935,86 +1000,20 @@ With {total_posts} posts planned across {len(weekly_calendar)} weeks, the strate
 using a {frequency.value.replace('_', ' ')} posting rhythm."""
 
         # Collect seasonal opportunities from weekly calendar and filter past events (Bug #150)
+        # Aggregate seasonal events from the per-week entries (which are already filtered
+        # at construction time in _generate_weekly_calendar via _filter_past_events).
+        # Apply the same filter here as a second pass in case any slipped through.
+        try:
+            calendar_start = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            calendar_start = datetime.now()
+
         seasonal_opportunities = []
         for week in weekly_calendar:
             seasonal_opportunities.extend(week.holidays_events)
-        seasonal_opportunities = list(set(seasonal_opportunities))
-
-        # Safety net: drop items that explicitly cite a past year (Bug #150).
-        # The primary fix is in the weekly-calendar prompt which now tells the model
-        # to omit past events; this catches any that slip through anyway.
-        # Regex-based month/name parsing is unreliable on LLM output, so we only
-        # filter on the unambiguous signal: a 4-digit year that is less than the
-        # calendar start year, or (same year AND an explicit month number we can
-        # parse) that is in the past.
-        import re as _re
-
-        try:
-            calendar_start = datetime.strptime(start_date, "%Y-%m-%d")
-            start_year = calendar_start.year
-
-            # Month-name → number map for the simple month+year check below
-            _MONTH_NUM = {
-                "january": 1,
-                "february": 2,
-                "march": 3,
-                "april": 4,
-                "may": 5,
-                "june": 6,
-                "july": 7,
-                "august": 8,
-                "september": 9,
-                "october": 10,
-                "november": 11,
-                "december": 12,
-                "jan": 1,
-                "feb": 2,
-                "mar": 3,
-                "apr": 4,
-                "jun": 6,
-                "jul": 7,
-                "aug": 8,
-                "sep": 9,
-                "oct": 10,
-                "nov": 11,
-                "dec": 12,
-            }
-
-            filtered = []
-            for opp in seasonal_opportunities:
-                opp_lower = opp.lower()
-
-                # Find any 4-digit year in the string
-                years_in_text = [int(y) for y in _re.findall(r"\b(20\d{2})\b", opp_lower)]
-
-                if not years_in_text:
-                    # No year cited — keep; the prompt already told the model to use future dates
-                    filtered.append(opp)
-                    continue
-
-                # If ANY cited year is in the past, discard the event
-                if any(y < start_year for y in years_in_text):
-                    continue
-
-                # Same year as calendar start — check whether the cited month is also past
-                if all(y == start_year for y in years_in_text):
-                    month_matches = _re.findall(
-                        r"\b(january|february|march|april|may|june|july|august|"
-                        r"september|october|november|december|jan|feb|mar|apr|"
-                        r"jun|jul|aug|sep|oct|nov|dec)\b",
-                        opp_lower,
-                    )
-                    cited_months = [_MONTH_NUM[m] for m in month_matches if m in _MONTH_NUM]
-                    # Discard only if ALL cited months are before the calendar start month
-                    if cited_months and all(m < calendar_start.month for m in cited_months):
-                        continue
-
-                filtered.append(opp)
-            seasonal_opportunities = filtered
-        except Exception:
-            pass  # If anything fails, keep all events rather than dropping good ones
-
-        seasonal_opportunities = seasonal_opportunities[:10]
+        seasonal_opportunities = _filter_past_events(
+            list(set(seasonal_opportunities)), calendar_start
+        )[:10]
 
         return CalendarStrategy(
             business_name=business_name,
