@@ -599,6 +599,44 @@ class GeneratorService:
 
             _cta_types = _CTAValidator()._extract_cta_types(posts)
 
+            # LLM fallback for posts the deterministic regex missed.
+            # CTAValidator stays pure-deterministic (testable offline); this call
+            # only happens in the live generation path where API access is guaranteed.
+            # Cost: ~$0.00025 per fallback call (Haiku) vs. ~$0.02 per unnecessary
+            # regeneration that a false-negative would otherwise trigger.
+            _no_cta_indices = [i for i, t in enumerate(_cta_types) if t == "no_cta"]
+            if _no_cta_indices:
+                try:
+                    from src.utils.anthropic_client import get_default_client as _get_client
+
+                    _llm_client = _get_client()
+                    for i in _no_cta_indices:
+                        _post = posts[i]
+                        _lines = _post.content.strip().split("\n")
+                        _cta_section = "\n".join(_lines[-2:])
+                        _prompt = (
+                            "Does the following text end with a call-to-action — "
+                            "an invitation for the reader to do something (reply, "
+                            "comment, book, follow, share, ask a question, click "
+                            "a link, etc.)?\n\n"
+                            f"TEXT:\n{_cta_section}\n\n"
+                            "Answer with a single word: YES or NO."
+                        )
+                        _resp = _llm_client.create_message(
+                            messages=[{"role": "user", "content": _prompt}],
+                            max_tokens=5,
+                            model="claude-haiku-4-5-20251001",
+                        )
+                        _answer = (_resp or "").strip().upper()
+                        if _answer.startswith("YES"):
+                            _cta_types[i] = "llm_detected"
+                            logger.info(
+                                f"CTA LLM fallback: post {i+1} has CTA regex missed — "
+                                f"add to CTA_PATTERNS: {_cta_section!r:.100}"
+                            )
+                except Exception as _cta_llm_err:
+                    logger.debug(f"CTA LLM fallback skipped: {_cta_llm_err}")
+
             for idx, post in enumerate(posts):
                 try:
                     post_id = f"post-{uuid.uuid4().hex[:12]}"
