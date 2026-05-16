@@ -610,6 +610,10 @@ class GeneratorService:
                     # Flag only posts that genuinely have no CTA of any kind.
                     # Engagement questions are a valid CTA type and must not be flagged.
                     post_has_no_cta = _cta_types[idx] == "no_cta"
+                    # Derive has_cta from _cta_types (the authoritative result that
+                    # includes the LLM fallback) rather than post.has_cta (regex-only).
+                    # This keeps the persisted flag consistent with the approval decision.
+                    post_has_cta = not post_has_no_cta
                     needs_flag = is_placeholder or post_has_no_cta
                     post_flags: list[str] = []
                     if is_placeholder:
@@ -627,7 +631,7 @@ class GeneratorService:
                         template_name=post.template_name,
                         variant=post.variant,
                         word_count=post.word_count,
-                        has_cta=post.has_cta,
+                        has_cta=post_has_cta,
                         readability_score=_calculate_readability(post.content),
                         status="flagged" if needs_flag else "approved",
                         flags=post_flags,
