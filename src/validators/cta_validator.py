@@ -10,6 +10,38 @@ from typing import Any, Dict, List, Optional
 from ..config.constants import CTA_VARIETY_THRESHOLD
 from ..models.client_brief import Platform
 from ..models.post import Post
+from ..utils.logger import logger
+
+
+def _llm_cta_check(last_two_lines: str) -> bool:
+    """Ask Claude Haiku whether text ends with a CTA (YES/NO).
+
+    Called only when the deterministic regex returns no match AND the validator
+    was constructed with use_llm_fallback=True.  Each call is independently
+    guarded so one failure never affects other posts in the same batch.
+    Cost: ~$0.00025 per call (Haiku, 5-token response).
+    """
+    try:
+        from ..utils.anthropic_client import get_default_client
+
+        client = get_default_client()
+        prompt = (
+            "Does the following text end with a call-to-action — an invitation "
+            "for the reader to do something (reply, comment, book, follow, share, "
+            "ask a question, click a link, etc.)?\n\n"
+            f"TEXT:\n{last_two_lines}\n\n"
+            "Answer with a single word: YES or NO."
+        )
+        response = client.create_message(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            model="claude-haiku-4-5-20251001",
+        )
+        answer = (response or "").strip().upper()
+        return answer.startswith("YES")
+    except Exception as exc:
+        logger.debug(f"CTA LLM fallback skipped for this post: {exc}")
+        return False
 
 
 class CTAValidator:
@@ -135,15 +167,25 @@ class CTAValidator:
         r"ask (?:your dentist|your doctor)\b",
     ]
 
-    def __init__(self, variety_threshold: Optional[float] = None):
+    def __init__(
+        self,
+        variety_threshold: Optional[float] = None,
+        use_llm_fallback: bool = False,
+    ):
         """
-        Initialize CTA validator
+        Initialize CTA validator.
 
         Args:
-            variety_threshold: Maximum percentage of posts that can use the same CTA (0.0-1.0)
-                              Defaults to CTA_VARIETY_THRESHOLD from constants
+            variety_threshold: Maximum percentage of posts that can use the same
+                CTA type (0.0-1.0). Defaults to CTA_VARIETY_THRESHOLD.
+            use_llm_fallback: When True, posts the regex marks as no_cta get a
+                single Haiku YES/NO call to catch novel CTA forms the regex
+                misses. Each call is independently try/except-guarded so one
+                API error never blocks the rest of the batch. Default False so
+                tests and offline callers stay deterministic.
         """
         self.variety_threshold = variety_threshold or CTA_VARIETY_THRESHOLD
+        self.use_llm_fallback = use_llm_fallback
 
     def validate(self, posts: List[Post]) -> Dict[str, Any]:
         """
@@ -309,6 +351,17 @@ class CTAValidator:
                 last_line = lines[-1].strip() if lines else ""
                 if last_line.endswith("?"):
                     cta_type = "engagement_question"
+
+            # LLM fallback — only when opt-in AND regex found nothing.
+            # Each call is independently guarded: one API error never affects
+            # the remaining posts in the batch.
+            if cta_type == "no_cta" and self.use_llm_fallback:
+                if _llm_cta_check(cta_section):
+                    cta_type = "llm_detected"
+                    logger.info(
+                        "CTA LLM fallback: regex missed a CTA — "
+                        f"consider adding to CTA_PATTERNS: {cta_section!r:.120}"
+                    )
 
             cta_types.append(cta_type)
 
