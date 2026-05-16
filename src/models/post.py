@@ -113,8 +113,6 @@ class Post(BaseModel):
             "give me a",
             "give us your",  # CTAValidator accepts give ... your
             "give me your",
-            # Added to match CTAValidator patterns introduced for Bug #148 audit
-            "drop it",  # "drop it below", "drop it in the comments"
             "hit reply",  # explicit (also caught by \breply\b word pattern)
         ]
         if any(ind in cta_section for ind in substring_indicators):
@@ -124,6 +122,9 @@ class Post(BaseModel):
         # "appointment" and "consultation" are here (not in substring_indicators)
         # to avoid false matches inside e.g. "disappointment".
         word_patterns = [
+            # Mirrors CTAValidator drop/share/leave pattern — requires a specific
+            # object+destination to avoid matching "don't drop it" or "price drop".
+            r"\b(?:drop|share|leave)\s+(?:your|a|it)\s+(?:thoughts?|comment|feedback|experience|below|here)\b",
             r"\breply\b",
             r"\bcomment\b",
             r"\bcontact\b",
