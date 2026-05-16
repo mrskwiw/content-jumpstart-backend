@@ -796,9 +796,22 @@ async def run_research(
                     )
                     if dc_result and dc_result.data:
                         raw = dc_result.data.get("primary_competitors", [])
-                        competitors_found = [
-                            c.get("name") or c if isinstance(c, dict) else str(c) for c in raw if c
-                        ][:5]
+                        extracted: list[str] = []
+                        for c in raw:
+                            if isinstance(c, dict):
+                                # "name" is the canonical field; "company" is a fallback
+                                name = c.get("name") or c.get("company") or ""
+                                if isinstance(name, str):
+                                    name = name.strip()
+                                else:
+                                    name = ""
+                            elif isinstance(c, str):
+                                name = c.strip()
+                            else:
+                                name = ""  # skip dicts-without-name, ints, None, etc.
+                            if 2 <= len(name) <= 200:
+                                extracted.append(name)
+                        competitors_found = extracted[:5]
                         if competitors_found:
                             logger.info(
                                 f"Auto-populated {len(competitors_found)} competitors "
