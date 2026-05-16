@@ -30,11 +30,16 @@ class CTAValidator:
     # These are comprehensive and may be too broad for body-scanning.
     CTA_PATTERNS = [
         (
-            r"(?:drop|share|leave) (?:your|a) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective)",
+            r"(?:drop|share|leave) (?:your|a|it) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective|below)",
             "comment_request",
         ),
         (r"(?:dm|message|reach out|contact) me", "direct_contact"),
-        (r"reply (?:with|below)", "reply_request"),
+        # "hit reply", "just reply", or "reply with/below/here/to this/me"
+        # Requires prefix OR suffix — bare "reply" (e.g. "In reply to...") is excluded.
+        (
+            r"\b(?:hit|just)\s+reply\b|\breply\s+(?:with|below|here|to\s+(?:this|me))\b",
+            "reply_request",
+        ),
         (r"(?:click|tap|check out) (?:the )?link", "link_click"),
         # Booking: "book/schedule [optional adjectives] <service noun>"
         # Noun list covers clinical, service-business, and general scheduling forms.
@@ -67,9 +72,9 @@ class CTAValidator:
     # - start/try/begin (opener phrases: "start with a question", "try to imagine")
     # - bare "visit" (dental: "visit our office for care")
     _PLACEMENT_PATTERNS = [
-        r"(?:drop|share|leave) (?:your|a) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective)",
+        r"(?:drop|share|leave) (?:your|a|it) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective|below)",
         r"(?:dm|message|reach out|contact) me",
-        r"reply (?:with|below)",
+        r"\b(?:hit|just)\s+reply\b|\breply\s+(?:with|below|here|to\s+(?:this|me))\b",
         r"(?:click|tap|check out) (?:the )?link",
         r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
         r"(?:call|meeting|demo|visit|appointment|consultation|session"
