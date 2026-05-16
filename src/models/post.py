@@ -113,6 +113,9 @@ class Post(BaseModel):
             "give me a",
             "give us your",  # CTAValidator accepts give ... your
             "give me your",
+            # Added to match CTAValidator patterns introduced for Bug #148 audit
+            "drop it",  # "drop it below", "drop it in the comments"
+            "hit reply",  # explicit (also caught by \breply\b word pattern)
         ]
         if any(ind in cta_section for ind in substring_indicators):
             return True
