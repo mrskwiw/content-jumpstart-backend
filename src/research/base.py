@@ -356,23 +356,30 @@ class ResearchTool(ABC):
         except json.JSONDecodeError:
             pass
 
-        # Try extracting from markdown code block
-        markdown_pattern = r"```(?:json)?\s*\n(.*?)\n```"
-        matches = re.findall(markdown_pattern, response_text, re.DOTALL)
-        if matches:
+        # Try extracting from markdown code block.
+        # Use greedy .* (not .*?) so we match up to the LAST closing fence,
+        # not the first — important when the JSON body itself contains ``` sequences
+        # (e.g. shell commands in implementation guidance steps).
+        markdown_pattern = r"```(?:json)?\s*\n(.*)\n```"
+        match = re.search(markdown_pattern, response_text, re.DOTALL)
+        if match:
             try:
-                return json.loads(matches[0])  # type: ignore[no-any-return]
+                return json.loads(match.group(1))  # type: ignore[no-any-return]
             except json.JSONDecodeError:
                 pass
 
-        # Try finding JSON object in text using regex
-        # Matches {}, even with nested objects/arrays
-        json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
-        matches = re.findall(json_pattern, response_text, re.DOTALL)
-
-        for match in matches:
+        # Fallback: find first '{' or '[' and use rfind to locate the matching
+        # closing bracket — handles deeply nested JSON that the old regex couldn't.
+        for open_char, close_char in [("{", "}"), ("[", "]")]:
+            start = response_text.find(open_char)
+            if start == -1:
+                continue
+            end = response_text.rfind(close_char)
+            if end <= start:
+                continue
+            candidate = response_text[start : end + 1]
             try:
-                return json.loads(match)  # type: ignore[no-any-return]
+                return json.loads(candidate)  # type: ignore[no-any-return]
             except json.JSONDecodeError:
                 continue
 
