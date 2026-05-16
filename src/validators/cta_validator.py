@@ -74,7 +74,11 @@ class CTAValidator:
     _PLACEMENT_PATTERNS = [
         r"(?:drop|share|leave) (?:your|a|it) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective|below)",
         r"(?:dm|message|reach out|contact) me",
-        r"\b(?:hit|just)\s+reply\b|\breply\s+(?:with|below|here|to\s+(?:this|me))\b",
+        # Body scan: only prefix form is safe — "hit reply"/"just reply" cannot
+        # appear as ordinary prose. "reply with/below/to this" can ("in reply to
+        # this point") so it is excluded from body patterns; CTA_PATTERNS covers
+        # it for the last-two-lines check.
+        r"\b(?:hit|just)\s+reply\b",
         r"(?:click|tap|check out) (?:the )?link",
         r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
         r"(?:call|meeting|demo|visit|appointment|consultation|session"
