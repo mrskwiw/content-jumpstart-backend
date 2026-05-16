@@ -188,6 +188,7 @@ export default function ResearchToolsLibrary() {
             clientId: selectedClientId,
             tool,
             params: {},
+            forceRefresh: true,
           });
           setExecutionStatus(prev => ({ ...prev, [tool]: 'complete' }));
         } catch (err) {

@@ -185,6 +185,7 @@ class RunResearchInput(BaseModel):
     tool: str
     params: Optional[Dict[str, Any]] = {}
     planned_tools: Optional[List[str]] = None  # Bug #147: other tools in same batch run
+    force_refresh: bool = False  # When True, skip cache and always re-execute the tool
 
 
 class ResearchRunResult(BaseModel):
@@ -766,18 +767,58 @@ async def run_research(
 
     # AUTO-POPULATION: Competitive Analysis competitors from client profile
     if input.tool == "competitive_analysis":
-        # If competitors not provided or empty, auto-populate from client.competitors
+        # If competitors not provided or empty, auto-populate — in priority order:
+        # 1. client.competitors (fastest)
+        # 2. Most recent determine_competitors research result (fallback when
+        #    auto-save to client profile failed or client object is stale)
         if not sanitized_params.get("competitors"):
+            competitors_found: list = []
             if client.competitors and isinstance(client.competitors, list):
-                sanitized_params["competitors"] = client.competitors[:5]  # Max 5
+                competitors_found = client.competitors[:5]
                 logger.info(
-                    f"Auto-populated {len(sanitized_params['competitors'])} competitors from client profile"
+                    f"Auto-populated {len(competitors_found)} competitors from client profile"
                 )
             else:
-                # No competitors in database - require manual input
+                # Fallback: read from the most recent determine_competitors result
+                try:
+                    from backend.models import ResearchResult as _RR
+
+                    dc_result = (
+                        db.query(_RR)
+                        .filter(
+                            _RR.client_id == input.client_id,
+                            _RR.tool_name == "determine_competitors",
+                            _RR.status == "completed",
+                            _RR.is_deleted.is_(False),
+                        )
+                        .order_by(_RR.created_at.desc())
+                        .first()
+                    )
+                    if dc_result and dc_result.data:
+                        raw = dc_result.data.get("primary_competitors", [])
+                        competitors_found = [
+                            c.get("name") or c if isinstance(c, dict) else str(c) for c in raw if c
+                        ][:5]
+                        if competitors_found:
+                            logger.info(
+                                f"Auto-populated {len(competitors_found)} competitors "
+                                f"from determine_competitors research result (client.competitors was empty)"
+                            )
+                except Exception as _ce:
+                    logger.warning(
+                        f"Failed to read determine_competitors result for auto-population: {_ce}"
+                    )
+
+            if competitors_found:
+                sanitized_params["competitors"] = competitors_found
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Client profile incomplete: Competitive Analysis requires 1-5 competitor names. Please add competitors to the client profile or provide them manually.",
+                    detail=(
+                        "Competitive Analysis requires competitor names. "
+                        "Run the Determine Competitors tool first, or add "
+                        "competitors to the client profile manually."
+                    ),
                 )
 
     cached_result = None  # Track whether we got a cache hit (for credit refund logic)
@@ -791,7 +832,11 @@ async def run_research(
         }
         cache_key = hashlib.sha256(json.dumps(cache_key_data, sort_keys=True).encode()).hexdigest()
 
-        cached_result = research_cache.get_by_key(cache_key) if research_cache else None
+        cached_result = (
+            research_cache.get_by_key(cache_key)
+            if research_cache and not input.force_refresh
+            else None
+        )
 
         if cached_result:
             result = cached_result

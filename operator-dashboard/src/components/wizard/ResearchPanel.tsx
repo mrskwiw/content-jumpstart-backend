@@ -267,6 +267,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         clientId: clientId!,
         tool,
         params: params || {},
+        forceRefresh: true,
       }),
     onSuccess: (data, variables) => {
       // Skip if the execution loop already settled this tool (e.g. via timeout)
