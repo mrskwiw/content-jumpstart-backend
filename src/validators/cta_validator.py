@@ -10,6 +10,41 @@ from typing import Any, Dict, List, Optional
 from ..config.constants import CTA_VARIETY_THRESHOLD
 from ..models.client_brief import Platform
 from ..models.post import Post
+from ..utils.logger import logger
+
+
+def _llm_has_cta(last_two_lines: str) -> bool:
+    """Fallback: ask Claude Haiku whether the final lines contain a CTA.
+
+    Only called when the deterministic regex returns no match, so it fires for
+    ~5-10% of posts rather than on every post. Uses the cheapest available model
+    and a minimal prompt — round-trip cost is ~$0.00025 per call.
+
+    Returns True if the LLM considers the text to contain a CTA, False otherwise.
+    On any error (API down, timeout, import failure) returns False so the post is
+    conservatively treated as missing a CTA rather than silently passing.
+    """
+    try:
+        from ..utils.anthropic_client import get_default_client
+
+        client = get_default_client()
+        prompt = (
+            "Does the following text end with a call-to-action — an invitation "
+            "for the reader to do something (reply, comment, book, follow, share, "
+            "ask a question, click a link, etc.)?\n\n"
+            f"TEXT:\n{last_two_lines}\n\n"
+            "Answer with a single word: YES or NO."
+        )
+        response = client.create_message(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            model="claude-haiku-4-5-20251001",
+        )
+        answer = response.strip().upper() if isinstance(response, str) else ""
+        return answer.startswith("YES")
+    except Exception as exc:
+        logger.debug(f"CTA LLM fallback failed ({exc}); treating as no_cta")
+        return False
 
 
 class CTAValidator:
@@ -309,6 +344,16 @@ class CTAValidator:
                 last_line = lines[-1].strip() if lines else ""
                 if last_line.endswith("?"):
                     cta_type = "engagement_question"
+
+            # LLM fallback: deterministic regex has known gaps for novel CTA forms
+            # (e.g. "drop it below", "hit reply"). Only call when regex found nothing
+            # so cost is ~$0.00025 × (false-negative rate) per post, not per post.
+            if cta_type == "no_cta" and _llm_has_cta(cta_section):
+                cta_type = "llm_detected"
+                logger.info(
+                    "CTA LLM fallback: detected CTA that regex missed — "
+                    f"consider adding to CTA_PATTERNS: {cta_section!r:.120}"
+                )
 
             cta_types.append(cta_type)
 
