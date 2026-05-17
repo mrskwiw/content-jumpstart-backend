@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Globe, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { BriefDownloadButton } from '../ui/BriefDownloadButton';
 import { clientResearchApi, type ClientResearchResult } from '@/api/clientResearch';
 import type { ClientBrief } from '@/types/domain';
 
@@ -257,7 +258,7 @@ export function ClientResearchSection({ businessName, location, creditBalance, o
                 </details>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={handleApply} type="button">
                   Apply to Profile
                 </Button>
@@ -271,6 +272,11 @@ export function ClientResearchSection({ businessName, location, creditBalance, o
                 >
                   Discard
                 </Button>
+                <BriefDownloadButton
+                  brief={result.rawBrief}
+                  confidence={result.confidence}
+                  companyName={result.brief.companyName}
+                />
               </div>
             </div>
           )}

@@ -6,6 +6,7 @@ import { creditsApi } from '@/api/credits';
 import { clientsApi } from '@/api/clients';
 import { clientResearchApi, type ClientResearchResult } from '@/api/clientResearch';
 import { Button } from '@/components/ui/Button';
+import { BriefDownloadButton } from '@/components/ui/BriefDownloadButton';
 import type { Platform } from '@/types/domain';
 
 const CREDIT_COST = 200;
@@ -235,21 +236,28 @@ export default function ClientResearch() {
             </div>
           )}
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
               Research Results
               <span className="ml-2 text-sm font-normal text-neutral-400 dark:text-neutral-500">
                 ({result.durationSeconds}s)
               </span>
             </h2>
-            <Button onClick={handleCreateClient} disabled={isCreatingClient} variant="outline">
-              {isCreatingClient ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <UserPlus className="mr-2 h-4 w-4" />
-              )}
-              Create Client
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <BriefDownloadButton
+                brief={result.rawBrief}
+                confidence={result.confidence}
+                companyName={result.brief.companyName}
+              />
+              <Button onClick={handleCreateClient} disabled={isCreatingClient} variant="outline">
+                {isCreatingClient ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus className="mr-2 h-4 w-4" />
+                )}
+                Create Client
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

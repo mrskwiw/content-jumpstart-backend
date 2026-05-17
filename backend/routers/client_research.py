@@ -1,6 +1,10 @@
 """Client Research API — discovers business info via web search + Claude synthesis."""
 
+from typing import Any, Dict, Literal, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -192,3 +196,65 @@ async def research_and_apply(
         raise HTTPException(status_code=404, detail="Client not found")
 
     return ClientResponse.model_validate(updated)
+
+
+# ── Download endpoint ─────────────────────────────────────────────────────
+
+
+class BriefDownloadRequest(BaseModel):
+    brief: Dict[str, Any]  # snake_case ClientBrief fields (from /brief response)
+    confidence: Dict[str, float] = {}
+    format: Literal["md", "docx", "pdf"] = "md"
+    company_name: Optional[str] = None  # used to name the downloaded file
+
+
+_DOWNLOAD_MEDIA_TYPES = {
+    "md": "text/markdown",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pdf": "application/pdf",
+}
+
+
+@router.post("/brief/download")
+async def download_brief(
+    request: Request,
+    body: BriefDownloadRequest,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """
+    Generate and download a client brief document in the requested format.
+    No credits charged — the brief data was already paid for by /brief.
+    """
+    from src.agents.brief_parser import BriefParserAgent
+    from src.utils.brief_document_generator import generate_docx, generate_markdown, generate_pdf
+
+    # Reconstruct ClientBrief from the dict returned by /brief
+    # Strip nulls so _convert_to_client_brief uses its defaults
+    clean = {k: v for k, v in body.brief.items() if v is not None and v != ""}
+    parser = BriefParserAgent()
+    try:
+        brief = parser._convert_to_client_brief(clean)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid brief data: {exc}")
+
+    fmt = body.format
+    try:
+        if fmt == "md":
+            data = generate_markdown(brief, body.confidence)
+        elif fmt == "docx":
+            data = generate_docx(brief, body.confidence)
+        else:
+            data = generate_pdf(brief, body.confidence)
+    except Exception as exc:
+        logger.error(f"Brief document generation failed ({fmt}): {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Document generation failed: {exc}")
+
+    safe_name = (body.company_name or brief.company_name or "client-brief").replace(" ", "_")
+    filename = f"{safe_name}_brief.{fmt}"
+    media_type = _DOWNLOAD_MEDIA_TYPES[fmt]
+
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
