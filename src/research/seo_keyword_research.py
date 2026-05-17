@@ -1302,7 +1302,14 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
         if avg_quality is not None:
             quality_summary = f"\n\n**Quality Assurance:** {high_quality_count}/{len(primary_keywords)} primary keywords rated high-quality (score ≥70). Average quality score: {avg_quality:.1f}/100. All keywords vetted through iterative deep-dive research process."
 
-        summary = f"""This keyword strategy identifies {len(primary_keywords)} primary keywords and {len(secondary_keywords)} secondary/long-tail keywords organized into {len(clusters)} thematic clusters.
+        # Bug #166: "0 thematic clusters" is confusing when cluster build fails.
+        # Use a fallback phrase rather than printing a literal zero.
+        cluster_str = (
+            f"organized into {len(clusters)} thematic clusters"
+            if clusters
+            else "with supporting long-tail variations"
+        )
+        summary = f"""This keyword strategy identifies {len(primary_keywords)} primary keywords and {len(secondary_keywords)} secondary/long-tail keywords {cluster_str}.
 {quality_summary}
 
 **Search Intent Focus:** {dominant_intent.title()} intent dominates with {dominant_intent_count} primary keywords, supporting {intent_description}.
@@ -1352,6 +1359,10 @@ estimated_keywords (list), gaps (list), overlaps (list)"""
 
         for primary_kw in primary_keywords[:5]:
             for qw in question_words:
+                # Skip prefix if the primary keyword already starts with it (Bug #165):
+                # prevents "how to how to automate..." or "best best approval workflow..."
+                if primary_kw.keyword.lower().startswith(qw.lower()):
+                    continue
                 full_keyword = f"{qw} {primary_kw.keyword}"
 
                 # Filter: skip if keyword matches any negative keyword

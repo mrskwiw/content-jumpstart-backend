@@ -675,8 +675,19 @@ Return ONLY the JSON object with all 12 archetype scores (0.0-1.0). No markdown,
 
         if secondary:
             secondary_arch = ARCHETYPES[secondary]
+            # Bug #167: secondary_arch.voice_characteristics[0] may overlap with the
+            # primary archetype's traits (e.g., both Ruler and Sage lead with
+            # "Authoritative"), making the blend-in suggestion indistinguishable.
+            # Use the first voice trait unique to the secondary archetype instead.
+            primary_voices = {v.lower() for v in ARCHETYPES[primary].voice_characteristics}
+            unique_voices = [
+                v for v in secondary_arch.voice_characteristics if v.lower() not in primary_voices
+            ]
+            blend_voice = (
+                unique_voices[0] if unique_voices else secondary_arch.voice_characteristics[0]
+            )
             recommendations.append(
-                f"**Secondary Influence:** Blend in {secondary_arch.name.lower()} elements like {secondary_arch.voice_characteristics[0].lower()}"
+                f"**Secondary Influence:** Blend in {secondary_arch.name.lower()} elements like {blend_voice.lower()}"
             )
 
         return recommendations
