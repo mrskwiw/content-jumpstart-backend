@@ -926,6 +926,28 @@ async def run_research(
                 or "missing" in error_msg.lower()
                 or "prerequisite" in error_msg.lower()
             ):
+                # CREDIT REFUND: blocked results did no API work — refund before
+                # raising so the HTTPException bypass in except HTTPException doesn't
+                # silently eat the credits (Bug #164 fix companion).
+                if not cached_result:
+                    try:
+                        credit_cost = get_research_tool_cost(input.tool)
+                        credit_service.refund_credits(
+                            db=db,
+                            user_id=current_user.id,
+                            amount=credit_cost,
+                            description=f"Refund for blocked research: {tool.label}",
+                            reference_id=input.project_id,
+                            reference_type="research_refund",
+                        )
+                        logger.info(
+                            f"Refunded {credit_cost} credits for blocked {input.tool} "
+                            f"(user {current_user.id})"
+                        )
+                    except Exception as refund_err:
+                        logger.error(
+                            f"Failed to refund credits for blocked {input.tool}: {refund_err}"
+                        )
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_msg,
