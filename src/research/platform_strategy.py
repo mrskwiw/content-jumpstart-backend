@@ -1447,7 +1447,11 @@ QUICK WINS
             raise ValueError(f"Could not extract JSON from response: {text[:200]}")
 
     def _map_platform_name(self, name: str) -> PlatformName:
-        """Map string to PlatformName enum"""
+        """Map string to PlatformName enum.
+
+        Raises ValueError for unknown names so callers with try/except handlers
+        skip the entry rather than silently labeling it Blog (Bug #158).
+        """
         name_lower = name.lower().strip()
         mapping = {
             "linkedin": PlatformName.LINKEDIN,
@@ -1459,7 +1463,10 @@ QUICK WINS
             "email": PlatformName.EMAIL,
             "podcast": PlatformName.PODCAST,
         }
-        return mapping.get(name_lower, PlatformName.BLOG)
+        result = mapping.get(name_lower)
+        if result is None:
+            raise ValueError(f"Unknown platform name: {name!r}")
+        return result
 
     def _map_platform_fit(self, fit: str) -> PlatformFit:
         """Map string to PlatformFit enum"""

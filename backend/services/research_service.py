@@ -189,11 +189,23 @@ class ResearchService:
                 logger.info("Loaded market trends data")
 
             elif prereq_tool == "platform_strategy" and result.data:
-                # Extract platform recommendations for Content Calendar
-                prerequisite_data["platform_recommendations"] = result.data.get("platforms", [])
-                prerequisite_data["posting_frequency"] = result.data.get("frequency", {})
+                # Extract platform recommendations for Content Calendar.
+                # PlatformStrategyAnalysis serializes platforms under
+                # recommended_platform_mix.{primary,secondary,avoid}_platforms —
+                # not under a top-level "platforms" key (Bug #160).
+                mix = result.data.get("recommended_platform_mix", {})
+                primary = mix.get("primary_platforms", [])
+                secondary = mix.get("secondary_platforms", [])
+                avoid = mix.get("avoid_platforms", [])
+                all_recommended = primary + secondary
+                if all_recommended:
+                    prerequisite_data["primary_platforms"] = all_recommended
+                if avoid:
+                    prerequisite_data["avoid_platforms"] = avoid
 
-                logger.info("Loaded platform strategy data")
+                logger.info(
+                    f"Loaded platform strategy: recommended={all_recommended}, avoid={avoid}"
+                )
 
             elif prereq_tool == "content_gap_analysis" and result.data:
                 # Extract content gaps for Content Calendar
@@ -726,9 +738,14 @@ class ResearchService:
             # Platform Strategy Integration: Save recommended platforms to client
             if tool_name == "platform_strategy" and result.success:
                 try:
-                    # Extract recommended platforms from research result
+                    # Extract recommended platforms from research result.
+                    # PlatformStrategyAnalysis stores platforms under
+                    # recommended_platform_mix, not a top-level key (Bug #161).
                     platform_data = result.metadata.get("data", {})
-                    recommended_platforms = platform_data.get("recommended_platforms")
+                    mix = platform_data.get("recommended_platform_mix", {})
+                    _primary = mix.get("primary_platforms", [])
+                    _secondary = mix.get("secondary_platforms", [])
+                    recommended_platforms = (_primary + _secondary) or None
 
                     if recommended_platforms:
                         # Save to client record for persistence across sessions
