@@ -1,4 +1,4 @@
-import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins } from 'lucide-react';
+import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins, Globe } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ const researchToolsItems = [
   { to: '/dashboard/research-tools/library', label: 'Tool Library', icon: Library },
   { to: '/dashboard/research-tools/results', label: 'Results', icon: FileSearch },
   { to: '/dashboard/research-tools/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/dashboard/research-tools/client-research', label: 'Client Research', icon: Globe },
 ];
 
 export default function AppLayout() {

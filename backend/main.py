@@ -35,6 +35,7 @@ from backend.routers import (
     cache,
     auth,
     briefs,
+    client_research,
     clients,
     communications,
     costs,
@@ -655,6 +656,7 @@ app.include_router(privacy.router, tags=["Privacy & GDPR"])
 app.include_router(stories.router, prefix="/api/stories", tags=["Stories"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])
+app.include_router(client_research.router, prefix="/api/client-research", tags=["Client Research"])
 app.include_router(trends.router, prefix="/api/trends", tags=["Google Trends"])
 app.include_router(pricing.router, prefix="/api/pricing", tags=["Pricing"])
 app.include_router(credits.router, prefix="/api", tags=["Credits"])  # Prefix included in router

@@ -3,6 +3,9 @@ import { ClientBriefSchema, type ClientBrief, type Platform } from '@/types/doma
 import { User, Building2, Target, Lightbulb, MessageSquare, Save, MapPin } from 'lucide-react';
 import { BriefImportSection, type ParsedBriefResponse } from './BriefImportSection';
 import { ImportPreviewModal } from '../ui/ImportPreviewModal';
+import { ClientResearchSection } from './ClientResearchSection';
+import { useQuery } from '@tanstack/react-query';
+import { creditsApi } from '@/api/credits';
 
 interface Props {
   projectId?: string;
@@ -38,6 +41,11 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { data: creditData } = useQuery({
+    queryKey: ['credits', 'balance'],
+    queryFn: () => creditsApi.getBalance(),
+  });
   const [painPoint, setPainPoint] = useState('');
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
@@ -263,6 +271,33 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
     setImportedData(null);
   };
 
+  const handleResearchApply = (researched: Partial<ClientBrief>) => {
+    const next: Partial<ClientBrief> = { ...formData };
+    // String fields: apply if current is empty
+    const stringKeys = [
+      'founderName', 'industry', 'businessDescription', 'idealCustomer',
+      'mainProblemSolved', 'tonePreference', 'toneToAvoid', 'measurableResults',
+      'postingFrequency', 'mainCta',
+    ] as const;
+    for (const k of stringKeys) {
+      const v = researched[k] as string | undefined;
+      if (v && !next[k]) {
+        (next as Record<string, unknown>)[k] = v;
+      }
+    }
+    // Array fields: union without duplicates
+    const arrayKeys = [
+      'customerPainPoints', 'customerQuestions', 'keywords', 'competitors',
+      'brandPersonality', 'keyPhrases', 'platforms', 'stories', 'misconceptions',
+    ] as const;
+    for (const k of arrayKeys) {
+      const existing = (next[k] as string[] | undefined) ?? [];
+      const incoming = (researched[k] as string[] | undefined) ?? [];
+      (next as Record<string, unknown>)[k] = [...new Set([...existing, ...incoming])];
+    }
+    setFormData(next);
+  };
+
   const handleSubmit = async () => {
     try {
       // Use lenient schema for profile saves - strict minimums are for research tools (backend enforces)
@@ -312,6 +347,14 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
 
       {/* Brief Import Section */}
       <BriefImportSection onImport={handleBriefImport} />
+
+      {/* Client Research Section */}
+      <ClientResearchSection
+        businessName={(formData.companyName as string) ?? ''}
+        location={(formData.location as string) ?? ''}
+        creditBalance={creditData?.balance}
+        onApply={handleResearchApply}
+      />
 
       <div className="space-y-6">
         {/* Company Name */}

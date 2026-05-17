@@ -36,6 +36,7 @@ const AuditTrail = lazyWithRetry(() => import('@/pages/AuditTrail'));
 const ResearchToolsLibrary = lazyWithRetry(() => import('@/pages/ResearchTools/Library'));
 const ResearchToolsResults = lazyWithRetry(() => import('@/pages/ResearchTools/Results'));
 const ResearchToolsAnalytics = lazyWithRetry(() => import('@/pages/ResearchTools/Analytics'));
+const ResearchToolsClientResearch = lazyWithRetry(() => import('@/pages/ResearchTools/ClientResearch'));
 
 // Settings pages
 const SettingsIntegrations = lazyWithRetry(() => import('@/pages/Settings/Integrations'));
@@ -107,6 +108,7 @@ export const router = createBrowserRouter([
       { path: 'research-tools/library', element: withSuspense(ResearchToolsLibrary) },
       { path: 'research-tools/results', element: withSuspense(ResearchToolsResults) },
       { path: 'research-tools/analytics', element: withSuspense(ResearchToolsAnalytics) },
+      { path: 'research-tools/client-research', element: withSuspense(ResearchToolsClientResearch) },
     ],
   },
   {
