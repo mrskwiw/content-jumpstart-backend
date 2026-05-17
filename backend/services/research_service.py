@@ -524,6 +524,29 @@ class ResearchService:
             cached_project_platforms=project_platforms,
         )
 
+        # Bug #164: Business Report requires a real location to filter web search
+        # results to the correct company.  Without it, results from same-named
+        # businesses in other regions contaminate the report.
+        if tool_name == "business_report":
+            _LOCATION_PLACEHOLDERS = {"not specified", "n/a", "unknown", "none", "tbd", ""}
+            _location = inputs.get("location", "").strip().lower()
+            if _location in _LOCATION_PLACEHOLDERS:
+                logger.warning(f"Business Report blocked for client {client_id}: location not set")
+                return {
+                    "success": False,
+                    "outputs": {},
+                    "metadata": {
+                        "tool_name": tool_name,
+                        "blocked": True,
+                        "missing_field": "location",
+                    },
+                    "error": (
+                        "Business Report requires a specific location (city, region, or country) "
+                        "to filter search results to the correct company. "
+                        "Update the client’s location in their profile and re-run."
+                    ),
+                }
+
         # STAGED EXECUTION: Fetch data from prerequisite tools stored in database
         prerequisite_data = self._fetch_prerequisite_data(db, project_id, tool_name)
         inputs.update(prerequisite_data)  # Merge prerequisite data into inputs
@@ -1188,10 +1211,11 @@ class ResearchService:
                 logger.info(f"Auto-populated company_name from client: {company_name}")
             inputs["company_name"] = company_name
 
-            location = params.get("location")
-            if not location:
-                location = client.location or "United States"
-                logger.info(f"Auto-populated location from client: {location}")
+            # Bug #164: do NOT fall back to "United States" — a generic country
+            # placeholder bypasses validate_inputs but produces results from any
+            # same-named company in that country.  Leave blank so the gate in
+            # execute_research_tool can detect missing location and block the run.
+            location = (params.get("location") or client.location or "").strip()
             inputs["location"] = location
 
         elif tool_name in ("content_calendar", "content_calendar_strategy"):
