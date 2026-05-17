@@ -1,5 +1,6 @@
 """Client Research API — discovers business info via web search + Claude synthesis."""
 
+import asyncio
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -216,6 +217,7 @@ _DOWNLOAD_MEDIA_TYPES = {
 
 
 @router.post("/brief/download")
+@standard_limiter.limit("20/hour")
 async def download_brief(
     request: Request,
     body: BriefDownloadRequest,
@@ -224,6 +226,7 @@ async def download_brief(
     """
     Generate and download a client brief document in the requested format.
     No credits charged — the brief data was already paid for by /brief.
+    Document generation runs in a thread pool to avoid blocking the event loop.
     """
     from src.agents.brief_parser import BriefParserAgent
     from src.utils.brief_document_generator import generate_docx, generate_markdown, generate_pdf
@@ -240,11 +243,14 @@ async def download_brief(
     fmt = body.format
     try:
         if fmt == "md":
+            # Markdown is fast pure-Python — no thread needed
             data = generate_markdown(brief, body.confidence)
         elif fmt == "docx":
-            data = generate_docx(brief, body.confidence)
+            # python-docx is sync I/O — offload to thread
+            data = await asyncio.to_thread(generate_docx, brief, body.confidence)
         else:
-            data = generate_pdf(brief, body.confidence)
+            # reportlab is CPU-bound — offload to thread
+            data = await asyncio.to_thread(generate_pdf, brief, body.confidence)
     except Exception as exc:
         logger.error(f"Brief document generation failed ({fmt}): {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Document generation failed: {exc}")
