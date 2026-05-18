@@ -226,37 +226,72 @@ Your analysis:"""
     def _filter_defunct_competitors(
         self, competitors: "List[DiscoveredCompetitor]", search_client: "Any"
     ) -> "List[DiscoveredCompetitor]":
-        """Bug #149: remove competitors confirmed closed/bankrupt via web search."""
+        """Bug #149: remove competitors confirmed closed/bankrupt via web search.
+
+        Bug #168 fix: the original implementation used a single-signal threshold
+        and included "closed" / "no longer" as keywords.  These are far too broad:
+        - "closed" matches franchisee closures, "closed a deal", "store closed early"
+        - "no longer" matches "no longer the cheapest option"
+        - A single snippet from an unrelated company sharing part of the name
+          (e.g. "Compass Coffee App shutting down" → Compass Real Estate excluded)
+
+        Tightened approach:
+        1. Only use unambiguous closure phrases as keywords.
+        2. Require the competitor name to appear in the snippet (not just the title)
+           so partial-name collisions don't count.
+        3. Require 2+ independent signals before excluding — one result is noise.
+        """
         from datetime import datetime as _dt
+
+        # High-confidence keywords that rarely appear in positive/unrelated contexts
+        _CLOSURE_KEYWORDS = (
+            "filed for bankruptcy",
+            "filed bankruptcy",
+            "chapter 11",
+            "chapter 7",
+            "ceased operations",
+            "permanently closed",
+            "shut down permanently",
+            "went out of business",
+            "no longer in business",
+            "dissolved",
+            "liquidat",
+        )
 
         year = _dt.now().year
         active = []
         for comp in competitors:
             try:
-                query = f'"{comp.name}" closed OR bankrupt OR "ceased operations" OR "shut down" {year - 1} OR {year}'
+                query = (
+                    f'"{comp.name}" '
+                    f'"ceased operations" OR "filed for bankruptcy" OR '
+                    f'"permanently closed" OR "shut down" OR "went out of business" '
+                    f"{year - 1} OR {year}"
+                )
                 response = search_client.search(query, max_results=3)
+                name_lower = comp.name.lower()
                 closure_signals = [
                     r
                     for r in response.results
-                    if any(
-                        kw in (r.title + r.snippet).lower()
-                        for kw in (
-                            "bankrupt",
-                            "closed",
-                            "cease",
-                            "shut down",
-                            "no longer",
-                            "dissolved",
-                        )
-                    )
+                    # Keyword must appear in the snippet (not just title/URL)
+                    # AND the competitor name must appear in the combined text
+                    # to filter out same-name collisions (Bug #168)
+                    if name_lower in (r.title + r.snippet).lower()
+                    and any(kw in (r.title + r.snippet).lower() for kw in _CLOSURE_KEYWORDS)
                 ]
-                if closure_signals:
+                # Require 2+ independent signals to exclude (Bug #168)
+                if len(closure_signals) >= 2:
                     logger.warning(
-                        f"Competitor '{comp.name}' may be defunct — found {len(closure_signals)} "
-                        f"closure signal(s). Excluding from analysis. "
+                        f"Competitor '{comp.name}' appears defunct — "
+                        f"{len(closure_signals)} closure signal(s). Excluding. "
                         f"First signal: {closure_signals[0].title}"
                     )
                 else:
+                    if closure_signals:
+                        logger.info(
+                            f"Competitor '{comp.name}': 1 weak closure signal "
+                            f"('{closure_signals[0].title}') — keeping (need 2+)"
+                        )
                     active.append(comp)
             except Exception as exc:
                 logger.debug(f"Closure check failed for '{comp.name}': {exc} — keeping")

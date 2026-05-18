@@ -452,9 +452,27 @@ Use lowercase platform names. Be specific — avoid generic statements that coul
             if search_client is None:
                 return ""
 
+            # Bug #169: skip industry context when it's a placeholder string so
+            # we don't fire useless queries like "linkedin demographics Not specified 2026"
+            _INDUSTRY_PLACEHOLDERS = {
+                "not specified",
+                "n/a",
+                "unknown",
+                "general",
+                "general business",
+                "",
+            }
+            industry_tag = (
+                industry.strip() if industry.strip().lower() not in _INDUSTRY_PLACEHOLDERS else ""
+            )
+
             results_lines: List[str] = []
             for platform in platforms[:3]:
-                query = f"{platform} audience demographics {industry} 2026"
+                query = (
+                    f"{platform} audience demographics {industry_tag} 2026"
+                    if industry_tag
+                    else f"{platform} audience demographics 2026"
+                )
                 logger.info(f"platform_strategy: searching demographics — {query}")
                 response = search_client.search(query, max_results=3)
                 if not response.results:

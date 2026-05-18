@@ -90,10 +90,14 @@ class GoogleMapsClient:
             import requests
 
             url = "https://serpapi.com/search"
+            # Bug #170: SerpAPI Google Maps requires ll in "@lat,lng,zoom" format.
+            # Passing a plain text location string causes 400 Bad Request.
+            # Embed location in the query string instead — Maps understands
+            # "near <city>" phrasing without coordinates.
+            location_query = f"{query} near {location}" if location else query
             params: dict[str, str | int] = {
                 "engine": "google_maps",
-                "q": query,
-                "ll": f"@{location}",  # Location
+                "q": location_query,
                 "type": "search",
                 "api_key": self.api_key,
                 "num": max_results,
