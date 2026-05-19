@@ -322,6 +322,7 @@ export const ClientBriefSchema = z.object({
   location: z.string().optional(),
   founderName: z.string().optional(),
   brandPersonality: z.array(z.string()).optional(),
+  brandVoice: z.string().optional(),
   toneToAvoid: z.string().optional(),
   dataUsage: z.string().optional(),
   stories: z.array(z.string()).optional(),
