@@ -71,12 +71,26 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
 
     if mfa_required_by_policy and (not user.mfa_enabled or not user.mfa_secret):
         # Policy mandates MFA but the account hasn't enrolled yet.
-        # Block login — cannot bypass enforcement by simply not setting up MFA.
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "MFA is required for this account but has not been configured. "
-                "Contact an administrator or set up MFA before logging in."
+        # Issue a limited-scope setup token so the user can call /mfa/enroll.
+        # access_token and refresh_token are intentionally empty — the setup
+        # token is NOT a full session; it can only reach /mfa/enroll.
+        from backend.utils.auth import create_mfa_setup_token
+        from backend.schemas.auth import UserResponse
+
+        setup_token = create_mfa_setup_token(data={"sub": user.id})
+        return TokenResponse(
+            access_token="",  # nosec B106 — intentionally empty; setup token only
+            refresh_token="",  # nosec B106
+            mfa_setup_required=True,
+            mfa_setup_token=setup_token,
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                full_name=user.full_name,
+                is_active=user.is_active,
+                is_superuser=user.is_superuser,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
             ),
         )
 

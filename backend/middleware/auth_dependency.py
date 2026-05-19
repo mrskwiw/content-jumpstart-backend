@@ -112,3 +112,58 @@ async def get_current_user(
 
     logger.debug(f"AUTH: Successfully authenticated user: {user.email}")
     return user
+
+
+async def get_current_user_for_mfa_setup(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Dependency for the MFA enrollment endpoint only.
+
+    Accepts EITHER a normal "access" token OR a limited "mfa_setup" token so
+    that policy-required accounts (superuser / mfa_enforced) can call /mfa/enroll
+    immediately after receiving the setup token at login — before they have a full
+    access token.  All other endpoints use get_current_user, which rejects
+    "mfa_setup" tokens.
+    """
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
+    token = credentials.credentials
+    payload = decode_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token_type = payload.get("type")
+    if token_type not in ("access", "mfa_setup"):
+        _logger.warning(f"MFA-enroll auth: unexpected token type {token_type!r}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = crud.get_user(db, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user

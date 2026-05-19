@@ -169,6 +169,11 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     user: UserResponse  # Include user data in login response
+    # Set when a policy-required account has not yet configured MFA.
+    # mfa_setup_token is a 15-min limited token accepted ONLY by /mfa/enroll.
+    # access_token and refresh_token will be empty strings in this case.
+    mfa_setup_required: bool = False
+    mfa_setup_token: Optional[str] = None
 
 
 class RefreshTokenRequest(BaseModel):

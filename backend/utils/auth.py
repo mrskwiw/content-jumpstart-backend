@@ -88,6 +88,26 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_mfa_setup_token(data: dict) -> str:
+    """
+    Create a short-lived, limited-scope JWT for MFA enrollment only.
+
+    Used when a policy-required account (superuser / mfa_enforced) has not
+    yet configured MFA.  The token type is "mfa_setup" — get_current_user
+    rejects it, so it cannot be used to access any API endpoint except
+    /mfa/enroll (which accepts both "access" and "mfa_setup").
+
+    Expiry: 15 minutes — enough to scan the QR code.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire, "type": "mfa_setup"})
+
+    secret_manager = get_secret_manager()
+    primary_secret = secret_manager.get_primary_secret() or settings.SECRET_KEY
+    return jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
+
+
 def create_refresh_token(data: dict) -> str:
     """
     Create JWT refresh token using primary secret from SecretManager.

@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.auth_dependency import get_current_user, get_current_user_for_mfa_setup
 from backend.models import User
 from backend.services.mfa_service import mfa_service
 from backend.utils.logger import logger
@@ -44,7 +44,7 @@ class MFAStatusResponse(BaseModel):
 async def enroll_mfa(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_mfa_setup),
 ):
     if current_user.mfa_enabled:
         raise HTTPException(
