@@ -5,6 +5,7 @@ Uses MinHash/LSH for O(n log n) performance on large post sets.
 """
 
 import difflib
+import re
 from typing import Any, Dict, List, Optional
 
 from ..config.constants import HOOK_SIMILARITY_THRESHOLD
@@ -105,11 +106,22 @@ class HookValidator:
         else:
             metric = f"{unique_count}/{len(posts)} unique hooks"
 
+        # Bug #136/#138: check for repeated narrative scaffolds in post body
+        # (not just hooks) — e.g. "One patient told us last month" appearing 3×
+        scaffold_matches = self._check_scaffold_patterns(posts)
+        for match in scaffold_matches:
+            issues.append(
+                f"⚠ SCAFFOLD REPEAT: '{match['scaffold']}' used in "
+                f"{match['count']} posts (indices {[p + 1 for p in match['post_indices']]}). "
+                "Vary the patient/client story framing."
+            )
+
         return {
             "passed": len(duplicates) == 0 and len(hook_length_violations) == 0,
             "duplicates": duplicates,
             "uniqueness_score": uniqueness_score,
             "hook_length_issues": hook_length_violations,
+            "scaffold_matches": scaffold_matches,
             "issues": issues,
             "metric": metric,
             "platform": platform.value if platform else None,
@@ -371,6 +383,53 @@ class HookValidator:
                     seen_pairs.add((i, j))
 
         return duplicates
+
+    # Known repetitive narrative scaffolds: (compiled_pattern, friendly_name)
+    _SCAFFOLD_PATTERNS: "List[tuple]" = [
+        (
+            re.compile(
+                r"one.{0,15}patient.{0,15}told.{0,20}(last month|this month|recently|last week)",
+                re.IGNORECASE,
+            ),
+            "patient-anecdote scaffold",
+        ),
+        (
+            re.compile(
+                r"a patient.{0,10}(mentioned|shared|said).{0,20}(last month|this month|recently)",
+                re.IGNORECASE,
+            ),
+            "patient-anecdote scaffold",
+        ),
+        (
+            re.compile(
+                r"i (recently|just) (had|spoke with|talked to) a (patient|client)", re.IGNORECASE
+            ),
+            "first-person patient intro",
+        ),
+    ]
+
+    def _check_scaffold_patterns(self, posts: List[Post]) -> List[Dict[str, Any]]:
+        """Detect repeated narrative scaffolds in post body (Bug #136/#138).
+
+        The hook dedup checks only opening lines. Patient-anecdote phrases like
+        'One patient told us last month' appear in the body and pass undetected
+        when used 2-3 times in the same package.
+
+        Checks the first ~400 characters of each post (early body, not full text)
+        to catch scaffolding without false-positives from longer narrative echoes.
+        """
+        results: List[Dict[str, Any]] = []
+        for pattern, scaffold_name in self._SCAFFOLD_PATTERNS:
+            matching = [i for i, post in enumerate(posts) if pattern.search(post.content[:400])]
+            if len(matching) >= 2:
+                results.append(
+                    {
+                        "scaffold": scaffold_name,
+                        "post_indices": matching,
+                        "count": len(matching),
+                    }
+                )
+        return results
 
     def _calculate_similarity(self, text1: str, text2: str) -> float:
         """

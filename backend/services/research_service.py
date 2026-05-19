@@ -570,6 +570,31 @@ class ResearchService:
         prerequisite_data = self._fetch_prerequisite_data(db, project_id, tool_name)
         inputs.update(prerequisite_data)  # Merge prerequisite data into inputs
 
+        # Bug #153: content_gap_analysis runs at tier 2, before platform_strategy
+        # (tier 3), so avoid_platforms never arrives via the normal prerequisite path.
+        # Query the DB directly for any previously completed platform_strategy result
+        # for this client and inject the avoid list so the format-gap prompt does not
+        # recommend channels the strategy already marked as off-limits.
+        if tool_name == "content_gap_analysis" and not inputs.get("avoid_platforms"):
+            from backend.models import ResearchResult as _RR
+
+            _ps = (
+                db.query(_RR)
+                .filter(
+                    _RR.client_id == client_id,
+                    _RR.tool_name == "platform_strategy",
+                    _RR.status == "completed",
+                )
+                .order_by(_RR.created_at.desc())
+                .first()
+            )
+            if _ps and _ps.data:
+                _mix = _ps.data.get("recommended_platform_mix", {})
+                _avoid = _mix.get("avoid_platforms", [])
+                if _avoid:
+                    inputs["avoid_platforms"] = _avoid
+                    logger.info(f"Injected platform avoid list into content_gap_analysis: {_avoid}")
+
         if prerequisite_data:
             logger.info(
                 f"Enhanced {tool_name} with prerequisite data: {list(prerequisite_data.keys())}"

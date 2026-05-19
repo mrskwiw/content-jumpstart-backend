@@ -288,7 +288,10 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
 
         # Step 4: Identify format gaps
         logger.info("Step 4: Identifying format gaps...")
-        format_gaps = self._identify_format_gaps(business_description, current_coverage)
+        avoid_platforms = inputs.get("avoid_platforms", [])  # Bug #153
+        format_gaps = self._identify_format_gaps(
+            business_description, current_coverage, avoid_platforms
+        )
 
         # Step 5: Analyze buyer journey gaps
         logger.info("Step 5: Analyzing buyer journey gaps...")
@@ -808,7 +811,10 @@ Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
         return gaps
 
     def _identify_format_gaps(
-        self, business_description: str, current_coverage: Dict
+        self,
+        business_description: str,
+        current_coverage: Dict,
+        avoid_platforms: "List[str] | None" = None,
     ) -> List[FormatGap]:
         """Identify missing content formats"""
 
@@ -818,10 +824,18 @@ Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
             self._safe_join(current_formats) if current_formats else "None specified"
         )
 
+        # Bug #153: suppress formats that require platforms already marked as avoid
+        avoid_note = (
+            f"\nDo NOT recommend formats that require these platforms "
+            f"(already marked avoid in platform strategy): {', '.join(avoid_platforms)}."
+            if avoid_platforms
+            else ""
+        )
+
         prompt = f"""Identify content format gaps for this business:
 
 Business: {business_description}
-Current Formats: {current_formats_str}
+Current Formats: {current_formats_str}{avoid_note}
 
 Suggest 3-5 content formats they should add:
 - Blog posts
@@ -897,7 +911,22 @@ Return ONLY a valid JSON array of buyer journey gap objects. No markdown. No exp
             if isinstance(gaps_data, dict) and "stages" in gaps_data:
                 gaps_data = gaps_data["stages"]
 
-            return [BuyerJourneyGap(**gap) for gap in gaps_data]
+            gaps = [BuyerJourneyGap(**gap) for gap in gaps_data]
+
+            # Bug #163: downgrade priority when coverage could not be assessed.
+            # Claude assigns CRITICAL/HIGH even when it explicitly says "Could not
+            # assess" — these labels are fabricated and mislead operators.
+            _UNASSESSABLE = ("could not assess", "no public content", "unable to assess")
+            for gap in gaps:
+                coverage_lower = (gap.current_coverage or "").lower()
+                if any(phrase in coverage_lower for phrase in _UNASSESSABLE):
+                    gap.priority = GapPriority.LOW
+                    gap.gap_description = (
+                        "[Priority unverifiable — no content data available to assess coverage] "
+                        + gap.gap_description
+                    )
+
+            return gaps
         except (json.JSONDecodeError, KeyError, IndexError, AttributeError, TypeError):
             return [
                 BuyerJourneyGap(

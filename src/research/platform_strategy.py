@@ -882,9 +882,14 @@ If issues found: {{"valid": false, "issues": ["<concise issue description>"], "r
             new_secondary = [
                 p for p in platform_mix.secondary_platforms if p.value not in to_remove_secondary
             ]
-            # Demoted primaries → avoid (not secondary — if they were flagged as mismatches, don't rescue them)
+            # Bug #159: only move platforms to avoid when explicitly in add_to_avoid.
+            # Previously, to_remove_primary | to_remove_secondary were ALSO added to
+            # avoid, which caused the primary recommended platform (e.g. Blog) to appear
+            # in "Platforms to Avoid" in the same report that listed it as primary.
+            # Demoted platforms are simply dropped from primary/secondary — they keep
+            # their existing tier assignment unless Claude explicitly adds them to avoid.
             new_avoid = list(platform_mix.avoid_platforms)
-            for name in to_remove_primary | to_remove_secondary | to_avoid:
+            for name in to_avoid:
                 try:
                     new_avoid.append(self._map_platform_name(name))
                 except Exception:

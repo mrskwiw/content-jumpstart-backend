@@ -259,6 +259,7 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         business_name = inputs.get("business_name", "Client Business")
         industry = inputs.get("industry", "Not specified")
         platforms = inputs.get("primary_platforms", ["LinkedIn"])
+        avoid_platforms = inputs.get("avoid_platforms", [])  # Bug #151
         content_goals = inputs.get("content_goals", "Brand awareness and engagement")
         start_date_str = inputs.get("start_date", self._get_next_monday().strftime("%Y-%m-%d"))
         posting_frequency = inputs.get("posting_frequency", "")
@@ -300,7 +301,12 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         print("[Step 4/6] Determining platform-specific schedules...")
         # Step 4: Create platform calendars
         platform_calendars = self._create_platform_calendars(
-            self.client, platforms, business_description, target_audience, posting_frequency
+            self.client,
+            platforms,
+            business_description,
+            target_audience,
+            posting_frequency,
+            avoid_platforms=avoid_platforms,
         )
 
         print("[Step 5/6] Generating implementation guidance...")
@@ -758,8 +764,12 @@ Return JSON array with 3 themes:
             )
 
             cta_context = f"\nPrimary CTA: {main_cta}" if main_cta else ""
+            # Bug #157: relevance filter so Claude omits unrelated awareness days
             events_context = (
-                f"\n\nIndustry Events (use to seed holidays_events field in calendar weeks):\n{industry_events}"
+                f"\n\nIndustry Events (ONLY include events directly relevant to "
+                f"this business and its audience — exclude unrelated awareness days, "
+                f"health observances for other conditions, or general social media holidays "
+                f"unless they clearly apply to this specific business):\n{industry_events}"
                 if industry_events
                 else ""
             )
@@ -888,6 +898,7 @@ Return JSON array for weeks {weeks_in_batch}:
         business_description: str,
         target_audience: str,
         posting_frequency: str = "",
+        avoid_platforms: "List[str] | None" = None,
     ) -> List[PlatformCalendar]:
         """Create platform-specific schedules"""
         platforms_str = ", ".join(platforms)
@@ -896,8 +907,16 @@ Return JSON array for weeks {weeks_in_batch}:
             if posting_frequency
             else ""
         )
+        # Bug #151: tell Claude which platforms to omit so the calendar does not
+        # generate schedules for platforms the strategy already marked as avoid.
+        avoid_context = (
+            f"\nDo NOT create schedules for these platforms "
+            f"(marked avoid in platform strategy): {', '.join(avoid_platforms)}."
+            if avoid_platforms
+            else ""
+        )
 
-        prompt = f"""Create platform-specific posting schedules for: {platforms_str}
+        prompt = f"""Create platform-specific posting schedules for: {platforms_str}{avoid_context}
 
 Business: {business_description}
 Target Audience: {target_audience}{frequency_context}

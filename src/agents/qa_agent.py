@@ -66,6 +66,10 @@ class QAAgent:
         # Run SEO validation for blog posts
         seo_results = self.seo_validator.validate(posts)
 
+        # Cross-post consistency checks (Bug #143, #139)
+        stat_conflicts = self._check_stat_conflicts(posts)
+        source_dups = self._check_source_dedup(posts)
+
         # Collect all issues
         all_issues = []
         all_issues.extend(hook_results.get("issues", []))
@@ -76,6 +80,8 @@ class QAAgent:
             all_issues.extend(keyword_results.get("issues", []))
         if seo_results and not seo_results.get("skipped", False):
             all_issues.extend(seo_results.get("issues", []))
+        all_issues.extend(stat_conflicts)
+        all_issues.extend(source_dups)
 
         # Calculate overall quality score (average of all validator scores)
         scores = []
@@ -137,3 +143,81 @@ class QAAgent:
         )
 
         return report
+
+    # ------------------------------------------------------------------
+    # Cross-post consistency checks (Bug #143, #139)
+    # These run after all posts are generated and flag issues without
+    # blocking delivery — operators see warnings in the run log.
+    # ------------------------------------------------------------------
+
+    def _check_stat_conflicts(self, posts: "List[Post]") -> "List[str]":
+        """Detect contradictory percentage claims on the same topic (Bug #143).
+
+        Extracts percentage values near topic keywords and flags cases where
+        the same topic carries two different numbers across posts in the run.
+        """
+        import re
+
+        PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+        TOPIC_GROUPS: "dict[str, list[str]]" = {
+            "flossing": ["floss"],
+            "cavity / decay": ["cavit", "decay", "caries"],
+            "dental anxiety": ["anxiet", "anxious", "fear of dent", "dentophob"],
+            "brushing": ["brush", "oral hygiene"],
+        }
+
+        topic_claims: "dict[str, dict[float, list[int]]]" = {}
+        for i, post in enumerate(posts):
+            for topic_key, keywords in TOPIC_GROUPS.items():
+                content_lower = post.content.lower()
+                if not any(kw in content_lower for kw in keywords):
+                    continue
+                for m in PERCENT_RE.finditer(post.content):
+                    start = max(0, m.start() - 120)
+                    end = min(len(post.content), m.end() + 120)
+                    ctx = post.content[start:end].lower()
+                    if any(kw in ctx for kw in keywords):
+                        pct = float(m.group(1))
+                        topic_claims.setdefault(topic_key, {}).setdefault(pct, []).append(i + 1)
+
+        warnings: "List[str]" = []
+        for topic_key, pct_map in topic_claims.items():
+            if len(pct_map) >= 2:
+                detail = "; ".join(f"{p}% in post(s) {ns}" for p, ns in sorted(pct_map.items()))
+                warnings.append(
+                    f"⚠ STAT CONFLICT ({topic_key}): conflicting figures — {detail}. "
+                    "Review before publishing."
+                )
+        return warnings
+
+    def _check_source_dedup(self, posts: "List[Post]") -> "List[str]":
+        """Detect reuse of the same book/source across Learning Posts (Bug #139).
+
+        Learning Post (template 11) gravitates to the same book for the same topic
+        when generated in parallel.  Flag when the same italicised or quoted title
+        appears in two or more Learning Posts in the same package.
+        """
+        import re
+
+        # Match *italicised title* or "quoted title" (5-80 chars)
+        SOURCE_RE = re.compile(r'\*([^*]{5,80})\*|"([^"]{5,80})"')
+
+        source_map: "dict[str, list[int]]" = {}
+        for i, post in enumerate(posts):
+            template_name = (post.template_name or "").lower()
+            is_learning = "learning" in template_name or getattr(post, "template_id", None) == 11
+            if not is_learning:
+                continue
+            for m in SOURCE_RE.finditer(post.content[:600]):
+                title = (m.group(1) or m.group(2) or "").strip()
+                if len(title) > 5:
+                    source_map.setdefault(title.lower(), []).append(i + 1)
+
+        warnings: "List[str]" = []
+        for title, post_nums in source_map.items():
+            if len(post_nums) >= 2:
+                warnings.append(
+                    f"⚠ SOURCE REPEAT: '{title}' cited in {len(post_nums)} Learning Posts "
+                    f"(posts {post_nums}). Use distinct sources per post."
+                )
+        return warnings

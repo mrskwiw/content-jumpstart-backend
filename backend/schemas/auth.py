@@ -14,6 +14,8 @@ class LoginRequest(BaseModel):
 
     email: EmailStr
     password: str
+    # Bug #126: optional TOTP code for MFA-enabled accounts
+    totp_code: Optional[str] = None
 
     # TR-003: Input validation
     @field_validator("password")

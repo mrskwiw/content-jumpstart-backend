@@ -60,6 +60,22 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Inactive user",
         )
 
+    # Bug #126: enforce MFA when configured
+    if user.mfa_enabled and user.mfa_secret:
+        from backend.services.mfa_service import MFAService
+
+        mfa_service = MFAService()
+        if not login_data.totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="MFA code required",
+            )
+        if not mfa_service.verify_totp(user.mfa_secret, login_data.totp_code):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA code",
+            )
+
     # Create tokens
     access_token = create_access_token(data={"sub": user.id})
     refresh_token = create_refresh_token(data={"sub": user.id})
