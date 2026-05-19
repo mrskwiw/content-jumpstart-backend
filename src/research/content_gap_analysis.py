@@ -653,8 +653,9 @@ If you have insufficient data for any gap's field, include a brief explanation i
 
 Return ONLY a valid JSON array of gap objects. No markdown. No explanation."""
 
+        # Bug #171: 3000 tokens truncates large gap arrays; raise to 6000.
         gaps_data = self._call_claude_api(
-            prompt, max_tokens=3000, temperature=0.7, extract_json=True, fallback_on_error=[]
+            prompt, max_tokens=6000, temperature=0.7, extract_json=True, fallback_on_error=[]
         )
 
         try:

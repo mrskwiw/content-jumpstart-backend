@@ -778,6 +778,28 @@ Return JSON array with 3 themes:
                 f"Do NOT include any event that has already passed."
             )
 
+            # Bug #154: inject the ACTUAL pillars defined for this run so Claude
+            # cannot invent new categories that contradict the calendar's own taxonomy.
+            defined_pillar_names = (
+                ", ".join(p["pillar"] for p in pillars)
+                if pillars
+                else (
+                    "education, thought_leadership, case_studies, product, community, industry_news, entertainment"
+                )
+            )
+            # Collect valid goal values from themes defined for this run
+            defined_goal_names_set = {t.goal.value for t in themes} if themes else set()
+            if not defined_goal_names_set:
+                defined_goal_names_set = {
+                    "awareness",
+                    "engagement",
+                    "leads",
+                    "education",
+                    "retention",
+                    "thought_leadership",
+                }
+            defined_goal_names = ", ".join(sorted(defined_goal_names_set))
+
             prompt = f"""Create detailed weekly content plans for weeks {weeks_in_batch[0]}-{weeks_in_batch[-1]} of a 90-day calendar.
 
 Business: {business_description}
@@ -798,9 +820,9 @@ For each week, provide:
 7. CTA focus (what action to drive)
 8. Any holidays or events to leverage that occur DURING this week's date range (omit if none apply)
 
-IMPORTANT - Use ONLY these exact values:
-- "pillar" must be one of: education, thought_leadership, case_studies, product, community, industry_news, entertainment
-- "goal" must be one of: awareness, engagement, leads, education, retention, thought_leadership
+IMPORTANT - Use ONLY these exact values (defined for this calendar):
+- "pillar" must be one of: {defined_pillar_names}
+- "goal" must be one of: {defined_goal_names}
 
 Return JSON array for weeks {weeks_in_batch}:
 [

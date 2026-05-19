@@ -26,6 +26,22 @@ _PLATFORM_DISPLAY_NAMES: dict = {
 }
 
 
+def _safe_project_name(project: Optional["Project"], client: Optional["Client"]) -> str:
+    """Return a display-safe project name (Bug #156).
+
+    The Library flow creates projects with auto-generated IDs as their name
+    (e.g. '_research_library_client-aab713d77e45').  Substitute with a
+    human-readable label so clients never see internal system identifiers.
+    """
+    if project is None:
+        return ""
+    name = project.name or ""
+    if name.startswith("_research_library_"):
+        client_label = client.name if client else "Client"
+        return f"Research Library — {client_label}"
+    return name
+
+
 def _platform_display_name(raw: str) -> str:
     """Convert a raw platform enum value to a human-readable label."""
     return _PLATFORM_DISPLAY_NAMES.get((raw or "").lower(), raw or "")
@@ -122,7 +138,7 @@ async def _generate_txt(
     lines.append("")
     lines.append(f"Client: {client.name}")
     if project:
-        lines.append(f"Project: {project.name}")
+        lines.append(f"Project: {_safe_project_name(project, client)}")
     lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     lines.append(f"Total Posts: {len(posts)}")
     lines.append("")
@@ -208,7 +224,7 @@ async def _generate_markdown(
     )
     lines.append(f"client: {client.name}")
     if project:
-        lines.append(f"project: {project.name}")
+        lines.append(f"project: {_safe_project_name(project, client)}")
     lines.append(f'generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
     lines.append(f"total_posts: {len(posts)}")
     lines.append("format: markdown")
@@ -220,7 +236,7 @@ async def _generate_markdown(
     lines.append("")
     lines.append(f"**Client:** {client.name}")
     if project:
-        lines.append(f"**Project:** {project.name}")
+        lines.append(f"**Project:** {_safe_project_name(project, client)}")
     lines.append(f'**Generated:** {datetime.now().strftime("%B %d, %Y at %H:%M")}')
     if posts:
         lines.append(f"**Total Posts:** {len(posts)}")
@@ -457,10 +473,17 @@ async def _generate_docx(
 
     # Introduction
     doc.add_heading("About This Content Package", level=1)
-    doc.add_paragraph(
-        f"This content package has been custom-generated for {client.name}. "
-        f"All {len(posts)} posts are tailored to your brand voice, target audience, and business goals."
-    )
+    if posts:
+        # Bug #155: only render post-count sentence when posts actually exist
+        doc.add_paragraph(
+            f"This content package has been custom-generated for {client.name}. "
+            f"All {len(posts)} posts are tailored to your brand voice, target audience, and business goals."
+        )
+    else:
+        doc.add_paragraph(
+            f"This report contains research findings for {client.name}. "
+            "Use these insights to guide your content strategy and generation runs."
+        )
 
     doc.add_paragraph()
 
@@ -470,7 +493,7 @@ async def _generate_docx(
     table.rows[0].cells[0].text = "Client"
     table.rows[0].cells[1].text = client.name
     table.rows[1].cells[0].text = "Project"
-    table.rows[1].cells[1].text = project.name
+    table.rows[1].cells[1].text = _safe_project_name(project, client)
     table.rows[2].cells[0].text = "Total Posts"
     table.rows[2].cells[1].text = str(len(posts))
 

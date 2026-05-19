@@ -814,9 +814,12 @@ Return ONLY valid JSON array (no markdown, no code blocks):"""
 
         try:
             # Call Claude API with automatic JSON extraction (Phase 3 deduplication)
+            # Bug #171: 3000 tokens is too small for 20-30 keyword objects
+            # (each ~400 chars); responses are truncated mid-array, breaking
+            # JSON extraction and triggering the fallback.
             keywords_data = self._call_claude_api(
                 prompt,
-                max_tokens=3000,
+                max_tokens=6000,
                 temperature=0.5,
                 extract_json=True,
                 fallback_on_error=[],

@@ -547,6 +547,25 @@ class ResearchService:
                     ),
                 }
 
+        # Bug #162: Content Audit with no real content inventory audits a
+        # placeholder and returns a meaningless health score.  Block the run
+        # early so credits are refunded via the router's blocked-result path.
+        if tool_name == "content_audit" and not inputs.get("content_inventory"):
+            logger.warning(f"Content Audit blocked for client {client_id}: no content inventory")
+            return {
+                "success": False,
+                "outputs": {},
+                "metadata": {
+                    "tool_name": tool_name,
+                    "blocked": True,
+                    "missing_field": "content_inventory",
+                },
+                "error": (
+                    "Content Audit requires published content to analyse. "
+                    "Provide URLs or content samples in the Content Inventory field and re-run."
+                ),
+            }
+
         # STAGED EXECUTION: Fetch data from prerequisite tools stored in database
         prerequisite_data = self._fetch_prerequisite_data(db, project_id, tool_name)
         inputs.update(prerequisite_data)  # Merge prerequisite data into inputs
@@ -1182,21 +1201,12 @@ class ResearchService:
             inputs["content_goals"] = params.get("content_goals", "")
 
         elif tool_name == "content_audit":
-            # Content audit needs content inventory
-            content_inventory = params.get("content_inventory")
-            if not content_inventory:
-                # Auto-generate placeholder content piece
-                from backend.schemas.research_schemas import ContentPiece
-
-                placeholder = ContentPiece(
-                    title=f"{client.name} - Content Portfolio",
-                    url=None,
-                    type="portfolio",
-                    publish_date=None,
-                    performance_metrics="Placeholder for client content analysis",
-                )
-                content_inventory = [placeholder.model_dump()]
-                logger.info("Auto-generated placeholder content inventory")
+            # Bug #162: do NOT generate a placeholder when no real content is
+            # provided.  The placeholder was being audited and returned a
+            # meaningless 80/100 health score for a document that doesn't exist.
+            # Leave content_inventory empty; the gate in execute_research_tool
+            # will block the run and refund credits instead.
+            content_inventory = params.get("content_inventory") or []
             # Convert ContentPiece objects to dicts if needed
             inputs["content_inventory"] = [
                 item.model_dump() if hasattr(item, "model_dump") else item
