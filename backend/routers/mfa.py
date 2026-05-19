@@ -79,7 +79,7 @@ async def verify_mfa_token(
     request: Request,
     body: MFAVerifyRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_mfa_setup),
 ):
     if not current_user.mfa_secret:
         raise HTTPException(
