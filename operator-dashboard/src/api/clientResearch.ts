@@ -1,5 +1,5 @@
-import axios from './axios';
-import type { ClientBrief } from '@/types/domain';
+import apiClient from './client';
+import type { ClientBrief, Platform } from '@/types/domain';
 
 export interface ClientResearchRequest {
   name: string;
@@ -26,7 +26,7 @@ function mapBriefToCamel(brief: Record<string, unknown>): Partial<ClientBrief> {
     brandVoice: (brief.brand_voice as string | null) ?? undefined,
     toneToAvoid: (brief.tone_to_avoid as string | null) ?? undefined,
     keyPhrases: (brief.key_phrases as string[]) ?? [],
-    platforms: (brief.target_platforms as string[]) ?? [],
+    platforms: (brief.target_platforms as Platform[]) ?? [],
     postingFrequency: (brief.posting_frequency as string | null) ?? undefined,
     mainCta: (brief.main_cta as string | null) ?? undefined,
     measurableResults: (brief.measurable_results as string | null) ?? undefined,
@@ -49,7 +49,7 @@ export interface ClientResearchResult {
 }
 
 async function researchBrief(req: ClientResearchRequest): Promise<ClientResearchResult> {
-  const { data } = await axios.post('/api/client-research/brief', req);
+  const { data } = await apiClient.post('/api/client-research/brief', req);
   const rawBrief: Record<string, unknown> = data.brief ?? {};
   return {
     brief: mapBriefToCamel(rawBrief),
@@ -64,7 +64,7 @@ async function researchBrief(req: ClientResearchRequest): Promise<ClientResearch
 }
 
 async function applyToClient(clientId: string): Promise<void> {
-  await axios.post(`/api/client-research/clients/${clientId}/apply`);
+  await apiClient.post(`/api/client-research/clients/${clientId}/apply`);
 }
 
 export type BriefFormat = 'md' | 'docx' | 'pdf';
@@ -75,7 +75,7 @@ async function downloadBrief(
   format: BriefFormat,
   companyName?: string,
 ): Promise<void> {
-  const response = await axios.post(
+  const response = await apiClient.post(
     '/api/client-research/brief/download',
     { brief, confidence, format, company_name: companyName },
     { responseType: 'blob' },
