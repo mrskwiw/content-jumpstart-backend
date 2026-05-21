@@ -167,20 +167,8 @@ class MFAService:
 
     @staticmethod
     def should_enforce_mfa(user: User) -> bool:
-        """
-        Determine if MFA should be enforced for this user
-
-        TR-008: MFA is enforced for:
-        - Superusers (is_superuser=True)
-        - Users with mfa_enforced flag set
-
-        Args:
-            user: User object
-
-        Returns:
-            True if MFA should be enforced
-        """
-        return user.is_superuser or user.mfa_enforced
+        """MFA enforcement disabled by operator decision. See BUGS.md #172."""
+        return False
 
     @staticmethod
     def get_remaining_backup_codes(user: User) -> int:

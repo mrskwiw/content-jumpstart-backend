@@ -60,53 +60,8 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Inactive user",
         )
 
-    from backend.services.mfa_service import MFAService as _MFAService
-
-    _mfa = _MFAService()
-    mfa_required_by_policy = _mfa.should_enforce_mfa(user)
-
-    if mfa_required_by_policy and (not user.mfa_enabled or not user.mfa_secret):
-        # Policy mandates MFA but the account hasn't enrolled yet.
-        # Issue a limited-scope setup token so the user can call /mfa/enroll.
-        # access_token and refresh_token are intentionally empty — the setup
-        # token is NOT a full session; it can only reach /mfa/enroll.
-        from backend.utils.auth import create_mfa_setup_token
-        from backend.schemas.auth import UserResponse
-
-        setup_token = create_mfa_setup_token(data={"sub": user.id})
-        return TokenResponse(
-            access_token="",  # nosec B106 — intentionally empty; setup token only
-            refresh_token="",  # nosec B106
-            mfa_setup_required=True,
-            mfa_setup_token=setup_token,
-            user=UserResponse(
-                id=user.id,
-                email=user.email,
-                full_name=user.full_name,
-                is_active=user.is_active,
-                is_superuser=user.is_superuser,
-                created_at=user.created_at,
-                updated_at=user.updated_at,
-            ),
-        )
-
-    if user.mfa_enabled and user.mfa_secret:
-        if not login_data.totp_code:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="MFA code required",
-            )
-        totp_valid = _mfa.verify_totp(user.mfa_secret, login_data.totp_code)
-        if not totp_valid:
-            backup_valid, updated_codes = _mfa.verify_backup_code(user, login_data.totp_code)
-            if backup_valid:
-                user.mfa_backup_codes = updated_codes
-                db.commit()
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid MFA code",
-                )
+    # MFA disabled by operator decision — password-only login for all accounts.
+    # Re-enable by restoring should_enforce_mfa() and the TOTP block. See BUGS.md #172.
 
     # Create tokens
     access_token = create_access_token(data={"sub": user.id})
