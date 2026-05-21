@@ -168,19 +168,15 @@ class MFAService:
     @staticmethod
     def should_enforce_mfa(user: User) -> bool:
         """
-        Determine if MFA should be enforced for this user
+        Determine if MFA should be enforced for this user.
 
-        TR-008: MFA is enforced for:
-        - Superusers (is_superuser=True)
-        - Users with mfa_enforced flag set
-
-        Args:
-            user: User object
-
-        Returns:
-            True if MFA should be enforced
+        Enforcement uses only the explicit mfa_enforced flag.
+        is_superuser auto-enforcement is intentionally disabled: the MFA
+        enrollment columns were never migrated to production, so that policy
+        was never active. Re-add `or user.is_superuser` once the frontend
+        enrollment UI (/mfa/enroll) is built. See BUGS.md #172.
         """
-        return user.is_superuser or user.mfa_enforced
+        return bool(user.mfa_enforced)
 
     @staticmethod
     def get_remaining_backup_codes(user: User) -> int:
