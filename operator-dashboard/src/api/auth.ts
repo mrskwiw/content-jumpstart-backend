@@ -6,6 +6,8 @@ interface BackendLoginResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
+  mfa_setup_required?: boolean;
+  mfa_setup_token?: string;
   user: {
     id: string;
     email: string;
@@ -49,6 +51,8 @@ export const authApi = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       token_type: data.token_type,
+      mfa_setup_required: data.mfa_setup_required,
+      mfa_setup_token: data.mfa_setup_token,
       user,
     };
   },

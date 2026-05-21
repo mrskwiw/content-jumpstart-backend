@@ -77,6 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.login(credentials);
 
+      if (response?.mfa_setup_required) {
+        throw new Error(
+          'MFA enrollment is required for your account. Contact your administrator to complete setup.'
+        );
+      }
+
       if (!response?.access_token || !response?.refresh_token || !response?.user) {
         throw new Error('Login failed: response missing credentials or user data.');
       }

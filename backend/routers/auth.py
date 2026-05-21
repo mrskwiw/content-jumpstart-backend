@@ -60,14 +60,10 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Inactive user",
         )
 
-    # Bug #126: enforce MFA using should_enforce_mfa() so superusers and
-    # admin-enforced accounts cannot bypass by skipping TOTP enrollment.
-    # Prior fix checked only user.mfa_enabled, which allowed superusers
-    # with mfa_enabled=False to log in without any second factor.
     from backend.services.mfa_service import MFAService as _MFAService
 
     _mfa = _MFAService()
-    mfa_required_by_policy = _mfa.should_enforce_mfa(user)  # is_superuser or mfa_enforced
+    mfa_required_by_policy = _mfa.should_enforce_mfa(user)
 
     if mfa_required_by_policy and (not user.mfa_enabled or not user.mfa_secret):
         # Policy mandates MFA but the account hasn't enrolled yet.
@@ -95,7 +91,6 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
         )
 
     if user.mfa_enabled and user.mfa_secret:
-        # MFA is active (policy-required or user-voluntary) — validate the code.
         if not login_data.totp_code:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,7 +98,6 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             )
         totp_valid = _mfa.verify_totp(user.mfa_secret, login_data.totp_code)
         if not totp_valid:
-            # Accept backup code as fallback (one-time use, consumed on success)
             backup_valid, updated_codes = _mfa.verify_backup_code(user, login_data.totp_code)
             if backup_valid:
                 user.mfa_backup_codes = updated_codes
