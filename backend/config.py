@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours — covers a full work session
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # MFA Configuration
+    # Disabled by default until the frontend enrollment UI (/mfa/enroll) is built.
+    # Set MFA_ENFORCEMENT_ENABLED=true to re-enable enforcement for superusers
+    # and mfa_enforced accounts. See BUGS.md #172.
+    MFA_ENFORCEMENT_ENABLED: bool = False
+
     # Super Admin Configuration
     # Comma-separated list of email addresses for super admins (original system administrators)
     # Only these users can grant free credits, even if other users are promoted to admin
