@@ -17,6 +17,7 @@ export interface AuthTokens {
 export interface LoginRequest {
   email: string;
   password: string;
+  totp_code?: string;
 }
 
 export interface LoginResponse {

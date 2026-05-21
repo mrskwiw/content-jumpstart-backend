@@ -168,16 +168,18 @@ class MFAService:
     @staticmethod
     def should_enforce_mfa(user: User) -> bool:
         """
-        Determine if MFA should be enforced for this user.
+        Determine if MFA should be enforced for this user
 
-        TR-008: policy enforces MFA for superusers and mfa_enforced accounts.
-        Gated on MFA_ENFORCEMENT_ENABLED — disabled globally until the frontend
-        enrollment UI (/mfa/enroll) is built. See BUGS.md #172.
+        TR-008: MFA is enforced for:
+        - Superusers (is_superuser=True)
+        - Users with mfa_enforced flag set
+
+        Args:
+            user: User object
+
+        Returns:
+            True if MFA should be enforced
         """
-        from backend.config import settings
-
-        if not settings.MFA_ENFORCEMENT_ENABLED:
-            return False
         return user.is_superuser or user.mfa_enforced
 
     @staticmethod
