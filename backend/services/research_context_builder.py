@@ -751,6 +751,11 @@ def _format_platform_strategy(result):
             secondary_names = [str(p).replace("_", " ").title() for p in secondary[:2]]
             parts.append(f"Secondary: {', '.join(secondary_names)}")
 
+        avoid = platform_mix.get("avoid_platforms", [])
+        if avoid:
+            avoid_names = [str(p).replace("_", " ").title() for p in avoid]
+            parts.append(f"DO NOT target: {', '.join(avoid_names)}")
+
     # Quick wins (immediate actions)
     quick_wins = data.get("quick_wins", [])
     if quick_wins and len(quick_wins) > 0:
