@@ -69,6 +69,68 @@ _MONTH_RE = _re.compile(_MONTH_PATTERN)
 _YEAR_RE = _re.compile(r"\b(20\d{2})\b")
 
 
+_MAJOR_HOLIDAYS = {
+    "new year",
+    "mlk",
+    "martin luther king",
+    "presidents day",
+    "memorial day",
+    "independence day",
+    "july 4",
+    "labor day",
+    "columbus day",
+    "veterans day",
+    "thanksgiving",
+    "christmas",
+    "new year's eve",
+    "new year's day",
+    "valentine's day",
+    "mother's day",
+    "father's day",
+    "halloween",
+    "easter",
+    "passover",
+    "hanukkah",
+    "diwali",
+    "eid",
+    "juneteenth",
+    "black friday",
+    "cyber monday",
+    "tax day",
+    "earth day",
+}
+
+_GENERIC_DAY_RE = _re.compile(r"\b(international|national|world)\b.{0,60}\bday\b", _re.IGNORECASE)
+
+
+def _filter_irrelevant_events(events: List[str], business_description: str) -> List[str]:
+    """Remove generic 'awareness day' hallucinations unrelated to the client's business.
+
+    Keeps: major civic/national holidays, events whose words appear in the
+    business description, events that don't match the generic-day pattern.
+    Drops: 'International/National/World X Day' entries where X has no
+    connection to the business context (e.g. 'International Cat Day' for a
+    real estate client).
+    """
+    biz_words = set(_re.findall(r"[a-z]{4,}", business_description.lower()))
+    kept = []
+    for event in events:
+        lower = event.lower()
+        # Always keep major civic holidays
+        if any(h in lower for h in _MAJOR_HOLIDAYS):
+            kept.append(event)
+            continue
+        # For generic awareness-day patterns, require at least one content word
+        # from the business description to appear in the event string
+        if _GENERIC_DAY_RE.search(lower):
+            event_words = set(_re.findall(r"[a-z]{4,}", lower))
+            if not event_words & biz_words:
+                logger.debug("content_calendar: dropping irrelevant awareness day: %r", event)
+                continue
+        kept.append(event)
+    return kept
+
+
 def _filter_past_events(events: List[str], calendar_start: datetime) -> List[str]:
     """Remove event strings that cite a date before calendar_start.
 
@@ -872,6 +934,7 @@ Return JSON array for weeks {weeks_in_batch}:
                 # on the aggregated seasonal_opportunities list (which is a summary view).
                 raw_events = week_data.get("holidays_events", [])
                 filtered_events = _filter_past_events(raw_events, week_start)
+                filtered_events = _filter_irrelevant_events(filtered_events, business_description)
 
                 calendar_week = CalendarWeek(
                     week_number=week_num,
