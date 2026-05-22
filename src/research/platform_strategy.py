@@ -1196,21 +1196,50 @@ Return JSON with:
         recommendations: List[PlatformRecommendation],
     ) -> str:
         """Generate executive summary"""
+        avoid_line = (
+            f"- Avoid (for now): {', '.join([p.value for p in platform_mix.avoid_platforms])}"
+            if platform_mix.avoid_platforms
+            else ""
+        )
+        secondary_line = (
+            f"- Secondary: {', '.join([p.value for p in platform_mix.secondary_platforms])}"
+            if platform_mix.secondary_platforms
+            else ""
+        )
+        experimental_line = (
+            f"- Experimental: {', '.join([p.value for p in platform_mix.experimental_platforms])}"
+            if platform_mix.experimental_platforms
+            else ""
+        )
+        platform_lines = "\n".join(
+            filter(
+                None,
+                [
+                    f"- Primary: {', '.join([p.value for p in platform_mix.primary_platforms])}",
+                    secondary_line,
+                    experimental_line,
+                    avoid_line,
+                ],
+            )
+        )
+
         prompt = f"""Write a concise executive summary (2-3 paragraphs) for this platform strategy.
 
 Business: {business_name}
 Target Audience: {target_audience}
 
-Platform Recommendations:
-- Primary: {', '.join([p.value for p in platform_mix.primary_platforms])}
-- Secondary: {', '.join([p.value for p in platform_mix.secondary_platforms])}
+Platform Decisions (use EXACTLY these — do not add or remove platforms):
+{platform_lines}
 
 Rationale: {platform_mix.rationale}
 
 Summarize:
 1. Where the audience is
-2. Recommended platform focus
-3. Expected outcomes"""
+2. Recommended platform focus and why
+3. Expected outcomes
+
+IMPORTANT: Your summary must reflect the platform decisions above exactly.
+Do not list any platform as 'avoid' unless it appears in the Avoid list above."""
 
         response = client.create_message(
             messages=[{"role": "user", "content": prompt}], max_tokens=1000
