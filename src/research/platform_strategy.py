@@ -909,12 +909,16 @@ If issues found: {{"valid": false, "issues": ["<concise issue description>"], "r
                 if rec.platform.value in to_remove_primary | to_remove_secondary | to_avoid:
                     from ..models.platform_strategy_models import PlatformFit
 
+                    logger.debug(
+                        "platform_strategy: self-check demoted %s to NOT_RECOMMENDED",
+                        rec.platform.value,
+                    )
                     rec = PlatformRecommendation(
                         platform=rec.platform,
                         fit_level=PlatformFit.NOT_RECOMMENDED,
                         priority="Low",
                         why_use=rec.why_use,
-                        why_not_use=rec.why_not_use + ["Removed by self-check validation"],
+                        why_not_use=rec.why_not_use,
                         recommended_formats=rec.recommended_formats,
                         posting_frequency=rec.posting_frequency,
                         content_approach=rec.content_approach,
