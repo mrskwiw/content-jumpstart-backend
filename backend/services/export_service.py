@@ -140,7 +140,8 @@ async def _generate_txt(
     if project:
         lines.append(f"Project: {_safe_project_name(project, client)}")
     lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    lines.append(f"Total Posts: {len(posts)}")
+    if posts:
+        lines.append(f"Total Posts: {len(posts)}")
     lines.append("")
     lines.append("=" * 60)
     lines.append("")
@@ -226,7 +227,8 @@ async def _generate_markdown(
     if project:
         lines.append(f"project: {_safe_project_name(project, client)}")
     lines.append(f'generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}')
-    lines.append(f"total_posts: {len(posts)}")
+    if posts:
+        lines.append(f"total_posts: {len(posts)}")
     lines.append("format: markdown")
     lines.append("---")
     lines.append("")
@@ -238,8 +240,6 @@ async def _generate_markdown(
     if project:
         lines.append(f"**Project:** {_safe_project_name(project, client)}")
     lines.append(f'**Generated:** {datetime.now().strftime("%B %d, %Y at %H:%M")}')
-    if posts:
-        lines.append(f"**Total Posts:** {len(posts)}")
     lines.append("")
     lines.append("---")
     lines.append("")
@@ -487,15 +487,16 @@ async def _generate_docx(
 
     doc.add_paragraph()
 
-    # Client info table
-    table = doc.add_table(rows=3, cols=2)
+    # Client info table — post count only on post deliverables, not research reports
+    table = doc.add_table(rows=3 if posts else 2, cols=2)
     table.style = "Table Grid"
     table.rows[0].cells[0].text = "Client"
     table.rows[0].cells[1].text = client.name
     table.rows[1].cells[0].text = "Project"
     table.rows[1].cells[1].text = _safe_project_name(project, client)
-    table.rows[2].cells[0].text = "Total Posts"
-    table.rows[2].cells[1].text = str(len(posts))
+    if posts:
+        table.rows[2].cells[0].text = "Total Posts"
+        table.rows[2].cells[1].text = str(len(posts))
 
     doc.add_page_break()
 
