@@ -2283,6 +2283,12 @@ def _format_platform_strategy(data: dict) -> List[str]:
         lines.append("### Detailed Platform Recommendations")
         lines.append("")
 
+        # Build avoid set from platform mix so we can flag contradictions inline
+        _avoid_set = {
+            str(p).lower().replace(" ", "_")
+            for p in (platform_mix.get("avoid_platforms", []) if platform_mix else [])
+        }
+
         seen_rec_platforms: set = set()
         for rec in platform_recs:
             if isinstance(rec, dict):
@@ -2299,6 +2305,15 @@ def _format_platform_strategy(data: dict) -> List[str]:
                 priority_label = f" [{priority} PRIORITY]" if priority else ""
                 lines.append(f"**{platform}** ({fit_level}){priority_label}")
                 lines.append("")
+
+                # Warn when this platform is in the avoid list so the detailed
+                # section doesn't silently contradict the executive summary
+                if plat_key.replace(" ", "_") in _avoid_set:
+                    lines.append(
+                        "> ⚠ **Not recommended for your current strategy** — "
+                        "included for reference only. See Recommended Platform Mix above."
+                    )
+                    lines.append("")
 
                 # Why use / why not
                 why_use = rec.get("why_use", [])

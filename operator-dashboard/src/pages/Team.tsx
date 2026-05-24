@@ -191,7 +191,7 @@ const mockActivityLogs: ActivityLog[] = [
     userName: 'Michael Chen',
     action: 'Generated Content',
     timestamp: '2025-12-17T10:15:00',
-    details: 'Generated 30 posts for TechStart Inc',
+    details: 'Generated content for TechStart Inc',
   },
   {
     id: '3',

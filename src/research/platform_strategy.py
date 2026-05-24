@@ -265,6 +265,7 @@ class PlatformStrategist(ResearchTool, CommonValidationMixin):
             data_usage=data_usage,
             platform_demographics=platform_demographics,
             resource_level=resource_level,
+            industry=industry,
         )
 
         # Step 3: Determine optimal platform mix
@@ -500,6 +501,7 @@ Use lowercase platform names. Be specific — avoid generic statements that coul
         data_usage: str = "",
         platform_demographics: str = "",
         resource_level: str = "",
+        industry: str = "",
     ) -> List[PlatformRecommendation]:
         """Generate detailed recommendations for all relevant platforms in a single API call"""
         # Filter to platforms where audience is present
@@ -547,11 +549,50 @@ Use lowercase platform names. Be specific — avoid generic statements that coul
 
         resource_context = f"\nTeam Resource Level: {resource_level}" if resource_level else ""
 
+        _industry_placeholders = {
+            "not specified",
+            "n/a",
+            "unknown",
+            "general",
+            "general business",
+            "",
+        }
+        _ecommerce_industries = {
+            "ecommerce",
+            "e-commerce",
+            "retail",
+            "online store",
+            "shopify",
+            "woocommerce",
+        }
+        _industry_lower = (industry or "").strip().lower()
+        _known_industry = _industry_lower and _industry_lower not in _industry_placeholders
+        _is_ecommerce = _known_industry and any(
+            term in _industry_lower for term in _ecommerce_industries
+        )
+        if _known_industry and not _is_ecommerce:
+            # Known non-e-commerce industry: name it and exclude workflow templates
+            # that are only relevant to online product stores. Do NOT label the
+            # business as a "service business" — it may sell physical products or
+            # software licenses while still having no shopping-cart flows.
+            industry_context = (
+                f"\nIndustry: {industry}"
+                "\nDo not recommend online-store automation workflows (abandoned cart recovery, "
+                "post-purchase sequences, product recommendation emails) unless the business "
+                "description explicitly describes selling products through an online store."
+            )
+        elif _known_industry:
+            # Known e-commerce industry: name it, no exclusion needed
+            industry_context = f"\nIndustry: {industry}"
+        else:
+            # Unknown or placeholder industry: inject nothing; let the LLM infer from context
+            industry_context = ""
+
         prompt = f"""Create detailed platform recommendations for ALL of these platforms: {platform_names}
 
 Business: {business_description}
 Target Audience: {target_audience}
-Content Goals: {content_goals}{voice_context}{resource_context}
+Content Goals: {content_goals}{voice_context}{resource_context}{industry_context}
 
 Audience Behavior Data:
 {behaviors_text}{demographics_context}

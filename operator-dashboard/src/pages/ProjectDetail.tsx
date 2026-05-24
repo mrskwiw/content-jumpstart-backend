@@ -153,7 +153,7 @@ export default function ProjectDetail() {
 
   const mockActivityLog = [
     { id: '1', action: 'Project created', user: 'Sarah Martinez', timestamp: project.createdAt, details: '' },
-    { id: '2', action: 'Content generated', user: 'System', timestamp: project.createdAt, details: '30 posts created' },
+    { id: '2', action: 'Content generated', user: 'System', timestamp: project.createdAt, details: `${project.numPosts ?? '?'} posts created` },
     { id: '3', action: 'QA completed', user: 'System', timestamp: project.updatedAt || project.createdAt, details: 'Quality score: 87%' },
     { id: '4', action: 'Deliverable created', user: 'System', timestamp: project.updatedAt || project.createdAt, details: 'TXT format' },
   ];

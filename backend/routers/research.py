@@ -61,6 +61,16 @@ research_cache = ResponseCache(
     enabled=True,
 )
 
+# Prompt version table — increment a tool's version whenever its LLM prompt
+# changes in a semantically meaningful way.  The version is folded into the
+# cache key so old entries become stale immediately on the next request
+# rather than lingering for the full 48-hour TTL.
+# Format: "YYYY-MM-DD" of the change, with a suffix if more than one change
+# lands on the same day.
+_TOOL_PROMPT_VERSIONS: dict[str, str] = {
+    "platform_strategy": "2026-05-22",  # Added industry domain constraint (e-commerce exclusion)
+}
+
 
 class ResearchTool(BaseModel):
     """Research tool metadata"""
@@ -842,6 +852,7 @@ async def run_research(
             "tool": input.tool,
             "client_id": input.client_id,
             "params": sanitized_params,
+            "prompt_v": _TOOL_PROMPT_VERSIONS.get(input.tool, ""),
         }
         cache_key = hashlib.sha256(json.dumps(cache_key_data, sort_keys=True).encode()).hexdigest()
 

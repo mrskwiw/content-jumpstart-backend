@@ -1212,6 +1212,7 @@ class ResearchService:
         elif tool_name == "platform_strategy":
             # Platform strategy needs current platforms - fallback to client.platforms
             # BUG FIX #38: Add data injection and type normalization
+            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
             current_platforms = params.get("current_platforms")
 
             # Type normalization: handle string, None, or list

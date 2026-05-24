@@ -6,6 +6,7 @@ from ..models.post import Post
 from ..models.qa_report import QAReport
 from ..models.seo_keyword import KeywordStrategy
 from ..utils.logger import logger
+from ..validators.citation_validator import CitationValidator
 from ..validators.cta_validator import CTAValidator
 from ..validators.headline_validator import HeadlineValidator
 from ..validators.hook_validator import HookValidator
@@ -30,6 +31,7 @@ class QAAgent:
         self.cta_validator = CTAValidator(variety_threshold=0.40)
         self.length_validator = LengthValidator()
         self.headline_validator = HeadlineValidator(min_elements=3)
+        self.citation_validator = CitationValidator()
 
         # Optional keyword validator
         self.keyword_validator = None
@@ -70,6 +72,9 @@ class QAAgent:
         stat_conflicts = self._check_stat_conflicts(posts)
         source_dups = self._check_source_dedup(posts)
 
+        # Citation scan — non-blocking, advisory only
+        citation_results = self.citation_validator.validate(posts)
+
         # Collect all issues
         all_issues = []
         all_issues.extend(hook_results.get("issues", []))
@@ -82,6 +87,9 @@ class QAAgent:
             all_issues.extend(seo_results.get("issues", []))
         all_issues.extend(stat_conflicts)
         all_issues.extend(source_dups)
+        # Citation warnings are advisory — kept in citation_validation only,
+        # not counted in total_issues or all_issues so they don't affect pass/fail
+        # semantics or trigger the Recommendations section on clean reports.
 
         # Calculate overall quality score (average of all validator scores)
         scores = []
@@ -133,6 +141,7 @@ class QAAgent:
             headline_validation=headline_results,
             keyword_validation=keyword_results,
             seo_validation=seo_results if not seo_results.get("skipped", False) else None,
+            citation_validation=citation_results if citation_results["posts_flagged"] > 0 else None,
             total_issues=len(all_issues),
             all_issues=all_issues,
         )

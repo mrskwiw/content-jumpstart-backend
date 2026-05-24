@@ -34,6 +34,9 @@ class QAReport(BaseModel):
     seo_validation: Optional[Dict[str, Any]] = Field(
         None, description="SEO optimization results for blog posts"
     )
+    citation_validation: Optional[Dict[str, Any]] = Field(
+        None, description="Unverified source attribution warnings (advisory only)"
+    )
 
     # Summary
     total_issues: int = Field(0, description="Total number of issues found")
@@ -186,6 +189,19 @@ class QAReport(BaseModel):
                 lines.append("**Issues:**")
                 for issue in self.seo_validation["issues"]:
                     lines.append(f"- {issue}")
+            lines.append("")
+
+        # Citation Warnings (advisory — do not affect pass/fail)
+        if self.citation_validation:
+            lines.append("## Citation Warnings")
+            lines.append("")
+            lines.append(
+                "*The following posts contain source-attributed claims. "
+                "Verify each citation is accurate before publishing.*"
+            )
+            lines.append("")
+            for warning in self.citation_validation.get("warnings", []):
+                lines.append(f"- {warning}")
             lines.append("")
 
         # Recommendations

@@ -328,7 +328,7 @@ class ContentGapAnalyzer(ResearchTool, CommonValidationMixin):
         )
 
         # Generate executive summary
-        total_gaps = len(topic_gaps)
+        total_gaps = len(topic_gaps) + len(format_gaps) + len(buyer_journey_gaps)
         executive_summary = self._create_executive_summary(
             total_gaps, critical_gaps, high_priority_gaps, competitor_analysis
         )
@@ -990,22 +990,27 @@ Return ONLY a valid JSON array of buyer journey gap objects. No markdown. No exp
         high_priority_gaps: List[ContentGap],
         quick_wins: List[str],
     ) -> List[str]:
-        """Generate immediate action items"""
+        """Generate immediate action items.
+
+        Prioritises critical and high-priority gaps so this section is distinct
+        from Quick Wins. Falls back to quick wins only when no gap-based actions
+        exist, preventing the two sections from rendering identical content.
+        """
         actions = []
 
         # Critical gaps first
         for gap in critical_gaps[:3]:
             actions.append(f"CREATE: {gap.gap_title} ({gap.content_angle})")
 
-        # Quick wins
-        for win in quick_wins[:2]:
-            if len(actions) < 5:
-                actions.append(f"QUICK WIN: {win}")
-
-        # High priority gaps to fill remaining
+        # High priority gaps
         for gap in high_priority_gaps:
             if len(actions) < 5:
                 actions.append(f"HIGH PRIORITY: {gap.gap_title}")
+
+        # Only fall back to quick wins when there are no gap-based actions
+        if not actions:
+            for win in quick_wins[:3]:
+                actions.append(f"QUICK WIN: {win}")
 
         return actions
 

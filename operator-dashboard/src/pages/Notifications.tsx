@@ -66,7 +66,7 @@ const mockNotifications: Notification[] = [
     priority: 'high',
     status: 'unread',
     title: 'Review content for Acme Corp',
-    message: 'Quality assurance check needed for 30 posts',
+    message: 'Quality assurance check needed for content batch',
     timestamp: '2025-12-17T14:30:00',
     actionUrl: '/dashboard/content-review',
     actionLabel: 'Review Now',
@@ -143,7 +143,7 @@ const mockTasks: Task[] = [
   {
     id: '1',
     title: 'Review Acme Corp deliverables',
-    description: 'Quality check for 30 LinkedIn posts before final delivery',
+    description: 'Quality check for LinkedIn posts before final delivery',
     priority: 'high',
     status: 'pending',
     assignedTo: 'You',
@@ -156,7 +156,7 @@ const mockTasks: Task[] = [
   {
     id: '2',
     title: 'Generate content for NewCo',
-    description: 'Create 30 posts based on approved brief',
+    description: 'Create posts based on approved brief',
     priority: 'medium',
     status: 'in_progress',
     assignedTo: 'Michael Chen',

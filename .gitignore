@@ -8,6 +8,8 @@ secrets/
 *.key
 *.pem
 *.p12
+.secrets.json
+*.secrets.json
 *.pfx
 .secrets.baseline
 

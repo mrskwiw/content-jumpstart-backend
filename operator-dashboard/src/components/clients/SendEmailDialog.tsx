@@ -11,7 +11,7 @@ interface EmailTypeConfig {
   label: string;
   defaultSubject: string;
   defaultBody: (clientName: string) => string;
-  variables: { key: string; label: string; placeholder: string; required: boolean }[];
+  variables: { key: string; label: string; placeholder: string; required: boolean; defaultValue?: string }[];
 }
 
 const EMAIL_TYPES: Record<EmailTypeValue, EmailTypeConfig> = {
@@ -23,13 +23,13 @@ const EMAIL_TYPES: Record<EmailTypeValue, EmailTypeConfig> = {
   },
   deliverable: {
     label: 'Content Package Ready',
-    defaultSubject: "Your 30-Day Content Package is Ready! 🎉",
+    defaultSubject: "Your Content Package is Ready! 🎉",
     defaultBody: (name) => `Hi ${name},
 
-Great news! Your 30-post content package is complete and ready to use.
+Great news! Your {post_count}-post content package is complete and ready to use.
 
 What's Included:
-• 30 custom social media posts
+• {post_count} custom social media posts
 • Brand voice guide
 • Quality assurance report
 • Posting schedule recommendations
@@ -40,7 +40,9 @@ Looking forward to seeing your content perform!
 
 Best regards,
 The Content Jumpstart Team`,
-    variables: [],
+    variables: [
+      { key: 'post_count', label: 'Number of Posts', placeholder: '30', required: true, defaultValue: '30' },
+    ],
   },
   feedback_request: {
     label: 'Request Feedback',
@@ -144,7 +146,11 @@ export function SendEmailDialog({ client, onClose, onSuccess }: SendEmailDialogP
   useEffect(() => {
     setSubject(config.defaultSubject);
     setBody(config.defaultBody(client.name));
-    setVariables({});
+    const defaults: Record<string, string> = {};
+    for (const v of config.variables) {
+      if (v.defaultValue !== undefined) defaults[v.key] = v.defaultValue;
+    }
+    setVariables(defaults);
   }, [emailType, client.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderedBody = substituteVariables(body, variables);
