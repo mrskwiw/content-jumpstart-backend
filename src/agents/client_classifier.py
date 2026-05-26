@@ -23,9 +23,14 @@ class ClientClassifier:
             Tuple of (ClientType, confidence_score)
             confidence_score is between 0.0 and 1.0
         """
-        # Combine text fields for analysis
+        # Combine text fields for analysis.
+        # Include company_name so names like "Cascade Family Dentistry" or
+        # "Smith Law Firm" contribute keyword signals when business_description
+        # is sparse or uses a generic fallback.
         business_text = (
-            f"{client_brief.business_description} {client_brief.main_problem_solved}"
+            f"{client_brief.company_name} "
+            f"{client_brief.business_description} "
+            f"{client_brief.main_problem_solved}"
         ).lower()
         customer_text = f"{client_brief.ideal_customer}".lower()
 

@@ -15,7 +15,9 @@ from ..validators.keyword_validator import KeywordValidator
 from ..validators.length_validator import LengthValidator
 from ..validators.seo_validator import SEOValidator
 
-# Client types that use conversational/local-service content — headline threshold 2
+# Client types that use conversational/local-service content — headline threshold 2.
+# UNKNOWN is intentionally excluded: uncertain classification should default to
+# the stricter threshold rather than silently pass bad headlines.
 _LOCAL_SERVICE_TYPES: frozenset = frozenset(
     {
         ClientType.HEALTHCARE,
@@ -27,7 +29,6 @@ _LOCAL_SERVICE_TYPES: frozenset = frozenset(
         ClientType.EDUCATION,
         ClientType.FINANCIAL_SERVICES,
         ClientType.LEGAL,
-        ClientType.UNKNOWN,
     }
 )
 
