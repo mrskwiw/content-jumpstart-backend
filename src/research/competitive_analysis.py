@@ -113,7 +113,7 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
         # SECURITY: Validate optional industry
         inputs["industry"] = self.validate_optional_industry(inputs)
 
-        # Optional: location (for Google Maps review analysis)
+        # Optional: location hint improves Google Maps matching accuracy
         location = inputs.get("location")
         if location:
             inputs["location"] = location.strip()
@@ -252,7 +252,7 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
         """Analyze each competitor's strategy using web search + Google Maps reviews"""
         profiles = []
         search_client = get_search_client()
-        maps_client = get_google_maps_client() if location else None
+        maps_client = get_google_maps_client()
 
         for competitor in competitors[:5]:  # Max 5
             # STEP 1: Search the web for competitor information
@@ -271,15 +271,16 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
             search_data = self._format_competitor_search_results(search_results, competitor)
             cadence_data = self._format_competitor_search_results(cadence_results, competitor)
 
-            # STEP 2: If location provided, try to find competitor on Google Maps and get reviews
+            # STEP 2: Find competitor on Google Maps and get reviews.
+            # Location is optional — if not provided, Maps searches by name globally.
             review_data = ""
-            if maps_client and location:
-                logger.info(f"Searching Google Maps for {competitor} reviews in {location}")
-                # Search for the business on Google Maps
+            if maps_client:
+                loc_label = f" in {location}" if location else ""
+                logger.info(f"Searching Google Maps for {competitor} reviews{loc_label}")
                 local_results = maps_client.search_local_businesses(
                     query=f"{competitor} {industry}",
-                    location=location,
-                    max_results=3,  # Get top 3 matches
+                    location=location or "",
+                    max_results=3,
                 )
 
                 # If we find a match, get reviews
@@ -292,7 +293,7 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
 
                     if place.place_id and place.reviews_count and place.reviews_count > 0:
                         place_reviews = maps_client.get_place_reviews(
-                            place_id=place.place_id, max_reviews=20  # Get top 20 reviews
+                            place_id=place.place_id, max_reviews=40
                         )
 
                         if place_reviews.reviews:
@@ -493,8 +494,8 @@ Use "Not determinable from available data" for string fields with no data. Use [
         lines.append("")
 
         # Top reviews (mix of positive and negative for balanced view)
-        positive_reviews = [r for r in reviews if r.rating >= 4][:5]
-        negative_reviews = [r for r in reviews if r.rating <= 2][:5]
+        positive_reviews = [r for r in reviews if r.rating >= 4][:10]
+        negative_reviews = [r for r in reviews if r.rating <= 2][:10]
 
         if positive_reviews:
             lines.append("**Top Positive Reviews:**")

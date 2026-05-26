@@ -137,7 +137,7 @@ class GoogleMapsClient:
     def get_place_reviews(
         self,
         place_id: str,
-        max_reviews: int = 20,
+        max_reviews: int = 40,
     ) -> PlaceWithReviews:
         """Get reviews for a specific Google Maps place
 
