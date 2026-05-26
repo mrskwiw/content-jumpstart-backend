@@ -65,6 +65,21 @@ class WebSearchClient:
             )
             self.provider = "stub"
 
+    def _available_fallbacks(self) -> list[str]:
+        """Return configured providers that can serve as fallbacks, in priority order."""
+        priority = ["brave", "tavily", "serpapi"]
+        return [p for p in priority if p != self.provider and os.getenv(f"{p.upper()}_API_KEY")]
+
+    def _dispatch(self, provider: str, query: str, max_results: int, **kwargs) -> SearchResponse:
+        """Call the named provider directly; raises on error."""
+        if provider == "brave":
+            return self._search_brave(query, max_results, **kwargs)
+        elif provider == "tavily":
+            return self._search_tavily(query, max_results, **kwargs)
+        elif provider == "serpapi":
+            return self._search_serpapi(query, max_results, **kwargs)
+        raise ValueError(f"Unknown provider: {provider}")
+
     def search(
         self,
         query: str,
@@ -85,116 +100,124 @@ class WebSearchClient:
         """
         logger.info(f"Web search: '{query}' (provider={self.provider}, max={max_results})")
 
-        if self.provider == "brave":
-            return self._search_brave(query, max_results, **kwargs)
-        elif self.provider == "tavily":
-            return self._search_tavily(query, max_results, **kwargs)
-        elif self.provider == "serpapi":
-            return self._search_serpapi(query, max_results, **kwargs)
-        else:
+        if self.provider == "stub":
             return self._search_stub(query, max_results)
+
+        providers_to_try = [self.provider] + self._available_fallbacks()
+
+        for i, provider in enumerate(providers_to_try):
+            is_last = i == len(providers_to_try) - 1
+            try:
+                return self._dispatch(provider, query, max_results, **kwargs)
+            except Exception as e:
+                if is_last:
+                    logger.error(
+                        f"All search providers exhausted. Last error ({provider}): {e}. "
+                        "Returning empty results."
+                    )
+                else:
+                    next_provider = providers_to_try[i + 1]
+                    logger.warning(
+                        f"{provider} search failed: {e}. Falling back to {next_provider}."
+                    )
+
+        return SearchResponse(
+            query=query,
+            results=[],
+            total_results=0,
+            search_time_ms=0.0,
+            timestamp=datetime.now(),
+        )
 
     def _search_brave(self, query: str, max_results: int, **kwargs) -> SearchResponse:
         """Search using Brave Search API
 
         Brave Search API: https://brave.com/search/api/
         """
-        try:
-            import requests
+        import requests
 
-            url = "https://api.search.brave.com/res/v1/web/search"
-            headers = {
-                "Accept": "application/json",
-                "X-Subscription-Token": self.api_key,
-            }
-            params: dict[str, str | int] = {
-                "q": query,
-                "count": max_results,
-            }
+        url = "https://api.search.brave.com/res/v1/web/search"
+        headers = {
+            "Accept": "application/json",
+            "X-Subscription-Token": self.api_key,
+        }
+        params: dict[str, str | int] = {
+            "q": query,
+            "count": max_results,
+        }
 
-            start_time = datetime.now()
-            response = requests.get(url, headers=headers, params=params, timeout=10)
-            response.raise_for_status()
-            search_time = (datetime.now() - start_time).total_seconds() * 1000
+        start_time = datetime.now()
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        search_time = (datetime.now() - start_time).total_seconds() * 1000
 
-            data = response.json()
+        data = response.json()
 
-            # Parse Brave results
-            results = []
-            for item in data.get("web", {}).get("results", [])[:max_results]:
-                results.append(
-                    SearchResult(
-                        title=item.get("title", ""),
-                        url=item.get("url", ""),
-                        snippet=item.get("description", ""),
-                        published_date=item.get("age"),
-                        source="brave",
-                    )
+        # Parse Brave results
+        results = []
+        for item in data.get("web", {}).get("results", [])[:max_results]:
+            results.append(
+                SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    snippet=item.get("description", ""),
+                    published_date=item.get("age"),
+                    source="brave",
                 )
-
-            return SearchResponse(
-                query=query,
-                results=results,
-                total_results=len(results),
-                search_time_ms=search_time,
-                timestamp=datetime.now(),
             )
 
-        except Exception as e:
-            logger.error(f"Brave search failed: {e}")
-            # Fallback to stub
-            return self._search_stub(query, max_results)
+        return SearchResponse(
+            query=query,
+            results=results,
+            total_results=len(results),
+            search_time_ms=search_time,
+            timestamp=datetime.now(),
+        )
 
     def _search_tavily(self, query: str, max_results: int, **kwargs) -> SearchResponse:
         """Search using Tavily API
 
         Tavily API: https://tavily.com/
         """
-        try:
-            import requests
+        import requests
 
-            url = "https://api.tavily.com/search"
-            payload = {
-                "api_key": self.api_key,
-                "query": query,
-                "max_results": max_results,
-                "search_depth": "advanced",  # "basic" or "advanced"
-                "include_answer": False,
-                "include_raw_content": False,
-            }
+        url = "https://api.tavily.com/search"
+        payload = {
+            "api_key": self.api_key,
+            "query": query,
+            "max_results": max_results,
+            "search_depth": "advanced",  # "basic" or "advanced"
+            "include_answer": False,
+            "include_raw_content": False,
+        }
 
-            start_time = datetime.now()
-            response = requests.post(url, json=payload, timeout=10)
-            response.raise_for_status()
-            search_time = (datetime.now() - start_time).total_seconds() * 1000
+        start_time = datetime.now()
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        search_time = (datetime.now() - start_time).total_seconds() * 1000
 
-            data = response.json()
+        data = response.json()
 
-            # Parse Tavily results
-            results = []
-            for item in data.get("results", [])[:max_results]:
-                results.append(
-                    SearchResult(
-                        title=item.get("title", ""),
-                        url=item.get("url", ""),
-                        snippet=item.get("content", ""),
-                        published_date=item.get("published_date"),
-                        source="tavily",
-                    )
+        # Parse Tavily results
+        results = []
+        for item in data.get("results", [])[:max_results]:
+            results.append(
+                SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    snippet=item.get("content", ""),
+                    published_date=item.get("published_date"),
+                    source="tavily",
                 )
-
-            return SearchResponse(
-                query=query,
-                results=results,
-                total_results=len(results),
-                search_time_ms=search_time,
-                timestamp=datetime.now(),
             )
 
-        except Exception as e:
-            logger.error(f"Tavily search failed: {e}")
-            # Fallback to stub
-            return self._search_stub(query, max_results)
+        return SearchResponse(
+            query=query,
+            results=results,
+            total_results=len(results),
+            search_time_ms=search_time,
+            timestamp=datetime.now(),
+        )
 
     def _search_serpapi(self, query: str, max_results: int, **kwargs) -> SearchResponse:
         """Search using SerpAPI (Google Search)
@@ -202,49 +225,43 @@ class WebSearchClient:
         SerpAPI: https://serpapi.com/
         Provides real-time Google search results with rich structured data.
         """
-        try:
-            import requests
+        import requests
 
-            url = "https://serpapi.com/search"
-            params: dict[str, str | int] = {
-                "q": query,
-                "api_key": self.api_key,
-                "num": max_results,
-                "engine": "google",  # Use Google search engine
-            }
+        url = "https://serpapi.com/search"
+        params: dict[str, str | int | None] = {
+            "q": query,
+            "api_key": self.api_key,
+            "num": max_results,
+            "engine": "google",  # Use Google search engine
+        }
 
-            start_time = datetime.now()
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            search_time = (datetime.now() - start_time).total_seconds() * 1000
+        start_time = datetime.now()
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        search_time = (datetime.now() - start_time).total_seconds() * 1000
 
-            data = response.json()
+        data = response.json()
 
-            # Parse SerpAPI results (organic_results key for Google)
-            results = []
-            for item in data.get("organic_results", [])[:max_results]:
-                results.append(
-                    SearchResult(
-                        title=item.get("title", ""),
-                        url=item.get("link", ""),
-                        snippet=item.get("snippet", ""),
-                        published_date=item.get("date"),
-                        source="serpapi",
-                    )
+        # Parse SerpAPI results (organic_results key for Google)
+        results = []
+        for item in data.get("organic_results", [])[:max_results]:
+            results.append(
+                SearchResult(
+                    title=item.get("title", ""),
+                    url=item.get("link", ""),
+                    snippet=item.get("snippet", ""),
+                    published_date=item.get("date"),
+                    source="serpapi",
                 )
-
-            return SearchResponse(
-                query=query,
-                results=results,
-                total_results=len(results),
-                search_time_ms=search_time,
-                timestamp=datetime.now(),
             )
 
-        except Exception as e:
-            logger.error(f"SerpAPI search failed: {e}")
-            # Fallback to stub
-            return self._search_stub(query, max_results)
+        return SearchResponse(
+            query=query,
+            results=results,
+            total_results=len(results),
+            search_time_ms=search_time,
+            timestamp=datetime.now(),
+        )
 
     def _search_stub(self, query: str, max_results: int) -> SearchResponse:
         """Stub implementation for development/testing
