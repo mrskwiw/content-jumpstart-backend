@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 
+from ..config.template_rules import ClientType
 from ..models.post import Post
 from ..models.qa_report import QAReport
 from ..models.seo_keyword import KeywordStrategy
@@ -13,6 +14,22 @@ from ..validators.hook_validator import HookValidator
 from ..validators.keyword_validator import KeywordValidator
 from ..validators.length_validator import LengthValidator
 from ..validators.seo_validator import SEOValidator
+
+# Client types that use conversational/local-service content — headline threshold 2
+_LOCAL_SERVICE_TYPES: frozenset = frozenset(
+    {
+        ClientType.HEALTHCARE,
+        ClientType.REAL_ESTATE,
+        ClientType.RESTAURANT_HOSPITALITY,
+        ClientType.ECOMMERCE_RETAIL,
+        ClientType.NONPROFIT,
+        ClientType.HOME_SERVICES,
+        ClientType.EDUCATION,
+        ClientType.FINANCIAL_SERVICES,
+        ClientType.LEGAL,
+        ClientType.UNKNOWN,
+    }
+)
 
 
 class QAAgent:
@@ -30,7 +47,6 @@ class QAAgent:
         self.hook_validator = HookValidator(similarity_threshold=0.80)
         self.cta_validator = CTAValidator(variety_threshold=0.40)
         self.length_validator = LengthValidator()
-        self.headline_validator = HeadlineValidator(min_elements=3)
         self.citation_validator = CitationValidator()
 
         # Optional keyword validator
@@ -41,24 +57,35 @@ class QAAgent:
         # SEO validator for blog posts (uses same keyword strategy if available)
         self.seo_validator = SEOValidator(keyword_strategy=keyword_strategy)
 
-    def validate_posts(self, posts: List[Post], client_name: str) -> QAReport:
+    def validate_posts(
+        self,
+        posts: List[Post],
+        client_name: str,
+        client_type: Optional[ClientType] = None,
+    ) -> QAReport:
         """
         Run quality validation on a set of posts
 
         Args:
             posts: List of Post objects to validate
             client_name: Client name for report
+            client_type: Optional client type — adjusts headline threshold
 
         Returns:
             QAReport with validation results
         """
         logger.info(f"Running QA validation on {len(posts)} posts")
 
+        # Headline threshold: local-service/consumer clients use conversational
+        # openers that naturally score lower on thought-leadership elements.
+        headline_threshold = 2 if client_type in _LOCAL_SERVICE_TYPES else 3
+        headline_validator = HeadlineValidator(min_elements=headline_threshold)
+
         # Run all validators
         hook_results = self.hook_validator.validate(posts)
         cta_results = self.cta_validator.validate(posts)
         length_results = self.length_validator.validate(posts)
-        headline_results = self.headline_validator.validate(posts)
+        headline_results = headline_validator.validate(posts)
 
         # Run keyword validation if available
         keyword_results = None
@@ -169,10 +196,31 @@ class QAAgent:
 
         PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
         TOPIC_GROUPS: "dict[str, list[str]]" = {
+            # Healthcare / dental
             "flossing": ["floss"],
             "cavity / decay": ["cavit", "decay", "caries"],
             "dental anxiety": ["anxiet", "anxious", "fear of dent", "dentophob"],
             "brushing": ["brush", "oral hygiene"],
+            "blood pressure": ["blood pressure", "hypertens"],
+            "diabetes": ["diabet"],
+            "obesity": ["obes", "overweight"],
+            "vaccination": ["vaccin", "immuniz"],
+            # Real estate / finance
+            "home values": ["home value", "property value", "house price"],
+            "mortgage rates": ["mortgage rate", "interest rate"],
+            "savings rate": ["savings rate", "saving rate"],
+            "investment returns": ["investment return", "stock return", "portfolio return"],
+            "customer retention": ["retention rate", "churn rate"],
+            # Fitness / wellness
+            "exercise": ["exercis", "workout", "physical activity"],
+            "sleep": ["sleep disorder", "insomnia", "sleep quality"],
+            "weight loss": ["weight loss", "lose weight"],
+            # Marketing / SaaS
+            "conversion rate": ["conversion rate"],
+            "engagement rate": ["engagement rate"],
+            "open rate": ["open rate", "email open"],
+            "click-through rate": ["click rate", "click-through", "ctr"],
+            "revenue growth": ["revenue growth", "revenue increas"],
         }
 
         topic_claims: "dict[str, dict[float, list[int]]]" = {}

@@ -144,7 +144,9 @@ class CoordinatorAgent:
 
         # Step 5: Run QA validation
         logger.info("\n[5/7] Running quality validation...")
-        qa_report = self.qa_agent.validate_posts(posts, client_brief.company_name)
+        qa_report = self.qa_agent.validate_posts(
+            posts, client_brief.company_name, client_type=client_type
+        )
         logger.info(f"   Quality score: {int(qa_report.quality_score * 100)}%")
         logger.info(f"   Status: {'PASSED' if qa_report.overall_passed else 'NEEDS REVIEW'}")
 

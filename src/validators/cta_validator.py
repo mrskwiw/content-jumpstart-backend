@@ -26,9 +26,12 @@ def _llm_cta_check(last_two_lines: str) -> bool:
 
         client = get_default_client()
         prompt = (
-            "Does the following text end with a call-to-action — an invitation "
-            "for the reader to do something (reply, comment, book, follow, share, "
-            "ask a question, click a link, etc.)?\n\n"
+            "Does the following text end with a call-to-action — an explicit "
+            "imperative instruction for the reader to take a specific action "
+            "such as booking, replying, subscribing, shopping, donating, or "
+            "following?\n\n"
+            "Soft reassurance, empathy statements, and descriptive closers are "
+            "NOT calls-to-action.\n\n"
             f"TEXT:\n{last_two_lines}\n\n"
             "Answer with a single word: YES or NO."
         )
@@ -42,6 +45,32 @@ def _llm_cta_check(last_two_lines: str) -> bool:
     except Exception as exc:
         logger.debug(f"CTA LLM fallback skipped for this post: {exc}")
         return False
+
+
+# Service nouns that follow a booking verb on the last line.
+# Shared between CTA_PATTERNS and _PLACEMENT_PATTERNS so both stay in sync.
+# Grouped by industry for readability — all end up in a single alternation.
+_BOOKING_NOUNS = (
+    # General / B2B
+    "call|meeting|demo|visit|appointment|consultation|session"
+    "|conversation|evaluation|assessment|walkthrough|tour|screening"
+    # Healthcare & dental
+    "|exam|checkup|cleaning|whitening|treatment|procedure|hygiene"
+    "|filling|extraction|service"
+    # Fitness & wellness
+    "|class|drop-in|trial|intro"
+    "|facial|massage|blowout"
+    # Trades / auto / home
+    "|repair|inspection|detail"
+    # Food & hospitality
+    "|reservation|table"
+    # Education
+    "|lesson"
+    # Real estate
+    "|showing|valuation"
+)
+
+_BOOKING_VERB = r"(?:book|schedule|set up|reserve|claim)"
 
 
 class CTAValidator:
@@ -65,7 +94,7 @@ class CTAValidator:
             r"(?:drop|share|leave) (?:your|a|it) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective|below)",
             "comment_request",
         ),
-        (r"(?:dm|message|reach out|contact) me", "direct_contact"),
+        (r"(?:dm|message|reach out|contact) (?:me|us|our team)", "direct_contact"),
         # "hit reply", "just reply", or "reply with/below/here/to this/me"
         # Requires prefix OR suffix — bare "reply" (e.g. "In reply to...") is excluded.
         (
@@ -73,26 +102,49 @@ class CTAValidator:
             "reply_request",
         ),
         (r"(?:click|tap|check out) (?:the )?link", "link_click"),
-        # Booking: "book/schedule [optional adjectives] <service noun>"
-        # Noun list covers clinical, service-business, and general scheduling forms.
+        # Link in bio — creator/e-commerce standard CTA form
+        (r"\blink in bio\b", "link_click"),
+        # Booking: "book/schedule/reserve/claim [optional adjectives] <service noun>"
+        # Noun list covers clinical, service-business, fitness, real estate, and
+        # general scheduling forms.  See _BOOKING_NOUNS above.
         (
-            r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
-            r"(?:call|meeting|demo|visit|appointment|consultation|session"
-            r"|conversation|exam|evaluation|assessment|checkup|walkthrough|tour|screening)\b",
+            _BOOKING_VERB + r" (?:a |an |your )?(?:[\w-]+ )*(?:" + _BOOKING_NOUNS + r")\b",
             "booking",
         ),
-        # Standalone appointment/consultation in the CTA line
-        (r"\b(?:appointment|consultation)\b", "booking"),
+        # Booking via URL destination: "book your cleaning at [url]"
+        (
+            _BOOKING_VERB + r" (?:[\w\s-]+ )?at (?:https?://|www\.|\w[\w-]*\.\w{2,6})",
+            "booking",
+        ),
+        # Standalone scheduling terms that unambiguously signal a CTA on the last line
+        (r"\b(?:appointment|consultation|exam|cleaning|screening|checkup)\b", "booking"),
+        # Fitness / wellness standalone
+        (r"\bfree (?:trial|class|session|consultation|drop-in|intro)\b", "booking"),
+        # Real estate standalone
+        (r"\b(?:home valuation|property tour)\b", "booking"),
         (r"sign up|subscribe|join", "signup"),
         (r"download|get (?:the |your )", "download"),
         (r"learn more|find out", "learn_more"),
         (r"(?:tell|share) me (?:in|about)", "share_request"),
+        # E-commerce action — "shop now", "order today", "buy here"
+        (r"\b(?:shop|order|buy|purchase) (?:now|today|here|online)\b", "ecommerce_action"),
+        # Cause / non-profit action
+        (r"\b(?:donate|give) (?:now|today|here|to (?:our|the|us))\b", "cause_action"),
+        (r"\bvolunteer\b", "cause_action"),
         # Action verbs — word boundaries prevent "start" matching "restart", "try" matching "dentistry"
         (r"\b(?:read|watch|listen to|try|start|begin|explore)\b", "action_verb"),
         (r"\b(?:visit|follow|connect|register|apply)\b", "engagement"),
         # Soft CTAs common in service/healthcare/local business content
-        (r"let['‘’]?s (?:get|start|make|do|try|book|talk|see|meet|schedule|change)", "soft_action"),
-        (r"ask (?:us|me|your dentist|your doctor|our team)", "ask_request"),
+        (
+            r"let[''']?s (?:get|start|make|do|try|book|talk|see|meet|schedule|change"
+            r"|connect|plan|find|explore|work)",
+            "soft_action",
+        ),
+        # Ask request — expanded to cover more professional service industries
+        (
+            r"ask (?:us|me|our team|your (?:dentist|doctor|therapist|attorney|advisor|trainer|realtor|agent))",
+            "ask_request",
+        ),
         (r"give (?:us|me) (?:a|your)\b", "soft_action"),
     ]
 
@@ -100,33 +152,41 @@ class CTAValidator:
     # These must be specific enough that normal body text does not match, while
     # still covering every form that CTA_PATTERNS recognises as a valid CTA.
     # Excluded (still in CTA_PATTERNS for last-line detection):
-    # - standalone appointment/consultation (very common in dental body text)
+    # - standalone appointment/consultation/exam (very common in body text)
     # - start/try/begin (opener phrases: "start with a question", "try to imagine")
-    # - bare "visit" (dental: "visit our office for care")
+    # - bare "visit" (service body text: "visit our office for care")
+    # - bare "volunteer"/"donate" without action context word (body mentions)
     _PLACEMENT_PATTERNS = [
         r"(?:drop|share|leave) (?:your|a|it) (?:comment|take|thoughts?|feedback|experience|story|opinion|perspective|below)",
-        r"(?:dm|message|reach out|contact) me",
+        r"(?:dm|message|reach out|contact) (?:me|us|our team)",
         # Body scan: "hit reply"/"just reply" are unambiguous CTAs.
         # "reply below" is safe to add — "in reply to..." never uses "below".
         # Broader "reply with/to this" still excluded (can appear as prose).
         r"\b(?:hit|just)\s+reply\b",
         r"\breply\s+below\b",
         r"(?:click|tap|check out) (?:the )?link",
-        r"(?:book|schedule|set up) (?:a |an |your )?(?:[\w-]+ )*"
-        r"(?:call|meeting|demo|visit|appointment|consultation|session"
-        r"|conversation|exam|evaluation|assessment|checkup|walkthrough|tour|screening)\b",
+        r"\blink in bio\b",
+        # Booking verb + noun: safe in body because "book your cleaning at 9am"
+        # is action instruction regardless of position.
+        _BOOKING_VERB + r" (?:a |an |your )?(?:[\w-]+ )*(?:" + _BOOKING_NOUNS + r")\b",
+        # Booking via URL destination
+        _BOOKING_VERB + r" (?:[\w\s-]+ )?at (?:https?://|www\.|\w[\w-]*\.\w{2,6})",
         r"sign up|subscribe|join",
         r"download|get (?:the |your )",
         r"learn more|find out",
         r"(?:tell|share) me (?:in|about)",
         r"give (?:us|me) (?:a|your)\b",
+        # E-commerce — require action context word to avoid "shop owners do X"
+        r"\b(?:shop|order|buy|purchase) (?:now|today|here|online)\b",
+        # Cause — require action context word to avoid "donate organs" as body prose
+        r"\b(?:donate|give) (?:now|today|here|to (?:our|the|us))\b",
         # --- engagement verbs -----------------------------------------------
         # "follow us/me/our" is CTA; "follow the same logic" is body text.
         r"\bfollow (?:us|me|our|my)\b",
         # "connect with us/me" is CTA; "connect the dots" is body text.
         r"\bconnect (?:with us|with me)\b",
         # "visit us" is unambiguously CTA; "visit our office/etc." excluded
-        # because dental body text naturally says "visit our office for care".
+        # because service body text naturally says "visit our office for care".
         r"\bvisit us\b",
         # "register" is unambiguous as a CTA in body context.
         # "apply" requires a follow-up word: "apply now/today/here/for/to"
@@ -138,10 +198,8 @@ class CTAValidator:
         # "this" excluded: "if you have read this far" is body text, not a CTA.
         r"(?:read|watch|listen to|explore) (?:the|our|my)\b",
         # --- soft CTAs ------------------------------------------------------
-        # let’s + booking verb: unambiguously CTA even mid-body.
-        # "let’s get" added for "let’s get started"; "let’s make" excluded
-        # because "let’s make this clear" is a sentence opener, not a CTA.
-        r"let['‘’]?s (?:book|schedule|meet|connect|sign up|register|apply|get)\b",
+        # let's + booking verb: unambiguously CTA even mid-body.
+        r"let[''']?s (?:book|schedule|meet|connect|sign up|register|apply|get)\b",
         # "try it/us/our": "try it free", "try us today" are CTAs mid-body;
         # "try to imagine" excluded by requiring it/us/our after try.
         r"\btry (?:it|us|our)\b",
@@ -163,8 +221,8 @@ class CTAValidator:
         # bare "ask us/me" followed by CTA-specific words: "ask us anything",
         # "ask me below", "ask me in the comments" are mid-post CTAs.
         r"ask (?:us|me) (?:anything|below|in the)\b",
-        # "ask your dentist/doctor": professional referral CTA forms.
-        r"ask (?:your dentist|your doctor)\b",
+        # Professional referral CTA forms — mid-body placement is still a CTA.
+        r"ask (?:your dentist|your doctor|your therapist|your attorney|your advisor|your trainer)\b",
     ]
 
     def __init__(
@@ -242,12 +300,7 @@ class CTAValidator:
 
         # Check CTA placement and question-ending per-post.
         # _check_post_ends_with_question is skipped for posts from templates
-        # that intentionally end with engagement questions (Question Post,
-        # Contrarian Take, Reader Q&A) — their question endings are valid.
-        # All other posts (including unlabelled ones) are checked so that
-        # generic question closers don't pass the batch validator silently.
-        # "against the grain" is Template 3's stored name (TemplateType.CONTRARIAN).
-        # "question" covers Template 5 ("Question") and Template 14 ("Reader Question").
+        # that intentionally end with engagement questions.
         _QUESTION_EXEMPT_KEYWORDS = frozenset(
             {
                 "question",  # Template 5 + 14
@@ -255,6 +308,8 @@ class CTAValidator:
                 "contrarian",  # future-proof: matches any template with "contrarian" in name
                 "q_and_a",
                 "q&a",
+                "future",  # Future-Thinking / Prediction posts
+                "prediction",  # same
             }
         )
         for post in posts:
@@ -383,7 +438,7 @@ class CTAValidator:
         # CTA found in body (not last line) = wrong placement.
         # Uses _PLACEMENT_PATTERNS (not CTA_PATTERNS) so that broad patterns
         # like standalone action verbs or "appointment" don't false-positive
-        # on normal body sentences in dental/healthcare/service content.
+        # on normal body sentences in service content.
         for pattern in self._PLACEMENT_PATTERNS:
             if re.search(pattern, body, re.IGNORECASE):
                 issues.append(
@@ -392,11 +447,6 @@ class CTAValidator:
                 break
 
         # CTA on last line but ends with ? = question, not a statement.
-        # Uses the full CTA_PATTERNS (not just _PLACEMENT_PATTERNS) so that ALL
-        # recognised CTA forms — including standalone "Appointment?" or
-        # "Consultation?" — are caught as question-ending violations.  The body
-        # scan above still uses the stricter _PLACEMENT_PATTERNS to avoid false
-        # positives from those same broad patterns appearing in body sentences.
         for pattern, _ in self.CTA_PATTERNS:
             if re.search(pattern, last_line, re.IGNORECASE):
                 if last_line.rstrip().endswith("?"):
@@ -439,10 +489,6 @@ class CTAValidator:
         """
         if total_posts == 0:
             return 1.0
-
-        # Calculate normalized entropy
-        # Perfect variety = each CTA used equally
-        # Poor variety = one CTA dominates
 
         max_count = cta_counts.most_common(1)[0][1] if cta_counts else 0
         min_variety = max_count / total_posts  # Percentage of most common CTA

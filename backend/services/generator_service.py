@@ -560,9 +560,18 @@ class GeneratorService:
             qa_overall_passed: bool | None = None  # None = QA didn't run
             if run_id and posts:
                 try:
+                    from src.agents.client_classifier import ClientClassifier
                     from src.agents.qa_agent import QAAgent
 
-                    qa_report = QAAgent().validate_posts(posts, client.name or "")
+                    _client_type = None
+                    try:
+                        _client_type, _ = ClientClassifier().classify_client(brief)
+                    except Exception as _ce:
+                        logger.warning(f"Client classification for QA failed (non-critical): {_ce}")
+
+                    qa_report = QAAgent().validate_posts(
+                        posts, client.name or "", client_type=_client_type
+                    )
                     qa_score_pre = qa_report.quality_score
                     qa_overall_passed = qa_report.overall_passed
                     logger.info(
