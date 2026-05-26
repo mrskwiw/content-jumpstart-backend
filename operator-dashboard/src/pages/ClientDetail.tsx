@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { ROUTES } from '@/config/routes';
@@ -61,6 +61,7 @@ export default function ClientDetail() {
   const [researchResults, setResearchResults] = useState<Map<string, unknown>>(new Map());
   const [isExporting, setIsExporting] = useState(false);
   const [visiblePostCount, setVisiblePostCount] = useState(20);
+  useEffect(() => { setVisiblePostCount(20); }, [clientId]);
 
   // Research results drawer state
   const [selectedResult, setSelectedResult] = useState<ResearchResult | null>(null);
