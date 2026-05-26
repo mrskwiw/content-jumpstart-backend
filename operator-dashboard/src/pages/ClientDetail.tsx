@@ -60,6 +60,7 @@ export default function ClientDetail() {
   const [showDataDialog, setShowDataDialog] = useState(false);
   const [researchResults, setResearchResults] = useState<Map<string, unknown>>(new Map());
   const [isExporting, setIsExporting] = useState(false);
+  const [visiblePostCount, setVisiblePostCount] = useState(20);
 
   // Research results drawer state
   const [selectedResult, setSelectedResult] = useState<ResearchResult | null>(null);
@@ -1137,7 +1138,7 @@ export default function ClientDetail() {
                   <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">No content generated yet</p>
                 </div>
               ) : (
-                clientPosts.slice(0, 20).map((post) => (
+                clientPosts.slice(0, visiblePostCount).map((post) => (
                   <div key={post.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4 hover:shadow-md">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-neutral-600 dark:text-neutral-400">
@@ -1159,10 +1160,13 @@ export default function ClientDetail() {
               )}
             </div>
 
-            {clientPosts.length > 20 && (
+            {clientPosts.length > visiblePostCount && (
               <div className="text-center">
-                <button className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">
-                  Load More ({clientPosts.length - 20} more posts)
+                <button
+                  onClick={() => setVisiblePostCount(clientPosts.length)}
+                  className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                >
+                  Load More ({clientPosts.length - visiblePostCount} more posts)
                 </button>
               </div>
             )}
