@@ -66,7 +66,7 @@ export default function ProjectDetail() {
   // Fetch posts for this project
   const { data: postsResponse, isError: postsError } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts'],
-    queryFn: () => postsApi.list(),
+    queryFn: () => postsApi.list({ page_size: 500 }),
     staleTime: 0,
     gcTime: 0, // Disable caching entirely
   });

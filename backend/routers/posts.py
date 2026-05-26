@@ -33,7 +33,7 @@ async def list_posts(
     cursor: Optional[str] = Query(
         None, description="Pagination cursor (for cursor-based pagination)"
     ),
-    page_size: int = Query(20, ge=1, le=100, description="Number of items per page"),
+    page_size: int = Query(20, ge=1, le=500, description="Number of items per page"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
     run_id: Optional[str] = Query(None, description="Filter by run ID"),
     status: Optional[str] = Query(None, description="Filter by status (approved, flagged)"),

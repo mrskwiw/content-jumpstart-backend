@@ -116,7 +116,7 @@ export default function Wizard() {
 
   const { data: postsResponse, refetch: refetchPosts } = useQuery<PaginatedResponse<PostDraft>>({
     queryKey: ['posts', { projectId }],
-    queryFn: () => postsApi.list({ projectId: projectId! }),
+    queryFn: () => postsApi.list({ projectId: projectId!, page_size: 500 }),
     enabled: !!projectId,
     staleTime: 0,
     gcTime: 0, // Disable caching entirely
