@@ -65,19 +65,28 @@ class WebSearchClient:
             )
             self.provider = "stub"
 
+        # Pre-load keys for every real provider so fallback dispatch uses the
+        # correct credentials, not self.api_key (which belongs to the primary).
+        # For the primary provider, prefer the explicitly-passed api_key.
+        self._provider_keys: dict[str, Optional[str]] = {
+            p: (self.api_key if p == provider else os.getenv(f"{p.upper()}_API_KEY"))
+            for p in ("brave", "tavily", "serpapi")
+        }
+
     def _available_fallbacks(self) -> list[str]:
-        """Return configured providers that can serve as fallbacks, in priority order."""
+        """Return configured fallback providers in priority order."""
         priority = ["brave", "tavily", "serpapi"]
-        return [p for p in priority if p != self.provider and os.getenv(f"{p.upper()}_API_KEY")]
+        return [p for p in priority if p != self.provider and self._provider_keys.get(p)]
 
     def _dispatch(self, provider: str, query: str, max_results: int, **kwargs) -> SearchResponse:
-        """Call the named provider directly; raises on error."""
+        """Call the named provider with its own credentials; raises on error."""
+        key = self._provider_keys.get(provider)
         if provider == "brave":
-            return self._search_brave(query, max_results, **kwargs)
+            return self._search_brave(query, max_results, api_key=key, **kwargs)
         elif provider == "tavily":
-            return self._search_tavily(query, max_results, **kwargs)
+            return self._search_tavily(query, max_results, api_key=key, **kwargs)
         elif provider == "serpapi":
-            return self._search_serpapi(query, max_results, **kwargs)
+            return self._search_serpapi(query, max_results, api_key=key, **kwargs)
         raise ValueError(f"Unknown provider: {provider}")
 
     def search(
@@ -129,7 +138,9 @@ class WebSearchClient:
             timestamp=datetime.now(),
         )
 
-    def _search_brave(self, query: str, max_results: int, **kwargs) -> SearchResponse:
+    def _search_brave(
+        self, query: str, max_results: int, api_key: Optional[str] = None, **kwargs
+    ) -> SearchResponse:
         """Search using Brave Search API
 
         Brave Search API: https://brave.com/search/api/
@@ -139,7 +150,7 @@ class WebSearchClient:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {
             "Accept": "application/json",
-            "X-Subscription-Token": self.api_key,
+            "X-Subscription-Token": api_key if api_key is not None else self.api_key,
         }
         params: dict[str, str | int] = {
             "q": query,
@@ -174,7 +185,9 @@ class WebSearchClient:
             timestamp=datetime.now(),
         )
 
-    def _search_tavily(self, query: str, max_results: int, **kwargs) -> SearchResponse:
+    def _search_tavily(
+        self, query: str, max_results: int, api_key: Optional[str] = None, **kwargs
+    ) -> SearchResponse:
         """Search using Tavily API
 
         Tavily API: https://tavily.com/
@@ -183,7 +196,7 @@ class WebSearchClient:
 
         url = "https://api.tavily.com/search"
         payload = {
-            "api_key": self.api_key,
+            "api_key": api_key if api_key is not None else self.api_key,
             "query": query,
             "max_results": max_results,
             "search_depth": "advanced",  # "basic" or "advanced"
@@ -219,7 +232,9 @@ class WebSearchClient:
             timestamp=datetime.now(),
         )
 
-    def _search_serpapi(self, query: str, max_results: int, **kwargs) -> SearchResponse:
+    def _search_serpapi(
+        self, query: str, max_results: int, api_key: Optional[str] = None, **kwargs
+    ) -> SearchResponse:
         """Search using SerpAPI (Google Search)
 
         SerpAPI: https://serpapi.com/
@@ -230,7 +245,7 @@ class WebSearchClient:
         url = "https://serpapi.com/search"
         params: dict[str, str | int | None] = {
             "q": query,
-            "api_key": self.api_key,
+            "api_key": api_key if api_key is not None else self.api_key,
             "num": max_results,
             "engine": "google",  # Use Google search engine
         }
