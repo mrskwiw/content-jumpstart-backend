@@ -17,7 +17,7 @@
  * On failure: add the missing field to the matching schema in src/types/domain.ts,
  * or add it to the case's `ignore` list below (with a comment explaining why).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -80,8 +80,35 @@ function extractZodFields(src, constName) {
   return fields;
 }
 
+function loadOpenApi() {
+  // Never trust the artifact blindly: a missing/empty/invalid contract must FAIL
+  // loudly, not pass silently or crash opaquely. Freshness vs the live backend is
+  // enforced separately by `npm run check:openapi-fresh` (generate-openapi.mjs --check).
+  if (!existsSync(OPENAPI_PATH)) {
+    console.error('✖ openapi.json not found. Run: npm run generate:openapi');
+    process.exit(1);
+  }
+  const raw = readFileSync(OPENAPI_PATH, 'utf8').trim();
+  if (!raw) {
+    console.error('✖ openapi.json is empty (generation likely failed). Run: npm run generate:openapi');
+    process.exit(1);
+  }
+  let doc;
+  try {
+    doc = JSON.parse(raw);
+  } catch (e) {
+    console.error(`✖ openapi.json is not valid JSON: ${e.message}. Run: npm run generate:openapi`);
+    process.exit(1);
+  }
+  if (!doc.components?.schemas || Object.keys(doc.components.schemas).length === 0) {
+    console.error('✖ openapi.json has no component schemas. Run: npm run generate:openapi');
+    process.exit(1);
+  }
+  return doc;
+}
+
 function main() {
-  const openapi = JSON.parse(readFileSync(OPENAPI_PATH, 'utf8'));
+  const openapi = loadOpenApi();
   const domainSrc = readFileSync(DOMAIN_PATH, 'utf8');
   const schemas = openapi.components?.schemas ?? {};
 

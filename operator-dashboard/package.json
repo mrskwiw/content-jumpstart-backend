@@ -20,11 +20,12 @@
     "test:all": "npm run test:coverage && npm run test:e2e",
     "deploy": "npm run build && netlify deploy --prod",
     "deploy:preview": "npm run build && netlify deploy",
-    "generate:openapi": "cd .. && python generate_openapi.py > operator-dashboard/openapi.json 2>/dev/null || true",
-    "generate:types": "openapi-typescript openapi.json -o src/types/api-schema.ts 2>/dev/null || true",
-    "generate:api": "npm run generate:openapi && npm run generate:types || true",
+    "generate:openapi": "node scripts/generate-openapi.mjs",
+    "generate:types": "openapi-typescript openapi.json -o src/types/api-schema.ts",
+    "generate:api": "npm run generate:openapi && npm run generate:types",
     "check:parity": "node scripts/check-api-parity.mjs",
-    "prebuild": "npm run generate:api || echo 'Skipping API generation (build will use existing types)' ; npm run check:parity"
+    "check:openapi-fresh": "node scripts/generate-openapi.mjs --check",
+    "prebuild": "npm run check:openapi-fresh && npm run check:parity"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
