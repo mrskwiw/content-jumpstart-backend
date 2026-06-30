@@ -6,6 +6,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `project/` is the deployable application. Tests live at `../tests/`, docs at `../docs/`, task tracking at `../TODO.md`. Never put tests, docs, or planning files here.
 
+## Deployment model — multi-instance (one database per customer)
+
+Each customer runs as an isolated Render web service pointing at their own Supabase PostgreSQL project. Platform-level keys (Anthropic, Stripe) are shared across all instances via environment variables set at provisioning time.
+
+**Database:** Supabase PostgreSQL (us-west-1). Connection string uses Transaction Pooler (port 6543, not 5432).
+**No SQLite.** The app requires `DATABASE_URL=postgresql://...` — it will refuse to start with a SQLite URL.
+
+### Provisioning a new customer
+
+From the project root (`../`), not from inside `project/`:
+
+```bash
+python ../provision_customer.py
+```
+
+The script is fully interactive — no CLI arguments, no environment variables.
+
+**First run:** a setup wizard collects platform-level API keys (Render, Supabase, Anthropic, Stripe) and saves them to `platform-config.json`. This file is gitignored and contains secrets — never commit it.
+
+**Every subsequent run:** loads `platform-config.json` automatically, then prompts for customer-specific details:
+- Customer name and slug
+- Admin email
+- App domain (CORS origin)
+- Temp password and DB password (auto-generated, accept or override)
+- Whether to skip Supabase creation (if a database already exists)
+
+The script creates a Supabase project, applies `../scripts/schema.sql`, creates the Render service with all env vars, and appends a record to `../customers.json` (also gitignored).
+
+**To re-run the platform setup wizard:** delete `platform-config.json` and run the script again.
+
+### Render API — what's available
+
+Full REST API at `https://api.render.com/v1`. Key endpoints used by the provisioning script:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/services` | POST | Create a service with all env vars in one call |
+| `/services/{id}/env-vars` | PUT | Replace all env vars (⚠ deletes any not included) |
+| `/services/{id}/env-vars/{key}` | PUT | Add/update a single var safely |
+| `/services/{id}/deploys` | POST | Trigger deploy (env var changes don't auto-deploy) |
+
+`SECRET_KEY` uses `"generateValue": true` — Render auto-generates a unique strong secret per service.
+
+### Schema changes
+
+When the schema changes, update `../scripts/schema.sql` and apply to existing customer databases via:
+```bash
+# Supabase dashboard → SQL editor, or:
+psql $DATABASE_URL < ../scripts/schema.sql
+```
+
+New customer instances automatically get the current schema via `provision_customer.py`.
+
 ## Commands
 
 ```bash
@@ -20,7 +73,8 @@ python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5}'
 python agent_cli_enhanced.py chat               # interactive agent
 
 # Tests — must run from project/ targeting ../tests/
-pytest ../tests                             # all 4,743 tests
+pytest ../tests                             # full suite (~6,180 test functions, ~83.6% coverage)
+pytest backend/tests                        # backend-local tests (22 files)
 pytest ../tests/unit/                       # unit only
 pytest ../tests/integration/               # integration only
 pytest ../tests/unit/path/to/test_foo.py -v
@@ -41,7 +95,9 @@ npx jest              # unit tests
 npx playwright test   # e2e tests
 ```
 
-**`pyproject.toml` says `testpaths = ["tests"]` — this is wrong.** Always use `../tests/` from this directory. `conftest.py` adds `project/` to `sys.path` automatically.
+**`pyproject.toml` sets `testpaths = ["../tests", "backend/tests"]`** — the main suite lives at `../tests/`, *outside* this git repo. Always run pytest from `project/`; `conftest.py` adds `project/` to `sys.path` automatically.
+
+> **Decision (2026-06-30): Python tests run LOCALLY, not in CI.** The suite at `../tests/` is intentionally never pushed (it lives outside the `project/` git repo), so GitHub CI cannot run it. `quality-gates.yml` therefore runs only lint (`black`/`ruff` on `src backend`), the frontend build, and a backend import check — **no `pytest`**. Python tests are enforced before commit via pre-commit, Codex adversarial review, and the Stop hooks. **You are responsible for running `pytest ../tests` locally before pushing.** If the suite is later moved into the repo, re-add the `python-tests`/`test-coverage` jobs and make them blocking. Decision record + re-enablement steps: `../TODO.md` → OPS-02.
 
 **Windows UTF-8:** `src/agents/03_post_generator.py` lines 13–15 force UTF-8 output. Never remove them.
 
@@ -66,7 +122,7 @@ Temperature: 0.3 for parsing agents, 0.7 for generation.
 
 ### FastAPI backend (backend/)
 
-27 routers, ~200 endpoints. Middleware stack in `backend/main.py` (order matters):
+29 routers, ~200 endpoints. Middleware stack in `backend/main.py` (order matters):
 
 ```
 RequestIDMiddleware → MetricsMiddleware → CSRFProtectionMiddleware
@@ -83,9 +139,9 @@ Key services:
 
 ### Research tools (src/research/ + backend/services/research_prerequisites.py)
 
-12 tools, $300–$600 per run. All extend `src/research/base.py:ResearchTool`.
+~14 tools, $300–$600 per run. All extend `src/research/base.py:ResearchTool`.
 
-**Dependency system:** each tool declares `ToolPrerequisite` entries typed `REQUIRED | RECOMMENDED | OPTIONAL`. `get_parallel_groups()` in `research_prerequisites.py` builds topological execution batches — currently **only REQUIRED edges** are wired into the sort. Running `competitive_analysis` in the same batch as `determine_competitors` causes HTTP 400 (active P0 — see `../TODO.md`).
+**Dependency system:** each tool declares `ToolPrerequisite` entries typed `REQUIRED | RECOMMENDED | OPTIONAL`. `get_parallel_groups()` in `research_prerequisites.py` builds topological execution batches — currently **only REQUIRED edges** are wired into the sort. Running `competitive_analysis` in the same batch as `determine_competitors` causes HTTP 400. The original P0 batch-research bugs are fixed; tightening RECOMMENDED-edge ordering is a low-priority/optional item (`../TODO.md`).
 
 Adding a new research tool touches 10 files in order:
 1. `src/models/[tool]_models.py` — Pydantic output schema
@@ -136,12 +192,14 @@ DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD   optional — Google Trends fallback
 
 ## Known pitfalls
 
-- **Test path**: `pyproject.toml` is wrong — use `pytest ../tests/` always
+- **Test path**: run `pytest ../tests/` from `project/` — the suite is outside the repo (CI sees only `tests/unit/`, see OPS-02)
 - **Template path**: `.env` must have `TEMPLATE_LIBRARY_PATH=02_POST_TEMPLATE_LIBRARY.md` (not `../02_...`)
 - **Deep-link 404**: only works with a production build (`npm run build`) or Vite dev server
-- **Research race condition**: `competitive_analysis` must run after `determine_competitors` — see P0 in `../TODO.md`
+- **Research race condition**: `competitive_analysis` must run after `determine_competitors` (optional sequencing item in `../TODO.md`)
 - **Google Trends rate limit**: 30 req/hour; circuit-breaker stops after 3 consecutive failures; DataForSEO fallback configured via `DATAFORSEO_LOGIN`
 
-## Coverage gaps (as of 2026-03-19)
+## Coverage gaps (overall ~83.6% as of coverage.json 2026-06-18)
 
-Lowest coverage files: `export_service.py` 75%, `market_trends_research.py` 70%, `seo_keyword_research.py` 75%, `content_generator.py` 85%. Full gap analysis: `../docs/TESTING_GAP_ANALYSIS.md`.
+Worst offenders are revenue/orchestration-critical, not the periphery:
+`stripe_service.py` ~23%, `stripe_checkout.py` ~31%, `generator_service.py` ~24%, `research.py` (router) ~69%.
+Several modules sit at 0% and may be dead scripts (`temp_db_query.py`, `benchmark_queries.py`, `apply_*_indexes.py`, `database_merger.py`) — see `../TODO.md` → TEST-01/OPS-03. Full analysis: `../docs/TESTING_GAP_ANALYSIS.md` (note: that doc's headline % is stale).
