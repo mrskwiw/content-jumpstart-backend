@@ -165,7 +165,8 @@ Stack: React 18 + TypeScript + Vite + Tailwind + shadcn/ui + React Query 5 + Zus
 - **Null safety:** always `(value?.prop ?? fallback).toFixed(n)` — missing optional chaining is the #1 runtime error source
 - Dark mode: `className="bg-white dark:bg-neutral-900"`
 - API clients: `src/api/` — one module per domain, all use shared Axios instance with auth interceptor
-- Types: `src/types/domain.ts` is the canonical TypeScript model source
+- Types: `src/types/domain.ts` (Zod) is the **canonical** TypeScript model source. The generated `src/types/api-schema.ts` is reference only (openapi-typescript output)
+- **API type parity:** the backend contract is `operator-dashboard/openapi.json`, generated from the FastAPI app via `npm run generate:openapi` (now works without a live DB — see `generate_openapi.py`). `npm run check:parity` (also runs in `prebuild`) fails the build if `domain.ts` is missing any field the backend serializes, so types can't silently drift. After changing a backend response model: regenerate the contract, then add any new fields to `domain.ts`. Core models checked: Client/Project/Run (extend `CASES` in `scripts/check-api-parity.mjs`). A local jest mirror lives at `src/types/__tests__/api-parity.test.ts`
 
 Adding a new endpoint: schema → router → service → `src/api/[domain].ts` → `domain.ts` types → integration test.
 

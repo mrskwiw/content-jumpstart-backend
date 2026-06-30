@@ -47,7 +47,7 @@ class WebSearchConfigUpdate(BaseModel):
         json_schema_extra = {
             "example": {
                 "provider": "brave",
-                "brave_api_key": "BSA1234567890...",  # pragma: allowlist secret
+                "brave_api_key": "<your-brave-api-key>",  # pragma: allowlist secret
                 "tavily_api_key": None,
                 "serpapi_api_key": None,
             }
@@ -64,7 +64,7 @@ class TestConnectionRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "provider": "brave",
-                "api_key": "BSA1234567890...",  # pragma: allowlist secret
+                "api_key": "<your-provider-api-key>",  # pragma: allowlist secret
             }
         }
 
