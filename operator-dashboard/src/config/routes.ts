@@ -6,6 +6,7 @@ export const ROUTES = {
   CLIENTS: '/dashboard/clients',
   CLIENT_NEW: '/dashboard/clients/new',
   CLIENT_DETAIL: (id: string) => `/dashboard/clients/${id}`,
+  CLIENT_KEYWORDS: (id: string) => `/dashboard/clients/${id}/keywords`,
   PROJECTS: '/dashboard/projects',
   PROJECT_DETAIL: (id: string) => `/dashboard/projects/${id}`,
   DELIVERABLES: '/dashboard/deliverables',

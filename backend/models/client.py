@@ -77,6 +77,12 @@ class Client(Base, SoftDeleteMixin):
     communications = relationship(
         "Communication", back_populates="client", cascade="all, delete-orphan"
     )
+    keywords_list = relationship(
+        "backend.models.client_keywords.ClientKeyword",
+        back_populates="client",
+        cascade="all, delete-orphan",
+        foreign_keys="[backend.models.client_keywords.ClientKeyword.client_id]",
+    )
 
     def __repr__(self):
         return f"<Client {self.name}>"
