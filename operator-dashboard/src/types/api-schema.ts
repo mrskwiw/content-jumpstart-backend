@@ -474,7 +474,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/api/health/pytrends": {
+    "/api/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -482,13 +482,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check Pytrends
-         * @description Test Google Trends (pytrends) connectivity.
-         *
-         *     Returns:
-         *         Dict with status, latency, and version info
+         * Health Check
+         * @description Basic API health response used by the dashboard.
          */
-        get: operations["check_pytrends_api_api_health_pytrends_get"];
+        get: operations["health_check_api_health_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -497,7 +494,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/api/health/anthropic": {
+    "/api/health/ready": {
         parameters: {
             query?: never;
             header?: never;
@@ -505,13 +502,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check Anthropic
-         * @description Test Anthropic API connectivity.
-         *
-         *     Returns:
-         *         Dict with status and API key validity
+         * Readiness Check
+         * @description Kubernetes-style readiness probe — verifies the app and DB are ready.
          */
-        get: operations["check_anthropic_api_api_health_anthropic_get"];
+        get: operations["readiness_check_api_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -520,7 +514,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/api/health/system": {
+    "/api/health/live": {
         parameters: {
             query?: never;
             header?: never;
@@ -528,15 +522,212 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check System
-         * @description Overall system health check.
-         *
-         *     Returns:
-         *         Dict with status of all integrations
+         * Liveness Check
+         * @description Kubernetes-style liveness probe — returns immediately.
          */
-        get: operations["check_system_api_api_health_system_get"];
+        get: operations["liveness_check_api_health_live_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/database": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Health
+         * @description Return database connection pool details.
+         */
+        get: operations["database_health_api_health_database_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/database/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Events
+         * @description Return database pool event counters.
+         */
+        get: operations["database_events_api_health_database_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/cache": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cache Health
+         * @description Return cache statistics for one tier or all tiers.
+         */
+        get: operations["cache_health_api_health_cache_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/cache/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Cache Health
+         * @description Clear cache entries and return before/after statistics.
+         */
+        post: operations["clear_cache_health_api_health_cache_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/cache/reset-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Cache Health
+         * @description Reset cache statistics counters.
+         */
+        post: operations["reset_cache_health_api_health_cache_reset_stats_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/full": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full Health
+         * @description Aggregate API, database, cache, and profiling health.
+         */
+        get: operations["full_health_api_health_full_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/profiling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profiling Overview
+         * @description Return a profiling summary for the health dashboard.
+         */
+        get: operations["profiling_overview_api_health_profiling_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/profiling/queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profiling Queries
+         * @description Return aggregated query statistics.
+         */
+        get: operations["profiling_queries_api_health_profiling_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/profiling/slow-queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Profiling Slow Queries
+         * @description Return the recent slow query buffer.
+         */
+        get: operations["profiling_slow_queries_api_health_profiling_slow_queries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/profiling/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Profiling Reset
+         * @description Reset profiling statistics.
+         */
+        post: operations["profiling_reset_api_health_profiling_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -618,6 +809,46 @@ export interface paths {
         patch: operations["update_client_api_clients__client_id__patch"];
         trace?: never;
     };
+    "/api/clients/{client_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Client
+         * @description Soft-delete (archive) a client.
+         */
+        post: operations["archive_client_api_clients__client_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unarchive Client
+         * @description Restore an archived client.
+         */
+        post: operations["unarchive_client_api_clients__client_id__unarchive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/clients/{client_id}/export-profile": {
         parameters: {
             query?: never;
@@ -647,6 +878,178 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Keywords
+         * @description Return all active keywords for a client, grouped by type.
+         */
+        get: operations["list_keywords_api_clients__client_id__keywords_get"];
+        put?: never;
+        /**
+         * Add Keyword
+         * @description Add a single keyword to a client's keyword list.
+         */
+        post: operations["add_keyword_api_clients__client_id__keywords_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/keywords/{keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Keyword
+         * @description Update an existing keyword.
+         */
+        put: operations["update_keyword_api_clients__client_id__keywords__keyword_id__put"];
+        post?: never;
+        /**
+         * Delete Keyword
+         * @description Soft-delete a keyword (sets is_active=False).
+         */
+        delete: operations["delete_keyword_api_clients__client_id__keywords__keyword_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/keywords/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Keywords
+         * @description Bulk-upsert keywords. Merges with existing — does not delete.
+         */
+        post: operations["bulk_upsert_keywords_api_clients__client_id__keywords_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/keywords/import/{result_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import From Research
+         * @description Seed keyword list from an existing SEO research result.
+         */
+        post: operations["import_from_research_api_clients__client_id__keywords_import__result_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Communications
+         * @description Get all communications for a client
+         */
+        get: operations["get_client_communications_api_clients__client_id__communications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Communication
+         * @description Create a new communication record
+         */
+        post: operations["create_communication_api_communications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/clients/{client_id}/send-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Client Email
+         * @description Send an email to a client and record it in the communication log.
+         *
+         *     In production (SMTP configured): delivers via SMTP.
+         *     In development (no SMTP): writes to data/email_logs/ and marks status as 'logged'.
+         *     Either way, a Communication record is created for the audit trail.
+         */
+        post: operations["send_client_email_api_clients__client_id__send_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/communications/{communication_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Communication
+         * @description Delete a communication
+         */
+        delete: operations["delete_communication_api_communications__communication_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1044,6 +1447,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/deliverables/from-research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Research Report
+         * @description Generate standalone research report from completed research tools.
+         *
+         *     Queries ResearchResult for specified client's completed tools,
+         *     formats them into a deliverable report, and returns download URL.
+         *
+         *     Rate limit: 10/hour per IP+user (expensive report generation)
+         *     Authorization: TR-021 - User must own the client
+         */
+        post: operations["generate_research_report_api_deliverables_from_research_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/posts/": {
         parameters: {
             query?: never;
@@ -1126,6 +1555,74 @@ export interface paths {
          *     Returns the updated post.
          */
         patch: operations["update_post_api_posts__post_id__patch"];
+        trace?: never;
+    };
+    "/api/privacy/clients/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Client */
+        delete: operations["delete_client_api_privacy_clients__client_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/clients/{client_id}/anonymize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Anonymize Client */
+        post: operations["anonymize_client_api_privacy_clients__client_id__anonymize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/clients/{client_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Client */
+        get: operations["export_client_api_privacy_clients__client_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/privacy/clients/{client_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Client */
+        post: operations["restore_client_api_privacy_clients__client_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/stories/": {
@@ -1402,6 +1899,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/generator/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Templates
+         * @description Get all templates with their research prerequisites.
+         *
+         *     Returns list of templates with updated P0/P1/P2 prerequisites from
+         *     template_prerequisites.py configuration (Bug #42 fix).
+         *
+         *     Returns:
+         *         List of template objects with:
+         *         - id: Template number (1-15)
+         *         - name: Template name
+         *         - description: Template format/structure
+         *         - bestFor: What the template is best used for
+         *         - difficulty: Difficulty level (fast/medium/slow)
+         *         - required: P0 (Critical) research tools list
+         *         - recommended: P1 (Recommended) research tools list
+         *         - optional: P2 (Optional) research tools list
+         *
+         *     Raises:
+         *         HTTPException 404: Template library file not found
+         *         HTTPException 500: Failed to parse templates
+         */
+        get: operations["list_templates_api_generator_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/generator/validate-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Templates
+         * @description Validate template prerequisites before generation.
+         *
+         *     Returns validation results including:
+         *     - Whether generation can proceed
+         *     - Blocked templates (CRITICAL risk missing data)
+         *     - Warnings (HIGH risk templates)
+         *     - Missing fields for each template
+         *
+         *     Frontend can use this to show prerequisites UI before generation starts.
+         */
+        post: operations["validate_templates_api_generator_validate_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/generator/generate-all": {
         parameters: {
             query?: never;
@@ -1507,6 +2070,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/project/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Research Project
+         * @description Get or create a research project for a client.
+         *
+         *     Used by the Tools Library to get the project ID for running research tools.
+         *     If a research project doesn't exist for this client, one is created automatically.
+         *
+         *     Authorization: TR-021 - User must own the client
+         *
+         *     Returns:
+         *         { "project_id": "proj-xxx" }
+         */
+        get: operations["get_research_project_api_research_project__client_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute Research
+         * @description Submit a research tool execution request (client-scoped, no project needed).
+         *
+         *     Validates inputs against the tool schema, creates a pending ResearchResult,
+         *     and returns immediately. The result may be processed asynchronously.
+         */
+        post: operations["execute_research_api_research_execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research/run": {
         parameters: {
             query?: never;
@@ -1541,6 +2155,27 @@ export interface paths {
          *     All string parameters are sanitized before being passed to LLM prompts.
          */
         post: operations["run_research_api_research_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/research/results/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get All Research Results
+         * @description Get all research results for the current user, across all clients/projects.
+         *     Supports filtering by tool_name, client_id, and date range (days back from now).
+         */
+        get: operations["get_all_research_results_api_research_results__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1693,6 +2328,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/research/prerequisites/client/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Prerequisites
+         * @description Get prerequisite status for tools based on a specific client's completed research.
+         *
+         *     This endpoint enables client-specific dependency tracking in the Tool Library page.
+         *     Returns which tools have been completed for this client and what prerequisites
+         *     are missing for tools that haven't been run yet.
+         *
+         *     Args:
+         *         client_id: Client ID to check research completion status
+         *         tool_names: Optional comma-separated list of tools to check. If not provided,
+         *                    checks all available tools.
+         *
+         *     Returns:
+         *         Status for each tool including whether it's been completed for this client
+         *         and what prerequisites are missing.
+         *
+         *     Authorization: TR-021 - User must own the client
+         */
+        get: operations["get_client_prerequisites_api_research_prerequisites_client__client_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/research/execution-order": {
         parameters: {
             query?: never;
@@ -1707,13 +2377,17 @@ export interface paths {
          * @description Get optimal execution order for research tools based on dependencies.
          *
          *     Uses topological sort to ensure prerequisites run before dependent tools.
-         *     This is a read-only endpoint that doesn't execute anything - just calculates order.
+         *     This is a read-only endpoint that doesn't execute anything — just calculates order.
+         *
+         *     project_id / client_id are accepted but reserved for future use (e.g. skipping
+         *     tools whose results are already fresh in the DB without re-running them).
          *
          *     Args:
-         *         order_request: List of tool names to order
+         *         order_request: List of tool names and optional client/project context
          *
          *     Returns:
-         *         Optimal execution order (prerequisites first)
+         *         Optimal execution order (prerequisites first) and parallel_groups for
+         *         concurrent frontend execution (tools in each group are independent).
          */
         post: operations["get_execution_order_api_research_execution_order_post"];
         delete?: never;
@@ -1766,23 +2440,10 @@ export interface paths {
         };
         /**
          * Get Pricing Preview
-         * @description Calculate credit cost for selected research tools.
+         * @description Calculate dollar cost for selected research tools with bundle detection.
          *
          *     Query params:
          *     - tool_ids: Comma-separated tool IDs (e.g. "voice_analysis,brand_archetype")
-         *
-         *     Returns:
-         *     {
-         *       "base_cost": 175,  # Total credits needed
-         *       "discount": 0,      # No discounts in credit system
-         *       "final_cost": 175,  # Same as base_cost
-         *       "bundle_applied": null,
-         *       "bundle_name": null,
-         *       "savings_percent": 0.0,
-         *       "next_bundle_suggestion": null
-         *     }
-         *
-         *     Note: Bundle discounts removed - credit system uses flat per-tool pricing.
          */
         get: operations["get_pricing_preview_api_research_pricing_preview_get"];
         put?: never;
@@ -1818,6 +2479,71 @@ export interface paths {
         get: operations["get_research_analytics_api_research_analytics_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-research/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Research Client Brief
+         * @description Research a business from name + location and return a pre-populated brief draft.
+         *     Does not save to the database — callers review and apply selected fields.
+         *     Costs 200 credits.
+         */
+        post: operations["research_client_brief_api_client_research_brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-research/clients/{client_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Research And Apply
+         * @description Research an existing client by name + location and patch their record with
+         *     all discovered non-null fields. Costs 200 credits.
+         */
+        post: operations["research_and_apply_api_client_research_clients__client_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/client-research/brief/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download Brief
+         * @description Generate and download a client brief document in the requested format.
+         *     No credits charged — the brief data was already paid for by /brief.
+         *     Document generation runs in a thread pool to avoid blocking the event loop.
+         */
+        post: operations["download_brief_api_client_research_brief_download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2002,8 +2728,8 @@ export interface paths {
          *     Example response:
          *     ```json
          *     {
-         *         "pricePerPost": 40.0,
-         *         "researchPricePerPost": 0.0  // DEPRECATED,
+         *         "pricePerPost": 0.0,  // DEPRECATED - use credits,
+         *         "researchPricePerPost": 0.0,  # DEPRECATED,
          *         "minPosts": 1,
          *         "maxPosts": 100,
          *         "unlimitedRevisions": true
@@ -2049,8 +2775,8 @@ export interface paths {
          *     {
          *         "numPosts": 30,
          *         "researchIncluded": true,
-         *         "pricePerPost": 40.0,
-         *         "researchPricePerPost": 0.0  // DEPRECATED,
+         *         "pricePerPost": 0.0,  // DEPRECATED - use credits,
+         *         "researchPricePerPost": 0.0,  # DEPRECATED,
          *         "totalPrice": 1650.0
          *     }
          *     ```
@@ -2080,8 +2806,8 @@ export interface paths {
          *     {
          *         "numPosts": 30,
          *         "researchIncluded": true,
-         *         "pricePerPost": 40.0,
-         *         "researchPricePerPost": 0.0  // DEPRECATED,
+         *         "pricePerPost": 0.0,  // DEPRECATED - use credits,
+         *         "researchPricePerPost": 0.0,  # DEPRECATED,
          *         "totalPrice": 1650.0
          *     }
          *     ```
@@ -2131,10 +2857,9 @@ export interface paths {
          *     {
          *         "numPosts": 10,
          *         "researchIncluded": false,
-         *         "pricePerPost": 40.0,
-         *         "researchPricePerPost": 0.0  // DEPRECATED,
+         *         "pricePerPost": 0.0,  // DEPRECATED - use credits,
+         *         "researchPricePerPost": 0.0,
          *         "totalPrice": 400.0
-         *     }
          *     ```
          */
         post: operations["calculate_price_from_template_quantities_api_pricing_calculate_from_quantities_post"];
@@ -2451,6 +3176,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assistant/chat/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat Stream
+         * @description Stream AI assistant responses in real-time.
+         *
+         *     Returns Server-Sent Events with response chunks as they're generated.
+         *     Provides better UX for long responses by showing progress immediately.
+         */
+        post: operations["chat_stream_api_assistant_chat_stream_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/web-search": {
         parameters: {
             query?: never;
@@ -2550,6 +3298,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/database/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Status
+         * @description Return current schema version and database connection info.
+         *
+         *     **ADMIN ONLY**
+         */
+        get: operations["database_status_api_database_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/database/backup": {
         parameters: {
             query?: never;
@@ -2558,25 +3328,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download Database Backup
-         * @description Download a backup of the SQLite database.
+         * Backup Info
+         * @description Returns instructions for backing up the Supabase database.
          *
-         *     **ADMIN ONLY**: Requires superuser privileges.
+         *     **ADMIN ONLY**
          *
-         *     Creates a timestamped copy of the database file and returns it for download.
-         *     This endpoint downloads the ENTIRE database including all users' data.
-         *
-         *     Args:
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *
-         *     Returns:
-         *         FileResponse: Database file download
-         *
-         *     Raises:
-         *         HTTPException 403: User is not an admin
-         *         HTTPException: If database is not SQLite or file cannot be accessed
+         *     The previous SQLite file-download backup has been replaced by Supabase-native
+         *     backup tooling. Use pg_dump for ad-hoc exports or the Supabase dashboard for
+         *     scheduled backups (Pro plan).
          */
-        get: operations["download_database_backup_api_database_backup_get"];
+        get: operations["backup_info_api_database_backup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2595,40 +3356,86 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Restore Database From Backup
-         * @description Restore database from an uploaded SQLite backup file.
+         * Restore Not Available
+         * @description File-based SQLite restore is no longer available.
          *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Behaviour:
-         *     - File-based SQLite: replaces the database file on disk (preferred).
-         *     - In-memory SQLite (PostgreSQL unavailable at startup): loads the backup
-         *       into the live in-memory engine via the sqlite3 backup API so the
-         *       restored data is immediately available for the current session.
-         *
-         *     ⚠️ **DESTRUCTIVE OPERATION**: All current data will be replaced.
-         *
-         *     Args:
-         *         file: Uploaded SQLite .db backup file
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *         db: Database session (closed before restore)
-         *
-         *     Returns:
-         *         dict: Status message and restore details
-         *
-         *     Raises:
-         *         HTTPException 400: Invalid file
-         *         HTTPException 403: Not an admin
-         *         HTTPException 500: Restore failed
+         *     Use the Supabase dashboard or psql to restore from a pg_dump backup.
          */
-        post: operations["restore_database_from_backup_api_database_restore_post"];
+        post: operations["restore_not_available_api_database_restore_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/database/cleanup-backups": {
+    "/api/database/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Not Available
+         * @description SQLite database merge is no longer available.
+         *
+         *     To import records from another instance, use pg_dump with --table and
+         *     --data-only flags, or contact support for a data migration script.
+         */
+        post: operations["merge_not_available_api_database_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cache/cache/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cache Stats
+         * @description Get cache statistics (admin only).
+         *
+         *     Returns metrics about cache usage and performance.
+         */
+        get: operations["get_cache_stats_api_cache_cache_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cache/cache/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear Cache
+         * @description Clear all cache entries (admin only).
+         *
+         *     Use sparingly - clears all cached data.
+         */
+        post: operations["clear_cache_api_cache_cache_clear_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cache/cache/pattern/{pattern}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2639,22 +3446,290 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Cleanup Old Backups
-         * @description Delete backup files older than specified number of days.
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
+         * Invalidate Cache Pattern
+         * @description Invalidate cache entries matching a pattern (admin only).
          *
          *     Args:
-         *         days: Number of days to keep backups (default: 30)
-         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *         pattern: Pattern to match (supports * wildcard)
          *
-         *     Returns:
-         *         dict: Number of backups deleted
-         *
-         *     Raises:
-         *         HTTPException 403: User is not an admin
+         *     Example:
+         *         DELETE /api/cache/pattern/research_results:*
          */
-        delete: operations["cleanup_old_backups_api_database_cleanup_backups_delete"];
+        delete: operations["invalidate_cache_pattern_api_cache_cache_pattern__pattern__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/metrics/metrics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Metrics Summary
+         * @description Get high-level application metrics summary.
+         *
+         *     Returns overall stats like uptime, total requests, error rate.
+         */
+        get: operations["get_metrics_summary_api_metrics_metrics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/metrics/metrics/endpoints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Endpoint Metrics
+         * @description Get detailed metrics for all API endpoints.
+         *
+         *     Returns request counts, success rates, and response times per endpoint.
+         */
+        get: operations["get_endpoint_metrics_api_metrics_metrics_endpoints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/metrics/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get All Metrics
+         * @description Get complete metrics including summary, endpoints, cache, and errors.
+         *
+         *     Provides full observability into application performance.
+         */
+        get: operations["get_all_metrics_api_metrics_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/metrics/metrics/prometheus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Prometheus Metrics
+         * @description Get metrics in Prometheus exposition format.
+         *
+         *     Can be scraped by Prometheus for monitoring and alerting.
+         */
+        get: operations["get_prometheus_metrics_api_metrics_metrics_prometheus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stripe/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Checkout Session
+         * @description Create a Stripe Checkout Session for a credit package.
+         */
+        post: operations["create_checkout_session_api_stripe_checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stripe/payment-status/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Payment Status
+         * @description Poll payment status for a checkout session. Used by success page.
+         */
+        get: operations["get_payment_status_api_stripe_payment_status__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stripe/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stripe Webhook
+         * @description Stripe webhook endpoint. Verifies signature and processes events.
+         *     IMPORTANT: Must receive raw bytes — do NOT use a Pydantic body parameter.
+         */
+        post: operations["stripe_webhook_api_stripe_webhook_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stripe/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payments
+         * @description Return Stripe payment history for the current user.
+         */
+        get: operations["list_payments_api_stripe_payments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stripe/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Billing Portal
+         * @description Create a Stripe Customer Portal session and return the URL.
+         */
+        post: operations["create_billing_portal_api_stripe_portal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Audit Stats
+         * @description Return compliance dashboard aggregate stats.
+         *
+         *     Superusers see platform-wide totals. Regular users see only their own.
+         */
+        get: operations["get_audit_stats_api_audit_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit Csv
+         * @description Export filtered audit log as CSV for compliance reporting.
+         */
+        get: operations["export_audit_csv_api_audit_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/export.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit Json
+         * @description Export filtered audit log as JSON for compliance reporting.
+         */
+        get: operations["export_audit_json_api_audit_export_json_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Audit Logs
+         * @description Return paginated audit log entries for the current user.
+         *
+         *     Filters: action_type, resource_type, status, date_from (ISO), date_to (ISO).
+         *     Authorization: Users see only their own entries.
+         */
+        get: operations["list_audit_logs_api_audit__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2756,9 +3831,7 @@ export interface components {
             execution_order: string[];
             /** Results */
             results: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: Record<string, never>;
             };
             /** Summary */
             summary: {
@@ -2776,20 +3849,20 @@ export interface components {
              * Params
              * @default {}
              */
-            params: {
-                [key: string]: unknown;
-            } | null;
+            params: Record<string, never> | null;
+        };
+        /** BillingPortalRequest */
+        BillingPortalRequest: {
+            /** Return Url */
+            return_url: string;
+        };
+        /** BillingPortalResponse */
+        BillingPortalResponse: {
+            /** Portal Url */
+            portal_url: string;
         };
         /** Body_parse_brief_file_api_briefs_parse_post */
         Body_parse_brief_file_api_briefs_parse_post: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
-        /** Body_restore_database_from_backup_api_database_restore_post */
-        Body_restore_database_from_backup_api_database_restore_post: {
             /**
              * File
              * Format: binary
@@ -2818,6 +3891,26 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** BriefDownloadRequest */
+        BriefDownloadRequest: {
+            /** Brief */
+            brief: Record<string, never>;
+            /**
+             * Confidence
+             * @default {}
+             */
+            confidence: {
+                [key: string]: number;
+            };
+            /**
+             * Format
+             * @default md
+             * @enum {string}
+             */
+            format: "md" | "docx" | "pdf";
+            /** Company Name */
+            company_name?: string | null;
+        };
         /**
          * BriefResponse
          * @description Schema for brief response.
@@ -2842,6 +3935,38 @@ export interface components {
             createdAt: string;
         };
         /**
+         * CacheMetrics
+         * @description Cache performance metrics
+         */
+        CacheMetrics: {
+            /** Size */
+            size: number;
+            /** Max Size */
+            max_size: number;
+            /** Hits */
+            hits: number;
+            /** Misses */
+            misses: number;
+            /** Hit Rate */
+            hit_rate: number;
+        };
+        /**
+         * CacheStats
+         * @description Cache statistics
+         */
+        CacheStats: {
+            /** Size */
+            size: number;
+            /** Max Size */
+            max_size: number;
+            /** Hits */
+            hits: number;
+            /** Misses */
+            misses: number;
+            /** Hit Rate */
+            hit_rate: number;
+        };
+        /**
          * CalculatePriceResponse
          * @description Response model for price calculation
          */
@@ -2850,10 +3975,11 @@ export interface components {
             numPosts: number;
             /** Researchincluded */
             researchIncluded: boolean;
-            /** Priceperpost */
+            /**
+             * Priceperpost
+             * @default 0
+             */
             pricePerPost: number;
-            /** Researchpriceperpost */
-            researchPricePerPost: number;
             /** Totalprice */
             totalPrice: number;
         };
@@ -2868,9 +3994,7 @@ export interface components {
              * Context
              * @default {}
              */
-            context: {
-                [key: string]: unknown;
-            } | null;
+            context: Record<string, never> | null;
             /**
              * Conversation History
              * @default []
@@ -2890,6 +4014,24 @@ export interface components {
              */
             suggestions: string[];
         };
+        /** CheckoutSessionRequest */
+        CheckoutSessionRequest: {
+            /** Package Id */
+            package_id: string;
+            /** Success Url */
+            success_url: string;
+            /** Cancel Url */
+            cancel_url: string;
+            /** Project Id */
+            project_id?: string | null;
+        };
+        /** CheckoutSessionResponse */
+        CheckoutSessionResponse: {
+            /** Checkout Url */
+            checkout_url: string;
+            /** Session Id */
+            session_id: string;
+        };
         /**
          * ClientCreate
          * @description Schema for creating a client.
@@ -2900,7 +4042,10 @@ export interface components {
          *     - Protected fields set by system: id, user_id, created_at
          */
         ClientCreate: {
-            /** Name */
+            /**
+             * Name
+             * @description Client company name
+             */
             name: string;
             /** Email */
             email?: string | null;
@@ -2913,7 +4058,7 @@ export interface components {
             /** Tone Preference */
             tone_preference?: string | null;
             /** Platforms */
-            platforms?: string[] | null;
+            platforms?: components["schemas"]["Platform-Input"][] | null;
             /** Customer Pain Points */
             customer_pain_points?: string[] | null;
             /** Customer Questions */
@@ -2926,6 +4071,83 @@ export interface components {
             competitors?: string[] | null;
             /** Location */
             location?: string | null;
+            /** Founder Name */
+            founder_name?: string | null;
+            /** Brand Personality */
+            brand_personality?: string[] | null;
+            /** Tone To Avoid */
+            tone_to_avoid?: string | null;
+            /** Data Usage */
+            data_usage?: string | null;
+            /** Stories */
+            stories?: string[] | null;
+            /** Misconceptions */
+            misconceptions?: string[] | null;
+            /** Measurable Results */
+            measurable_results?: string | null;
+            /** Posting Frequency */
+            posting_frequency?: string | null;
+            /** Main Cta */
+            main_cta?: string | null;
+            /** Key Phrases */
+            key_phrases?: string[] | null;
+            /** Recommended Platforms */
+            recommended_platforms?: string[] | null;
+        };
+        /**
+         * ClientPrerequisiteResponse
+         * @description Response from client prerequisite check
+         */
+        ClientPrerequisiteResponse: {
+            /** Client Id */
+            client_id: string;
+            /** Tools */
+            tools: components["schemas"]["ClientToolStatus"][];
+            /** Completed Tools */
+            completed_tools: string[];
+        };
+        /** ClientResearchRequest */
+        ClientResearchRequest: {
+            /**
+             * Name
+             * @description Business name
+             */
+            name: string;
+            /**
+             * Location
+             * @description City, state or region
+             */
+            location: string;
+            /**
+             * Website
+             * @description Optional — adds a site-specific search
+             */
+            website?: string | null;
+        };
+        /** ClientResearchResponse */
+        ClientResearchResponse: {
+            /** Brief */
+            brief: Record<string, never>;
+            /** Confidence */
+            confidence: {
+                [key: string]: number;
+            };
+            /** Sources */
+            sources: string[];
+            /** Duration Seconds */
+            duration_seconds: number;
+            /**
+             * Stub Mode
+             * @default false
+             */
+            stub_mode: boolean;
+            /** Warning */
+            warning?: string | null;
+            /**
+             * Credit Cost
+             * @default 200
+             */
+            credit_cost: number;
         };
         /**
          * ClientResponse
@@ -2934,8 +4156,10 @@ export interface components {
          *     TR-022: Includes all fields including read-only ones
          */
         ClientResponse: {
-            /** Name */
-            name: string;
+            /** Id */
+            id: string;
+            /** Companyname */
+            companyName: string;
             /** Email */
             email?: string | null;
             /** Businessdescription */
@@ -2947,7 +4171,7 @@ export interface components {
             /** Tonepreference */
             tonePreference?: string | null;
             /** Platforms */
-            platforms?: string[] | null;
+            platforms?: components["schemas"]["backend__schemas__enums__Platform"][] | null;
             /** Customerpainpoints */
             customerPainPoints?: string[] | null;
             /** Customerquestions */
@@ -2960,13 +4184,51 @@ export interface components {
             competitors?: string[] | null;
             /** Location */
             location?: string | null;
-            /** Id */
-            id: string;
+            /** Foundername */
+            founderName?: string | null;
+            /** Brandpersonality */
+            brandPersonality?: string[] | null;
+            /** Tonetoavoid */
+            toneToAvoid?: string | null;
+            /** Datausage */
+            dataUsage?: string | null;
+            /** Stories */
+            stories?: string[] | null;
+            /** Misconceptions */
+            misconceptions?: string[] | null;
+            /** Measurableresults */
+            measurableResults?: string | null;
+            /** Postingfrequency */
+            postingFrequency?: string | null;
+            /** Maincta */
+            mainCta?: string | null;
+            /** Keyphrases */
+            keyPhrases?: string[] | null;
+            /** Recommendedplatforms */
+            recommendedPlatforms?: string[] | null;
             /**
              * Createdat
              * Format: date-time
              */
             createdAt: string;
+        };
+        /**
+         * ClientToolStatus
+         * @description Prerequisite status for a tool for a specific client
+         */
+        ClientToolStatus: {
+            /** Tool Name */
+            tool_name: string;
+            /** Can Run */
+            can_run: boolean;
+            /** Completed */
+            completed: boolean;
+            /** Missing Required */
+            missing_required: string[];
+            /** Missing Recommended */
+            missing_recommended: string[];
+            /** Last Run At */
+            last_run_at?: string | null;
         };
         /**
          * ClientUpdate
@@ -2991,7 +4253,7 @@ export interface components {
             /** Tone Preference */
             tone_preference?: string | null;
             /** Platforms */
-            platforms?: string[] | null;
+            platforms?: components["schemas"]["Platform-Input"][] | null;
             /** Customer Pain Points */
             customer_pain_points?: string[] | null;
             /** Customer Questions */
@@ -3004,6 +4266,77 @@ export interface components {
             competitors?: string[] | null;
             /** Location */
             location?: string | null;
+            /** Founder Name */
+            founder_name?: string | null;
+            /** Brand Personality */
+            brand_personality?: string[] | null;
+            /** Tone To Avoid */
+            tone_to_avoid?: string | null;
+            /** Data Usage */
+            data_usage?: string | null;
+            /** Stories */
+            stories?: string[] | null;
+            /** Misconceptions */
+            misconceptions?: string[] | null;
+            /** Measurable Results */
+            measurable_results?: string | null;
+            /** Posting Frequency */
+            posting_frequency?: string | null;
+            /** Main Cta */
+            main_cta?: string | null;
+            /** Key Phrases */
+            key_phrases?: string[] | null;
+        };
+        /**
+         * CommunicationCreate
+         * @description Input for creating a communication
+         */
+        CommunicationCreate: {
+            /** Client Id */
+            client_id: number;
+            /** Type */
+            type: string;
+            /** Subject */
+            subject: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Direction
+             * @default outbound
+             */
+            direction: string;
+            /**
+             * Duration
+             * @default
+             */
+            duration: string;
+        };
+        /**
+         * CommunicationResponse
+         * @description Communication response
+         */
+        CommunicationResponse: {
+            /** Id */
+            id: number;
+            /** Client Id */
+            client_id: number;
+            /** User Id */
+            user_id: number;
+            /** Type */
+            type: string;
+            /** Subject */
+            subject: string;
+            /** Content */
+            content: string;
+            /** Direction */
+            direction: string;
+            /** Duration */
+            duration: string;
+            /** Created At */
+            created_at: string;
         };
         /**
          * ContextRequest
@@ -3016,9 +4349,7 @@ export interface components {
              * Data
              * @default {}
              */
-            data: {
-                [key: string]: unknown;
-            } | null;
+            data: Record<string, never> | null;
         };
         /**
          * ContextResponse
@@ -3031,9 +4362,7 @@ export interface components {
              * Quick Actions
              * @default []
              */
-            quick_actions: {
-                [key: string]: unknown;
-            }[];
+            quick_actions: Record<string, never>[];
         };
         /**
          * CostEstimateResponse
@@ -3045,9 +4374,7 @@ export interface components {
             /** Total Credits */
             total_credits: number;
             /** Estimated Cost Usd */
-            estimated_cost_usd: {
-                [key: string]: unknown;
-            };
+            estimated_cost_usd: Record<string, never>;
         };
         /**
          * CostEstimationRequest
@@ -3152,9 +4479,7 @@ export interface components {
             /** Recent Transactions */
             recent_transactions: components["schemas"]["TransactionSummary"][];
             /** Available Packages */
-            available_packages: {
-                [key: string]: unknown;
-            };
+            available_packages: Record<string, never>;
         };
         /**
          * CreditTransactionResponse
@@ -3186,10 +4511,10 @@ export interface components {
          * @description Extended deliverable response with all details for drawer
          */
         DeliverableDetailResponse: {
-            /** Format */
-            format: string;
             /** Id */
             id: string;
+            /** Format */
+            format: string;
             /** Projectid */
             projectId: string;
             /** Clientid */
@@ -3200,8 +4525,11 @@ export interface components {
             path: string;
             /** Status */
             status: string;
-            /** Createdat */
-            createdAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
             /** Deliveredat */
             deliveredAt?: string | null;
             /** Proofurl */
@@ -3219,19 +4547,13 @@ export interface components {
              * @default false
              */
             filePreviewTruncated: boolean;
-            /**
-             * Posts
-             * @default []
-             */
-            posts: components["schemas"]["PostSummary"][];
+            /** Posts */
+            posts?: components["schemas"]["PostSummary"][];
             qaSummary?: components["schemas"]["QASummary"] | null;
             /** Filemodifiedat */
             fileModifiedAt?: string | null;
-            /**
-             * Researchresults
-             * @default []
-             */
-            researchResults: components["schemas"]["ResearchResultSummary"][];
+            /** Researchresults */
+            researchResults?: components["schemas"]["ResearchResultSummary"][];
         };
         /**
          * DeliverableResponse
@@ -3240,10 +4562,10 @@ export interface components {
          *     TR-022: Includes all fields including read-only ones
          */
         DeliverableResponse: {
-            /** Format */
-            format: string;
             /** Id */
             id: string;
+            /** Format */
+            format: string;
             /** Projectid */
             projectId: string;
             /** Clientid */
@@ -3254,8 +4576,11 @@ export interface components {
             path: string;
             /** Status */
             status: string;
-            /** Createdat */
-            createdAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
             /** Deliveredat */
             deliveredAt?: string | null;
             /** Proofurl */
@@ -3268,12 +4593,67 @@ export interface components {
             fileSizeBytes?: number | null;
         };
         /**
+         * EndpointMetrics
+         * @description Metrics for a specific endpoint
+         */
+        EndpointMetrics: {
+            /** Total Requests */
+            total_requests: number;
+            /** Successful Requests */
+            successful_requests: number;
+            /** Failed Requests */
+            failed_requests: number;
+            /** Success Rate */
+            success_rate: number;
+            /** Avg Duration Ms */
+            avg_duration_ms: number;
+            /** Min Duration Ms */
+            min_duration_ms: number;
+            /** Max Duration Ms */
+            max_duration_ms: number;
+            /** P95 Duration Ms */
+            p95_duration_ms: number;
+        };
+        /**
+         * ExecuteResearchInput
+         * @description Input for /execute endpoint (client-scoped, no project required)
+         */
+        ExecuteResearchInput: {
+            /** Client Id */
+            client_id: string;
+            /** Tool Name */
+            tool_name: string;
+            /**
+             * Inputs
+             * @default {}
+             */
+            inputs: Record<string, never> | null;
+        };
+        /** ExecuteResearchResponse */
+        ExecuteResearchResponse: {
+            /** Id */
+            id: string;
+            /** Result Id */
+            result_id: string;
+            /** Tool Name */
+            tool_name: string;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+        };
+        /**
          * ExecutionOrderRequest
          * @description Request to get execution order for tools
          */
         ExecutionOrderRequest: {
             /** Tool Names */
             tool_names: string[];
+            /** Project Id */
+            project_id?: string | null;
+            /** Client Id */
+            client_id?: string | null;
         };
         /**
          * ExecutionOrderResponse
@@ -3284,8 +4664,12 @@ export interface components {
             execution_order: string[];
             /** Tool Count */
             tool_count: number;
-            /** Parallel Groups — tools within each group can run concurrently */
+            /** Parallel Groups */
             parallel_groups: string[][];
+            /** Dependency Map */
+            dependency_map: {
+                [key: string]: string[];
+            };
         };
         /**
          * ExportInput
@@ -3338,6 +4722,22 @@ export interface components {
             source?: string | null;
         };
         /**
+         * FullMetricsResponse
+         * @description Complete metrics response
+         */
+        FullMetricsResponse: {
+            summary: components["schemas"]["MetricsSummary"];
+            /** Endpoints */
+            endpoints: {
+                [key: string]: components["schemas"]["EndpointMetrics"];
+            };
+            cache: components["schemas"]["CacheMetrics"];
+            /** Errors */
+            errors: {
+                [key: string]: number;
+            };
+        };
+        /**
          * GenerateAllInput
          * @description Input for generate-all endpoint
          */
@@ -3359,11 +4759,8 @@ export interface components {
             } | null;
             /** Custom Topics */
             custom_topics?: string[] | null;
-            /**
-             * Target Platform
-             * @default generic
-             */
-            target_platform: string | null;
+            /** Target Platform */
+            target_platform?: string | null;
         };
         /**
          * GrantCreditsRequest
@@ -3417,15 +4814,14 @@ export interface components {
             /** Count */
             count: number;
             /** Insights */
-            insights: {
-                [key: string]: unknown;
-            }[];
+            insights: Record<string, never>[];
         };
         /**
          * IntegrationStatusResponse
          * @description Integration availability status
          * @example {
          *       "brave": true,
+         *       "dataforseo": false,
          *       "serpapi": false,
          *       "tavily": false,
          *       "web_search": true
@@ -3452,6 +4848,48 @@ export interface components {
              * @description Whether SerpAPI is configured
              */
             serpapi: boolean;
+            /**
+             * Dataforseo
+             * @description Whether DataForSEO Trends fallback is configured
+             */
+            dataforseo: boolean;
+        };
+        /** KeywordBulkUpsert */
+        KeywordBulkUpsert: {
+            /** Keywords */
+            keywords: components["schemas"]["KeywordCreate"][];
+        };
+        /** KeywordCreate */
+        KeywordCreate: {
+            /** Keyword */
+            keyword: string;
+            keyword_type: components["schemas"]["KeywordType"];
+            /** Search Intent */
+            search_intent?: string | null;
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Monthly Volume */
+            monthly_volume?: string | null;
+            /** Relevance Score */
+            relevance_score?: number | null;
+            /** Quality Score */
+            quality_score?: number | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /** KeywordImportResponse */
+        KeywordImportResponse: {
+            /** Imported */
+            imported: number;
+            /** Skipped */
+            skipped: number;
+            /**
+             * Deactivated
+             * @default 0
+             */
+            deactivated: number;
+            /** Message */
+            message: string;
         };
         /**
          * KeywordInsightRequest
@@ -3477,23 +4915,106 @@ export interface components {
             /** Insight Id */
             insight_id?: string | null;
             /** Metrics */
-            metrics?: {
-                [key: string]: unknown;
-            } | null;
+            metrics?: Record<string, never> | null;
             /** Trend */
-            trend?: {
-                [key: string]: unknown;
-            } | null;
+            trend?: Record<string, never> | null;
             /** Seasonality */
-            seasonality?: {
-                [key: string]: unknown;
-            } | null;
+            seasonality?: Record<string, never> | null;
             /** Recommendation */
             recommendation?: string | null;
             /** Priority Score */
             priority_score?: number | null;
             /** Error */
             error?: string | null;
+        };
+        /** KeywordListResponse */
+        KeywordListResponse: {
+            /**
+             * Primary
+             * @default []
+             */
+            primary: components["schemas"]["KeywordResponse"][];
+            /**
+             * Secondary
+             * @default []
+             */
+            secondary: components["schemas"]["KeywordResponse"][];
+            /**
+             * Negative
+             * @default []
+             */
+            negative: components["schemas"]["KeywordResponse"][];
+            /**
+             * Quick Win
+             * @default []
+             */
+            quick_win: components["schemas"]["KeywordResponse"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /** KeywordResponse */
+        KeywordResponse: {
+            /** Id */
+            id: number;
+            /** Client Id */
+            client_id: string;
+            /** Research Result Id */
+            research_result_id?: string | null;
+            /** Keyword */
+            keyword: string;
+            /** Keyword Type */
+            keyword_type: string;
+            /** Search Intent */
+            search_intent?: string | null;
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Monthly Volume */
+            monthly_volume?: string | null;
+            /** Relevance Score */
+            relevance_score?: number | null;
+            /** Quality Score */
+            quality_score?: number | null;
+            /** Source */
+            source: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * KeywordType
+         * @enum {string}
+         */
+        KeywordType: "primary" | "secondary" | "negative" | "quick_win";
+        /** KeywordUpdate */
+        KeywordUpdate: {
+            /** Keyword */
+            keyword?: string | null;
+            /** Search Intent */
+            search_intent?: string | null;
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Monthly Volume */
+            monthly_volume?: string | null;
+            /** Relevance Score */
+            relevance_score?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /**
          * LogEntry
@@ -3517,6 +5038,8 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+            /** Totp Code */
+            totp_code?: string | null;
         };
         /**
          * MarkDeliveredRequest
@@ -3544,6 +5067,22 @@ export interface components {
             content: string;
             /** Timestamp */
             timestamp?: string | null;
+        };
+        /**
+         * MetricsSummary
+         * @description Overall application metrics
+         */
+        MetricsSummary: {
+            /** Uptime Seconds */
+            uptime_seconds: number;
+            /** Total Requests */
+            total_requests: number;
+            /** Total Errors */
+            total_errors: number;
+            /** Error Rate */
+            error_rate: number;
+            /** Endpoints Tracked */
+            endpoints_tracked: number;
         };
         /**
          * ParsedBriefResponse
@@ -3605,9 +5144,7 @@ export interface components {
              * Metadata
              * @description Metadata about the parsing operation
              */
-            metadata?: {
-                [key: string]: unknown;
-            };
+            metadata?: Record<string, never>;
         };
         /**
          * PasswordResetRequest
@@ -3620,12 +5157,43 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** PaymentHistoryItem */
+        PaymentHistoryItem: {
+            /** Id */
+            id: string;
+            /** Session Id */
+            session_id: string;
+            /** Amount Usd */
+            amount_usd?: number | null;
+            /** Credits */
+            credits?: number | null;
+            /** Status */
+            status: string;
+            /** Package Id */
+            package_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PaymentStatusResponse */
+        PaymentStatusResponse: {
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Credits */
+            credits?: number | null;
+            /** Project Id */
+            project_id?: string | null;
+        };
         /**
          * Platform
-         * @description Social media and publishing platforms
+         * @description Social media platforms supported by the system
          * @enum {string}
          */
-        Platform: "linkedin" | "twitter" | "facebook" | "blog" | "email" | "generic";
+        "Platform-Input": "linkedin" | "linkedin-posts" | "linkedin-articles" | "twitter" | "twitter-threads" | "facebook" | "blog" | "email" | "generic" | "docx" | "markdown" | "txt";
         /**
          * PostCostBreakdown
          * @description Post cost breakdown.
@@ -3645,6 +5213,8 @@ export interface components {
          *     TR-022: Includes all fields including read-only and calculated ones
          */
         PostResponse: {
+            /** Id */
+            id: string;
             /** Content */
             content: string;
             /** Templateid */
@@ -3654,9 +5224,7 @@ export interface components {
             /** Variant */
             variant?: number | null;
             /** @default linkedin */
-            targetPlatform: components["schemas"]["Platform"] | null;
-            /** Id */
-            id: string;
+            targetPlatform: components["schemas"]["src__models__client_brief__Platform"] | null;
             /** Projectid */
             projectId: string;
             /** Runid */
@@ -3669,11 +5237,8 @@ export interface components {
             hasCta?: boolean | null;
             /** Status */
             status: string;
-            /**
-             * Flags
-             * @default []
-             */
-            flags: string[] | null;
+            /** Flags */
+            flags?: string[] | null;
             /**
              * Createdat
              * Format: date-time
@@ -3687,6 +5252,8 @@ export interface components {
             cacheReadTokens?: number | null;
             /** Costusd */
             costUsd?: number | null;
+            /** Twittersharecopy */
+            twitterShareCopy?: string | null;
         };
         /**
          * PostSummary
@@ -3705,6 +5272,11 @@ export interface components {
             status: string;
             /** Flags */
             flags?: string[] | null;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
             /** Contentpreview */
             contentPreview: string;
         };
@@ -3713,15 +5285,22 @@ export interface components {
          * @description Schema for updating a post.
          *
          *     TR-022: Mass assignment protection
-         *     - Only allows: content
+         *     - Updatable: content, approve_override
          *     - Protected fields (never updatable): id, project_id, run_id, template_id, template_name,
          *                                            variant, target_platform, word_count, readability_score,
          *                                            has_cta, status, flags, created_at
-         *     - Note: Quality metrics (word_count, readability_score, has_cta, flags) are calculated fields
+         *     - Note: Quality metrics (word_count, readability_score, has_cta, flags) are calculated fields.
+         *             approve_override=True clears flags and forces status="approved" after save.
          */
         PostUpdate: {
             /** Content */
             content: string;
+            /**
+             * Approve Override
+             * @description When True, clears validation flags and forces status to 'approved'
+             * @default false
+             */
+            approve_override: boolean;
         };
         /**
          * PrerequisiteCheckRequest
@@ -3752,10 +5331,6 @@ export interface components {
          * @description Response model for pricing configuration
          */
         PricingConfigResponse: {
-            /** Priceperpost */
-            pricePerPost: number;
-            /** Researchpriceperpost */
-            researchPricePerPost: number;
             /** Minposts */
             minPosts: number;
             /** Maxposts */
@@ -3765,7 +5340,7 @@ export interface components {
         };
         /**
          * PricingPreviewResponse
-         * @description Response from pricing preview endpoint (credit-based)
+         * @description Response from pricing preview endpoint
          */
         PricingPreviewResponse: {
             /** Base Cost */
@@ -3784,27 +5359,25 @@ export interface components {
              */
             savings_percent: number;
             /** Next Bundle Suggestion */
-            next_bundle_suggestion?: {
-                [key: string]: unknown;
-            } | null;
+            next_bundle_suggestion?: Record<string, never> | null;
         };
         /**
          * ProjectCostSummary
          * @description Cost summary for a single project
          */
         ProjectCostSummary: {
-            /** Project Id */
-            project_id: string;
-            /** Project Name */
-            project_name: string;
-            /** Total Runs */
-            total_runs: number;
-            /** Total Posts */
-            total_posts: number;
-            /** Total Input Tokens */
-            total_input_tokens: number;
-            /** Total Output Tokens */
-            total_output_tokens: number;
+            /** Projectid */
+            projectId: string;
+            /** Projectname */
+            projectName: string;
+            /** Totalruns */
+            totalRuns: number;
+            /** Totalposts */
+            totalPosts: number;
+            /** Totalinputtokens */
+            totalInputTokens: number;
+            /** Totaloutputtokens */
+            totalOutputTokens: number;
             /** Total Cache Creation Tokens */
             total_cache_creation_tokens: number;
             /** Total Cache Read Tokens */
@@ -3851,7 +5424,7 @@ export interface components {
             /**
              * Priceperpost
              * @description Base price per post
-             * @default 40
+             * @default 0
              */
             pricePerPost: number | null;
             /**
@@ -3891,13 +5464,12 @@ export interface components {
              */
             selectedTools?: string[] | null;
             /** Platforms */
-            platforms?: string[] | null;
+            platforms?: components["schemas"]["Platform-Input"][] | null;
             /**
-             * Targetplatform
              * @description Single target platform for generation optimization
-             * @default generic
+             * @default blog
              */
-            targetPlatform: string | null;
+            targetPlatform: components["schemas"]["Platform-Input"] | null;
             /** Tone */
             tone?: string | null;
         };
@@ -3908,78 +5480,50 @@ export interface components {
          *     TR-022: Includes all fields including read-only ones
          */
         ProjectResponse: {
+            /** Id */
+            id: string;
             /** Name */
             name: string;
             /** Clientid */
             clientId: string;
             /** Templates */
             templates?: string[] | null;
-            /**
-             * Templatequantities
-             * @description Dict mapping template_id (str) to quantity (int)
-             */
+            /** Templatequantities */
             templateQuantities?: {
                 [key: string]: number;
             } | null;
-            /**
-             * Numposts
-             * @description Total post count (auto-calculated from template_quantities)
-             */
+            /** Numposts */
             numPosts?: number | null;
             /**
              * Priceperpost
-             * @description Base price per post
-             * @default 40
+             * @default 0
              */
             pricePerPost: number | null;
             /**
              * Researchpriceperpost
-             * @description Research add-on per post
              * @default 0
              */
             researchPricePerPost: number | null;
-            /**
-             * Totalprice
-             * @description Total project price (auto-calculated)
-             */
+            /** Totalprice */
             totalPrice?: number | null;
-            /**
-             * Postscost
-             * @description Post generation cost (num_posts * price_per_post)
-             */
+            /** Postscost */
             postsCost?: number | null;
-            /**
-             * Researchaddoncost
-             * @description Per-post topic research cost (num_posts * research_price_per_post)
-             */
+            /** Researchaddoncost */
             researchAddonCost?: number | null;
-            /**
-             * Toolscost
-             * @description Research tool cost after bundle discounts
-             */
+            /** Toolscost */
             toolsCost?: number | null;
-            /**
-             * Discountamount
-             * @description Bundle discount savings amount
-             */
+            /** Discountamount */
             discountAmount?: number | null;
-            /**
-             * Selectedtools
-             * @description List of selected research tool IDs
-             */
+            /** Selectedtools */
             selectedTools?: string[] | null;
             /** Platforms */
-            platforms?: string[] | null;
-            /**
-             * Targetplatform
-             * @description Single target platform for generation optimization
-             * @default generic
-             */
-            targetPlatform: string | null;
+            platforms?: components["schemas"]["backend__schemas__enums__Platform"][] | null;
+            /** @default blog */
+            targetPlatform: components["schemas"]["backend__schemas__enums__Platform"] | null;
             /** Tone */
             tone?: string | null;
-            /** Id */
-            id: string;
+            /** Recommendedplatformmix */
+            recommendedPlatformMix?: Record<string, never> | null;
             /** Status */
             status: string;
             /**
@@ -4029,9 +5573,8 @@ export interface components {
             /** Selectedtools */
             selectedTools?: string[] | null;
             /** Platforms */
-            platforms?: string[] | null;
-            /** Targetplatform */
-            targetPlatform?: string | null;
+            platforms?: components["schemas"]["Platform-Input"][] | null;
+            targetPlatform?: components["schemas"]["Platform-Input"] | null;
             /** Tone */
             tone?: string | null;
         };
@@ -4061,11 +5604,8 @@ export interface components {
             approvedCount: number;
             /** Ctapercentage */
             ctaPercentage?: number | null;
-            /**
-             * Commonflags
-             * @default []
-             */
-            commonFlags: string[];
+            /** Commonflags */
+            commonFlags?: string[];
         };
         /**
          * RefreshTokenRequest
@@ -4114,13 +5654,9 @@ export interface components {
             /** Total Queries */
             total_queries?: number | null;
             /** Top Queries */
-            top_queries?: {
-                [key: string]: unknown;
-            }[] | null;
+            top_queries?: Record<string, never>[] | null;
             /** Rising Queries */
-            rising_queries?: {
-                [key: string]: unknown;
-            }[] | null;
+            rising_queries?: Record<string, never>[] | null;
             /** Error */
             error?: string | null;
         };
@@ -4129,25 +5665,50 @@ export interface components {
          * @description Response from analytics endpoint
          */
         ResearchAnalyticsResponse: {
-            /** Total Revenue */
+            /**
+             * Total Revenue
+             * @default 0
+             */
             total_revenue: number;
-            /** Total Api Cost */
+            /**
+             * Total Api Cost
+             * @default 0
+             */
             total_api_cost: number;
-            /** Profit Margin */
+            /**
+             * Profit Margin
+             * @default 0
+             */
             profit_margin: number;
-            /** Total Executions */
+            /**
+             * Total Executions
+             * @default 0
+             */
             total_executions: number;
-            /** Cache Hit Rate */
+            /**
+             * Cache Hit Rate
+             * @default 0
+             */
             cache_hit_rate: number;
-            /** Cache Savings */
+            /**
+             * Cache Savings
+             * @default 0
+             */
             cache_savings: number;
-            /** Avg Cost Per Tool */
+            /**
+             * Avg Cost Per Tool
+             * @default 0
+             */
             avg_cost_per_tool: number;
-            /** Top Tools */
-            top_tools: {
-                [key: string]: unknown;
-            }[];
-            /** Date Range */
+            /**
+             * Top Tools
+             * @default []
+             */
+            top_tools: Record<string, never>[];
+            /**
+             * Date Range
+             * @default 90
+             */
             date_range: number;
         };
         /**
@@ -4165,10 +5726,10 @@ export interface components {
          * @description Research tool cost summary for a client
          */
         ResearchCostSummary: {
-            /** Client Id */
-            client_id: string;
-            /** Client Name */
-            client_name: string;
+            /** Clientid */
+            clientId: string;
+            /** Clientname */
+            clientName: string;
             /**
              * Total Research Tools
              * @description Total number of research tools executed
@@ -4193,9 +5754,7 @@ export interface components {
              * Tools Breakdown
              * @description Per-tool cost breakdown
              */
-            tools_breakdown?: {
-                [key: string]: unknown;
-            }[];
+            tools_breakdown?: Record<string, never>[];
         };
         /**
          * ResearchResultListResponse
@@ -4206,10 +5765,10 @@ export interface components {
             results: components["schemas"]["ResearchResultResponse"][];
             /** Total */
             total: number;
-            /** Project Id */
-            project_id: string | null;
-            /** Client Id */
-            client_id: string | null;
+            /** Projectid */
+            projectId?: string | null;
+            /** Clientid */
+            clientId?: string | null;
         };
         /**
          * ResearchResultResponse
@@ -4218,51 +5777,45 @@ export interface components {
         ResearchResultResponse: {
             /** Id */
             id: string;
-            /** User Id */
-            user_id: string;
-            /** Client Id */
-            client_id: string;
-            /** Project Id */
-            project_id: string | null;
-            /** Tool Name */
-            tool_name: string;
-            /** Tool Label */
-            tool_label: string | null;
-            /** Tool Price */
-            tool_price: number | null;
+            /** Userid */
+            userId: string;
+            /** Clientid */
+            clientId: string;
+            /** Projectid */
+            projectId?: string | null;
+            /** Toolname */
+            toolName: string;
+            /** Toollabel */
+            toolLabel?: string | null;
+            /** Toolprice */
+            toolPrice?: number | null;
             /** Params */
-            params: {
-                [key: string]: unknown;
-            } | null;
+            params?: Record<string, never> | null;
             /** Outputs */
-            outputs: {
-                [key: string]: string;
-            };
+            outputs?: Record<string, never> | null;
             /** Data */
-            data: {
-                [key: string]: unknown;
-            } | null;
+            data?: Record<string, never> | null;
             /** Status */
             status: string;
-            /** Error Message */
-            error_message: string | null;
-            /** Duration Seconds */
-            duration_seconds: number | null;
+            /** Errormessage */
+            errorMessage?: string | null;
+            /** Durationseconds */
+            durationSeconds?: number | null;
             /**
-             * Created At
+             * Createdat
              * Format: date-time
              */
-            created_at: string;
-            /** Input Tokens */
-            input_tokens?: number | null;
-            /** Output Tokens */
-            output_tokens?: number | null;
-            /** Cache Creation Tokens */
-            cache_creation_tokens?: number | null;
-            /** Cache Read Tokens */
-            cache_read_tokens?: number | null;
-            /** Actual Cost Usd */
-            actual_cost_usd?: number | null;
+            createdAt: string;
+            /** Inputtokens */
+            inputTokens?: number | null;
+            /** Outputtokens */
+            outputTokens?: number | null;
+            /** Cachecreationtokens */
+            cacheCreationTokens?: number | null;
+            /** Cachereadtokens */
+            cacheReadTokens?: number | null;
+            /** Actualcostusd */
+            actualCostUsd?: number | null;
         };
         /**
          * ResearchResultSummary
@@ -4293,8 +5846,11 @@ export interface components {
             errorMessage?: string | null;
             /** Durationseconds */
             durationSeconds?: number | null;
-            /** Createdat */
-            createdAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /**
          * ResearchRunResult
@@ -4311,9 +5867,7 @@ export interface components {
              * Metadata
              * @default {}
              */
-            metadata: {
-                [key: string]: unknown;
-            } | null;
+            metadata: Record<string, never> | null;
         };
         /**
          * ResearchTool
@@ -4326,6 +5880,8 @@ export interface components {
             label: string;
             /** Credits */
             credits?: number | null;
+            /** Price */
+            price?: number | null;
             /**
              * Status
              * @default available
@@ -4356,10 +5912,10 @@ export interface components {
          * @description Detailed cost breakdown for a single run
          */
         RunCostBreakdown: {
-            /** Run Id */
-            run_id: string;
-            /** Project Id */
-            project_id: string;
+            /** Runid */
+            runId: string;
+            /** Projectid */
+            projectId: string;
             /** Status */
             status: string;
             /**
@@ -4369,10 +5925,10 @@ export interface components {
             started_at: string;
             /** Completed At */
             completed_at?: string | null;
-            /** Total Input Tokens */
-            total_input_tokens: number;
-            /** Total Output Tokens */
-            total_output_tokens: number;
+            /** Totalinputtokens */
+            totalInputTokens: number;
+            /** Totaloutputtokens */
+            totalOutputTokens: number;
             /** Total Cache Creation Tokens */
             total_cache_creation_tokens: number;
             /** Total Cache Read Tokens */
@@ -4381,8 +5937,8 @@ export interface components {
             total_cost_usd: number;
             /** Estimated Cost Usd */
             estimated_cost_usd?: number | null;
-            /** Total Posts */
-            total_posts: number;
+            /** Totalposts */
+            totalPosts: number;
             /** Posts With Token Data */
             posts_with_token_data: number;
             /** Avg Cost Per Post */
@@ -4425,9 +5981,14 @@ export interface components {
              * Params
              * @default {}
              */
-            params: {
-                [key: string]: unknown;
-            } | null;
+            params: Record<string, never> | null;
+            /** Planned Tools */
+            planned_tools?: string[] | null;
+            /**
+             * Force Refresh
+             * @default false
+             */
+            force_refresh: boolean;
         };
         /**
          * RunResponse
@@ -4467,6 +6028,8 @@ export interface components {
             totalCostUsd?: number | null;
             /** Estimatedcostusd */
             estimatedCostUsd?: number | null;
+            /** Qascore */
+            qaScore?: number | null;
         };
         /**
          * RunUpdate
@@ -4497,9 +6060,36 @@ export interface components {
             /** Count */
             count: number;
             /** Searches */
-            searches: {
-                [key: string]: unknown;
-            }[];
+            searches: Record<string, never>[];
+        };
+        /**
+         * SendEmailInput
+         * @description Input for sending an email to a client
+         */
+        SendEmailInput: {
+            /**
+             * Email Type
+             * @default general
+             */
+            email_type: string;
+            /** Subject */
+            subject: string;
+            /** Content */
+            content: string;
+        };
+        /**
+         * SendEmailResponse
+         * @description Response after sending an email to a client
+         */
+        SendEmailResponse: {
+            /** Success */
+            success: boolean;
+            /** Status */
+            status: string;
+            /** Detail */
+            detail: string;
+            /** Communication Id */
+            communication_id: number;
         };
         /**
          * StoryAnalytics
@@ -4549,16 +6139,12 @@ export interface components {
              * Full Story
              * @description Structured story data with context/challenge/resolution
              */
-            full_story?: {
-                [key: string]: unknown;
-            } | null;
+            full_story?: Record<string, never> | null;
             /**
              * Key Metrics
              * @description Numbers, results achieved (e.g., {'revenue': '+40%'})
              */
-            key_metrics?: {
-                [key: string]: unknown;
-            } | null;
+            key_metrics?: Record<string, never> | null;
             /**
              * Emotional Hook
              * @description Compelling element that makes story memorable
@@ -4616,16 +6202,12 @@ export interface components {
              * Full Story
              * @description Structured story data with context/challenge/resolution
              */
-            full_story?: {
-                [key: string]: unknown;
-            } | null;
+            full_story?: Record<string, never> | null;
             /**
              * Key Metrics
              * @description Numbers, results achieved (e.g., {'revenue': '+40%'})
              */
-            key_metrics?: {
-                [key: string]: unknown;
-            } | null;
+            key_metrics?: Record<string, never> | null;
             /**
              * Emotional Hook
              * @description Compelling element that makes story memorable
@@ -4682,17 +6264,18 @@ export interface components {
             /** Summary */
             summary?: string | null;
             /** Full Story */
-            full_story?: {
-                [key: string]: unknown;
-            } | null;
+            full_story?: Record<string, never> | null;
             /** Key Metrics */
-            key_metrics?: {
-                [key: string]: unknown;
-            } | null;
+            key_metrics?: Record<string, never> | null;
             /** Emotional Hook */
             emotional_hook?: string | null;
             /** Source */
             source?: string | null;
+            /**
+             * Eligible Templates
+             * @description Template slugs this story is eligible for
+             */
+            eligible_templates?: string[] | null;
         };
         /**
          * StoryUsageCreate
@@ -4757,7 +6340,7 @@ export interface components {
          * TestConnectionRequest
          * @description Test web search connection
          * @example {
-         *       "api_key": "BSA1234567890...",
+         *       "api_key": "<your-provider-api-key>",
          *       "provider": "brave"
          *     }
          */
@@ -4820,6 +6403,13 @@ export interface components {
              */
             token_type: string;
             user: components["schemas"]["UserResponse"];
+            /**
+             * Mfa Setup Required
+             * @default false
+             */
+            mfa_setup_required: boolean;
+            /** Mfa Setup Token */
+            mfa_setup_token?: string | null;
         };
         /**
          * ToolPrerequisiteStatus
@@ -4898,9 +6488,7 @@ export interface components {
             /** Data Points */
             data_points?: number | null;
             /** Sample Data */
-            sample_data?: {
-                [key: string]: unknown;
-            }[] | null;
+            sample_data?: Record<string, never>[] | null;
             /** Error */
             error?: string | null;
             /** Message */
@@ -4911,8 +6499,8 @@ export interface components {
          * @description Cost summary across all user's projects
          */
         UserCostSummary: {
-            /** User Id */
-            user_id: string;
+            /** Userid */
+            userId: string;
             /**
              * Period Days
              * @description Number of days analyzed
@@ -4920,12 +6508,12 @@ export interface components {
             period_days: number;
             /** Total Projects */
             total_projects: number;
-            /** Total Runs */
-            total_runs: number;
-            /** Total Input Tokens */
-            total_input_tokens: number;
-            /** Total Output Tokens */
-            total_output_tokens: number;
+            /** Totalruns */
+            totalRuns: number;
+            /** Totalinputtokens */
+            totalInputTokens: number;
+            /** Totaloutputtokens */
+            totalOutputTokens: number;
             /** Total Generation Cost Usd */
             total_generation_cost_usd: number;
             /** Total Research Tools */
@@ -4938,9 +6526,7 @@ export interface components {
              * Top Projects
              * @description Top 5 most expensive projects
              */
-            top_projects?: {
-                [key: string]: unknown;
-            }[];
+            top_projects?: Record<string, never>[];
             /**
              * Cost Trend
              * @description Daily cost trend (last 7 days)
@@ -4977,19 +6563,19 @@ export interface components {
             id: string;
             /** Email */
             email: string;
-            /** Full Name */
-            full_name: string;
-            /** Is Active */
-            is_active: boolean;
-            /** Is Superuser */
-            is_superuser: boolean;
+            /** Fullname */
+            fullName: string;
+            /** Isactive */
+            isActive: boolean;
+            /** Issuperuser */
+            isSuperuser: boolean;
             /**
-             * Created At
+             * Createdat
              * Format: date-time
              */
-            created_at: string;
-            /** Updated At */
-            updated_at?: string | null;
+            createdAt: string;
+            /** Updatedat */
+            updatedAt?: string | null;
         };
         /**
          * UserStatsResponse
@@ -5004,6 +6590,20 @@ export interface components {
             inactive: number;
             /** Admins */
             admins: number;
+        };
+        /**
+         * ValidateTemplatesInput
+         * @description Input for template validation endpoint
+         */
+        ValidateTemplatesInput: {
+            /** Client Id */
+            client_id: string;
+            /** Project Id */
+            project_id?: string | null;
+            /** Template Quantities */
+            template_quantities: {
+                [key: string]: number;
+            };
         };
         /** ValidationError */
         ValidationError: {
@@ -5050,7 +6650,7 @@ export interface components {
          * WebSearchConfigUpdate
          * @description Update web search configuration
          * @example {
-         *       "brave_api_key": "BSA1234567890...",
+         *       "brave_api_key": "<your-brave-api-key>",
          *       "provider": "brave"
          *     }
          */
@@ -5076,6 +6676,18 @@ export interface components {
              */
             serpapi_api_key?: string | null;
         };
+        /**
+         * Platform
+         * @description Social media platforms supported by the system
+         * @enum {string}
+         */
+        backend__schemas__enums__Platform: "linkedin" | "linkedin-posts" | "linkedin-articles" | "twitter" | "twitter-threads" | "facebook" | "blog" | "email" | "generic" | "docx" | "markdown" | "txt";
+        /**
+         * Platform
+         * @description Social media and publishing platforms
+         * @enum {string}
+         */
+        src__models__client_brief__Platform: "linkedin" | "twitter" | "facebook" | "blog" | "email" | "generic";
     };
     responses: never;
     parameters: never;
@@ -5553,7 +7165,7 @@ export interface operations {
             };
         };
     };
-    check_pytrends_api_api_health_pytrends_get: {
+    health_check_api_health_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5568,14 +7180,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
     };
-    check_anthropic_api_api_health_anthropic_get: {
+    readiness_check_api_health_ready_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5590,14 +7200,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
     };
-    check_system_api_api_health_system_get: {
+    liveness_check_api_health_live_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5612,9 +7220,256 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    database_health_api_health_database_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    database_events_api_health_database_events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    cache_health_api_health_cache_get: {
+        parameters: {
+            query?: {
+                tier?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_cache_health_api_health_cache_clear_post: {
+        parameters: {
+            query?: {
+                tier?: string | null;
+                key_prefix?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_cache_health_api_health_cache_reset_stats_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    full_health_api_health_full_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    profiling_overview_api_health_profiling_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    profiling_queries_api_health_profiling_queries_get: {
+        parameters: {
+            query?: {
+                min_execution_count?: number;
+                min_avg_time_ms?: number;
+                only_slow?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profiling_slow_queries_api_health_profiling_slow_queries_get: {
+        parameters: {
+            query?: {
+                since_minutes?: number;
+                very_slow_only?: boolean;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profiling_reset_api_health_profiling_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -5624,6 +7479,8 @@ export interface operations {
             query?: {
                 skip?: number;
                 limit?: number;
+                /** @description Show archived clients */
+                archived?: boolean;
             };
             header?: never;
             path?: never;
@@ -5782,6 +7639,68 @@ export interface operations {
             };
         };
     };
+    archive_client_api_clients__client_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unarchive_client_api_clients__client_id__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     export_client_profile_api_clients__client_id__export_profile_get: {
         parameters: {
             query?: never;
@@ -5801,6 +7720,336 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_keywords_api_clients__client_id__keywords_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by keyword_type */
+                type?: string | null;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_keyword_api_clients__client_id__keywords_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_keyword_api_clients__client_id__keywords__keyword_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyword_id: number;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_keyword_api_clients__client_id__keywords__keyword_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                keyword_id: number;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_upsert_keywords_api_clients__client_id__keywords_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KeywordBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_from_research_api_clients__client_id__keywords_import__result_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeywordImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_client_communications_api_clients__client_id__communications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_communication_api_communications_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommunicationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunicationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_client_email_api_clients__client_id__send_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendEmailInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendEmailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_communication_api_communications__communication_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                communication_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5839,9 +8088,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -6120,7 +8367,9 @@ export interface operations {
     parse_brief_file_api_briefs_parse_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -6321,6 +8570,7 @@ export interface operations {
                 limit?: number;
                 status?: string | null;
                 client_id?: string | null;
+                project_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -6476,6 +8726,39 @@ export interface operations {
             };
         };
     };
+    generate_research_report_api_deliverables_from_research_post: {
+        parameters: {
+            query: {
+                client_id: string;
+                tools: string;
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_posts_api_posts__get: {
         parameters: {
             query?: {
@@ -6524,9 +8807,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -6593,6 +8874,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_client_api_privacy_clients__client_id__delete: {
+        parameters: {
+            query?: {
+                cascade?: boolean;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    anonymize_client_api_privacy_clients__client_id__anonymize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_client_api_privacy_clients__client_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_client_api_privacy_clients__client_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -6927,6 +9334,59 @@ export interface operations {
             };
         };
     };
+    list_templates_api_generator_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    validate_templates_api_generator_validate_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ValidateTemplatesInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     generate_all_api_generator_generate_all_post: {
         parameters: {
             query?: never;
@@ -7046,6 +9506,70 @@ export interface operations {
             };
         };
     };
+    get_research_project_api_research_project__client_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_research_api_research_execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteResearchInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecuteResearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     run_research_api_research_run_post: {
         parameters: {
             query?: never;
@@ -7066,6 +9590,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResearchRunResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_all_research_results_api_research_results__get: {
+        parameters: {
+            query?: {
+                tool_name?: string | null;
+                client_id?: string | null;
+                days?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchResultListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7239,6 +9796,40 @@ export interface operations {
             };
         };
     };
+    get_client_prerequisites_api_research_prerequisites_client__client_id__get: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated tool names to check */
+                tool_names?: string | null;
+            };
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientPrerequisiteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_execution_order_api_research_execution_order_post: {
         parameters: {
             query?: never;
@@ -7356,6 +9947,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResearchAnalyticsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    research_client_brief_api_client_research_brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientResearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientResearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    research_and_apply_api_client_research_clients__client_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_brief_api_client_research_brief_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -7608,9 +10296,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                } | null;
+                "application/json": Record<string, never> | null;
             };
         };
         responses: {
@@ -7648,9 +10334,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                } | null;
+                "application/json": Record<string, never> | null;
             };
         };
         responses: {
@@ -8125,6 +10809,39 @@ export interface operations {
             };
         };
     };
+    chat_stream_api_assistant_chat_stream_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_web_search_config_api_settings_web_search_get: {
         parameters: {
             query?: never;
@@ -8262,7 +10979,7 @@ export interface operations {
             };
         };
     };
-    download_database_backup_api_database_backup_get: {
+    database_status_api_database_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -8276,22 +10993,20 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": Record<string, never>;
+                };
             };
         };
     };
-    restore_database_from_backup_api_database_restore_post: {
+    backup_info_api_database_backup_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_restore_database_from_backup_api_database_restore_post"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -8299,9 +11014,109 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    restore_not_available_api_database_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    merge_not_available_api_database_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    get_cache_stats_api_cache_cache_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CacheStats"];
+                };
+            };
+        };
+    };
+    clear_cache_api_cache_cache_clear_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    invalidate_cache_pattern_api_cache_cache_pattern__pattern__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pattern: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -8315,10 +11130,251 @@ export interface operations {
             };
         };
     };
-    cleanup_old_backups_api_database_cleanup_backups_delete: {
+    get_metrics_summary_api_metrics_metrics_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsSummary"];
+                };
+            };
+        };
+    };
+    get_endpoint_metrics_api_metrics_metrics_endpoints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_all_metrics_api_metrics_metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FullMetricsResponse"];
+                };
+            };
+        };
+    };
+    get_prometheus_metrics_api_metrics_metrics_prometheus_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_checkout_session_api_stripe_checkout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_payment_status_api_stripe_payment_status__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stripe_webhook_api_stripe_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_payments_api_stripe_payments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentHistoryItem"][];
+                };
+            };
+        };
+    };
+    create_billing_portal_api_stripe_portal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingPortalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingPortalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_audit_stats_api_audit_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    export_audit_csv_api_audit_export_csv_get: {
         parameters: {
             query?: {
-                days?: number;
+                action_type?: string | null;
+                resource_type?: string | null;
+                status?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
             };
             header?: never;
             path?: never;
@@ -8332,9 +11388,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_audit_json_api_audit_export_json_get: {
+        parameters: {
+            query?: {
+                action_type?: string | null;
+                resource_type?: string | null;
+                status?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_logs_api_audit__get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+                action_type?: string | null;
+                resource_type?: string | null;
+                status?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
                 };
             };
             /** @description Validation Error */

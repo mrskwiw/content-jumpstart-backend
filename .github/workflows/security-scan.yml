@@ -30,8 +30,8 @@ jobs:
 
       - name: Run Bandit (SAST)
         run: |
-          bandit -r project/src project/backend -f json -o bandit-report.json
-          bandit -r project/src project/backend -f txt
+          bandit -r src backend -f json -o bandit-report.json
+          bandit -r src backend -f txt
         continue-on-error: true
 
       - name: Run Safety (dependency vulnerabilities)
@@ -71,19 +71,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd project/operator-dashboard
+          cd operator-dashboard
           npm ci
 
       - name: Run npm audit
         run: |
-          cd project/operator-dashboard
+          cd operator-dashboard
           npm audit --json > npm-audit-report.json || true
           npm audit || true
         continue-on-error: true
 
       - name: Run npm audit fix (auto-fix)
         run: |
-          cd project/operator-dashboard
+          cd operator-dashboard
           npm audit fix --dry-run > npm-audit-fix-report.txt || true
         continue-on-error: true
 
@@ -93,8 +93,8 @@ jobs:
         with:
           name: npm-audit-reports
           path: |
-            project/operator-dashboard/npm-audit-report.json
-            project/operator-dashboard/npm-audit-fix-report.txt
+            operator-dashboard/npm-audit-report.json
+            operator-dashboard/npm-audit-fix-report.txt
 
   secret-scanning:
     name: Secret Scanning

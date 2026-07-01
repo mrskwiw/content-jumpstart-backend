@@ -26,8 +26,9 @@ export const PlatformSchema = z.enum([
 ]);
 export type Platform = z.infer<typeof PlatformSchema>;
 
-// Input schema that accepts both name and companyName from backend
-const ClientSchemaInput = z.object({
+// Input schema that accepts both name and companyName from backend.
+// Exported so the API type-parity test can introspect its field set.
+export const ClientSchemaInput = z.object({
   id: z.string(),
   name: z.string().optional(),
   companyName: z.string().optional(),
@@ -53,6 +54,7 @@ const ClientSchemaInput = z.object({
   postingFrequency: z.string().nullish(),
   mainCta: z.string().nullish(),
   keyPhrases: z.array(z.string()).nullish(),
+  recommendedPlatforms: z.array(z.string()).nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -82,6 +84,7 @@ const ClientSchemaOutput = z.object({
   postingFrequency: z.string().nullish(),
   mainCta: z.string().nullish(),
   keyPhrases: z.array(z.string()).nullish(),
+  recommendedPlatforms: z.array(z.string()).nullish(),
   createdAt: z.string().datetime({ offset: true }),
 });
 
@@ -91,11 +94,8 @@ export const ClientSchema = ClientSchemaInput.transform((data) => {
   if (!name) {
     throw new Error('Either name or companyName is required');
   }
-  const { companyName, ...rest } = data;
-  return {
-    ...rest,
-    name,
-  };
+  // companyName is dropped by ClientSchemaOutput (which has no such field).
+  return { ...data, name };
 }).pipe(ClientSchemaOutput);
 export type Client = z.infer<typeof ClientSchema>;
 
@@ -118,6 +118,7 @@ export const ProjectSchema = z.object({
   toolsCost: z.number().nullish(),
   discountAmount: z.number().nullish(),
   selectedTools: z.array(z.string()).nullish(),
+  recommendedPlatformMix: z.record(z.string(), z.unknown()).nullish(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }).nullish(),
 });
