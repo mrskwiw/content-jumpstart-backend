@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## This directory
 
-`project/` is the deployable application. Tests live at `../tests/`, docs at `../docs/`, task tracking at `../TODO.md`. Never put tests, docs, or planning files here.
+`project/` is the deployable application and the git repo root. Docs (`../docs/`) and task tracking (`../TODO.md`) live outside the repo and are not pushed.
+
+**Repo-specific convention — decided 2026-07-01 (overrides the global "tests never pushed" default):** this repo brings its **test suite INTO the git repo so CI can actually run it.** Tests belong in `project/tests/` (Python) and colocated `*.test.tsx` + `operator-dashboard/tests/` (frontend), and **are committed**. This reverses the earlier "tests run locally, not in CI" call (OPS-02) — a CI that never runs the ~4,700-test suite isn't meaningful for a deployed product. Migration is phased; see `../docs/CI_RESTRUCTURE_PLAN.md`. **Until Phase 5 lands, the legacy suite still physically sits at `../tests/`** — check the plan for current status before assuming tests are in-repo.
 
 ## Deployment model — multi-instance (one database per customer)
 
@@ -97,7 +99,9 @@ npx playwright test   # e2e tests
 
 **`pyproject.toml` sets `testpaths = ["../tests", "backend/tests"]`** — the main suite lives at `../tests/`, *outside* this git repo. Always run pytest from `project/`; `conftest.py` adds `project/` to `sys.path` automatically.
 
-> **Decision (2026-06-30): Python tests run LOCALLY, not in CI.** The suite at `../tests/` is intentionally never pushed (it lives outside the `project/` git repo), so GitHub CI cannot run it. `quality-gates.yml` therefore runs only lint (`black`/`ruff` on `src backend`), the frontend build, and a backend import check — **no `pytest`**. Python tests are enforced before commit via pre-commit, Codex adversarial review, and the Stop hooks. **You are responsible for running `pytest ../tests` locally before pushing.** If the suite is later moved into the repo, re-add the `python-tests`/`test-coverage` jobs and make them blocking. Decision record + re-enablement steps: `../TODO.md` → OPS-02.
+> **⚠ SUPERSEDED (2026-07-01) — see the "This directory" decision above and `../docs/CI_RESTRUCTURE_PLAN.md`.** The direction is now to bring tests INTO the repo and run them in CI. The note below describes the *interim* state that holds only until Phase 5 of the restructure lands.
+>
+> **Interim (2026-06-30): Python tests run LOCALLY, not in CI.** While the suite still sits at `../tests/` (outside the `project/` git repo), GitHub CI cannot run it, so `quality-gates.yml` runs only lint (`black`/`ruff` on `src backend`), the frontend build, and a backend import check — **no `pytest`** yet. Until the move, **run `pytest ../tests` locally before pushing.** Re-enablement (re-add `python-tests`/`test-coverage` jobs) happens in the restructure. Records: `../TODO.md` → OPS-02 and `../docs/CI_RESTRUCTURE_PLAN.md`.
 
 **Windows UTF-8:** `src/agents/03_post_generator.py` lines 13–15 force UTF-8 output. Never remove them.
 
