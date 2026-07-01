@@ -54,6 +54,7 @@ from backend.routers import (
     stories,
     trends,
     stripe_checkout,
+    client_keywords,
 )
 from slowapi.errors import RateLimitExceeded
 from backend.utils.http_rate_limiter import (
@@ -186,18 +187,31 @@ async def lifespan(app: FastAPI):
 
             # Use defaults if no admin users configured in env
             if not admin_users_config:
-                admin_users_config = [
-                    {
-                        "email": os.getenv("PRIMARY_ADMIN_EMAIL", "mrskwiw@gmail.com"),
-                        "full_name": os.getenv("PRIMARY_ADMIN_NAME", "Primary Admin"),
-                        "is_superuser": True,
-                    },
-                    {
-                        "email": os.getenv("SECONDARY_ADMIN_EMAIL", "michele.vanhy@gmail.com"),
-                        "full_name": os.getenv("SECONDARY_ADMIN_NAME", "Secondary Admin"),
-                        "is_superuser": True,
-                    },
-                ]
+                primary_email = os.getenv("PRIMARY_ADMIN_EMAIL")
+                secondary_email = os.getenv("SECONDARY_ADMIN_EMAIL")
+                if not primary_email:
+                    print(
+                        ">> WARNING: No ADMIN_USER_* or PRIMARY_ADMIN_EMAIL set — skipping admin seed"
+                    )
+                    print(
+                        ">> Set PRIMARY_ADMIN_EMAIL (and optionally SECONDARY_ADMIN_EMAIL) to seed admin accounts"
+                    )
+                else:
+                    admin_users_config = [
+                        {
+                            "email": primary_email,
+                            "full_name": os.getenv("PRIMARY_ADMIN_NAME", "Primary Admin"),
+                            "is_superuser": True,
+                        },
+                    ]
+                    if secondary_email:
+                        admin_users_config.append(
+                            {
+                                "email": secondary_email,
+                                "full_name": os.getenv("SECONDARY_ADMIN_NAME", "Secondary Admin"),
+                                "is_superuser": True,
+                            }
+                        )
 
             # SECURITY FIX: Use environment variable for default password (TR-018)
             default_password = os.getenv("DEFAULT_USER_PASSWORD")
@@ -646,6 +660,7 @@ app.include_router(
     health.router, prefix="/api", tags=["Health & Monitoring"]
 )  # Routes at /api/health/...
 app.include_router(clients.router, prefix="/api/clients", tags=["Clients"])
+app.include_router(client_keywords.router, prefix="/api/clients", tags=["Client Keywords"])
 app.include_router(communications.router, prefix="/api", tags=["Communications"])
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(briefs.router, prefix="/api/briefs", tags=["Briefs"])

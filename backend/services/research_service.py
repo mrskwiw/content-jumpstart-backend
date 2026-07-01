@@ -688,6 +688,24 @@ class ResearchService:
             db.commit()
             db.refresh(research_result)
 
+            # Seed client_keywords table from SEO keyword research results
+            if tool_name == "seo_keyword_research" and result.success and research_result.data:
+                try:
+                    from backend.services.crud_client_keywords import seed_from_research_result
+
+                    seed_stats = seed_from_research_result(
+                        db,
+                        client_id=client_id,
+                        research_result_id=research_result.id,
+                        data=research_result.data,
+                    )
+                    logger.info(
+                        f"Seeded client_keywords for client {client_id}: "
+                        f"{seed_stats['imported']} imported, {seed_stats['skipped']} skipped"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to seed client_keywords (non-critical): {e}")
+
             # Sync token usage from cost_tracker.db to database
             try:
                 from backend.services.token_sync_service import token_sync_service
@@ -917,9 +935,11 @@ class ResearchService:
             # completed in this batch so cross-project and within-batch deps both resolve
             completed_for_client = self._get_completed_tools_for_client(db, client_id)
             completed_for_client.update(completed_in_batch)
-            can_run, missing_required, missing_recommended = (
-                self.prerequisites.check_prerequisites_met(tool_name, completed_for_client)
-            )
+            (
+                can_run,
+                missing_required,
+                missing_recommended,
+            ) = self.prerequisites.check_prerequisites_met(tool_name, completed_for_client)
 
             if not can_run:
                 # Tool is blocked - missing required prerequisites
