@@ -39,6 +39,19 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
+  # API contract freshness — when a backend response model changes, the committed
+  # operator-dashboard/openapi.json must be regenerated too. Enforced here because
+  # freshness can only be verified where the backend is importable (a frontend-only
+  # CI box can't). Honestly SKIPs if the backend/venv isn't available.
+  - repo: local
+    hooks:
+      - id: openapi-contract-fresh
+        name: OpenAPI contract is fresh
+        entry: node operator-dashboard/scripts/generate-openapi.mjs --check
+        language: system
+        files: ^backend/(schemas|models|routers)/.*\.py$
+        pass_filenames: false
+
   # Python code quality
   - repo: https://github.com/psf/black
     rev: 25.12.0
