@@ -23,6 +23,12 @@ target-version = ['py310']
 line-length = 100
 target-version = "py310"
 
+[tool.ruff.lint]
+# E402 (module import not at top of file) is an established, intentional pattern in
+# this codebase — scripts/modules do pre-import setup (sys.path, logging config,
+# env defaults) before importing. Ignored project-wide rather than noqa-ing ~40 sites.
+ignore = ["E402"]
+
 [tool.pytest.ini_options]
 testpaths = ["../tests", "backend/tests"]
 python_files = "test_*.py"

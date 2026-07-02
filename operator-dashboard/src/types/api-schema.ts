@@ -3298,28 +3298,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/database/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Database Status
-         * @description Return current schema version and database connection info.
-         *
-         *     **ADMIN ONLY**
-         */
-        get: operations["database_status_api_database_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/database/backup": {
         parameters: {
             query?: never;
@@ -3328,16 +3306,25 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Backup Info
-         * @description Returns instructions for backing up the Supabase database.
+         * Download Database Backup
+         * @description Download a backup of the SQLite database.
          *
-         *     **ADMIN ONLY**
+         *     **ADMIN ONLY**: Requires superuser privileges.
          *
-         *     The previous SQLite file-download backup has been replaced by Supabase-native
-         *     backup tooling. Use pg_dump for ad-hoc exports or the Supabase dashboard for
-         *     scheduled backups (Pro plan).
+         *     Creates a timestamped copy of the database file and returns it for download.
+         *     This endpoint downloads the ENTIRE database including all users' data.
+         *
+         *     Args:
+         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *
+         *     Returns:
+         *         FileResponse: Database file download
+         *
+         *     Raises:
+         *         HTTPException 403: User is not an admin
+         *         HTTPException: If database is not SQLite or file cannot be accessed
          */
-        get: operations["backup_info_api_database_backup_get"];
+        get: operations["download_database_backup_api_database_backup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3356,12 +3343,98 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Restore Not Available
-         * @description File-based SQLite restore is no longer available.
+         * Restore Database From Backup
+         * @description Restore database from an uploaded SQLite backup file.
          *
-         *     Use the Supabase dashboard or psql to restore from a pg_dump backup.
+         *     **ADMIN ONLY**: Requires superuser privileges.
+         *
+         *     Behaviour:
+         *     - File-based SQLite: replaces the database file on disk (preferred).
+         *     - In-memory SQLite (PostgreSQL unavailable at startup): loads the backup
+         *       into the live in-memory engine via the sqlite3 backup API so the
+         *       restored data is immediately available for the current session.
+         *
+         *     ⚠️ **DESTRUCTIVE OPERATION**: All current data will be replaced.
+         *
+         *     Args:
+         *         file: Uploaded SQLite .db backup file
+         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *         db: Database session (closed before restore)
+         *
+         *     Returns:
+         *         dict: Status message and restore details
+         *
+         *     Raises:
+         *         HTTPException 400: Invalid file
+         *         HTTPException 403: Not an admin
+         *         HTTPException 500: Restore failed
          */
-        post: operations["restore_not_available_api_database_restore_post"];
+        post: operations["restore_database_from_backup_api_database_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/restore-points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Restore Points
+         * @description List available restore points (pre-restore backups from previous restore operations).
+         *
+         *     **ADMIN ONLY**: Requires superuser privileges.
+         *
+         *     Returns backups created by the restore operation, allowing admins to revert
+         *     to the state before a restore if needed.
+         *
+         *     Returns:
+         *         dict: List of restore points with timestamps and file sizes
+         */
+        get: operations["list_restore_points_api_database_restore_points_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/restore-to-point": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore To Restore Point
+         * @description Revert database to a previous restore point (pre-restore backup).
+         *
+         *     **ADMIN ONLY**: Requires superuser privileges.
+         *
+         *     This allows undoing a restore operation by reverting to the database state
+         *     that existed before the restore was performed.
+         *
+         *     Args:
+         *         filename: Name of the pre_restore_backup_*.db file to restore to
+         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *
+         *     Returns:
+         *         dict: Status message and restore details
+         *
+         *     Raises:
+         *         HTTPException 400: Invalid filename or file not found
+         *         HTTPException 403: Not an admin
+         *         HTTPException 500: Restore failed
+         */
+        post: operations["restore_to_restore_point_api_database_restore_to_point_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3378,14 +3451,73 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Merge Not Available
-         * @description SQLite database merge is no longer available.
+         * Merge Database From Backup
+         * @description Merge content records from an uploaded SQLite backup into the live database.
          *
-         *     To import records from another instance, use pg_dump with --table and
-         *     --data-only flags, or contact support for a data migration script.
+         *     **ADMIN ONLY**: Requires superuser privileges.
+         *
+         *     Unlike a full restore, this operation **does not replace existing data**.
+         *     It imports clients, projects, runs, posts, briefs, research_results,
+         *     deliverables, communications, mined_stories, and story_usage.
+         *
+         *     The following are **never overwritten**: users, credit_transactions,
+         *     credit_packages, settings, stripe_payments, deletion_audit_log.
+         *
+         *     - Primary and foreign keys are remapped to avoid conflicts.
+         *     - Source users are matched to target users by email; unmatched source
+         *       users are assigned to the admin user.
+         *     - Duplicate records (same client name, same project/client, etc.) are
+         *       skipped automatically.
+         *
+         *     Args:
+         *         file: Uploaded SQLite .db backup file to merge from
+         *         dry_run: If True, return a preview of what would be merged without
+         *             writing any data (the full merge logic runs inside a rolled-back
+         *             transaction, so counts are accurate)
+         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *
+         *     Returns:
+         *         dict: Per-table merged/skipped counts, user mapping, and warnings
+         *
+         *     Raises:
+         *         HTTPException 400: Invalid file
+         *         HTTPException 403: Not an admin
+         *         HTTPException 500: Merge failed
          */
-        post: operations["merge_not_available_api_database_merge_post"];
+        post: operations["merge_database_from_backup_api_database_merge_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/database/cleanup-backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cleanup Old Backups
+         * @description Delete backup files older than specified number of days.
+         *
+         *     **ADMIN ONLY**: Requires superuser privileges.
+         *
+         *     Args:
+         *         days: Number of days to keep backups (default: 30)
+         *         admin: Authenticated admin user (verified by require_admin dependency)
+         *
+         *     Returns:
+         *         dict: Number of backups deleted
+         *
+         *     Raises:
+         *         HTTPException 403: User is not an admin
+         */
+        delete: operations["cleanup_old_backups_api_database_cleanup_backups_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3861,8 +3993,24 @@ export interface components {
             /** Portal Url */
             portal_url: string;
         };
+        /** Body_merge_database_from_backup_api_database_merge_post */
+        Body_merge_database_from_backup_api_database_merge_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
         /** Body_parse_brief_file_api_briefs_parse_post */
         Body_parse_brief_file_api_briefs_parse_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+        };
+        /** Body_restore_database_from_backup_api_database_restore_post */
+        Body_restore_database_from_backup_api_database_restore_post: {
             /**
              * File
              * Format: binary
@@ -5522,8 +5670,6 @@ export interface components {
             targetPlatform: components["schemas"]["backend__schemas__enums__Platform"] | null;
             /** Tone */
             tone?: string | null;
-            /** Recommendedplatformmix */
-            recommendedPlatformMix?: Record<string, never> | null;
             /** Status */
             status: string;
             /**
@@ -10979,7 +11125,58 @@ export interface operations {
             };
         };
     };
-    database_status_api_database_status_get: {
+    download_database_backup_api_database_backup_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    restore_database_from_backup_api_database_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_restore_database_from_backup_api_database_restore_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_restore_points_api_database_restore_points_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -10999,9 +11196,11 @@ export interface operations {
             };
         };
     };
-    backup_info_api_database_backup_get: {
+    restore_to_restore_point_api_database_restore_to_point_post: {
         parameters: {
-            query?: never;
+            query: {
+                filename: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11017,11 +11216,57 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    restore_not_available_api_database_restore_post: {
+    merge_database_from_backup_api_database_merge_post: {
         parameters: {
-            query?: never;
+            query?: {
+                dry_run?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_merge_database_from_backup_api_database_merge_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cleanup_old_backups_api_database_cleanup_backups_delete: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11037,24 +11282,13 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-        };
-    };
-    merge_not_available_api_database_merge_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

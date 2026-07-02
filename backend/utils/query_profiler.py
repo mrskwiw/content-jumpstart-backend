@@ -90,7 +90,8 @@ def _hash_query(query: str) -> str:
     import hashlib
 
     normalized = _normalize_query(query)
-    return hashlib.md5(normalized.encode()).hexdigest()[:12]
+    # Non-cryptographic fingerprint for grouping identical queries in profiling.
+    return hashlib.md5(normalized.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def record_query(
@@ -257,7 +258,6 @@ def get_profiling_report() -> Dict[str, Any]:
     """
     # Get all statistics
     all_stats = get_query_statistics()
-    slow_stats = get_query_statistics(only_slow=True)
 
     # Calculate totals
     total_queries = sum(s.execution_count for s in all_stats)
