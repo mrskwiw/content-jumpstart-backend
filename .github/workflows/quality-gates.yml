@@ -131,14 +131,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Web deps live in backend/requirements.txt (fastapi, uvicorn, sqlalchemy,
-          # slowapi); root requirements.txt is the CLI/agent deps. The two files pin
-          # different versions of a few dev tools (e.g. pytest), so a combined
-          # `-r a -r b` hits ResolutionImpossible — install sequentially instead
-          # (whichever wins is irrelevant to this import check). Proper
-          # consolidation is Phase 2 of the CI restructure.
+          # backend/requirements.txt is self-contained: it pulls the canonical root
+          # file via `-r ../requirements.txt` and adds the web-server layer. One pin
+          # per package now (Phase 2 consolidation), so a single install resolves
+          # cleanly — the old sequential-install ResolutionImpossible workaround is gone.
           pip install -r backend/requirements.txt
-          pip install -r requirements.txt
 
       - name: Verify backend imports
         run: |
