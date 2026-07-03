@@ -9,6 +9,7 @@ Tests cover:
 - Query profiling and performance metrics
 - Admin operations (clear cache, reset stats)
 """
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
@@ -67,7 +68,7 @@ class TestBasicHealthEndpoints:
 class TestDatabaseHealthEndpoints:
     """Test database health monitoring endpoints"""
 
-    @patch('routers.health.get_pool_status')
+    @patch("routers.health.get_pool_status")
     def test_database_health_with_pool(self, mock_get_pool_status, client):
         """Test GET /health/database returns pool status"""
         # Mock pool status
@@ -79,7 +80,7 @@ class TestDatabaseHealthEndpoints:
             "checked_out": 5,
             "checked_in": 15,
             "utilization_percent": 25.0,
-            "health_status": "healthy"
+            "health_status": "healthy",
         }
 
         response = client.get("/api/health/database")
@@ -92,14 +93,14 @@ class TestDatabaseHealthEndpoints:
         assert data["pool_size"] == 20
         assert data["utilization_percent"] == 25.0
 
-    @patch('routers.health.get_pool_status')
+    @patch("routers.health.get_pool_status")
     def test_database_health_without_pool(self, mock_get_pool_status, client):
         """Test database health when no pool configured (SQLite)"""
         mock_get_pool_status.return_value = {
             "has_pool": False,
             "database_type": "sqlite",
             "pool_size": None,
-            "health_status": "healthy"
+            "health_status": "healthy",
         }
 
         response = client.get("/api/health/database")
@@ -110,7 +111,7 @@ class TestDatabaseHealthEndpoints:
         assert data["has_pool"] is False
         assert data["database_type"] == "sqlite"
 
-    @patch('routers.health.get_pool_events')
+    @patch("routers.health.get_pool_events")
     def test_database_events(self, mock_get_pool_events, client):
         """Test GET /health/database/events returns event counters"""
         mock_get_pool_events.return_value = {
@@ -118,7 +119,7 @@ class TestDatabaseHealthEndpoints:
             "connect_count": 100,
             "disconnect_count": 80,
             "checkout_count": 520,
-            "checkin_count": 500
+            "checkin_count": 500,
         }
 
         response = client.get("/api/health/database/events")
@@ -135,6 +136,7 @@ class TestCacheHealthEndpoints:
 
     def test_cache_health_all_tiers(self, client):
         """Test GET /health/cache returns stats for all tiers"""
+
         # Populate cache to generate stats
         @cache_short()
         def test_func(x: int) -> int:
@@ -171,6 +173,7 @@ class TestCacheHealthEndpoints:
 
     def test_cache_health_recommendations(self, client):
         """Test cache health includes hit rate recommendations"""
+
         # Create cache with low hit rate
         @cache_short()
         def test_func(x: int) -> int:
@@ -194,6 +197,7 @@ class TestCacheHealthEndpoints:
 
     def test_clear_cache_all_tiers(self, client):
         """Test POST /health/cache/clear clears all caches"""
+
         # Populate cache
         @cache_short()
         def test_func(x: int) -> int:
@@ -234,6 +238,7 @@ class TestCacheHealthEndpoints:
 
     def test_reset_cache_stats(self, client):
         """Test POST /health/cache/reset-stats resets statistics"""
+
         # Generate some cache activity
         @cache_short()
         def test_func(x: int) -> int:
@@ -258,20 +263,14 @@ class TestCacheHealthEndpoints:
 class TestFullHealthCheck:
     """Test comprehensive health check endpoint"""
 
-    @patch('routers.health.get_pool_status')
-    @patch('routers.health.get_profiling_report')
+    @patch("routers.health.get_pool_status")
+    @patch("routers.health.get_profiling_report")
     def test_full_health_check(self, mock_profiling_report, mock_pool_status, client):
         """Test GET /health/full returns all subsystem statuses"""
-        mock_pool_status.return_value = {
-            "has_pool": True,
-            "health_status": "healthy"
-        }
+        mock_pool_status.return_value = {"has_pool": True, "health_status": "healthy"}
 
         mock_profiling_report.return_value = {
-            "summary": {
-                "total_queries": 100,
-                "slow_percentage": 5.0
-            }
+            "summary": {"total_queries": 100, "slow_percentage": 5.0}
         }
 
         response = client.get("/api/health/full")
@@ -428,13 +427,10 @@ class TestProfilingEndpoints:
 class TestErrorConditions:
     """Test error handling in health endpoints"""
 
-    @patch('routers.health.get_pool_status')
+    @patch("routers.health.get_pool_status")
     def test_database_health_with_error(self, mock_get_pool_status, client):
         """Test database health when pool status raises error"""
-        mock_get_pool_status.return_value = {
-            "error": "Database not available",
-            "has_pool": False
-        }
+        mock_get_pool_status.return_value = {"error": "Database not available", "has_pool": False}
 
         response = client.get("/api/health/database")
 

@@ -8,6 +8,7 @@ Tests cover:
 - Profiling reports
 - N+1 detection
 """
+
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -250,8 +251,6 @@ class TestQueryStatistics:
 
     def test_get_query_statistics_basic(self):
         """Test getting basic query statistics"""
-        query = "SELECT * FROM projects WHERE id = ?"
-
         record_query("SELECT * FROM projects WHERE id = 123", 50.0)
         record_query("SELECT * FROM projects WHERE id = 456", 75.0)
 
@@ -346,7 +345,7 @@ class TestSlowQueries:
         past = datetime.utcnow() - timedelta(hours=2)
         recent = datetime.utcnow() - timedelta(minutes=5)
 
-        with patch('utils.query_profiler.datetime') as mock_datetime:
+        with patch("utils.query_profiler.datetime") as mock_datetime:
             # Record old query
             mock_datetime.utcnow.return_value = past
             record_query("SELECT * FROM old", SLOW_QUERY_THRESHOLD_MS + 10)
@@ -375,7 +374,7 @@ class TestSlowQueries:
 
     def test_get_slow_queries_sorted_by_timestamp(self):
         """Test that results are sorted by timestamp"""
-        with patch('utils.query_profiler.datetime') as mock_datetime:
+        with patch("utils.query_profiler.datetime") as mock_datetime:
             times = [
                 datetime.utcnow() - timedelta(minutes=30),
                 datetime.utcnow() - timedelta(minutes=20),
@@ -445,7 +444,9 @@ class TestProfilingReport:
         for i in range(98):
             record_query(f"SELECT * FROM fast WHERE id = {i}", 50.0)
         for i in range(2):
-            record_query(f"SELECT * FROM very_slow WHERE id = {i}", VERY_SLOW_QUERY_THRESHOLD_MS + 10)
+            record_query(
+                f"SELECT * FROM very_slow WHERE id = {i}", VERY_SLOW_QUERY_THRESHOLD_MS + 10
+            )
 
         report = get_profiling_report()
 
@@ -495,7 +496,9 @@ class TestProfilingReport:
 
     def test_get_profiling_report_truncates_long_queries(self):
         """Test that long queries are truncated in report"""
-        long_query = "SELECT * FROM projects WHERE " + " AND ".join([f"col{i} = {i}" for i in range(100)])
+        long_query = "SELECT * FROM projects WHERE " + " AND ".join(
+            [f"col{i} = {i}" for i in range(100)]
+        )
         record_query(long_query, 50.0)
 
         report = get_profiling_report()
@@ -544,7 +547,7 @@ class TestQueryProfileModel:
             timestamp=datetime.utcnow(),
             endpoint="/api/projects",
             is_slow=False,
-            is_very_slow=False
+            is_very_slow=False,
         )
 
         assert profile.query == "SELECT * FROM projects"
@@ -567,7 +570,7 @@ class TestQueryStatisticsModel:
             min_time_ms=30.0,
             max_time_ms=100.0,
             slow_count=2,
-            very_slow_count=0
+            very_slow_count=0,
         )
 
         assert stats.query_hash == "abc123def456"
