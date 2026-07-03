@@ -44,6 +44,7 @@ wheels/
 # pre-existing untracked project/tests set, kept for later triage
 tests_legacy_backup/
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 coverage/
