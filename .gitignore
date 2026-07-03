@@ -38,15 +38,11 @@ wheels/
 .installed.cfg
 *.egg
 
-# Testing (not needed in deployment)
-tests/
-backend/tests/
-operator-dashboard/src/__tests__/
-operator-dashboard/tests/
-*.test.ts
-*.test.tsx
-*.spec.ts
-*.spec.tsx
+# Testing — test SOURCES are now committed (CI restructure Phase 5) so CI can run
+# them. Only ARTIFACTS are ignored below. Do NOT re-add tests/, backend/tests/,
+# *.test.tsx, etc. — that hides the suite from CI (the whole point of the restructure).
+# pre-existing untracked project/tests set, kept for later triage
+tests_legacy_backup/
 .pytest_cache/
 .coverage
 htmlcov/
@@ -56,6 +52,10 @@ operator-dashboard/coverage/
 coverage*.json
 test_*.txt
 *_test.py
+# generated e2e run output (client_info/articles/*.json)
+tests/results/
+# ...but committed test fixtures/assets under tests/ are NOT artifacts — keep them.
+!tests/**/*.txt
 
 # IDEs
 .vscode/

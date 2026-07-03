@@ -1,0 +1,43 @@
+# Client Brief: Acme Marketing Agency
+
+## Company Information
+**Company Name:** Acme Marketing Agency
+**Business Description:** We help B2B SaaS companies scale their content marketing without hiring full-time writers.
+
+## Target Audience
+**Ideal Customer:** B2B SaaS founders and marketing directors at Series A-C companies ($5M-$50M ARR)
+**Main Problem Solved:** They need consistent, high-quality content but can't justify hiring a full content team yet
+
+## Customer Pain Points
+- Inconsistent publishing schedule due to resource constraints
+- Junior writers don't understand technical products deeply enough
+- Content doesn't convert because it's too generic
+- Founders spend too much time reviewing/editing content
+
+## Brand Voice & Tone
+**Brand Personality:** Direct, approachable, slightly witty
+**Key Phrases:**
+- "Ship faster, not harder"
+- "Content that converts, not just clicks"
+- "Your content team, without the overhead"
+
+## Topics of Interest
+- Content ROI and measurement
+- Scaling content operations
+- Technical content creation
+- B2B content strategy
+
+## Platform & Posting
+**Target Platforms:** LinkedIn, Twitter
+**Posting Frequency:** 4x weekly on LinkedIn, daily on Twitter
+**Data Usage Preference:** Moderate - use stats when available but don't force it
+
+## Personal Stories/Examples
+- Worked with a Series B SaaS that went from 2 posts/month to 16 posts/month in 90 days
+- Founder spent 15 hours/week editing content, now spends 2 hours approving
+- One client's technical tutorial got 50k views and generated 200 demo requests
+
+## Topics to Avoid
+- General marketing advice (too broad)
+- Consumer marketing tactics (not relevant to B2B)
+- Social media growth hacks
