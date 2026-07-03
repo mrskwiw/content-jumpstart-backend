@@ -1,5 +1,14 @@
+# =====================================================================
+# Backend (web server) dependencies.
+# Shared deps (anthropic, pydantic, python-dotenv, pytest, pytrends,
+# pandas, redis, dev tools, ...) come from the canonical root file — do
+# NOT re-pin them here (that caused CI ResolutionImpossible). This file
+# adds only the FastAPI web-server layer on top.
+# =====================================================================
+-r ../requirements.txt
+
 # FastAPI and Server
-fastapi==0.109.0
+fastapi==0.115.14          # security: >=0.115 pulls starlette>=0.40 (fixes CVE-2024-47874 multipart DoS)
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 sse-starlette==1.8.2
@@ -12,11 +21,8 @@ psycopg2-binary==2.9.9  # PostgreSQL driver for SQLAlchemy
 # Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-dotenv==1.0.0
 
 # Validation
-pydantic==2.5.3
-pydantic-settings==2.1.0
 email-validator==2.1.0
 
 # Rate Limiting (TR-004)
@@ -25,23 +31,15 @@ slowapi==0.1.9
 # Async support
 aiofiles==23.2.1
 
-# Testing
-pytest==7.4.4
-pytest-asyncio==0.23.3
+# HTTP clients (backend + tests)
 httpx==0.26.0
 requests==2.31.0
 
-# Existing project dependencies (for agent integration)
-anthropic==0.18.1
+# Agent integration helpers (backend-only)
 cachetools==5.3.2  # In-memory caching for query results
 types-cachetools==5.3.0.7  # Type stubs for cachetools
 textstat==0.7.3    # Readability scoring for voice analysis
 
-# Google Trends Integration
-pytrends==4.9.2    # Unofficial Google Trends API
-pandas>=1.5.0      # Required by pytrends for dataframes
-
 # Background Job Queue (Phase 2 optimization)
 celery==5.3.6  # Distributed task queue
-redis==5.0.1   # Message broker and result backend
 flower==2.0.1  # Celery monitoring UI (optional)

@@ -40,7 +40,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install black ruff mypy pre-commit
+          # Pin black/ruff to the pre-commit versions (.pre-commit-config.yaml) so
+          # local, pre-commit, and CI all agree — unpinned latest formats differently.
+          pip install black==25.12.0 ruff==0.14.10 mypy pre-commit
 
       # tests/ is intentionally excluded — the suite lives outside the repo (see header note).
       - name: Check code formatting (Black)
@@ -109,6 +111,12 @@ jobs:
   backend-quality:
     name: Backend API Quality
     runs-on: ubuntu-latest
+    # Dummy env so `import backend.main` passes config validation without a real
+    # DB/keys (in-memory sqlite is allowed for non-prod; keys are never used here).
+    env:
+      DATABASE_URL: "sqlite:///:memory:"
+      SECRET_KEY: "Xq7Kp2Lm9Rt4Vz8Nw1Yb6Hc3Dj0Sg5Ae2Ui9Oo3Pl"  # pragma: allowlist secret
+      ANTHROPIC_API_KEY: "sk-ant-api03-ci-import-check-key-0000000000000000"  # pragma: allowlist secret
 
     steps:
       - name: Checkout code
@@ -123,8 +131,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest httpx
+          # backend/requirements.txt is self-contained: it pulls the canonical root
+          # file via `-r ../requirements.txt` and adds the web-server layer. One pin
+          # per package now (Phase 2 consolidation), so a single install resolves
+          # cleanly — the old sequential-install ResolutionImpossible workaround is gone.
+          pip install -r backend/requirements.txt
 
       - name: Verify backend imports
         run: |

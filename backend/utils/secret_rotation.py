@@ -318,8 +318,6 @@ if __name__ == "__main__":
         rotate_api_key()
     elif command == "status":
         manager = SecretManager()
-        import json
-
         print(json.dumps(manager.get_status(), indent=2))
     elif command == "cleanup":
         manager = SecretManager()

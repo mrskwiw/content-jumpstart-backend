@@ -217,13 +217,11 @@ async def update_post(
 
     # Update content
     try:
-
         # Update content
         post.content = sanitize_prompt_input(post_update.content, strict=False)
 
     # Update content
     except ValueError as e:
-
         # Update content
         logger.warning(f"Prompt injection detected in post update: {e}")
 
