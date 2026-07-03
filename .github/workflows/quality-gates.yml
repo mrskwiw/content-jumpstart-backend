@@ -188,17 +188,46 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run fast test subset (unit + backend)
-        continue-on-error: true  # report-only until reds cleared (BUGS #179)
+        continue-on-error: true  # report-only (user's chosen landing strategy; ratchet = OPS-07)
         run: |
-          # Override the repo's 90% cov-fail-under gate; we report coverage, not enforce (yet).
-          # Skip requires_server tests (need a live HTTP server) and keep going past
-          # the known pre-existing collection errors.
+          # Override the repo's 90% cov-fail-under gate; report coverage, don't enforce (yet).
+          # Skip requires_server (need a live HTTP server); keep going past known collection errors.
+          set +e
           pytest tests/unit backend/tests \
             -o addopts="" -p no:cacheprovider \
             -m "not requires_server" \
             --continue-on-collection-errors \
+            --junitxml=fast-subset.xml \
             --cov=src --cov=backend --cov-report=term --cov-fail-under=0 \
             -q
+          echo "PYTEST_RC=$?" >> "$GITHUB_ENV"
+
+      # Report-only, but make regressions VISIBLE (not silently green): publish the
+      # pass/fail counts to the PR and raise a loud ::warning:: if failures exceed the
+      # documented baseline. Non-blocking by design — flip to blocking in OPS-07.
+      - name: Regression visibility (vs baseline)
+        if: always()
+        run: |
+          # Documented baseline for this fast subset (BUGS #179), 2026-07-03.
+          BASELINE_MAX_FAILURES=51
+          # Extract counts from junit attributes without an XML parser (avoids XXE
+          # surface + a defusedxml dependency; the file is our own pytest output).
+          attr() { grep -o "$1=\"[0-9]*\"" fast-subset.xml | head -1 | grep -o '[0-9]*'; }
+          F=$(attr failures); E=$(attr errors); T=$(attr tests)
+          F=${F:-0}; E=${E:-0}; T=${T:-0}
+          BAD=$(( F + E ))
+          {
+            echo "## Python fast subset (report-only)"
+            echo ""
+            echo "| tests | failures | errors | failures+errors | baseline |"
+            echo "|------:|---------:|-------:|----------------:|---------:|"
+            echo "| $T | $F | $E | $BAD | ≤ $BASELINE_MAX_FAILURES |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$BAD" -gt "$BASELINE_MAX_FAILURES" ]; then
+            echo "::warning title=Possible test regression::fast subset has $BAD failures+errors > baseline $BASELINE_MAX_FAILURES — a new failure may have been introduced (report-only; see BUGS #179 / OPS-07)"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ⚠️ **$BAD > baseline $BASELINE_MAX_FAILURES** — a regression may have been introduced. (Non-blocking for now; OPS-07 tracks flipping this to a hard gate.)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   integration-check:
     name: Integration Check
