@@ -241,7 +241,9 @@ class TestIntegration:
         # Use the actual skills base path
         # Skills are in repository root: content-creator/, marketing-strategy-pmm/
         project_root = Path(__file__).parent.parent.parent
-        skills_base = project_root  # Fixed: skills are in project root, not parent
+        skills_base = (
+            project_root.parent
+        )  # skills live in repo root (parent of project/) after Phase 5 test relocation
 
         loader = SkillLoader(skills_base_path=skills_base)
         skills = loader.list_available_skills()
@@ -253,7 +255,9 @@ class TestIntegration:
     def test_load_content_creator_skill(self):
         """Test loading the content-creator skill."""
         project_root = Path(__file__).parent.parent.parent
-        skills_base = project_root  # Fixed: skills are in project root, not parent
+        skills_base = (
+            project_root.parent
+        )  # skills live in repo root (parent of project/) after Phase 5 test relocation
 
         loader = SkillLoader(skills_base_path=skills_base)
         skill = loader.load_skill("content-creator")
@@ -266,7 +270,9 @@ class TestIntegration:
     def test_load_marketing_pmm_skill(self):
         """Test loading the marketing-strategy-pmm skill."""
         project_root = Path(__file__).parent.parent.parent
-        skills_base = project_root  # Fixed: skills are in project root, not parent
+        skills_base = (
+            project_root.parent
+        )  # skills live in repo root (parent of project/) after Phase 5 test relocation
 
         loader = SkillLoader(skills_base_path=skills_base)
         skill = loader.load_skill("marketing-strategy-pmm")
@@ -277,7 +283,9 @@ class TestIntegration:
     def test_load_nonexistent_skill(self):
         """Test loading a skill that doesn't exist."""
         project_root = Path(__file__).parent.parent.parent
-        skills_base = project_root  # Fixed: skills are in project root, not parent
+        skills_base = (
+            project_root.parent
+        )  # skills live in repo root (parent of project/) after Phase 5 test relocation
 
         loader = SkillLoader(skills_base_path=skills_base)
         skill = loader.load_skill("nonexistent-skill")
