@@ -8,6 +8,7 @@ Tests cover:
 - Parameter validation
 - Metadata generation
 """
+
 import pytest
 from datetime import datetime
 from unittest.mock import MagicMock
@@ -25,6 +26,7 @@ from backend.utils.pagination import (
 
 class MockModel:
     """Mock SQLAlchemy model for testing"""
+
     def __init__(self, id: str, created_at: datetime):
         self.id = id
         self.created_at = created_at
@@ -44,10 +46,7 @@ def mock_items():
     datetime(2025, 12, 15, 10, 0, 0)
     items = []
     for i in range(50):
-        item = MockModel(
-            id=f"item-{i:03d}",
-            created_at=datetime(2025, 12, 15, 10, 0, i)
-        )
+        item = MockModel(id=f"item-{i:03d}", created_at=datetime(2025, 12, 15, 10, 0, i))
         items.append(item)
     return items
 
@@ -177,7 +176,7 @@ class TestCursorPagination:
             cursor=None,
             page_size=20,
             order_by_field="created_at",
-            order_direction="desc"
+            order_direction="desc",
         )
 
         assert len(result["items"]) == 20  # 21st item used for has_next
@@ -200,7 +199,7 @@ class TestCursorPagination:
             cursor=cursor,
             page_size=20,
             order_by_field="created_at",
-            order_direction="desc"
+            order_direction="desc",
         )
 
         assert len(result["items"]) == 20
@@ -218,7 +217,7 @@ class TestCursorPagination:
             cursor=None,
             page_size=20,
             order_by_field="created_at",
-            order_direction="desc"
+            order_direction="desc",
         )
 
         assert len(result["items"]) == 10
@@ -251,11 +250,7 @@ class TestCursorPagination:
         mock_query.all.return_value = mock_items[:21]
 
         # Should not raise, should treat as first page
-        result = paginate_cursor(
-            mock_query,
-            cursor=invalid_cursor,
-            page_size=20
-        )
+        result = paginate_cursor(mock_query, cursor=invalid_cursor, page_size=20)
 
         assert len(result["items"]) == 20
         # Should not have called filter (invalid cursor ignored)
@@ -270,12 +265,12 @@ class TestCursorPagination:
         mock_query.order_by.return_value = mock_query
         mock_query.all.return_value = mock_items[21:41]
 
-        result = paginate_cursor(
+        paginate_cursor(
             mock_query,
             cursor=cursor,
             page_size=20,
             order_by_field="created_at",
-            order_direction="asc"
+            order_direction="asc",
         )
 
         # Verify filter was called (ASC filtering logic)
@@ -320,11 +315,7 @@ class TestHybridPagination:
 
         # Page 10, page_size 20 = offset 180 (>= OFFSET_THRESHOLD)
         result = paginate_hybrid(
-            mock_query,
-            page=10,
-            page_size=20,
-            order_by_field="created_at",
-            order_direction="desc"
+            mock_query, page=10, page_size=20, order_by_field="created_at", order_direction="desc"
         )
 
         assert result["metadata"].strategy == "cursor"
@@ -341,11 +332,7 @@ class TestHybridPagination:
         mock_query.order_by.return_value = mock_query
         mock_query.all.return_value = mock_items[21:41]
 
-        result = paginate_hybrid(
-            mock_query,
-            cursor=cursor,
-            page_size=20
-        )
+        result = paginate_hybrid(mock_query, cursor=cursor, page_size=20)
 
         assert result["metadata"].strategy == "cursor"
         mock_query.filter.assert_called_once()
@@ -419,11 +406,7 @@ class TestPaginationParams:
 
     def test_get_pagination_params_with_all_values(self):
         """Test with all parameters provided"""
-        params = get_pagination_params(
-            page=5,
-            cursor="test-cursor",
-            page_size=50
-        )
+        params = get_pagination_params(page=5, cursor="test-cursor", page_size=50)
 
         assert params["page"] == 5
         assert params["cursor"] == "test-cursor"
@@ -442,7 +425,7 @@ class TestPaginationMetadataModel:
             total_pages=5,
             has_next=True,
             has_prev=False,
-            strategy="offset"
+            strategy="offset",
         )
 
         assert metadata.total == 100
@@ -462,7 +445,7 @@ class TestPaginationMetadataModel:
             has_prev=True,
             next_cursor="cursor-123",
             prev_cursor="cursor-abc",
-            strategy="cursor"
+            strategy="cursor",
         )
 
         assert metadata.next_cursor == "cursor-123"
@@ -482,7 +465,7 @@ class TestPaginatedResponseModel:
             total_pages=1,
             has_next=False,
             has_prev=False,
-            strategy="offset"
+            strategy="offset",
         )
 
         response = PaginatedResponse(items=items, metadata=metadata)
@@ -501,7 +484,7 @@ class TestPaginatedResponseModel:
             total_pages=1,
             has_next=False,
             has_prev=False,
-            strategy="offset"
+            strategy="offset",
         )
 
         response = PaginatedResponse[MockModel](items=items, metadata=metadata)

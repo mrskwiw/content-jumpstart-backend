@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `project/` is the deployable application and the git repo root. Docs (`../docs/`) and task tracking (`../TODO.md`) live outside the repo and are not pushed.
 
-**Repo-specific convention — decided 2026-07-01 (overrides the global "tests never pushed" default):** this repo brings its **test suite INTO the git repo so CI can actually run it.** Tests belong in `project/tests/` (Python) and colocated `*.test.tsx` + `operator-dashboard/tests/` (frontend), and **are committed**. This reverses the earlier "tests run locally, not in CI" call (OPS-02) — a CI that never runs the ~4,700-test suite isn't meaningful for a deployed product. Migration is phased; see `../docs/CI_RESTRUCTURE_PLAN.md`. **Until Phase 5 lands, the legacy suite still physically sits at `../tests/`** — check the plan for current status before assuming tests are in-repo.
+**Repo-specific convention — decided 2026-07-01 (overrides the global "tests never pushed" default):** this repo brings its **test suite INTO the git repo so CI can actually run it.** Tests live in `project/tests/` (Python) and colocated `*.test.tsx` + `operator-dashboard/tests/` (frontend), and **are committed**. This reversed the earlier "tests run locally, not in CI" call (OPS-02) — a CI that never runs the suite isn't meaningful for a deployed product. **Phase 5 landed 2026-07-03:** the Python suite moved from `../tests/` → `project/tests/` and now runs in CI (fast subset per push via `python-tests`, full suite nightly via `full-test-suite.yml`) — **report-only** while ~150 pre-existing reds are cleared (BUGS #179), then it ratchets to blocking. See `../docs/CI_RESTRUCTURE_PLAN.md`.
 
 ## Deployment model — multi-instance (one database per customer)
 
@@ -74,13 +74,15 @@ python run_jumpstart.py --interactive            # CLI brief builder
 python run_jumpstart.py brief.txt --template-quantities '{"1": 3, "2": 5}'
 python agent_cli_enhanced.py chat               # interactive agent
 
-# Tests — must run from project/ targeting ../tests/
-pytest ../tests                             # full suite (~6,180 test functions, ~83.6% coverage)
+# Tests — now IN the repo at project/tests/ (run from project/)
+pytest tests                                # full suite (~6.3k tests; baseline 6,129 pass / 47 fail / 101 err)
 pytest backend/tests                        # backend-local tests (22 files)
-pytest ../tests/unit/                       # unit only
-pytest ../tests/integration/               # integration only
-pytest ../tests/unit/path/to/test_foo.py -v
+pytest tests/unit/                          # unit only
+pytest tests/integration/                   # integration only
+pytest tests/unit/path/to/test_foo.py -v
 pytest --cov=src --cov=backend --cov-report=html --cov-report=term
+# NOTE: agent/live/manual/debug dirs manipulate stdout and crash pytest capture on
+# some runners — CI's full-suite job --ignore's them. requires_server tests need a live server.
 
 # Quality (run before every commit)
 black src/ backend/
@@ -97,11 +99,7 @@ npx jest              # unit tests
 npx playwright test   # e2e tests
 ```
 
-**`pyproject.toml` sets `testpaths = ["../tests", "backend/tests"]`** — the main suite lives at `../tests/`, *outside* this git repo. Always run pytest from `project/`; `conftest.py` adds `project/` to `sys.path` automatically.
-
-> **⚠ SUPERSEDED (2026-07-01) — see the "This directory" decision above and `../docs/CI_RESTRUCTURE_PLAN.md`.** The direction is now to bring tests INTO the repo and run them in CI. The note below describes the *interim* state that holds only until Phase 5 of the restructure lands.
->
-> **Interim (2026-06-30): Python tests run LOCALLY, not in CI.** While the suite still sits at `../tests/` (outside the `project/` git repo), GitHub CI cannot run it, so `quality-gates.yml` runs only lint (`black`/`ruff` on `src backend`), the frontend build, and a backend import check — **no `pytest`** yet. Until the move, **run `pytest ../tests` locally before pushing.** Re-enablement (re-add `python-tests`/`test-coverage` jobs) happens in the restructure. Records: `../TODO.md` → OPS-02 and `../docs/CI_RESTRUCTURE_PLAN.md`.
+**`pyproject.toml` sets `testpaths = ["tests", "backend/tests"]`** — both trees are inside this git repo (`project/tests/` and `project/backend/tests/`). Run pytest from `project/`; `tests/conftest.py` adds `project/` to `sys.path` automatically (`Path(__file__).parent.parent`).
 
 **Windows UTF-8:** `src/agents/03_post_generator.py` lines 13–15 force UTF-8 output. Never remove them.
 
@@ -197,7 +195,7 @@ DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD   optional — Google Trends fallback
 
 ## Known pitfalls
 
-- **Test path**: run `pytest ../tests/` from `project/` — the suite is outside the repo (CI sees only `tests/unit/`, see OPS-02)
+- **Test path**: run `pytest tests/` from `project/` — the suite is now in-repo (Phase 5). CI runs a fast subset per push + full nightly, report-only for now (BUGS #179)
 - **Template path**: `.env` must have `TEMPLATE_LIBRARY_PATH=02_POST_TEMPLATE_LIBRARY.md` (not `../02_...`)
 - **Deep-link 404**: only works with a production build (`npm run build`) or Vite dev server
 - **Research race condition**: `competitive_analysis` must run after `determine_competitors` (optional sequencing item in `../TODO.md`)

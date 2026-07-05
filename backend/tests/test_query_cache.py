@@ -8,6 +8,7 @@ Tests cover:
 - Cache statistics
 - TTL tiers
 """
+
 import pytest
 from unittest.mock import Mock
 from backend.utils.query_cache import (
@@ -135,6 +136,7 @@ class TestCacheDecorator:
 
     def test_cache_statistics_tracking(self):
         """Test that cache hits/misses are tracked"""
+
         @cached(ttl="short")
         def get_data(x: int) -> int:
             return x * 2
@@ -163,6 +165,7 @@ class TestCacheTiers:
 
     def test_short_cache_tier(self):
         """Test short TTL cache (5 minutes)"""
+
         @cache_short()
         def get_data(x: int) -> int:
             return x * 2
@@ -177,6 +180,7 @@ class TestCacheTiers:
 
     def test_medium_cache_tier(self):
         """Test medium TTL cache (10 minutes)"""
+
         @cache_medium()
         def get_data(x: int) -> int:
             return x * 2
@@ -191,6 +195,7 @@ class TestCacheTiers:
 
     def test_long_cache_tier(self):
         """Test long TTL cache (1 hour)"""
+
         @cache_long()
         def get_data(x: int) -> int:
             return x * 2
@@ -205,6 +210,7 @@ class TestCacheTiers:
 
     def test_invalid_tier_defaults_to_short(self):
         """Test that invalid tier defaults to short"""
+
         @cached(ttl="invalid")
         def get_data(x: int) -> int:
             return x * 2
@@ -221,6 +227,7 @@ class TestCacheClearing:
 
     def test_clear_all_caches(self):
         """Test clearing all cache tiers"""
+
         # Populate all caches
         @cache_short()
         def get_short(x: int) -> int:
@@ -253,6 +260,7 @@ class TestCacheClearing:
 
     def test_clear_specific_tier(self):
         """Test clearing specific cache tier"""
+
         @cache_short()
         def get_short(x: int) -> int:
             return x
@@ -272,6 +280,7 @@ class TestCacheClearing:
 
     def test_clear_with_key_prefix(self):
         """Test selective clearing by key prefix"""
+
         @cached(ttl="short", key_prefix="projects")
         def get_projects(x: int) -> int:
             return x
@@ -298,6 +307,7 @@ class TestCacheClearing:
 
     def test_invalidate_related_caches(self):
         """Test invalidating multiple related cache namespaces"""
+
         @cached(ttl="short", key_prefix="projects")
         def get_projects(x: int) -> int:
             return x
@@ -323,6 +333,7 @@ class TestCacheClearing:
 
     def test_cache_clear_updates_statistics(self):
         """Test that cache clearing updates invalidation stats"""
+
         @cache_short(key_prefix="test")
         def get_data(x: int) -> int:
             return x
@@ -343,6 +354,7 @@ class TestCacheStatistics:
 
     def test_get_cache_info_single_tier(self):
         """Test getting stats for single cache tier"""
+
         @cache_short()
         def get_data(x: int) -> int:
             return x * 2
@@ -363,6 +375,7 @@ class TestCacheStatistics:
 
     def test_get_cache_info_all_tiers(self):
         """Test getting stats for all cache tiers"""
+
         @cache_short()
         def get_short(x: int) -> int:
             return x
@@ -392,6 +405,7 @@ class TestCacheStatistics:
 
     def test_hit_rate_calculation(self):
         """Test hit rate percentage calculation"""
+
         @cache_short()
         def get_data(x: int) -> int:
             return x
@@ -418,6 +432,7 @@ class TestCacheStatistics:
 
     def test_reset_cache_stats(self):
         """Test resetting cache statistics"""
+
         @cache_short()
         def get_data(x: int) -> int:
             return x
@@ -506,6 +521,7 @@ class TestCacheWrapperMethods:
 
     def test_cache_info_method(self):
         """Test wrapper.cache_info() method"""
+
         @cache_short()
         def get_data(x: int) -> int:
             return x * 2

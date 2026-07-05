@@ -1,11 +1,10 @@
 name: Quality Gates
 
-# NOTE: Python unit/integration/security tests are intentionally NOT run in CI.
-# The test suite lives at root-level /tests/, which by project convention is never
-# pushed (the git repo root is project/). Python tests are enforced LOCALLY via
-# pre-commit, Codex adversarial review, and stop hooks. If/when the suite is moved
-# into the repo, re-add python-tests + coverage jobs and make them blocking.
-# See ../TODO.md → OPS-02 for the decision record and re-enablement steps.
+# Python tests now run in CI (restructure Phase 5 brought the suite into the repo).
+# `python-tests` runs a FAST subset (tests/unit + backend/tests) on every push as
+# REPORT-ONLY (continue-on-error) while the ~150 pre-existing reds are worked down
+# (BUGS #179); it will be ratcheted to blocking once green. The full ~6.3k-test
+# suite runs nightly in full-test-suite.yml. See ../TODO.md → OPS-02/OPS-04.
 
 on:
   push:
@@ -97,6 +96,12 @@ jobs:
           npx tsc --noEmit
         continue-on-error: true  # Warning only
 
+      - name: Jest unit tests (report-only)
+        run: |
+          cd operator-dashboard
+          npx jest --ci --passWithNoTests
+        continue-on-error: true  # report-only until frontend suite is triaged (BUGS #179)
+
       - name: Build frontend
         run: |
           cd operator-dashboard
@@ -153,6 +158,76 @@ jobs:
           assert app is not None
           print('✅ Backend app created successfully')
           "
+
+  python-tests:
+    name: Python Tests (fast subset, report-only)
+    runs-on: ubuntu-latest
+    # Report-only for now (continue-on-error at the step): the moved suite has ~150
+    # pre-existing reds (BUGS #179). Fast subset = unit + backend/tests; the full
+    # suite runs nightly (full-test-suite.yml). Ratchet to blocking once green.
+    env:
+      DATABASE_URL: "sqlite:///:memory:"
+      SECRET_KEY: "Xq7Kp2Lm9Rt4Vz8Nw1Yb6Hc3Dj0Sg5Ae2Ui9Oo3Pl"  # pragma: allowlist secret
+      ANTHROPIC_API_KEY: "sk-ant-api03-ci-test-key-0000000000000000000000000"  # pragma: allowlist secret
+      TESTING: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # backend/requirements.txt is self-contained (pulls root via -r).
+          pip install -r backend/requirements.txt
+
+      - name: Run fast test subset (unit + backend)
+        continue-on-error: true  # report-only (user's chosen landing strategy; ratchet = OPS-07)
+        run: |
+          # Override the repo's 90% cov-fail-under gate; report coverage, don't enforce (yet).
+          # Skip requires_server (need a live HTTP server); keep going past known collection errors.
+          set +e
+          pytest tests/unit backend/tests \
+            -o addopts="" -p no:cacheprovider \
+            -m "not requires_server" \
+            --continue-on-collection-errors \
+            --junitxml=fast-subset.xml \
+            --cov=src --cov=backend --cov-report=term --cov-fail-under=0 \
+            -q
+          echo "PYTEST_RC=$?" >> "$GITHUB_ENV"
+
+      # Report-only, but make regressions VISIBLE (not silently green): publish the
+      # pass/fail counts to the PR and raise a loud ::warning:: if failures exceed the
+      # documented baseline. Non-blocking by design — flip to blocking in OPS-07.
+      - name: Regression visibility (vs baseline)
+        if: always()
+        run: |
+          # Documented baseline for this fast subset (BUGS #179), 2026-07-03.
+          BASELINE_MAX_FAILURES=51
+          # Extract counts from junit attributes without an XML parser (avoids XXE
+          # surface + a defusedxml dependency; the file is our own pytest output).
+          attr() { grep -o "$1=\"[0-9]*\"" fast-subset.xml | head -1 | grep -o '[0-9]*'; }
+          F=$(attr failures); E=$(attr errors); T=$(attr tests)
+          F=${F:-0}; E=${E:-0}; T=${T:-0}
+          BAD=$(( F + E ))
+          {
+            echo "## Python fast subset (report-only)"
+            echo ""
+            echo "| tests | failures | errors | failures+errors | baseline |"
+            echo "|------:|---------:|-------:|----------------:|---------:|"
+            echo "| $T | $F | $E | $BAD | ≤ $BASELINE_MAX_FAILURES |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$BAD" -gt "$BASELINE_MAX_FAILURES" ]; then
+            echo "::warning title=Possible test regression::fast subset has $BAD failures+errors > baseline $BASELINE_MAX_FAILURES — a new failure may have been introduced (report-only; see BUGS #179 / OPS-07)"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ⚠️ **$BAD > baseline $BASELINE_MAX_FAILURES** — a regression may have been introduced. (Non-blocking for now; OPS-07 tracks flipping this to a hard gate.)" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   integration-check:
     name: Integration Check
