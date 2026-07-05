@@ -24,13 +24,44 @@ Usage:
 """
 
 import json
-import sqlite3
+import uuid
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import text
+
 from ..utils.logger import logger
+
+
+def _open_session():
+    """Open a SQLAlchemy session bound to the application database.
+
+    Cost tracking is now backed by the app's database (Postgres in production)
+    rather than a local SQLite file — a local file is lost on ephemeral hosts
+    (e.g. Render) and isn't per-customer. Returns ``None`` if the DB is
+    unavailable, in which case all persistence degrades gracefully (calls still
+    return their computed cost; reads return empty/zero) instead of crashing.
+
+    Tests monkeypatch this to return an in-memory session.
+    """
+    try:
+        from backend.database import SessionLocal
+
+        return SessionLocal()
+    except Exception as exc:  # pragma: no cover - defensive (import/DB config issues)
+        logger.debug(f"Cost tracker: DB session unavailable ({exc}); persistence disabled")
+        return None
+
+
+def _as_dt(value: Any) -> datetime:
+    """Coerce a DB timestamp (native datetime on Postgres, ISO str on SQLite)."""
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
+
 
 # Model pricing (as of Dec 2025)
 # Source: https://www.anthropic.com/pricing
@@ -110,67 +141,16 @@ class CostTracker:
     """Track API costs and usage for projects"""
 
     def __init__(self, db_path: Optional[Path] = None):
-        """Initialize cost tracker
+        """Initialize cost tracker.
 
         Args:
-            db_path: Path to SQLite database (default: data/cost_tracking.db)
+            db_path: Deprecated. Accepted for backward compatibility but ignored —
+                cost data is persisted to the application database via
+                ``_open_session()`` (see module docstring). Schema (``api_calls``,
+                ``budget_alerts``) is provisioned with the app schema, not here.
         """
-        if db_path is None:
-            # Use absolute path relative to project root (Bug #59 fix)
-            project_root = Path(__file__).parent.parent.parent
-            db_path = project_root / "data" / "cost_tracking.db"
-
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._init_database()
-        logger.debug(f"Cost tracker initialized: {self.db_path}")
-
-    def _init_database(self):
-        """Initialize database schema"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        # API calls table
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS api_calls (
-                call_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                model TEXT NOT NULL,
-                input_tokens INTEGER NOT NULL,
-                output_tokens INTEGER NOT NULL,
-                cache_creation_tokens INTEGER DEFAULT 0,
-                cache_read_tokens INTEGER DEFAULT 0,
-                cost REAL NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """
-        )
-
-        # Create indexes separately
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_project_id ON api_calls(project_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON api_calls(timestamp)")
-
-        # Budget alerts table
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS budget_alerts (
-                alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id TEXT NOT NULL,
-                budget_limit REAL NOT NULL,
-                alert_threshold REAL DEFAULT 0.8,
-                enabled INTEGER DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-
-                UNIQUE(project_id)
-            )
-        """
-        )
-
-        conn.commit()
-        conn.close()
+        # Retained only so old callers passing db_path don't break.
+        self.db_path = db_path
 
     def track_api_call(
         self,
@@ -200,40 +180,56 @@ class CostTracker:
             model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
         )
 
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        session = _open_session()
+        if session is None:
+            # DB unavailable — still return the computed cost (fail-open on tracking).
+            return cost
 
-        cursor.execute(
-            """
-            INSERT INTO api_calls (
-                project_id, operation, model,
-                input_tokens, output_tokens,
-                cache_creation_tokens, cache_read_tokens,
-                cost
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                project_id,
-                operation,
-                model,
-                input_tokens,
-                output_tokens,
-                cache_creation_tokens,
-                cache_read_tokens,
-                cost,
-            ),
-        )
+        call_id = uuid.uuid4().hex
+        try:
+            session.execute(
+                text(
+                    """
+                    INSERT INTO api_calls (
+                        call_id, project_id, operation, model,
+                        input_tokens, output_tokens,
+                        cache_creation_tokens, cache_read_tokens,
+                        cost, timestamp
+                    ) VALUES (
+                        :call_id, :project_id, :operation, :model,
+                        :input_tokens, :output_tokens,
+                        :cache_creation_tokens, :cache_read_tokens,
+                        :cost, :timestamp
+                    )
+                    """
+                ),
+                {
+                    "call_id": call_id,
+                    "project_id": project_id,
+                    "operation": operation,
+                    "model": model,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "cache_creation_tokens": cache_creation_tokens,
+                    "cache_read_tokens": cache_read_tokens,
+                    "cost": cost,
+                    "timestamp": datetime.utcnow(),
+                },
+            )
+            session.commit()
+            logger.debug(
+                f"Tracked API call {call_id}: {project_id} | {operation} | "
+                f"{input_tokens}in + {output_tokens}out = ${cost:.4f}"
+            )
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to record API call ({exc})")
+            with suppress(Exception):
+                session.rollback()
+        finally:
+            with suppress(Exception):
+                session.close()
 
-        call_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-
-        logger.debug(
-            f"Tracked API call {call_id}: {project_id} | {operation} | "
-            f"{input_tokens}in + {output_tokens}out = ${cost:.4f}"
-        )
-
-        # Check budget alert
+        # Check budget alert (best-effort; opens its own session)
         self._check_budget_alert(project_id)
 
         return cost
@@ -282,42 +278,50 @@ class CostTracker:
         Returns:
             ProjectCost object with aggregated statistics
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            SELECT
-                COUNT(*) as total_calls,
-                SUM(input_tokens) as total_input,
-                SUM(output_tokens) as total_output,
-                SUM(cache_creation_tokens) as total_cache_creation,
-                SUM(cache_read_tokens) as total_cache_read,
-                SUM(cost) as total_cost,
-                MIN(timestamp) as first_call,
-                MAX(timestamp) as last_call
-            FROM api_calls
-            WHERE project_id = ?
-        """,
-            (project_id,),
+        empty = ProjectCost(
+            project_id=project_id,
+            total_calls=0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_cache_creation_tokens=0,
+            total_cache_read_tokens=0,
+            total_cost=0.0,
+            first_call=datetime.now(),
+            last_call=datetime.now(),
         )
 
-        row = cursor.fetchone()
-        conn.close()
+        session = _open_session()
+        if session is None:
+            return empty
 
-        if not row or row[0] == 0:
-            # No calls for this project
-            return ProjectCost(
-                project_id=project_id,
-                total_calls=0,
-                total_input_tokens=0,
-                total_output_tokens=0,
-                total_cache_creation_tokens=0,
-                total_cache_read_tokens=0,
-                total_cost=0.0,
-                first_call=datetime.now(),
-                last_call=datetime.now(),
-            )
+        try:
+            row = session.execute(
+                text(
+                    """
+                    SELECT
+                        COUNT(*) AS total_calls,
+                        SUM(input_tokens) AS total_input,
+                        SUM(output_tokens) AS total_output,
+                        SUM(cache_creation_tokens) AS total_cache_creation,
+                        SUM(cache_read_tokens) AS total_cache_read,
+                        SUM(cost) AS total_cost,
+                        MIN(timestamp) AS first_call,
+                        MAX(timestamp) AS last_call
+                    FROM api_calls
+                    WHERE project_id = :project_id
+                    """
+                ),
+                {"project_id": project_id},
+            ).fetchone()
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to read project cost ({exc})")
+            return empty
+        finally:
+            with suppress(Exception):
+                session.close()
+
+        if not row or not row[0]:
+            return empty
 
         return ProjectCost(
             project_id=project_id,
@@ -327,8 +331,8 @@ class CostTracker:
             total_cache_creation_tokens=row[3] or 0,
             total_cache_read_tokens=row[4] or 0,
             total_cost=row[5] or 0.0,
-            first_call=datetime.fromisoformat(row[6]),
-            last_call=datetime.fromisoformat(row[7]),
+            first_call=_as_dt(row[6]),
+            last_call=_as_dt(row[7]),
         )
 
     def get_project_calls(self, project_id: str) -> List[APICall]:
@@ -340,42 +344,48 @@ class CostTracker:
         Returns:
             List of APICall objects
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        session = _open_session()
+        if session is None:
+            return []
 
-        cursor.execute(
-            """
-            SELECT
-                call_id, project_id, operation, model,
-                input_tokens, output_tokens,
-                cache_creation_tokens, cache_read_tokens,
-                cost, timestamp
-            FROM api_calls
-            WHERE project_id = ?
-            ORDER BY timestamp DESC, call_id DESC
-        """,
-            (project_id,),
-        )
+        try:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT
+                        call_id, project_id, operation, model,
+                        input_tokens, output_tokens,
+                        cache_creation_tokens, cache_read_tokens,
+                        cost, timestamp
+                    FROM api_calls
+                    WHERE project_id = :project_id
+                    ORDER BY timestamp DESC, call_id DESC
+                    """
+                ),
+                {"project_id": project_id},
+            ).fetchall()
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to read project calls ({exc})")
+            return []
+        finally:
+            with suppress(Exception):
+                session.close()
 
-        calls = []
-        for row in cursor.fetchall():
-            calls.append(
-                APICall(
-                    call_id=row[0],
-                    project_id=row[1],
-                    operation=row[2],
-                    model=row[3],
-                    input_tokens=row[4],
-                    output_tokens=row[5],
-                    cache_creation_tokens=row[6],
-                    cache_read_tokens=row[7],
-                    cost=row[8],
-                    timestamp=datetime.fromisoformat(row[9]),
-                )
+        return [
+            APICall(
+                call_id=row[0],
+                project_id=row[1],
+                operation=row[2],
+                model=row[3],
+                input_tokens=row[4],
+                output_tokens=row[5],
+                cache_creation_tokens=row[6],
+                cache_read_tokens=row[7],
+                cost=row[8],
+                timestamp=_as_dt(row[9]),
             )
-
-        conn.close()
-        return calls
+            for row in rows
+        ]
 
     def get_all_projects(self) -> List[str]:
         """Get list of all tracked projects
@@ -383,22 +393,29 @@ class CostTracker:
         Returns:
             List of project IDs
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        session = _open_session()
+        if session is None:
+            return []
 
-        cursor.execute(
-            """
-            SELECT project_id, MAX(timestamp) as last_call
-            FROM api_calls
-            GROUP BY project_id
-            ORDER BY last_call DESC
-        """
-        )
+        try:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT project_id, MAX(timestamp) AS last_call
+                    FROM api_calls
+                    GROUP BY project_id
+                    ORDER BY last_call DESC
+                    """
+                )
+            ).fetchall()
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to list projects ({exc})")
+            return []
+        finally:
+            with suppress(Exception):
+                session.close()
 
-        projects = [row[0] for row in cursor.fetchall()]
-        conn.close()
-
-        return projects
+        return [row[0] for row in rows]
 
     def get_total_costs(
         self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
@@ -412,37 +429,51 @@ class CostTracker:
         Returns:
             Dictionary with aggregated statistics
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        zeros = {
+            "total_projects": 0,
+            "total_calls": 0,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_cost": 0.0,
+            "avg_cost_per_project": 0.0,
+        }
+
+        session = _open_session()
+        if session is None:
+            return zeros
 
         where_clause = []
-        params = []
-
+        params: Dict[str, Any] = {}
         if start_date:
-            where_clause.append("timestamp >= ?")
-            params.append(start_date.isoformat())
+            where_clause.append("timestamp >= :start_date")
+            params["start_date"] = start_date
         if end_date:
-            where_clause.append("timestamp <= ?")
-            params.append(end_date.isoformat())
-
+            where_clause.append("timestamp <= :end_date")
+            params["end_date"] = end_date
         where_sql = "WHERE " + " AND ".join(where_clause) if where_clause else ""
 
-        cursor.execute(  # nosec B608
-            f"""
-            SELECT
-                COUNT(DISTINCT project_id) as total_projects,
-                COUNT(*) as total_calls,
-                SUM(input_tokens) as total_input,
-                SUM(output_tokens) as total_output,
-                SUM(cost) as total_cost
-            FROM api_calls
-            {where_sql}
-        """,
-            params,
-        )
-
-        row = cursor.fetchone()
-        conn.close()
+        try:
+            row = session.execute(
+                text(  # nosec B608 - where_sql is built from fixed fragments, values are bound params
+                    f"""
+                    SELECT
+                        COUNT(DISTINCT project_id) AS total_projects,
+                        COUNT(*) AS total_calls,
+                        SUM(input_tokens) AS total_input,
+                        SUM(output_tokens) AS total_output,
+                        SUM(cost) AS total_cost
+                    FROM api_calls
+                    {where_sql}
+                    """
+                ),
+                params,
+            ).fetchone()
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to read total costs ({exc})")
+            return zeros
+        finally:
+            with suppress(Exception):
+                session.close()
 
         return {
             "total_projects": row[0] or 0,
@@ -461,48 +492,72 @@ class CostTracker:
             budget_limit: Budget limit in USD
             alert_threshold: Threshold to trigger alert (0.0-1.0, default 0.8 = 80%)
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        session = _open_session()
+        if session is None:
+            return
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO budget_alerts
-            (project_id, budget_limit, alert_threshold, enabled)
-            VALUES (?, ?, ?, 1)
-        """,
-            (project_id, budget_limit, alert_threshold),
-        )
-
-        conn.commit()
-        conn.close()
-
-        logger.info(
-            f"Budget alert set for {project_id}: "
-            f"${budget_limit:.2f} (alert at {alert_threshold*100:.0f}%)"
-        )
+        try:
+            # Upsert on project_id (works on both SQLite 3.24+ and PostgreSQL).
+            session.execute(
+                text(
+                    """
+                    INSERT INTO budget_alerts
+                        (alert_id, project_id, budget_limit, alert_threshold, enabled)
+                    VALUES (:alert_id, :project_id, :budget_limit, :alert_threshold, 1)
+                    ON CONFLICT (project_id) DO UPDATE SET
+                        budget_limit = excluded.budget_limit,
+                        alert_threshold = excluded.alert_threshold,
+                        enabled = 1
+                    """
+                ),
+                {
+                    "alert_id": uuid.uuid4().hex,
+                    "project_id": project_id,
+                    "budget_limit": budget_limit,
+                    "alert_threshold": alert_threshold,
+                },
+            )
+            session.commit()
+            logger.info(
+                f"Budget alert set for {project_id}: "
+                f"${budget_limit:.2f} (alert at {alert_threshold*100:.0f}%)"
+            )
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to set budget alert ({exc})")
+            with suppress(Exception):
+                session.rollback()
+        finally:
+            with suppress(Exception):
+                session.close()
 
     def _check_budget_alert(self, project_id: str):
         """Check if project has exceeded budget alert threshold"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        session = _open_session()
+        if session is None:
+            return
 
-        # Get budget alert settings
-        cursor.execute(
-            """
-            SELECT budget_limit, alert_threshold
-            FROM budget_alerts
-            WHERE project_id = ? AND enabled = 1
-        """,
-            (project_id,),
-        )
-
-        row = cursor.fetchone()
-        conn.close()
+        try:
+            row = session.execute(
+                text(
+                    """
+                    SELECT budget_limit, alert_threshold
+                    FROM budget_alerts
+                    WHERE project_id = :project_id AND enabled = 1
+                    """
+                ),
+                {"project_id": project_id},
+            ).fetchone()
+        except Exception as exc:
+            logger.warning(f"Cost tracker: failed to read budget alert ({exc})")
+            return
+        finally:
+            with suppress(Exception):
+                session.close()
 
         if not row:
             return  # No alert set
 
-        budget_limit, alert_threshold = row
+        budget_limit, alert_threshold = row[0], row[1]
 
         # Get current cost
         project_cost = self.get_project_cost(project_id)
