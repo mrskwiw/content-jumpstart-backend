@@ -30,17 +30,11 @@ from backend.middleware.authorization import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Module-level fixture: enable ownership enforcement for all tests in this file
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _security_enforce_ownership(monkeypatch):
-    monkeypatch.setattr(
-        "backend.middleware.authorization._ownership_enforcement_enabled",
-        lambda: True,
-    )
+# NOTE: ownership enforcement is now UNCONDITIONAL in
+# backend/middleware/authorization.py (`_check_ownership` always runs). The old
+# `_ownership_enforcement_enabled()` feature flag was removed, so the autouse
+# monkeypatch that used to force it on is gone — these tests exercise the
+# always-on behavior directly.
 
 
 # ---------------------------------------------------------------------------
