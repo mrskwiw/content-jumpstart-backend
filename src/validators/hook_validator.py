@@ -406,21 +406,39 @@ class HookValidator:
             ),
             "first-person patient intro",
         ),
+        # GEN-07: cross-industry scaffolds that recur across a package's bodies.
+        (
+            re.compile(r"fax\s*machine", re.IGNORECASE),
+            "fax-machine analogy",
+        ),
+        (
+            re.compile(r"monday\s+mornings?", re.IGNORECASE),
+            "Monday-morning testimonial",
+        ),
+        (
+            re.compile(
+                r"\$\s?\d+\s?[km]\b.{0,40}(sitting|stuck|waiting|inbox)",
+                re.IGNORECASE,
+            ),
+            "dollar-figure stuck-in-inbox anecdote",
+        ),
     ]
 
     def _check_scaffold_patterns(self, posts: List[Post]) -> List[Dict[str, Any]]:
-        """Detect repeated narrative scaffolds in post body (Bug #136/#138).
+        """Detect repeated narrative scaffolds anywhere in post bodies (GEN-07).
 
-        The hook dedup checks only opening lines. Patient-anecdote phrases like
-        'One patient told us last month' appear in the body and pass undetected
-        when used 2-3 times in the same package.
+        The hook dedup checks only opening lines. Scaffold phrases like
+        'One patient told us last month', a 'fax machine' analogy, a
+        'Monday morning' testimonial, or a '$50K ... stuck in inbox' anecdote
+        appear in the body and pass undetected when reused across a package.
 
-        Checks the first ~400 characters of each post (early body, not full text)
-        to catch scaffolding without false-positives from longer narrative echoes.
+        Scans the FULL post content (GEN-07 removed the earlier 400-char cap so
+        mid/late-body scaffolds are caught); a scaffold is flagged only when it
+        recurs in >= 2 posts, which keeps single legitimate uses from tripping it.
         """
         results: List[Dict[str, Any]] = []
         for pattern, scaffold_name in self._SCAFFOLD_PATTERNS:
-            matching = [i for i, post in enumerate(posts) if pattern.search(post.content[:400])]
+            matching = [i for i, post in enumerate(posts) if pattern.search(post.content)]
             if len(matching) >= 2:
                 results.append(
                     {

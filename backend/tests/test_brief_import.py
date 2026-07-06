@@ -35,12 +35,21 @@ def test_parse_valid_brief(client: TestClient):
     # Verify metadata
     assert data["metadata"]["filename"] == "sample_brief.txt"
     assert "parseTimeMs" in data["metadata"]
-    assert data["metadata"]["fieldsTotal"] == 8
+    # fieldsTotal is the full canonical field set the parser always maps
+    # (expanded from 8 to 22 in the "full field coverage" parser rework, 94aff39).
+    assert data["metadata"]["fieldsTotal"] == 22
 
-    # Verify at least some fields were extracted
-    assert len(data["fields"]) == 8
+    # Every canonical field is always present in the response (low confidence
+    # for anything not found); the response mirrors fieldsTotal.
+    assert len(data["fields"]) == 22
     assert "companyName" in data["fields"]
     assert "businessDescription" in data["fields"]
+
+    # fieldsExtracted counts the fields actually found (non-low confidence).
+    # Confirm real extraction happened and the counts are self-consistent.
+    non_low = [f for f in data["fields"].values() if f["confidence"] != "low"]
+    assert data["metadata"]["fieldsExtracted"] == len(non_low)
+    assert data["metadata"]["fieldsExtracted"] > 0
 
     # Verify field structure
     for field_name, field_data in data["fields"].items():

@@ -1,46 +1,75 @@
 """
-Token Sync Service - Syncs token usage from cost_tracker.db to main database
+Token Sync Service - Syncs token usage into the main database
 
-Pulls token usage data from the cost tracking database and populates
-the Run, Post, and ResearchResult models with actual API costs.
+Aggregates token usage from the ``api_calls`` table (written by
+``src/utils/cost_tracker.py``) and populates the Run, Post, and ResearchResult
+models with actual API costs.
 
-This service acts as a bridge between the existing cost_tracker.py
-infrastructure and the new token usage fields in the database.
+The SQLite-bridge file (``cost_tracker.db``) is gone: cost data now lives in the
+application database (Postgres in production) alongside everything else, so this
+service reads ``api_calls`` directly from the passed-in SQLAlchemy session. The
+public interface is unchanged; callers do not need updating.
 """
 
-import sqlite3
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.models import Post, ResearchResult, Run
 from backend.utils.logger import logger
 
 
-class TokenSyncService:
-    """Service to sync token usage from cost_tracker.db to main database"""
+def _aggregate_api_calls(
+    db: Session, project_id: str, start_time: datetime, end_time: datetime
+) -> Dict[str, int]:
+    """Aggregate api_calls token usage for a project within a time window.
 
-    def __init__(self, cost_tracker_db_path: Optional[Path] = None):
-        """
-        Initialize token sync service
+    Reads the ``api_calls`` table directly from the given session. Returns a dict
+    of summed token counts + cost, or an empty dict if there are no matching rows.
+    """
+    row = db.execute(
+        text(
+            """
+            SELECT
+                SUM(input_tokens) AS total_input,
+                SUM(output_tokens) AS total_output,
+                SUM(cache_creation_tokens) AS total_cache_creation,
+                SUM(cache_read_tokens) AS total_cache_read,
+                SUM(cost) AS total_cost
+            FROM api_calls
+            WHERE project_id = :project_id
+              AND timestamp >= :start_time
+              AND timestamp <= :end_time
+            """
+        ),
+        {"project_id": project_id, "start_time": start_time, "end_time": end_time},
+    ).fetchone()
+
+    if not row or row[0] is None:
+        return {}
+
+    return {
+        "total_input_tokens": int(row[0] or 0),
+        "total_output_tokens": int(row[1] or 0),
+        "total_cache_creation_tokens": int(row[2] or 0),
+        "total_cache_read_tokens": int(row[3] or 0),
+        "total_cost": float(row[4] or 0.0),
+    }
+
+
+class TokenSyncService:
+    """Sync token usage from the ``api_calls`` table into Run/Post/ResearchResult."""
+
+    def __init__(self, cost_tracker_db_path: Optional[object] = None):
+        """Initialize token sync service.
 
         Args:
-            cost_tracker_db_path: Path to cost_tracker.db (default: data/cost_tracking.db)
+            cost_tracker_db_path: Deprecated/ignored. Retained so existing callers
+                that pass it don't break; usage is now read from the app DB session.
         """
-        if cost_tracker_db_path is None:
-            # Default path where cost_tracker.py stores data
-            cost_tracker_db_path = Path("data/cost_tracking.db")
-
         self.cost_tracker_db_path = cost_tracker_db_path
-
-        # Verify cost tracker database exists
-        if not self.cost_tracker_db_path.exists():
-            logger.warning(
-                f"Cost tracker database not found at {self.cost_tracker_db_path}. "
-                "Token usage tracking will not be available."
-            )
 
     def sync_run_token_usage(self, db: Session, run_id: str, project_id: str) -> Dict[str, int]:
         """
@@ -67,10 +96,8 @@ class TokenSyncService:
         start_time = run.started_at
         end_time = run.completed_at or datetime.utcnow()
 
-        # Query cost tracker for API calls in this time window
-        usage_data = self._get_project_usage(
-            project_id=project_id, start_time=start_time, end_time=end_time
-        )
+        # Aggregate API calls in this time window from the app DB
+        usage_data = _aggregate_api_calls(db, project_id, start_time, end_time)
 
         if not usage_data:
             logger.warning(
@@ -131,9 +158,7 @@ class TokenSyncService:
         # API calls are tracked under project_id in cost_tracker.db;
         # fall back to client_id only when no project is associated.
         lookup_id = research.project_id or client_id
-        usage_data = self._get_project_usage(
-            project_id=lookup_id, start_time=start_time, end_time=end_time
-        )
+        usage_data = _aggregate_api_calls(db, lookup_id, start_time, end_time)
 
         if not usage_data:
             logger.warning(
@@ -225,62 +250,6 @@ class TokenSyncService:
         db.commit()
         logger.info(f"Estimated token usage for {posts_updated} posts (proportional by word count)")
         return posts_updated
-
-    def _get_project_usage(
-        self, project_id: str, start_time: datetime, end_time: datetime
-    ) -> Dict[str, int]:
-        """
-        Query cost_tracker.db for API calls in time window
-
-        Args:
-            project_id: Project ID to query
-            start_time: Start of time window
-            end_time: End of time window
-
-        Returns:
-            Dict with aggregated token counts and cost
-        """
-        if not self.cost_tracker_db_path.exists():
-            return {}
-
-        try:
-            conn = sqlite3.connect(self.cost_tracker_db_path)
-            cursor = conn.cursor()
-
-            # Query all API calls for this project in time window
-            cursor.execute(
-                """
-                SELECT
-                    SUM(input_tokens) as total_input,
-                    SUM(output_tokens) as total_output,
-                    SUM(cache_creation_tokens) as total_cache_creation,
-                    SUM(cache_read_tokens) as total_cache_read,
-                    SUM(cost) as total_cost
-                FROM api_calls
-                WHERE project_id = ?
-                  AND timestamp >= ?
-                  AND timestamp <= ?
-                """,
-                (project_id, start_time.isoformat(), end_time.isoformat()),
-            )
-
-            result = cursor.fetchone()
-            conn.close()
-
-            if result and result[0] is not None:
-                return {
-                    "total_input_tokens": int(result[0] or 0),
-                    "total_output_tokens": int(result[1] or 0),
-                    "total_cache_creation_tokens": int(result[2] or 0),
-                    "total_cache_read_tokens": int(result[3] or 0),
-                    "total_cost": float(result[4] or 0.0),
-                }
-
-            return {}
-
-        except sqlite3.Error as e:
-            logger.error(f"Failed to query cost_tracker.db: {e}")
-            return {}
 
 
 # Singleton instance

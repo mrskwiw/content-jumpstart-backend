@@ -93,7 +93,8 @@ class TestQAAgent:
         assert agent.hook_validator is not None
         assert agent.cta_validator is not None
         assert agent.length_validator is not None
-        assert agent.headline_validator is not None
+        # headline_validator is constructed per-call in validate_posts (its threshold
+        # depends on client_type), so it is no longer an __init__-time attribute.
         assert agent.keyword_validator is None
 
     def test_initialization_with_keywords(self, keyword_strategy):
@@ -108,7 +109,25 @@ class TestQAAgent:
 
         assert agent.hook_validator.similarity_threshold == 0.80
         assert agent.cta_validator.variety_threshold == 0.40
-        assert agent.headline_validator.min_elements == 3
+
+    def test_default_headline_threshold_is_three(self, sample_posts):
+        """Headline validator is built per-call with default min_elements=3.
+
+        The headline threshold now depends on client_type (local-service clients
+        get 2), so the validator is constructed inside validate_posts rather than
+        __init__. With no client_type the default threshold is 3.
+        """
+        agent = QAAgent()
+
+        with patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls:
+            mock_headline_cls.return_value.validate.return_value = {
+                "passed": True,
+                "headlines_analyzed": 0,
+                "issues": [],
+            }
+            agent.validate_posts(sample_posts, "Test Client")
+
+        mock_headline_cls.assert_called_once_with(min_elements=3)
 
     def test_validate_posts_calls_all_validators(self, sample_posts):
         """Test validate_posts calls all required validators"""
@@ -118,8 +137,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Mock validator responses
             mock_hook.return_value = {
@@ -167,9 +189,12 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
             patch.object(agent.keyword_validator, "validate") as mock_keyword,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Mock all validator responses
             mock_hook.return_value = {
@@ -230,8 +255,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Mock validators with issues
             mock_hook.return_value = {
@@ -280,8 +308,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Mock validators with specific scores
             mock_hook.return_value = {
@@ -327,8 +358,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # All validators pass
             mock_hook.return_value = {
@@ -372,8 +406,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Hook validator fails
             mock_hook.return_value = {
@@ -417,8 +454,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             mock_hook.return_value = {
                 "passed": True,
@@ -465,9 +505,12 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
             patch.object(agent.keyword_validator, "validate") as mock_keyword,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             mock_hook.return_value = {
                 "passed": True,
@@ -565,8 +608,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             # Mock validators with some missing score fields
             mock_hook.return_value = {
@@ -612,8 +658,11 @@ class TestQAAgent:
             patch.object(agent.hook_validator, "validate") as mock_hook,
             patch.object(agent.cta_validator, "validate") as mock_cta,
             patch.object(agent.length_validator, "validate") as mock_length,
-            patch.object(agent.headline_validator, "validate") as mock_headline,
+            patch("src.agents.qa_agent.HeadlineValidator") as mock_headline_cls,
         ):
+            # HeadlineValidator is constructed inside validate_posts; its instance's
+            # .validate is the mock the assertions below target.
+            mock_headline = mock_headline_cls.return_value.validate
 
             mock_hook.return_value = {
                 "passed": True,

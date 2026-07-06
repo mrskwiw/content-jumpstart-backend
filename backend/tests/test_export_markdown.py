@@ -102,7 +102,7 @@ async def test_generate_markdown_basic(mock_posts, mock_client, mock_project, tm
 
     # Verify platform info
     assert "| **Platform** | LinkedIn |" in content
-    assert "| **Platform** | Twitter |" in content
+    assert "| **Platform** | Microblog |" in content  # "twitter" -> "Microblog" display name
 
     # Verify CTA info
     assert "✅ Yes" in content
@@ -131,7 +131,7 @@ async def test_generate_markdown_table_of_contents(mock_posts, mock_client, mock
 
     # Verify TOC links
     assert "1. [Post 1: Problem Recognition (LinkedIn)](#post-1)" in content
-    assert "2. [Post 2: Statistic (Twitter)](#post-2)" in content
+    assert "2. [Post 2: Statistic (Microblog)](#post-2)" in content
     assert "3. [Post 3: Question](#post-3)" in content  # No platform
 
     # Verify anchor targets
@@ -235,5 +235,8 @@ async def test_generate_markdown_empty_posts(mock_client, mock_project, tmp_path
 
     # Should have header and metadata
     assert "# 30-Day Content Jumpstart Deliverable" in content
-    assert "total_posts: 0" in content
-    assert "## Your Posts" in content
+    # With no posts, the export omits the post-count frontmatter and the posts
+    # section by design (`if posts:` guards; the public path also flips such an
+    # export to research-style). So neither total_posts nor "Your Posts" appears.
+    assert "total_posts" not in content
+    assert "## Your Posts" not in content
