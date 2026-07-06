@@ -1,10 +1,11 @@
 name: Quality Gates
 
-# Python tests now run in CI (restructure Phase 5 brought the suite into the repo).
-# `python-tests` runs a FAST subset (tests/unit + backend/tests) on every push as
-# REPORT-ONLY (continue-on-error) while the ~150 pre-existing reds are worked down
-# (BUGS #179); it will be ratcheted to blocking once green. The full ~6.3k-test
-# suite runs nightly in full-test-suite.yml. See ../TODO.md → OPS-02/OPS-04.
+# Python tests run in CI (restructure Phase 5 brought the suite into the repo).
+# `python-tests` runs a FAST subset (tests/unit + backend/tests) on every push and
+# is BLOCKING (OPS-07, ratcheted 2026-07-06 after BUGS #179 cleared the reds and the
+# fast subset went green in CI). Env-dependent tests skip when their resource is
+# absent; the full ~6.3k-test suite still runs nightly (report-only) in
+# full-test-suite.yml. See ../TODO.md → OPS-02/OPS-07.
 
 on:
   push:
@@ -160,11 +161,12 @@ jobs:
           "
 
   python-tests:
-    name: Python Tests (fast subset, report-only)
+    name: Python Tests (fast subset)
     runs-on: ubuntu-latest
-    # Report-only for now (continue-on-error at the step): the moved suite has ~150
-    # pre-existing reds (BUGS #179). Fast subset = unit + backend/tests; the full
-    # suite runs nightly (full-test-suite.yml). Ratchet to blocking once green.
+    # BLOCKING (OPS-07): fast subset = tests/unit + backend/tests. A test failure or
+    # collection error fails this job and blocks the merge. Env-dependent tests skip
+    # themselves when their resource is absent. The full suite runs nightly
+    # (report-only) in full-test-suite.yml.
     env:
       DATABASE_URL: "sqlite:///:memory:"
       SECRET_KEY: "Xq7Kp2Lm9Rt4Vz8Nw1Yb6Hc3Dj0Sg5Ae2Ui9Oo3Pl"  # pragma: allowlist secret
@@ -188,10 +190,12 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run fast test subset (unit + backend)
-        continue-on-error: true  # report-only (user's chosen landing strategy; ratchet = OPS-07)
         run: |
-          # Override the repo's 90% cov-fail-under gate; report coverage, don't enforce (yet).
-          # Skip requires_server (need a live HTTP server); keep going past known collection errors.
+          # BLOCKING (OPS-07). Report coverage but don't gate on it yet
+          # (--cov-fail-under=0; a calibrated threshold is a separate follow-up).
+          # Skip requires_server (need a live HTTP server). --continue-on-collection-errors
+          # so the junit captures ALL failures for the summary; we then exit with
+          # pytest's real code so any failure/collection error fails the job.
           set +e
           pytest tests/unit backend/tests \
             -o addopts="" -p no:cacheprovider \
@@ -200,16 +204,17 @@ jobs:
             --junitxml=fast-subset.xml \
             --cov=src --cov=backend --cov-report=term --cov-fail-under=0 \
             -q
-          echo "PYTEST_RC=$?" >> "$GITHUB_ENV"
+          rc=$?
+          echo "PYTEST_RC=$rc" >> "$GITHUB_ENV"
+          exit $rc
 
-      # Report-only, but make regressions VISIBLE (not silently green): publish the
-      # pass/fail counts to the PR and raise a loud ::warning:: if failures exceed the
-      # documented baseline. Non-blocking by design — flip to blocking in OPS-07.
-      - name: Regression visibility (vs baseline)
+      # Publish the pass/fail counts to the PR summary. The job already blocks on any
+      # failure (step above); this adds a readable summary and a belt-and-suspenders
+      # ::warning:: if the junit shows any failure/error.
+      - name: Test summary
         if: always()
         run: |
-          # Documented baseline for this fast subset (BUGS #179), 2026-07-03.
-          BASELINE_MAX_FAILURES=51
+          BASELINE_MAX_FAILURES=0
           # Extract counts from junit attributes without an XML parser (avoids XXE
           # surface + a defusedxml dependency; the file is our own pytest output).
           attr() { grep -o "$1=\"[0-9]*\"" fast-subset.xml | head -1 | grep -o '[0-9]*'; }
@@ -217,16 +222,14 @@ jobs:
           F=${F:-0}; E=${E:-0}; T=${T:-0}
           BAD=$(( F + E ))
           {
-            echo "## Python fast subset (report-only)"
+            echo "## Python fast subset (blocking — OPS-07)"
             echo ""
-            echo "| tests | failures | errors | failures+errors | baseline |"
-            echo "|------:|---------:|-------:|----------------:|---------:|"
-            echo "| $T | $F | $E | $BAD | ≤ $BASELINE_MAX_FAILURES |"
+            echo "| tests | failures | errors | failures+errors | allowed |"
+            echo "|------:|---------:|-------:|----------------:|--------:|"
+            echo "| $T | $F | $E | $BAD | $BASELINE_MAX_FAILURES |"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$BAD" -gt "$BASELINE_MAX_FAILURES" ]; then
-            echo "::warning title=Possible test regression::fast subset has $BAD failures+errors > baseline $BASELINE_MAX_FAILURES — a new failure may have been introduced (report-only; see BUGS #179 / OPS-07)"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "> ⚠️ **$BAD > baseline $BASELINE_MAX_FAILURES** — a regression may have been introduced. (Non-blocking for now; OPS-07 tracks flipping this to a hard gate.)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Test regression::fast subset has $BAD failures+errors — this job is blocking, so the run is red. Fix the failing tests or, if a test needs a resource absent in CI, guard it with skipif."
           fi
 
   integration-check:

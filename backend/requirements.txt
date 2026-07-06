@@ -21,6 +21,11 @@ psycopg2-binary==2.9.9  # PostgreSQL driver for SQLAlchemy
 # Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# Pin bcrypt <4.2: passlib 1.7.4 (unmaintained) probes the backend by hashing a
+# >72-byte test value; bcrypt >=4.2 raises "password cannot be longer than 72
+# bytes" there instead of truncating, breaking ALL passlib hashing (auth password
+# verify + MFA backup codes). 4.1.2 is verified working. (surfaced by CI)
+bcrypt==4.1.2
 
 # Validation
 email-validator==2.1.0

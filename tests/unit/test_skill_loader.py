@@ -12,6 +12,8 @@ import sys
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+import pytest
+
 from src.utils.skill_loader import (
     SkillLoader,
     Skill,
@@ -21,6 +23,25 @@ from src.utils.skill_loader import (
     list_skills,
     get_skill_reference,
     get_skill_loader,
+)
+
+
+def _skills_present() -> bool:
+    """True only when the real skill packages are on disk.
+
+    The skill packages (content-creator, marketing-strategy-pmm) live OUTSIDE the
+    git repo (workspace root, the parent of project/), so they're present locally
+    but NOT in CI's project-only checkout. Integration tests that load them are
+    guarded to skip when absent.
+    """
+    try:
+        return (get_skill_loader().skills_base / "content-creator").exists()
+    except Exception:
+        return False
+
+
+_requires_skills = pytest.mark.skipif(
+    not _skills_present(), reason="external skill packages not present (not in CI)"
 )
 
 
@@ -233,6 +254,7 @@ invalid: [unclosed bracket
         assert metadata.tech_stack == ["python", "nodejs"]
 
 
+@_requires_skills
 class TestIntegration:
     """Integration tests with actual skill directories."""
 
@@ -307,6 +329,7 @@ class TestIntegration:
         assert skill1 is skill2
 
 
+@_requires_skills
 class TestConvenienceFunctions:
     """Tests for module-level convenience functions."""
 
@@ -340,6 +363,7 @@ class TestConvenienceFunctions:
         assert loader1 is loader2
 
 
+@_requires_skills
 class TestAgentToolsIntegration:
     """Tests for AgentTools skill integration."""
 
