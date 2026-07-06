@@ -163,6 +163,11 @@ def test_lifespan_seeds_admin_users(monkeypatch):
     monkeypatch.delenv("FORCE_ADMIN_SEED", raising=False)
     monkeypatch.delenv("ADMIN_USER_1_EMAIL", raising=False)
     monkeypatch.delenv("ADMIN_USER_2_EMAIL", raising=False)
+    # Drive the PRIMARY/SECONDARY_ADMIN_EMAIL fallback with explicit test values so
+    # this is hermetic — previously it silently relied on the developer's local
+    # .env (which isn't present in CI, so seeding produced 0 users there).
+    monkeypatch.setenv("PRIMARY_ADMIN_EMAIL", "primary-admin@test.local")
+    monkeypatch.setenv("SECONDARY_ADMIN_EMAIL", "secondary-admin@test.local")
     monkeypatch.setattr(main_mod.secrets, "token_urlsafe", lambda size: "generated-password")
     monkeypatch.setattr(main_mod, "init_db", lambda: calls.append("init_db"))
     monkeypatch.setattr("backend.utils.auth.get_password_hash", lambda password: f"hash:{password}")
@@ -194,8 +199,8 @@ def test_lifespan_seeds_admin_users(monkeypatch):
     assert session.closed is True
     assert len(session.added) == 2
     assert {user.email for user in session.added} == {
-        "mrskwiw@gmail.com",
-        "michele.vanhy@gmail.com",
+        "primary-admin@test.local",
+        "secondary-admin@test.local",
     }
     assert all(user.hashed_password for user in session.added)
     assert all(user.credit_balance == 4242 for user in session.added)
