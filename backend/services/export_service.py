@@ -78,6 +78,16 @@ async def generate_export_file(
     # Ensure output directory exists
     output_dir = Path("data/outputs")
     full_path = output_dir / relative_path
+
+    # Security (Bug #180): confine the resolved path within data/outputs to
+    # prevent path traversal. relative_path is derived from user-controlled
+    # values (e.g. client.name, which is NOT validated against '..'), so reject
+    # any input that escapes the output directory before writing to disk.
+    try:
+        full_path.resolve().relative_to(output_dir.resolve())
+    except ValueError:
+        raise ValueError(f"Invalid export path: {relative_path!r} escapes the output directory")
+
     full_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Determine export type (research-only vs standard project export)

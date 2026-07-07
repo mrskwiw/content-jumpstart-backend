@@ -141,6 +141,52 @@ class TestPathTraversalPrevention:
             except Exception:
                 pass
 
+    def test_relative_path_escaping_output_dir_is_rejected(self):
+        """Bug #180: a relative_path with ../ that escapes data/outputs must raise.
+
+        client.name is not validated against path traversal, so the export
+        service itself must confine the resolved path within data/outputs.
+        """
+        from backend.services.export_service import generate_export_file
+
+        client = _make_client(name="../../../etc/passwd")
+        project = _make_project()
+        posts = _make_posts(1)
+
+        with pytest.raises(ValueError, match="escapes the output directory"):
+            _run(
+                generate_export_file(
+                    posts=posts,
+                    client=client,
+                    project=project,
+                    format="txt",
+                    relative_path="../../../../tmp/evil.txt",
+                )
+            )
+
+    def test_legitimate_relative_path_is_allowed(self):
+        """Bug #180: a normal nested relative_path is still accepted and written."""
+        from backend.services.export_service import generate_export_file
+
+        client = _make_client(name="Acme Co")
+        project = _make_project(name="Spring Campaign")
+        posts = _make_posts(1)
+
+        out_path, size = _run(
+            generate_export_file(
+                posts=posts,
+                client=client,
+                project=project,
+                format="txt",
+                relative_path="Acme Co/spring_delivery.txt",
+            )
+        )
+        try:
+            assert out_path.exists()
+            assert size > 0
+        finally:
+            out_path.unlink(missing_ok=True)
+
     def test_path_traversal_backslash_in_client_name(self):
         """Client name with backslash path separators does not crash the service."""
         from backend.services.export_service import _generate_txt

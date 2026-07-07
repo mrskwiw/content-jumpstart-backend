@@ -455,8 +455,29 @@ async def restore_to_restore_point(
             detail="Invalid restore point filename",
         )
 
+    # Security (Bug #180): a restore point is a BARE filename in backup_dir. Reject
+    # any path components up front — the prefix/suffix checks run on the raw string,
+    # so a traversal like "pre_restore_backup_/../other.db" passes them AND, once
+    # normalized, lands back inside backup_dir (defeating a confine-only check) while
+    # actually targeting a NON-restore file. Requiring filename == its basename
+    # closes both in-tree and out-of-tree traversal. (`..` -> name "" also rejected.)
+    if filename != Path(filename).name:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid restore point filename",
+        )
+
     backup_dir = Path("data/backups")
     restore_point_path = backup_dir / filename
+
+    # Defense in depth: confine the resolved path within backup_dir too.
+    try:
+        restore_point_path.resolve().relative_to(backup_dir.resolve())
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid restore point filename",
+        )
 
     if not restore_point_path.exists():
         raise HTTPException(
