@@ -1,16 +1,16 @@
 /**
  * Tests for Dashboard page component
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Dashboard from '../Dashboard';
 
 // Mock useNavigate
-const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', async () => {
+  const actual = await jest.requireActual('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -18,8 +18,8 @@ vi.mock('react-router-dom', async () => {
 });
 
 // Mock useAuth
-const mockLogout = vi.fn();
-vi.mock('@/contexts/AuthContext', () => ({
+const mockLogout = jest.fn();
+jest.mock('@/contexts/AuthContext', () => ({
   // Passthrough provider so shared test-utils (which wraps in AuthProvider) works.
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
@@ -36,7 +36,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 describe('Dashboard Page', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
 
   it('should render dashboard header with user info', () => {
@@ -75,7 +75,7 @@ describe('Dashboard Page', () => {
 
   it('should display email when name not available', () => {
     // Override mock for this test
-    vi.mock('@/contexts/AuthContext', () => ({
+    jest.mock('@/contexts/AuthContext', () => ({
       useAuth: () => ({
         user: {
           id: 'user-2',

@@ -12,7 +12,7 @@
  * - User interactions
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders, userEvent } from '@/__tests__/setup/test-utils';
 import Settings from '../Settings';
@@ -26,7 +26,7 @@ global.fetch = jest.fn();
 
 describe('Settings Page', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
     localStorage.clear();
 
     // Mock successful fetch responses
