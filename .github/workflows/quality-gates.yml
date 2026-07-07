@@ -191,18 +191,19 @@ jobs:
 
       - name: Run fast test subset (unit + backend)
         run: |
-          # BLOCKING (OPS-07). Report coverage but don't gate on it yet
-          # (--cov-fail-under=0; a calibrated threshold is a separate follow-up).
+          # BLOCKING (OPS-07). Coverage gate calibrated to the fast subset's real
+          # coverage (~76.5% local; a few pts lower in CI where env-dependent tests
+          # skip) with margin, so it catches a coverage crater without false-failing.
           # Skip requires_server (need a live HTTP server). --continue-on-collection-errors
           # so the junit captures ALL failures for the summary; we then exit with
-          # pytest's real code so any failure/collection error fails the job.
+          # pytest's real code so any failure/collection error/coverage-miss fails the job.
           set +e
           pytest tests/unit backend/tests \
             -o addopts="" -p no:cacheprovider \
             -m "not requires_server" \
             --continue-on-collection-errors \
             --junitxml=fast-subset.xml \
-            --cov=src --cov=backend --cov-report=term --cov-fail-under=0 \
+            --cov=src --cov=backend --cov-report=term --cov-fail-under=70 \
             -q
           rc=$?
           echo "PYTEST_RC=$rc" >> "$GITHUB_ENV"
