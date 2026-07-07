@@ -2,7 +2,8 @@
  * Comprehensive tests for ClientProfilePanel
  */
 import { describe, it, expect, jest } from '@jest/globals';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithProviders as render } from '@/__tests__/setup/test-utils';
 import userEvent from '@testing-library/user-event';
 import { ClientProfilePanel } from '../ClientProfilePanel';
 

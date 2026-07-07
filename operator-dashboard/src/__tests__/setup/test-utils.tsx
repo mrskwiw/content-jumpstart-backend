@@ -7,6 +7,7 @@ import { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 /**
  * Create a fresh QueryClient for each test.
@@ -45,7 +46,9 @@ export function AllTheProviders({ children }: AllTheProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>{children}</BrowserRouter>
+      <BrowserRouter>
+        <AuthProvider>{children}</AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

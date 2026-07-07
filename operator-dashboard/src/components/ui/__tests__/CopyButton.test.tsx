@@ -1,7 +1,9 @@
 /**
  * Tests for CopyButton component
  */
-import { describe, it, expect, beforeEach, vi } from '@jest/globals';
+import { describe, it, expect, beforeEach } from '@jest/globals';
+
+const vi = jest;
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CopyButton } from '../CopyButton';

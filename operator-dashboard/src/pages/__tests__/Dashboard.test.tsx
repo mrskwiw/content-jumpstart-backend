@@ -20,6 +20,8 @@ vi.mock('react-router-dom', async () => {
 // Mock useAuth
 const mockLogout = vi.fn();
 vi.mock('@/contexts/AuthContext', () => ({
+  // Passthrough provider so shared test-utils (which wraps in AuthProvider) works.
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useAuth: () => ({
     user: {
       id: 'user-1',

@@ -150,7 +150,12 @@ describe("generatorApi.exportPackage", () => {
     const mockResponse = {
       data: {
         id: "del-123",
+        projectId: "proj-123",
+        clientId: "cli-456",
+        format: "docx",
         path: "/path/to/file.docx",
+        createdAt: "2026-02-20T10:00:00Z",
+        status: "ready",
       },
     };
 
@@ -176,7 +181,17 @@ describe("generatorApi.exportPackage", () => {
   it("should convert camelCase to snake_case", async () => {
     const { generatorApi } = await import("../generator");
 
-    (apiClient.post as any).mockResolvedValueOnce({ data: {} });
+    (apiClient.post as any).mockResolvedValueOnce({
+      data: {
+        id: "del-123",
+        projectId: "proj-123",
+        clientId: "cli-456",
+        format: "md",
+        path: "/path/to/file.md",
+        createdAt: "2026-02-20T10:00:00Z",
+        status: "ready",
+      },
+    });
 
     await generatorApi.exportPackage({
       projectId: "proj-123",
