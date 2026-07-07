@@ -153,7 +153,9 @@ class TestPathTraversalPrevention:
         project = _make_project()
         posts = _make_posts(1)
 
-        with pytest.raises(ValueError, match="escapes the output directory"):
+        # Rejected either by the up-front illegal-component check or the resolved-path
+        # confinement — both raise "Invalid export path: ...".
+        with pytest.raises(ValueError, match="Invalid export path"):
             _run(
                 generate_export_file(
                     posts=posts,

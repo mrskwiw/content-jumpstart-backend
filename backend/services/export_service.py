@@ -77,12 +77,19 @@ async def generate_export_file(
     """
     # Ensure output directory exists
     output_dir = Path("data/outputs")
+
+    # Security (Bug #180): relative_path is derived from user-controlled values
+    # (e.g. client.name, which is NOT validated against '..'). Validate the raw
+    # input BEFORE building any path: reject absolute paths and any '..'/empty
+    # path component (nested legitimate subdirs are still allowed). This bounds the
+    # tainted string to safe components...
+    _rel = Path(relative_path)
+    if _rel.is_absolute() or any(part in ("..", "") for part in _rel.parts):
+        raise ValueError(f"Invalid export path: {relative_path!r} contains illegal path components")
+
     full_path = output_dir / relative_path
 
-    # Security (Bug #180): confine the resolved path within data/outputs to
-    # prevent path traversal. relative_path is derived from user-controlled
-    # values (e.g. client.name, which is NOT validated against '..'), so reject
-    # any input that escapes the output directory before writing to disk.
+    # ...and, defense in depth, confine the resolved path within data/outputs.
     try:
         full_path.resolve().relative_to(output_dir.resolve())
     except ValueError:

@@ -5,6 +5,7 @@ Provides functionality to download and upload SQLite database files
 for backup and restore operations.
 """
 
+import re
 import shutil
 import sqlite3
 from datetime import datetime
@@ -448,20 +449,13 @@ async def restore_to_restore_point(
     """
     logger.warning(f"Admin {admin.email} reverting to restore point: {filename}")
 
-    # Validate filename format (security: prevent directory traversal)
-    if not filename.startswith("pre_restore_backup_") or not filename.endswith(".db"):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid restore point filename",
-        )
-
-    # Security (Bug #180): a restore point is a BARE filename in backup_dir. Reject
-    # any path components up front — the prefix/suffix checks run on the raw string,
-    # so a traversal like "pre_restore_backup_/../other.db" passes them AND, once
-    # normalized, lands back inside backup_dir (defeating a confine-only check) while
-    # actually targeting a NON-restore file. Requiring filename == its basename
-    # closes both in-tree and out-of-tree traversal. (`..` -> name "" also rejected.)
-    if filename != Path(filename).name:
+    # Security (Bug #180): validate the filename against a strict allowlist BEFORE
+    # building any path. A restore point is a bare filename of the form
+    # pre_restore_backup_<safe-chars>.db — the pattern admits no '/' or '\', so no
+    # directory component or traversal (in-tree or out-of-tree) is representable.
+    # This up-front character allowlist is the primary sanitizer; the resolved-path
+    # confinement below is defense in depth.
+    if not re.fullmatch(r"pre_restore_backup_[0-9A-Za-z_.\-]+\.db", filename):
         raise HTTPException(
             status_code=400,
             detail="Invalid restore point filename",
