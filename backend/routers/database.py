@@ -448,8 +448,18 @@ async def restore_to_restore_point(
     """
     logger.warning(f"Admin {admin.email} reverting to restore point: {filename}")
 
-    # Validate filename format (security: prevent directory traversal)
-    if not filename.startswith("pre_restore_backup_") or not filename.endswith(".db"):
+    # Security (Bug #180): a restore point is a BARE filename of the form
+    # pre_restore_backup_*.db in backup_dir. Enforce the prefix/suffix AND that the
+    # filename has no directory component (== its own basename) — this admits no
+    # '/'/'\\' or '..', so no traversal (in-tree or out-of-tree) is representable.
+    # The resolved-path confinement below is defense in depth.
+    # (NB: an earlier re.fullmatch allowlist was equally secure but tripped a CodeQL
+    # regex FP on a literal pattern; the char-level checks here avoid that noise.)
+    if (
+        not filename.startswith("pre_restore_backup_")
+        or not filename.endswith(".db")
+        or filename != Path(filename).name
+    ):
         raise HTTPException(
             status_code=400,
             detail="Invalid restore point filename",
@@ -457,6 +467,15 @@ async def restore_to_restore_point(
 
     backup_dir = Path("data/backups")
     restore_point_path = backup_dir / filename
+
+    # Defense in depth: confine the resolved path within backup_dir too.
+    try:
+        restore_point_path.resolve().relative_to(backup_dir.resolve())
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid restore point filename",
+        )
 
     if not restore_point_path.exists():
         raise HTTPException(

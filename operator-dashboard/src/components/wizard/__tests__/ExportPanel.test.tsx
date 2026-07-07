@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "@/__tests__/setup/test-utils";
 import { ExportPanel } from "@/components/wizard/ExportPanel";
 import { generatorApi } from "@/api/generator";
 import { describe, it, expect, beforeEach } from "@jest/globals";
@@ -11,15 +11,7 @@ jest.mock("@/api/generator", () => ({
 }));
 
 describe("ExportPanel - Research Results Checkbox", () => {
-  let queryClient: QueryClient;
-
   beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
     jest.clearAllMocks();
   });
 
@@ -29,11 +21,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
       clientId: "cli-456",
     };
 
-    return render(
-      <QueryClientProvider client={queryClient}>
-        <ExportPanel {...defaultProps} {...props} />
-      </QueryClientProvider>
-    );
+    return renderWithProviders(<ExportPanel {...defaultProps} {...props} />);
   };
 
   it("should render with research results checkbox", () => {

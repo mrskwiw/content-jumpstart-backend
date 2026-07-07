@@ -88,7 +88,13 @@ def fetch_zip_demographics(location: str, api_key: str) -> Optional[str]:
         return _format_response(raw, zip_code)
 
     except Exception as exc:
-        logger.warning(f"Census API request failed for zip {zip_code}: {exc}")
+        # The API key is embedded in the request URL, which can surface in some
+        # network exception strings. Redact it before logging so the secret is
+        # never written to logs in clear text (Bug #180).
+        detail = str(exc)
+        if api_key:
+            detail = detail.replace(api_key, "***REDACTED***")
+        logger.warning(f"Census API request failed for zip {zip_code}: {detail}")
         return None
 
 

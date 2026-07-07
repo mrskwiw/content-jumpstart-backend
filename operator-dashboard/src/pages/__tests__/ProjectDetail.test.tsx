@@ -1,7 +1,7 @@
 /**
  * Tests for ProjectDetail page component
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import ProjectDetail from '../ProjectDetail';
@@ -10,26 +10,26 @@ import * as clientsApi from '@/api/clients';
 import * as postsApi from '@/api/posts';
 
 // Mock API modules
-vi.mock('@/api/projects');
-vi.mock('@/api/clients');
-vi.mock('@/api/posts');
+jest.mock('@/api/projects');
+jest.mock('@/api/clients');
+jest.mock('@/api/posts');
 
 // Mock useParams to return a project ID
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+jest.mock('react-router-dom', async () => {
+  const actual = await jest.requireActual('react-router-dom');
   return {
     ...actual,
     useParams: () => ({ projectId: 'project-123' }),
-    useNavigate: () => vi.fn(),
+    useNavigate: () => jest.fn(),
   };
 });
 
 describe('ProjectDetail Page', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
 
     // Setup default mocks
-    vi.mocked(projectsApi.get).mockResolvedValue({
+    jest.mocked(projectsApi.get).mockResolvedValue({
       id: 'project-123',
       clientId: 'client-1',
       name: 'Q1 Campaign',
@@ -38,14 +38,14 @@ describe('ProjectDetail Page', () => {
       createdAt: new Date().toISOString(),
     });
 
-    vi.mocked(clientsApi.get).mockResolvedValue({
+    jest.mocked(clientsApi.get).mockResolvedValue({
       id: 'client-1',
       name: 'Acme Corp',
       email: 'contact@acme.com',
       status: 'active',
     });
 
-    vi.mocked(postsApi.list).mockResolvedValue({
+    jest.mocked(postsApi.list).mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
@@ -78,7 +78,7 @@ describe('ProjectDetail Page', () => {
   });
 
   it('should handle loading state', () => {
-    vi.mocked(projectsApi.get).mockImplementation(
+    jest.mocked(projectsApi.get).mockImplementation(
       () => new Promise(() => {}) // Never resolves
     );
 

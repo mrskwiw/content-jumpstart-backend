@@ -223,6 +223,30 @@ class TestRestoreValidation:
         # This would be tested with actual file content
         pass
 
+    def test_restore_point_path_traversal_rejected(self):
+        """Bug #180: a restore-point filename that escapes data/backups is rejected.
+
+        The prefix/suffix checks alone do not stop traversal
+        (e.g. 'pre_restore_backup_/../../x.db' satisfies both), so the
+        confinement check must reject it with HTTP 400 before touching disk.
+        """
+        import asyncio
+
+        from backend.routers.database import restore_to_restore_point
+
+        admin = MagicMock()
+        admin.email = "admin@example.com"
+
+        malicious = "pre_restore_backup_/../../../../tmp/evil.db"
+
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.get_event_loop().run_until_complete(
+                restore_to_restore_point(filename=malicious, admin=admin)
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "Invalid restore point filename" in exc_info.value.detail
+
 
 # Run tests if executed directly
 if __name__ == "__main__":

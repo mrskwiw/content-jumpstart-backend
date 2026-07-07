@@ -78,6 +78,20 @@ class WebSearchClient:
         priority = ["brave", "tavily", "serpapi"]
         return [p for p in priority if p != self.provider and self._provider_keys.get(p)]
 
+    def _redact(self, text: str) -> str:
+        """Redact any known provider API key from *text* before logging.
+
+        Provider errors (e.g. requests HTTPError from SerpAPI, which passes the
+        key as a URL query param) can embed the API key in their string form.
+        Strip every known key so secrets are never logged in clear text
+        (Bug #180).
+        """
+        keys = [self.api_key, *self._provider_keys.values()]
+        for key in keys:
+            if key:
+                text = text.replace(key, "***REDACTED***")
+        return text
+
     def _dispatch(self, provider: str, query: str, max_results: int, **kwargs) -> SearchResponse:
         """Call the named provider with its own credentials; raises on error."""
         key = self._provider_keys.get(provider)
@@ -121,13 +135,14 @@ class WebSearchClient:
             except Exception as e:
                 if is_last:
                     logger.error(
-                        f"All search providers exhausted. Last error ({provider}): {e}. "
-                        "Returning empty results."
+                        f"All search providers exhausted. Last error ({provider}): "
+                        f"{self._redact(str(e))}. Returning empty results."
                     )
                 else:
                     next_provider = providers_to_try[i + 1]
                     logger.warning(
-                        f"{provider} search failed: {e}. Falling back to {next_provider}."
+                        f"{provider} search failed: {self._redact(str(e))}. "
+                        f"Falling back to {next_provider}."
                     )
 
         return SearchResponse(

@@ -138,10 +138,15 @@ class InMemoryCache:
             pattern: Pattern to match (supports * wildcard)
         """
         async with self._lock:
-            # Convert pattern to regex
+            # Convert pattern to regex.
+            # `*` is the only supported wildcard; every other character is a
+            # literal. Escape the whole pattern first (neutralizing any regex
+            # metacharacters in the caller-supplied string, which reaches this
+            # method from an HTTP path parameter), then restore `*` as `.*`.
+            # This prevents regex-injection / ReDoS and re.error 500s.
             import re
 
-            regex_pattern = pattern.replace("*", ".*")
+            regex_pattern = re.escape(pattern).replace(r"\*", ".*")
             regex = re.compile(f"^{regex_pattern}$")
 
             keys_to_delete = [key for key in self._cache.keys() if regex.match(key)]

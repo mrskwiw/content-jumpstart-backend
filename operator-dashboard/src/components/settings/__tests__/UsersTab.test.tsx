@@ -2,8 +2,7 @@
  * Smoke tests for UsersTab component
  */
 import { describe, it, expect, jest } from '@jest/globals';
-import { render } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderWithProviders as render } from '@/__tests__/setup/test-utils';
 import UsersTab from '../UsersTab';
 
 // Mock the users API
@@ -15,27 +14,13 @@ jest.mock('@/api/users', () => ({
 }));
 
 describe('UsersTab Component', () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-
   it('should render without crashing', () => {
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <UsersTab />
-      </QueryClientProvider>
-    );
+    const { container } = render(<UsersTab />);
     expect(container).toBeInTheDocument();
   });
 
   it('should render users management interface', () => {
-    const { container } = render(
-      <QueryClientProvider client={queryClient}>
-        <UsersTab />
-      </QueryClientProvider>
-    );
+    const { container } = render(<UsersTab />);
     // Should have users content
     expect(container.firstChild).toBeInTheDocument();
   });

@@ -12,14 +12,14 @@
  * - User interactions
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders, userEvent } from '@/__tests__/setup/test-utils';
 import AuditTrail from '../AuditTrail';
 
 describe('AuditTrail Page - Comprehensive', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
 
   describe('Initial Rendering', () => {

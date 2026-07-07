@@ -19,6 +19,11 @@ describe("researchApi.getExecutionOrder", () => {
           ["platform_strategy"],
           ["content_calendar"],
         ],
+        dependency_map: {
+          seo_keyword_research: [],
+          platform_strategy: ["seo_keyword_research"],
+          content_calendar: ["platform_strategy"],
+        },
       },
     });
 
@@ -47,6 +52,7 @@ describe("researchApi.getExecutionOrder", () => {
         execution_order: ["voice_analysis"],
         tool_count: 1,
         parallel_groups: [["voice_analysis"]],
+        dependency_map: { voice_analysis: [] },
       },
     });
 
@@ -64,6 +70,7 @@ describe("researchApi.getExecutionOrder", () => {
         execution_order: [],
         tool_count: 0,
         parallel_groups: [],
+        dependency_map: {},
       },
     });
 
@@ -80,6 +87,11 @@ describe("researchApi.getExecutionOrder", () => {
         execution_order: ["voice_analysis", "brand_archetype", "seo_keyword_research"],
         tool_count: 3,
         parallel_groups: [["voice_analysis", "brand_archetype", "seo_keyword_research"]],
+        dependency_map: {
+          voice_analysis: [],
+          brand_archetype: [],
+          seo_keyword_research: [],
+        },
       },
     });
 

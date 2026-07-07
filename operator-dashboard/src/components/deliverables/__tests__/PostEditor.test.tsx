@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, jest } from '@jest/globals';
 import { render } from '@testing-library/react';
-import PostEditor from '../PostEditor';
+import { PostEditor } from '../PostEditor';
 
 describe('PostEditor Component', () => {
   const mockPost = {

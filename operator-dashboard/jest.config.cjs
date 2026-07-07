@@ -6,7 +6,16 @@ module.exports = {
   testEnvironment: 'jsdom',
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: 'tsconfig.jest.json', useESM: true }],
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: 'tsconfig.jest.json',
+        useESM: true,
+        // Transpile-only: jest transpiles, tsc type-checks (separate CI step).
+        isolatedModules: true,
+        diagnostics: false,
+      },
+    ],
   },
   transformIgnorePatterns: [
     'node_modules/(?!(react-syntax-highlighter|refractor|hastscript|hast-.*|property-information|space-separated-tokens|comma-separated-tokens|web-namespaces)/)',
@@ -16,8 +25,14 @@ module.exports = {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     // Mock env module to avoid import.meta parse errors in Jest
     '^@/utils/env$': '<rootDir>/src/utils/__mocks__/env.ts',
+    // Shim vitest imports to jest globals (some tests were authored for vitest)
+    '^vitest$': '<rootDir>/src/__tests__/setup/vitest-shim.ts',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  // Only run actual test/spec files. The default testMatch also globs every
+  // file under __tests__/ (setup helpers, fixtures, MSW mocks), which jest then
+  // reports as failing suites for containing no tests.
+  testMatch: ['**/?(*.)+(spec|test).[jt]s?(x)'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/e2e/'],
 
   // Coverage configuration
