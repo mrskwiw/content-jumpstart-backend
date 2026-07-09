@@ -1,28 +1,42 @@
 /**
- * Comprehensive tests for ClientDetail page (1,277 LOC)
+ * Comprehensive tests for ClientDetail page (1,551 LOC)
+ *
+ * ClientDetail reads its `clientId` from the route (useParams) and the client
+ * query is `enabled: !!clientId`, so it must be rendered inside a matching
+ * <Route path="/dashboard/clients/:clientId">.
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ClientDetail from '../ClientDetail';
 
 jest.mock('@/api/clients');
 jest.mock('@/api/projects');
 jest.mock('@/api/posts');
+jest.mock('@/api/deliverables');
+jest.mock('@/api/research');
+jest.mock('@/api/communications');
+jest.mock('@/api/stories');
 
+// Client shape uses camelCase (Supabase drift migration renamed the fields).
 const mockClient = {
   id: 'client-1',
   name: 'Test Client',
-  business_description: 'Test business',
-  ideal_customer: 'B2B companies',
-  created_at: '2024-01-01T00:00:00Z',
+  businessDescription: 'Test business',
+  idealCustomer: 'B2B companies',
+  createdAt: '2024-01-01T00:00:00Z',
 };
 
-const mockProjects = [
-  { id: 'proj-1', name: 'Project 1', client_id: 'client-1', status: 'active', created_at: '2024-01-01T00:00:00Z' },
-  { id: 'proj-2', name: 'Project 2', client_id: 'client-1', status: 'completed', created_at: '2024-01-02T00:00:00Z' },
-];
+// projectsApi.list returns a PaginatedResponse ({ items, total }), not a bare
+// array. Projects are filtered by `clientId` (camelCase).
+const mockProjects = {
+  items: [
+    { id: 'proj-1', name: 'Project 1', clientId: 'client-1', status: 'ready', createdAt: '2024-01-01T00:00:00Z' },
+    { id: 'proj-2', name: 'Project 2', clientId: 'client-1', status: 'delivered', createdAt: '2024-01-02T00:00:00Z' },
+  ],
+  total: 2,
+};
 
 describe('ClientDetail', () => {
   let queryClient: QueryClient;
@@ -32,42 +46,47 @@ describe('ClientDetail', () => {
     const { clientsApi } = require('@/api/clients');
     const { projectsApi } = require('@/api/projects');
     const { postsApi } = require('@/api/posts');
+    const { deliverablesApi } = require('@/api/deliverables');
+    const { researchApi } = require('@/api/research');
+    const { communicationsApi } = require('@/api/communications');
+    const { storiesApi } = require('@/api/stories');
 
     clientsApi.get = jest.fn().mockResolvedValue(mockClient);
     projectsApi.list = jest.fn().mockResolvedValue(mockProjects);
     postsApi.list = jest.fn().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 0 });
+    deliverablesApi.list = jest.fn().mockResolvedValue([]);
+    researchApi.getClientResearchResults = jest.fn().mockResolvedValue({ results: [], total: 0, clientId: 'client-1' });
+    communicationsApi.listClientCommunications = jest.fn().mockResolvedValue([]);
+    storiesApi.listClientStories = jest.fn().mockResolvedValue({ stories: [], total: 0 });
   });
 
-  it('should render loading state', () => {
-    render(
+  function renderPage() {
+    return render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/clients/client-1']}>
-          <ClientDetail />
+        <MemoryRouter initialEntries={['/dashboard/clients/client-1']}>
+          <Routes>
+            <Route path="/dashboard/clients/:clientId" element={<ClientDetail />} />
+          </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     );
+  }
+
+  it('should render loading state', () => {
+    renderPage();
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
   });
 
   it('should render client name', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/clients/client-1']}>
-          <ClientDetail />
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
-    await waitFor(() => expect(screen.getByText('Test Client')).toBeInTheDocument());
+    renderPage();
+    // Name renders in the header heading and the closed Delete dialog; scope to heading.
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Test Client' })).toBeInTheDocument());
   });
 
   it('should show project count', async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/clients/client-1']}>
-          <ClientDetail />
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
-    await waitFor(() => expect(screen.getByText(/2/)).toBeInTheDocument());
+    renderPage();
+    // Total Projects / Active Projects stat cards both surface counts derived
+    // from the 2 mocked projects.
+    await waitFor(() => expect(screen.getAllByText(/2/).length).toBeGreaterThan(0));
   });
 });

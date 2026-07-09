@@ -1,8 +1,26 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import Wizard from '@/pages/Wizard';
+import { clientsApi } from '@/api/clients';
+import { projectsApi } from '@/api/projects';
+import { researchApi } from '@/api/research';
+import { generatorApi } from '@/api/generator';
+
+// The wizard persists new clients/projects via the API on "Save Profile" and the
+// Research/Templates steps fetch tool + dependency metadata. Mock those modules so the
+// profile → research → templates → generation flow can advance without a live server.
+// (ResearchPanel hard-fails to an error view if its tools list can't load.)
+jest.mock('@/api/clients');
+jest.mock('@/api/projects');
+jest.mock('@/api/research');
+jest.mock('@/api/generator');
+
+const mockClientsApi = clientsApi as jest.Mocked<typeof clientsApi>;
+const mockProjectsApi = projectsApi as jest.Mocked<typeof projectsApi>;
+const mockResearchApi = researchApi as jest.Mocked<typeof researchApi>;
+const mockGeneratorApi = generatorApi as jest.Mocked<typeof generatorApi>;
 
 // Test wrapper with providers
 function TestWrapper({ children }: { children: React.ReactNode }) {
@@ -20,10 +38,79 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
+const REQUIRED_KEYWORDS = ['alpha', 'beta', 'gamma', 'delta', 'epsilon'];
+
+// Fill the profile form's required fields. Platform selection was moved out of the
+// profile step into the templates step (PlatformSelector), so it is no longer set here.
+// `withKeywords` adds the 5 SEO keywords required to advance research → templates.
+async function fillProfile(
+  user: ReturnType<typeof userEvent.setup>,
+  { withKeywords = false }: { withKeywords?: boolean } = {}
+) {
+  await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Company');
+  await user.type(
+    screen.getByPlaceholderText(/cloud-based project management/i),
+    'We provide comprehensive cloud-based software solutions for small and medium-sized businesses to help them streamline their operations and improve productivity'
+  );
+  await user.type(
+    screen.getByPlaceholderText(/Small business owners/i),
+    'Small businesses with 5-20 employees who need better collaboration tools'
+  );
+
+  if (withKeywords) {
+    const keywordInput = screen.getByPlaceholderText(/add a keyword/i);
+    for (const kw of REQUIRED_KEYWORDS) {
+      await user.clear(keywordInput);
+      await user.type(keywordInput, `${kw}{Enter}`);
+    }
+  }
+}
+
+// Drive the wizard from the profile step to the templates step (TemplateQuantitySelector).
+async function advanceToTemplates(user: ReturnType<typeof userEvent.setup>) {
+  await fillProfile(user, { withKeywords: true });
+  await user.click(screen.getByRole('button', { name: /save profile/i }));
+
+  // Profile save advances to the Research step.
+  const skipButton = await screen.findByRole('button', { name: /skip research/i });
+  await user.click(skipButton);
+
+  // With 5+ keywords, research → templates advances without the keyword warning.
+  await screen.findByText(/Custom Template Quantities/i);
+}
+
 describe('Wizard Flow Integration Tests', () => {
   beforeEach(() => {
-    // Clear any localStorage
     localStorage.clear();
+    jest.clearAllMocks();
+    mockClientsApi.list.mockResolvedValue([]);
+    mockClientsApi.create.mockResolvedValue({ id: 'client-new', name: 'Test Company' } as never);
+    mockClientsApi.get.mockResolvedValue({ id: 'client-new', name: 'Test Company' } as never);
+    mockClientsApi.update.mockResolvedValue({ id: 'client-new', name: 'Test Company' } as never);
+    mockProjectsApi.create.mockResolvedValue({
+      id: 'proj-new',
+      name: 'Test Company - Content Project',
+      clientId: 'client-new',
+      status: 'draft',
+    } as never);
+    mockProjectsApi.get.mockResolvedValue({
+      id: 'proj-new',
+      name: 'Test Company - Content Project',
+      clientId: 'client-new',
+      status: 'draft',
+    } as never);
+    mockResearchApi.listTools.mockResolvedValue([] as never);
+    mockResearchApi.getClientHistory.mockResolvedValue(null as never);
+    mockResearchApi.getProjectResearchResults.mockResolvedValue({ results: [], total: 0 } as never);
+    mockResearchApi.getClientResearchResults.mockResolvedValue({ results: [], total: 0 } as never);
+    mockGeneratorApi.getTemplateDependencies.mockResolvedValue({
+      research_dependencies: { required: [], recommended: [] },
+    } as never);
+    mockGeneratorApi.validateTemplates.mockResolvedValue({
+      blocked_templates: [],
+      warnings: [],
+      story_counts: {},
+    } as never);
   });
 
   describe('Step 1: Client Profile', () => {
@@ -42,7 +129,7 @@ describe('Wizard Flow Integration Tests', () => {
     it.skip('should validate required fields', async () => {
       // TODO: Fix validation error rendering
       // Validation logic exists but errors aren't rendering in tests
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
@@ -59,227 +146,153 @@ describe('Wizard Flow Integration Tests', () => {
       });
     });
 
-    it('should save client brief and advance to templates', async () => {
-      const user = userEvent.setup();
+    it('should save client brief and advance to research', async () => {
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      // Fill in required fields (min 70 chars for businessDescription, 30 for others)
-      await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Company');
-      await user.type(
-        screen.getByPlaceholderText(/cloud-based project management/i),
-        'We provide comprehensive cloud-based software solutions for small and medium-sized businesses to help them streamline their operations and improve productivity'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/Small business owners/i),
-        'Small businesses with 5-20 employees who need better collaboration tools'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/eliminate the chaos/i),
-        'We solve communication and collaboration problems in distributed teams'
-      );
-
-      // Select at least one platform (required field)
-      await user.click(screen.getByRole('button', { name: /linkedin/i }));
+      await fillProfile(user);
 
       // Save profile
-      const saveButton = screen.getByRole('button', { name: /save profile/i });
-      await user.click(saveButton);
+      await user.click(screen.getByRole('button', { name: /save profile/i }));
 
-      // Should advance to template selection
+      // Save now advances to the Research step (research was inserted between
+      // profile and templates in the wizard redesign).
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /template selection/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /research tools/i })).toBeInTheDocument();
       });
+      expect(mockClientsApi.create).toHaveBeenCalled();
+      expect(mockProjectsApi.create).toHaveBeenCalled();
     });
 
     it('should add pain points and questions', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      // Add pain point
+      // Add pain point (Enter key triggers the add handler; scoping by the button
+      // is unreliable because several sections now share an "Add" button).
       const painPointInput = screen.getByPlaceholderText(/add a pain point/i);
-      await user.type(painPointInput, 'Scattered communication');
-      await user.click(screen.getAllByRole('button', { name: /add/i })[0]);
+      await user.type(painPointInput, 'Scattered communication{Enter}');
 
       await waitFor(() => {
         expect(screen.getByText('Scattered communication')).toBeInTheDocument();
       });
 
-      // Add question
-      const questionInput = screen.getByPlaceholderText(/what question/i);
+      // Add question — the question section's Add button is scoped via its container.
+      const questionInput = screen.getByPlaceholderText(/what do customers ask/i);
       await user.type(questionInput, 'How do I improve team coordination?');
-      await user.click(screen.getAllByRole('button', { name: /add/i })[1]);
+      const questionSection = questionInput.closest('div.space-y-2') as HTMLElement;
+      await user.click(within(questionSection).getByRole('button', { name: /add/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('How do I improve team coordination?')).toBeInTheDocument();
+        expect(screen.getByText(/How do I improve team coordination\?/)).toBeInTheDocument();
       });
     });
 
-    it('should toggle platform selection', async () => {
-      const user = userEvent.setup();
+    it('should add SEO keywords', async () => {
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      const linkedinButton = screen.getByRole('button', { name: /linkedin/i });
-      await user.click(linkedinButton);
+      // Platform selection was moved to the templates step (PlatformSelector); the
+      // profile step now collects SEO keywords instead.
+      const keywordInput = screen.getByPlaceholderText(/add a keyword/i);
+      await user.type(keywordInput, 'project management{Enter}');
 
-      // LinkedIn should be selected (visual indication via CSS class)
-      expect(linkedinButton).toHaveClass(/border-blue-600/);
+      await waitFor(() => {
+        expect(screen.getByText('project management')).toBeInTheDocument();
+      });
     });
   });
 
   describe('Step 2: Template Selection', () => {
-    async function advanceToTemplateSelection(user: ReturnType<typeof userEvent.setup>) {
-      // Fill and save profile (min 70 chars for businessDescription, 30 for others)
-      await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Company');
-      await user.type(
-        screen.getByPlaceholderText(/cloud-based project management/i),
-        'We provide comprehensive cloud-based software solutions for small and medium-sized businesses to help them streamline their operations and improve productivity'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/Small business owners/i),
-        'Small businesses with 5-20 employees who need better collaboration tools'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/eliminate the chaos/i),
-        'We solve communication and collaboration problems in distributed teams'
-      );
-
-      // Select at least one platform (required)
-      await user.click(screen.getByRole('button', { name: /linkedin/i }));
-
-      await user.click(screen.getByRole('button', { name: /save profile/i }));
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /template selection/i })).toBeInTheDocument();
-      });
-    }
-
-    it('should display all 15 templates', async () => {
-      const user = userEvent.setup();
+    it('should display all templates', async () => {
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      await advanceToTemplateSelection(user);
+      await advanceToTemplates(user);
 
-      // Should show all templates
+      // TemplateQuantitySelector renders every template as "#<n>. <name>".
       expect(screen.getByText(/#1\. Problem Recognition/)).toBeInTheDocument();
       expect(screen.getByText(/#2\. Statistic \+ Insight/)).toBeInTheDocument();
       expect(screen.getByText(/#15\. Milestone/)).toBeInTheDocument();
     });
 
-    it('should select and deselect templates', async () => {
-      const user = userEvent.setup();
+    it('should adjust template quantities', async () => {
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      await advanceToTemplateSelection(user);
+      await advanceToTemplates(user);
 
-      const template1 = screen.getByText(/#1\. Problem Recognition/).closest('button');
-      expect(template1).toBeInTheDocument();
+      // Increase the first template's quantity via its stepper control.
+      const increaseButtons = screen.getAllByLabelText('Increase quantity');
+      await user.click(increaseButtons[0]);
 
-      // Select template
-      await user.click(template1!);
+      // Total posts count updates in the pricing summary.
       await waitFor(() => {
-        expect(screen.getByText('1 templates selected')).toBeInTheDocument();
+        expect(screen.getByText('Total Posts')).toBeInTheDocument();
       });
-
-      // Deselect template
-      await user.click(template1!);
+      // The Continue button becomes enabled once at least one post is selected.
       await waitFor(() => {
-        expect(screen.getByText('0 templates selected')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /continue to generation/i })).not.toBeDisabled();
       });
-    });
-
-    it('should select all templates with "Select All" button', async () => {
-      const user = userEvent.setup();
-      render(
-        <TestWrapper>
-          <Wizard />
-        </TestWrapper>
-      );
-
-      await advanceToTemplateSelection(user);
-
-      const selectAllButton = screen.getByRole('button', { name: /select all/i });
-      await user.click(selectAllButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/15 templates selected/)).toBeInTheDocument();
-      });
-    });
-
-    it('should select recommended templates', async () => {
-      const user = userEvent.setup();
-      render(
-        <TestWrapper>
-          <Wizard />
-        </TestWrapper>
-      );
-
-      await advanceToTemplateSelection(user);
-
-      const recommendedButton = screen.getByRole('button', { name: /recommended/i });
-      await user.click(recommendedButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/7 templates selected/)).toBeInTheDocument();
-      });
-    });
+    }, 20000);
 
     it('should prevent continuing with no templates', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      await advanceToTemplateSelection(user);
+      await advanceToTemplates(user);
 
       const continueButton = screen.getByRole('button', { name: /continue to generation/i });
       expect(continueButton).toBeDisabled();
     });
 
     it('should advance to generation step', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      await advanceToTemplateSelection(user);
+      await advanceToTemplates(user);
 
-      // Select at least one template
-      const template1 = screen.getByText(/#1\. Problem Recognition/).closest('button');
-      await user.click(template1!);
+      // Select at least one post.
+      const increaseButtons = screen.getAllByLabelText('Increase quantity');
+      await user.click(increaseButtons[0]);
 
-      // Continue to generation
       const continueButton = screen.getByRole('button', { name: /continue to generation/i });
+      await waitFor(() => expect(continueButton).not.toBeDisabled());
       await user.click(continueButton);
 
+      // Generation lives in the Quality Gate step; GenerationPanel shows "Generate All".
       await waitFor(() => {
-        // Look for the Generate All heading or button in the GenerationPanel
         expect(screen.getByRole('heading', { name: /generate all/i })).toBeInTheDocument();
       });
-    });
+    }, 20000);
   });
 
   describe('Step 3: Generation', () => {
@@ -304,10 +317,12 @@ describe('Wizard Flow Integration Tests', () => {
         </TestWrapper>
       );
 
-      // Check stepper buttons exist (there will be multiple "Client Profile" - one in button, one in heading)
+      // Stepper steps: Client Profile → Research → Templates → Quality Gate → Export.
+      // (/research/i also matches a button inside the profile's research section, so
+      // assert at least one match rather than a unique one.)
       expect(screen.getByRole('button', { name: /client profile/i })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /research/i }).length).toBeGreaterThan(0);
       expect(screen.getByRole('button', { name: /templates/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /quality gate/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
     });
@@ -327,56 +342,30 @@ describe('Wizard Flow Integration Tests', () => {
 
   describe('Complete Wizard Flow', () => {
     it('should complete entire wizard workflow', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ delay: null });
       render(
         <TestWrapper>
           <Wizard />
         </TestWrapper>
       );
 
-      // Step 1: Fill client profile
-      await user.type(screen.getByPlaceholderText('Acme Corp'), 'Complete Test Inc');
-      await user.type(
-        screen.getByPlaceholderText(/cloud-based project management/i),
-        'We provide comprehensive software solutions'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/Small business owners/i),
-        'Growing businesses with 10-50 employees'
-      );
-      await user.type(
-        screen.getByPlaceholderText(/eliminate the chaos/i),
-        'We solve complex team coordination challenges'
-      );
+      // Step 1 → 2: profile + keywords → research → templates.
+      await advanceToTemplates(user);
 
-      // Select platforms
-      await user.click(screen.getByRole('button', { name: /linkedin/i }));
-      await user.click(screen.getByRole('button', { name: /twitter/i }));
+      // Step 3: select posts and continue to generation.
+      const increaseButtons = screen.getAllByLabelText('Increase quantity');
+      await user.click(increaseButtons[0]);
 
-      // Save and advance
-      await user.click(screen.getByRole('button', { name: /save profile/i }));
+      const continueButton = screen.getByRole('button', { name: /continue to generation/i });
+      await waitFor(() => expect(continueButton).not.toBeDisabled());
+      await user.click(continueButton);
 
-      // Step 2: Select templates
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /template selection/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /recommended/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/7 templates selected/)).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /continue to generation/i }));
-
-      // Should now be at generation step
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: /generate all/i })).toBeInTheDocument();
       });
 
-      // Verify wizard status updated
+      // Wizard status reflects the saved client brief.
       expect(screen.getByText('✓ Saved')).toBeInTheDocument();
-      expect(screen.getByText(/7 selected/)).toBeInTheDocument();
-    });
+    }, 20000);
   });
 });

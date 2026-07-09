@@ -7,7 +7,15 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ResultDetailModal } from './ResultDetailModal';
+import { researchApi } from '@/api/research';
 import type { ResearchResult } from '@/types/domain';
+
+// The preview tab lazily fetches human-readable output from the API.
+jest.mock('@/api/research', () => ({
+  researchApi: {
+    getResearchOutputContent: jest.fn(),
+  },
+}));
 
 const mockResult: ResearchResult = {
   id: 'rr-1',
@@ -44,6 +52,9 @@ describe('ResultDetailModal', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (researchApi.getResearchOutputContent as jest.Mock).mockResolvedValue({
+      content: 'This is the primary output.',
+    });
     Object.defineProperty(global.URL, 'createObjectURL', {
       configurable: true,
       value: createObjectURL,
@@ -68,12 +79,13 @@ describe('ResultDetailModal', () => {
     jest.restoreAllMocks();
   });
 
-  it('renders the selected result in preview, data, and metadata tabs', () => {
+  it('renders the selected result in preview, data, and metadata tabs', async () => {
     render(<ResultDetailModal result={mockResult} onClose={jest.fn()} />);
 
     expect(screen.getByText('Voice Analysis')).toBeInTheDocument();
     expect(screen.getByText('report')).toBeInTheDocument();
-    expect(screen.getByText('This is the primary output.')).toBeInTheDocument();
+    // Preview content is fetched asynchronously.
+    expect(await screen.findByText('This is the primary output.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /structured data/i }));
     expect(screen.getByText(/"report": "This is the primary output\."/)).toBeInTheDocument();

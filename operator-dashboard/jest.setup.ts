@@ -23,22 +23,54 @@ interface TestEnv {
 // Mock the env module to avoid import.meta parse errors
 jest.mock('@/utils/env');
 
-// Mock react-syntax-highlighter to avoid ESM import issues
+// jsdom has no matchMedia; ThemeProvider (mounted via AllTheProviders) calls it.
+// Default to light theme (matches: false) so theme-aware components render deterministically.
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(), // deprecated, retained for older consumers
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  }),
+});
+
+// Mock react-syntax-highlighter to avoid ESM import issues. PreviewTab imports the
+// PrismLight build and calls registerLanguage(), plus a deep per-language ESM module
+// that jest can't parse — stub all of them with a plain <pre> renderer.
 jest.mock('react-syntax-highlighter', () => {
   const React = require('react');
   interface MockHighlighterProps {
     children?: React.ReactNode;
     [key: string]: unknown;
   }
+  const Highlighter = ({ children, ...props }: MockHighlighterProps) =>
+    React.createElement('pre', props, children);
+  Highlighter.registerLanguage = () => {};
   return {
-    Prism: ({ children, ...props }: MockHighlighterProps) => React.createElement('pre', props, children),
-    Light: ({ children, ...props }: MockHighlighterProps) => React.createElement('pre', props, children),
+    Prism: Highlighter,
+    Light: Highlighter,
+    PrismLight: Highlighter,
+    PrismAsyncLight: Highlighter,
+    default: Highlighter,
   };
 });
 
 jest.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
   vscDarkPlus: {},
+  vs: {},
 }));
+
+// Deep per-language import used by PreviewTab; the real file is untransformed ESM.
+jest.mock(
+  'react-syntax-highlighter/dist/esm/languages/prism/markdown',
+  () => ({ __esModule: true, default: {} }),
+  { virtual: true }
+);
 
 // ==================== MSW Server Setup ====================
 // Import MSW server for API mocking in tests

@@ -5,12 +5,15 @@ import { describe, it, expect, jest } from '@jest/globals';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Settings from '../Settings';
 
-// Mock ThemeContext
+// Mock ThemeContext. ThemeProvider must be a real pass-through because the shared
+// test wrapper (AllTheProviders) mounts it around every rendered component.
 jest.mock('@/contexts/ThemeContext', () => ({
   useTheme: () => ({
     theme: 'light',
     setTheme: jest.fn(),
+    actualTheme: 'light',
   }),
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 describe('Settings Page', () => {

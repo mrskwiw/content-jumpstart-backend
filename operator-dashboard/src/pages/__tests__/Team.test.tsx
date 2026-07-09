@@ -13,7 +13,7 @@ describe('Team Page', () => {
 
   it('should render team header', () => {
     const { container } = renderWithProviders(<Team />);
-    expect(container).toHaveTextContent('Team Management');
+    expect(container).toHaveTextContent('Team Collaboration');
   });
 
   it('should render team member cards', () => {

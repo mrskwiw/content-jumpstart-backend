@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
@@ -108,7 +108,7 @@ describe('Project Creation Flow', () => {
       );
 
       expect(screen.getByText('Create New Project')).toBeInTheDocument();
-      expect(screen.getByText(/start a new content generation project/i)).toBeInTheDocument();
+      expect(screen.getByText(/configure posts and optional research tools/i)).toBeInTheDocument();
     });
 
     it('should not render dialog when closed', () => {
@@ -128,10 +128,11 @@ describe('Project Creation Flow', () => {
         </TestWrapper>
       );
 
-      expect(screen.getByPlaceholderText('March 2025 Campaign')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('March 2026 Campaign')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('acme-corp')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Acme Corp')).toBeInTheDocument();
-      expect(screen.getByRole('combobox')).toBeInTheDocument(); // Package tier
+      // Package tier was replaced by a "Number of posts" input + research tool checkboxes.
+      expect(screen.getByRole('spinbutton')).toBeInTheDocument();
     });
 
     it('should validate required fields on submit', async () => {
@@ -198,31 +199,33 @@ describe('Project Creation Flow', () => {
       });
     });
 
-    it('should allow selecting package tier', async () => {
-      const user = userEvent.setup();
+    it('should allow adjusting the number of posts', () => {
       render(
         <TestWrapper>
           <NewProjectDialog open={true} onOpenChange={() => {}} />
         </TestWrapper>
       );
 
-      const tierSelect = screen.getByRole('combobox');
-      await user.selectOptions(tierSelect, 'premium');
+      // Package tiers were replaced by a per-post count (with live pricing). The input
+      // clamps on every change, so set it with a single change event.
+      const postsInput = screen.getByRole('spinbutton');
+      fireEvent.change(postsInput, { target: { value: '50' } });
 
-      expect(tierSelect).toHaveValue('premium');
+      expect(postsInput).toHaveValue(50);
     });
 
-    it('should display package tier options', () => {
+    it('should display research tool options and price breakdown', () => {
       render(
         <TestWrapper>
           <NewProjectDialog open={true} onOpenChange={() => {}} />
         </TestWrapper>
       );
 
-      expect(screen.getByText(/Starter \(\$1,200\)/)).toBeInTheDocument();
-      expect(screen.getByText(/Professional \(\$1,800\)/)).toBeInTheDocument();
-      expect(screen.getByText(/Premium \(\$2,500\)/)).toBeInTheDocument();
-      expect(screen.getByText(/Enterprise \(\$3,500\)/)).toBeInTheDocument();
+      // Package tiers were replaced by selectable research tools grouped by tier.
+      expect(screen.getByText('Voice Analysis')).toBeInTheDocument();
+      expect(screen.getByText('SEO Keyword Research')).toBeInTheDocument();
+      expect(screen.getByText('Foundation')).toBeInTheDocument();
+      expect(screen.getByText('Price Breakdown')).toBeInTheDocument();
     });
 
     it('should fill and submit form successfully', async () => {
@@ -236,11 +239,10 @@ describe('Project Creation Flow', () => {
         </TestWrapper>
       );
 
-      // Fill form
-      await user.type(screen.getByPlaceholderText('March 2025 Campaign'), 'Q1 2025 Content');
+      // Fill form (all three text fields are required; posts count defaults to 30).
+      await user.type(screen.getByPlaceholderText('March 2026 Campaign'), 'Q1 2026 Content');
       await user.type(screen.getByPlaceholderText('acme-corp'), 'test-client');
       await user.type(screen.getByPlaceholderText('Acme Corp'), 'Test Client Inc');
-      await user.selectOptions(screen.getByRole('combobox'), 'professional');
 
       // Submit
       const createButton = screen.getByRole('button', { name: /create project/i });

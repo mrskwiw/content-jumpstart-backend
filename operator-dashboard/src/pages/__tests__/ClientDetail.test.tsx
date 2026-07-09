@@ -1,5 +1,5 @@
 /**
- * Comprehensive tests for ClientDetail page (1,277 LOC)
+ * Comprehensive tests for ClientDetail page (1,551 LOC)
  *
  * Coverage focus:
  * - Loading states
@@ -9,10 +9,16 @@
  * - Error states
  * - Research tools
  * - Export functionality
+ *
+ * NOTE: ClientDetail reads its `clientId` from the route via useParams and the
+ * client query is `enabled: !!clientId`. Tests MUST render it inside a matching
+ * <Route path="/dashboard/clients/:clientId"> or the query never runs and the
+ * component renders the "Client not found" branch.
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { screen, waitFor } from '@testing-library/react';
+import { Routes, Route } from 'react-router-dom';
 import { renderWithRouter, userEvent } from '@/__tests__/setup/test-utils';
 import ClientDetail from '../ClientDetail';
 import { clientsApi } from '@/api/clients';
@@ -20,6 +26,8 @@ import { projectsApi } from '@/api/projects';
 import { postsApi } from '@/api/posts';
 import { deliverablesApi } from '@/api/deliverables';
 import { researchApi } from '@/api/research';
+import { communicationsApi } from '@/api/communications';
+import { storiesApi } from '@/api/stories';
 
 // Mock API modules
 jest.mock('@/api/clients');
@@ -27,12 +35,15 @@ jest.mock('@/api/projects');
 jest.mock('@/api/posts');
 jest.mock('@/api/deliverables');
 jest.mock('@/api/research');
+jest.mock('@/api/communications');
+jest.mock('@/api/stories');
 
 const mockClient = {
   id: 'client-1',
   name: 'Acme Corp',
-  status: 'active',
-  tags: ['acme@example.com'],
+  email: 'acme@example.com',
+  industry: 'Software',
+  location: 'San Francisco, CA',
   createdAt: '2024-01-15T10:00:00Z',
 };
 
@@ -84,12 +95,17 @@ const mockDeliverables = [
   },
 ];
 
-const mockResearchHistory = [
+// The client research results endpoint returns a ResearchResultListResponse
+// ({ results, total, clientId }) — NOT a bare array. The component reads
+// `researchData?.results`.
+const mockResearchResults = [
   {
     id: 'research-1',
+    userId: 'user-1',
     clientId: 'client-1',
     toolName: 'voice_analysis',
     toolLabel: 'Voice Analysis',
+    outputs: {},
     status: 'completed',
     createdAt: '2024-01-18T10:00:00Z',
     data: {
@@ -97,6 +113,24 @@ const mockResearchHistory = [
     },
   },
 ];
+
+const mockResearchResponse = {
+  results: mockResearchResults,
+  total: mockResearchResults.length,
+  clientId: 'client-1',
+};
+
+/**
+ * Render ClientDetail inside a route that supplies the :clientId param.
+ */
+function renderPage(clientId = 'client-1') {
+  return renderWithRouter(
+    <Routes>
+      <Route path="/dashboard/clients/:clientId" element={<ClientDetail />} />
+    </Routes>,
+    { initialEntries: [`/dashboard/clients/${clientId}`] }
+  );
+}
 
 describe('ClientDetail Page', () => {
   beforeEach(() => {
@@ -107,22 +141,20 @@ describe('ClientDetail Page', () => {
     (projectsApi.list as jest.Mock).mockResolvedValue(mockProjects);
     (postsApi.list as jest.Mock).mockResolvedValue(mockPosts);
     (deliverablesApi.list as jest.Mock).mockResolvedValue(mockDeliverables);
-    (researchApi.getClientResearchResults as jest.Mock).mockResolvedValue(mockResearchHistory);
+    (researchApi.getClientResearchResults as jest.Mock).mockResolvedValue(mockResearchResponse);
+    (communicationsApi.listClientCommunications as jest.Mock).mockResolvedValue([]);
+    (storiesApi.listClientStories as jest.Mock).mockResolvedValue({ stories: [], total: 0 });
   });
 
   describe('Loading States', () => {
     it('should show loading spinner initially', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       expect(screen.getByText(/loading client/i)).toBeInTheDocument();
     });
 
     it('should hide loading spinner after data loads', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.queryByText(/loading client/i)).not.toBeInTheDocument();
@@ -132,11 +164,9 @@ describe('ClientDetail Page', () => {
 
   describe('Error States', () => {
     it('should show error message when client not found', async () => {
-      (clientsApi.get).mockRejectedValue(new Error('Not found'));
+      (clientsApi.get as jest.Mock).mockRejectedValue(new Error('Not found'));
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/client not found/i)).toBeInTheDocument();
@@ -144,11 +174,9 @@ describe('ClientDetail Page', () => {
     });
 
     it('should show back to clients button on error', async () => {
-      (clientsApi.get).mockRejectedValue(new Error('Not found'));
+      (clientsApi.get as jest.Mock).mockRejectedValue(new Error('Not found'));
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/back to clients/i)).toBeInTheDocument();
@@ -158,42 +186,39 @@ describe('ClientDetail Page', () => {
 
   describe('Header Rendering', () => {
     it('should render client name', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+        // The client name renders in the header heading and (pre-mounted) in
+        // the closed Delete dialog, so scope to the heading.
+        expect(screen.getByRole('heading', { name: 'Acme Corp' })).toBeInTheDocument();
       });
     });
 
-    it('should render client status badge', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+    it('should render client name as heading', async () => {
+      // The status badge was removed from the header; the header now renders the
+      // client name as an <h1>.
+      renderPage();
 
       await waitFor(() => {
-        expect(screen.getByText('active')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Acme Corp' })).toBeInTheDocument();
       });
     });
 
     it('should render stats cards', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/total projects/i)).toBeInTheDocument();
         expect(screen.getByText(/active projects/i)).toBeInTheDocument();
         expect(screen.getByText(/posts generated/i)).toBeInTheDocument();
-        expect(screen.getByText(/deliverables/i)).toBeInTheDocument();
+        // "Deliverables" appears both as a stat label and a tab button.
+        expect(screen.getAllByText(/deliverables/i).length).toBeGreaterThan(0);
       });
     });
 
     it('should render action buttons', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText('Edit')).toBeInTheDocument();
@@ -207,25 +232,22 @@ describe('ClientDetail Page', () => {
 
   describe('Tab Navigation', () => {
     it('should render all tab buttons', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText('Overview')).toBeInTheDocument();
         expect(screen.getByText('Projects')).toBeInTheDocument();
         expect(screen.getByText('Research')).toBeInTheDocument();
         expect(screen.getByText('Content')).toBeInTheDocument();
-        expect(screen.getByText('Deliverables')).toBeInTheDocument();
+        // "Deliverables" also appears as a stat label.
+        expect(screen.getAllByText('Deliverables').length).toBeGreaterThan(0);
         expect(screen.getByText('Billing')).toBeInTheDocument();
         expect(screen.getByText('Communication')).toBeInTheDocument();
       });
     });
 
     it('should show overview tab by default', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/contact information/i)).toBeInTheDocument();
@@ -235,9 +257,7 @@ describe('ClientDetail Page', () => {
     it('should switch to projects tab', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText('Projects')).toBeInTheDocument();
@@ -254,9 +274,7 @@ describe('ClientDetail Page', () => {
     it('should switch to research tab', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText('Research')).toBeInTheDocument();
@@ -273,9 +291,7 @@ describe('ClientDetail Page', () => {
     it('should switch to content tab', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText('Content')).toBeInTheDocument();
@@ -292,12 +308,10 @@ describe('ClientDetail Page', () => {
     it('should switch to deliverables tab', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        expect(screen.getByText('Deliverables')).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /deliverables/i })[0]).toBeInTheDocument();
       });
 
       const deliverablesTab = screen.getAllByRole('button', { name: /deliverables/i })[0];
@@ -311,46 +325,41 @@ describe('ClientDetail Page', () => {
 
   describe('Overview Tab', () => {
     it('should render contact information section', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/contact information/i)).toBeInTheDocument();
-        expect(screen.getByText(/company name/i)).toBeInTheDocument();
-        expect(screen.getByText(/email/i)).toBeInTheDocument();
-        expect(screen.getByText(/phone/i)).toBeInTheDocument();
+        expect(screen.getByText('Company Name')).toBeInTheDocument();
+        expect(screen.getByText('Email')).toBeInTheDocument();
       });
     });
 
     it('should render business details section', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByText(/business details/i)).toBeInTheDocument();
-        expect(screen.getByText(/industry/i)).toBeInTheDocument();
-        expect(screen.getByText(/company size/i)).toBeInTheDocument();
+        expect(screen.getByText('Industry')).toBeInTheDocument();
+        // The overview now shows Location (Company Size was removed).
+        expect(screen.getByText('Location')).toBeInTheDocument();
       });
     });
 
-    it('should render package details section', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+    it('should render custom notes section', async () => {
+      // The old "Package Details" card was removed; the overview now has a
+      // Custom Notes section with a textarea.
+      renderPage();
 
       await waitFor(() => {
-        expect(screen.getByText(/package details/i)).toBeInTheDocument();
-        expect(screen.getByText(/current tier/i)).toBeInTheDocument();
-        expect(screen.getByText(/pricing/i)).toBeInTheDocument();
+        expect(screen.getByText(/custom notes/i)).toBeInTheDocument();
+        expect(
+          screen.getByPlaceholderText(/add notes about this client/i)
+        ).toBeInTheDocument();
       });
     });
 
     it('should render notes textarea', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/add notes about this client/i)).toBeInTheDocument();
@@ -362,14 +371,12 @@ describe('ClientDetail Page', () => {
     it('should render projects table', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const projectsTab = screen.getByRole('button', { name: /projects/i });
-        user.click(projectsTab);
+        expect(screen.getByRole('button', { name: /projects/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /projects/i }));
 
       await waitFor(() => {
         expect(screen.getByText('Q1 Campaign')).toBeInTheDocument();
@@ -378,17 +385,15 @@ describe('ClientDetail Page', () => {
     });
 
     it('should show empty state when no projects', async () => {
-      (projectsApi.list).mockResolvedValue({ items: [], total: 0 });
+      (projectsApi.list as jest.Mock).mockResolvedValue({ items: [], total: 0 });
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const projectsTab = screen.getByRole('button', { name: /projects/i });
-        user.click(projectsTab);
+        expect(screen.getByRole('button', { name: /projects/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /projects/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/no projects yet/i)).toBeInTheDocument();
@@ -401,53 +406,56 @@ describe('ClientDetail Page', () => {
     it('should render research tool cards', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const researchTab = screen.getByRole('button', { name: /research/i });
-        user.click(researchTab);
+        expect(screen.getByRole('button', { name: /research/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /research/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/voice analysis/i)).toBeInTheDocument();
-        expect(screen.getByText(/brand archetype/i)).toBeInTheDocument();
-        expect(screen.getByText(/competitive analysis/i)).toBeInTheDocument();
-        expect(screen.getByText(/market trends/i)).toBeInTheDocument();
+        // Tool card headings ("Voice Analysis" also appears in the button text,
+        // so scope to the heading role).
+        expect(screen.getByRole('heading', { name: 'Voice Analysis' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Brand Archetype' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Competitive Analysis' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Market Trends' })).toBeInTheDocument();
       });
     });
 
     it('should render research history table', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const researchTab = screen.getByRole('button', { name: /research/i });
-        user.click(researchTab);
+        expect(screen.getByRole('button', { name: /research/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /research/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/research history/i)).toBeInTheDocument();
-        expect(screen.getByText(/voice analysis/i)).toBeInTheDocument();
+        // Summary text from the mocked research result row (unique).
+        expect(
+          screen.getByText(/professional, technical voice with clear ctas/i)
+        ).toBeInTheDocument();
       });
     });
 
     it('should show empty state when no research history', async () => {
-      (researchApi.getClientResearchResults).mockResolvedValue([]);
+      (researchApi.getClientResearchResults as jest.Mock).mockResolvedValue({
+        results: [],
+        total: 0,
+        clientId: 'client-1',
+      });
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const researchTab = screen.getByRole('button', { name: /research/i });
-        user.click(researchTab);
+        expect(screen.getByRole('button', { name: /research/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /research/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/no research has been run/i)).toBeInTheDocument();
@@ -455,29 +463,26 @@ describe('ClientDetail Page', () => {
     });
 
     it('should handle research tool button click', async () => {
-      (researchApi.run).mockResolvedValue({
-        id: 'research-2',
-        status: 'completed',
-        data: {},
+      (researchApi.run as jest.Mock).mockResolvedValue({
+        tool: 'voice_analysis',
+        outputs: {},
       });
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const researchTab = screen.getByRole('button', { name: /research/i });
-        user.click(researchTab);
+        expect(screen.getByRole('button', { name: /research/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /research/i }));
+
+      const voiceButton = await screen.findByText('Run Voice Analysis');
+      await user.click(voiceButton);
 
       await waitFor(() => {
-        const voiceButton = screen.getByText(/run voice analysis/i);
-        user.click(voiceButton);
-      });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText(/paste 2-3 existing content samples/i)).toBeInTheDocument();
+        expect(
+          screen.getByPlaceholderText(/paste 2-3 existing content samples/i)
+        ).toBeInTheDocument();
       });
     });
   });
@@ -486,33 +491,29 @@ describe('ClientDetail Page', () => {
     it('should render filter controls', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const contentTab = screen.getByRole('button', { name: /content/i });
-        user.click(contentTab);
+        expect(screen.getByRole('button', { name: /content/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /content/i }));
 
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/search posts/i)).toBeInTheDocument();
-        expect(screen.getByText(/all projects/i)).toBeInTheDocument();
-        expect(screen.getByText(/all platforms/i)).toBeInTheDocument();
+        expect(screen.getByText('All Projects')).toBeInTheDocument();
+        expect(screen.getByText('All Platforms')).toBeInTheDocument();
       });
     });
 
     it('should render posts grid', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const contentTab = screen.getByRole('button', { name: /content/i });
-        user.click(contentTab);
+        expect(screen.getByRole('button', { name: /content/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /content/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/test post content/i)).toBeInTheDocument();
@@ -520,17 +521,15 @@ describe('ClientDetail Page', () => {
     });
 
     it('should show empty state when no posts', async () => {
-      (postsApi.list).mockResolvedValue({ items: [], total: 0 });
+      (postsApi.list as jest.Mock).mockResolvedValue({ items: [], total: 0 });
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const contentTab = screen.getByRole('button', { name: /content/i });
-        user.click(contentTab);
+        expect(screen.getByRole('button', { name: /content/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /content/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/no content generated yet/i)).toBeInTheDocument();
@@ -542,14 +541,12 @@ describe('ClientDetail Page', () => {
     it('should render deliverables table', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const deliverablesTab = screen.getAllByRole('button', { name: /deliverables/i })[0];
-        user.click(deliverablesTab);
+        expect(screen.getAllByRole('button', { name: /deliverables/i })[0]).toBeInTheDocument();
       });
+      await user.click(screen.getAllByRole('button', { name: /deliverables/i })[0]);
 
       await waitFor(() => {
         expect(screen.getByText(/view all deliverables/i)).toBeInTheDocument();
@@ -557,17 +554,15 @@ describe('ClientDetail Page', () => {
     });
 
     it('should show empty state when no deliverables', async () => {
-      (deliverablesApi.list).mockResolvedValue([]);
+      (deliverablesApi.list as jest.Mock).mockResolvedValue([]);
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const deliverablesTab = screen.getAllByRole('button', { name: /deliverables/i })[0];
-        user.click(deliverablesTab);
+        expect(screen.getAllByRole('button', { name: /deliverables/i })[0]).toBeInTheDocument();
       });
+      await user.click(screen.getAllByRole('button', { name: /deliverables/i })[0]);
 
       await waitFor(() => {
         expect(screen.getByText(/no deliverables yet/i)).toBeInTheDocument();
@@ -576,38 +571,35 @@ describe('ClientDetail Page', () => {
   });
 
   describe('Billing Tab', () => {
-    it('should render billing stats cards', async () => {
+    it('should render billing placeholder', async () => {
+      // Billing is not implemented yet; the tab renders a placeholder rather
+      // than stats cards / invoices.
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const billingTab = screen.getByRole('button', { name: /billing/i });
-        user.click(billingTab);
+        expect(screen.getByRole('button', { name: /billing/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /billing/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/total msrp/i)).toBeInTheDocument();
-        expect(screen.getByText(/outstanding/i)).toBeInTheDocument();
+        expect(screen.getByText(/billing not yet available/i)).toBeInTheDocument();
       });
     });
 
-    it('should render invoices table', async () => {
+    it('should explain billing is coming in a future update', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const billingTab = screen.getByRole('button', { name: /billing/i });
-        user.click(billingTab);
+        expect(screen.getByRole('button', { name: /billing/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /billing/i }));
 
       await waitFor(() => {
-        expect(screen.getByText(/generate invoice/i)).toBeInTheDocument();
+        expect(screen.getByText(/invoice tracking will be available/i)).toBeInTheDocument();
       });
     });
   });
@@ -616,14 +608,12 @@ describe('ClientDetail Page', () => {
     it('should render communication log', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        const commTab = screen.getByRole('button', { name: /communication/i });
-        user.click(commTab);
+        expect(screen.getByRole('button', { name: /communication/i })).toBeInTheDocument();
       });
+      await user.click(screen.getByRole('button', { name: /communication/i }));
 
       await waitFor(() => {
         expect(screen.getByText(/communication log/i)).toBeInTheDocument();
@@ -634,20 +624,16 @@ describe('ClientDetail Page', () => {
 
   describe('Export Functionality', () => {
     it('should handle export profile button click', async () => {
-      (clientsApi.exportProfile).mockResolvedValue({
+      (clientsApi.exportProfile as jest.Mock).mockResolvedValue({
         blob: new Blob(['test'], { type: 'text/markdown' }),
         filename: 'acme-corp-profile.md',
       });
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
-      await waitFor(() => {
-        const exportBtn = screen.getByText(/export profile/i);
-        user.click(exportBtn);
-      });
+      const exportBtn = await screen.findByText(/export profile/i);
+      await user.click(exportBtn);
 
       await waitFor(() => {
         expect(clientsApi.exportProfile).toHaveBeenCalledWith('client-1');
@@ -655,21 +641,17 @@ describe('ClientDetail Page', () => {
     });
 
     it('should show loading state during export', async () => {
-      (clientsApi.exportProfile).mockImplementation(
+      (clientsApi.exportProfile as jest.Mock).mockImplementation(
         () => new Promise(resolve => setTimeout(resolve, 1000))
       );
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
-      await waitFor(() => {
-        const exportBtn = screen.getByText(/export profile/i);
-        user.click(exportBtn);
-      });
+      const exportBtn = await screen.findByText(/export profile/i);
+      await user.click(exportBtn);
 
-      expect(screen.getByText(/exporting/i)).toBeInTheDocument();
+      expect(await screen.findByText(/exporting/i)).toBeInTheDocument();
     });
   });
 
@@ -677,14 +659,10 @@ describe('ClientDetail Page', () => {
     it('should handle back button click', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
-      await waitFor(() => {
-        const backBtn = screen.getByText(/back to clients/i);
-        user.click(backBtn);
-      });
+      const backBtn = await screen.findByText(/back to clients/i);
+      await user.click(backBtn);
 
       // Navigation would be tested in integration tests
     });
@@ -692,14 +670,10 @@ describe('ClientDetail Page', () => {
     it('should handle new project button click', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
-      await waitFor(() => {
-        const newProjectBtn = screen.getByText(/new project/i);
-        user.click(newProjectBtn);
-      });
+      const newProjectBtn = await screen.findByText(/new project/i);
+      await user.click(newProjectBtn);
 
       // Navigation would be tested in integration tests
     });
@@ -707,26 +681,18 @@ describe('ClientDetail Page', () => {
     it('should handle notes input', async () => {
       const user = userEvent.setup();
 
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
-      await waitFor(() => {
-        const notesField = screen.getByPlaceholderText(/add notes about this client/i);
-        user.type(notesField, 'Test notes');
-      });
+      const notesField = await screen.findByPlaceholderText(/add notes about this client/i);
+      await user.type(notesField, 'Test notes');
 
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText(/add notes about this client/i)).toHaveValue('Test notes');
-      });
+      expect(notesField).toHaveValue('Test notes');
     });
   });
 
   describe('Data Integration', () => {
     it('should make all required API calls on mount', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
         expect(clientsApi.get).toHaveBeenCalledWith('client-1');
@@ -738,12 +704,11 @@ describe('ClientDetail Page', () => {
     });
 
     it('should calculate metrics correctly', async () => {
-      renderWithRouter(<ClientDetail />, {
-        initialEntries: ['/dashboard/clients/client-1'],
-      });
+      renderPage();
 
       await waitFor(() => {
-        expect(screen.getByText('2')).toBeInTheDocument(); // Total projects
+        // Total projects / active projects / posts all resolve to 2.
+        expect(screen.getAllByText('2').length).toBeGreaterThan(0);
       });
     });
   });

@@ -8,15 +8,22 @@ import ProjectDetail from '../ProjectDetail';
 import * as projectsApi from '@/api/projects';
 import * as clientsApi from '@/api/clients';
 import * as postsApi from '@/api/posts';
+import * as deliverablesApi from '@/api/deliverables';
+import * as runsApi from '@/api/runs';
 
-// Mock API modules
+// Mock API modules (each module exports a namespaced client object, e.g.
+// `projectsApi.projectsApi`, so mocks target the nested method).
 jest.mock('@/api/projects');
 jest.mock('@/api/clients');
 jest.mock('@/api/posts');
+jest.mock('@/api/deliverables');
+jest.mock('@/api/runs');
+jest.mock('@/api/costs');
 
-// Mock useParams to return a project ID
-jest.mock('react-router-dom', async () => {
-  const actual = await jest.requireActual('react-router-dom');
+// Mock useParams to return a project ID (synchronous factory — an async factory
+// returns a Promise whose named exports resolve to undefined here).
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
   return {
     ...actual,
     useParams: () => ({ projectId: 'project-123' }),
@@ -29,7 +36,7 @@ describe('ProjectDetail Page', () => {
     jest.clearAllMocks();
 
     // Setup default mocks
-    jest.mocked(projectsApi.get).mockResolvedValue({
+    jest.mocked(projectsApi.projectsApi.get).mockResolvedValue({
       id: 'project-123',
       clientId: 'client-1',
       name: 'Q1 Campaign',
@@ -38,27 +45,34 @@ describe('ProjectDetail Page', () => {
       createdAt: new Date().toISOString(),
     });
 
-    jest.mocked(clientsApi.get).mockResolvedValue({
-      id: 'client-1',
-      name: 'Acme Corp',
-      email: 'contact@acme.com',
-      status: 'active',
-    });
+    // The component resolves the client name from the clients list (clientsApi.list),
+    // matching on project.clientId.
+    jest.mocked(clientsApi.clientsApi.list).mockResolvedValue([
+      {
+        id: 'client-1',
+        name: 'Acme Corp',
+        email: 'contact@acme.com',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
-    jest.mocked(postsApi.list).mockResolvedValue({
+    jest.mocked(postsApi.postsApi.list).mockResolvedValue({
       items: [],
       total: 0,
       page: 1,
       pageSize: 100,
+      totalPages: 0,
     });
+
+    jest.mocked(deliverablesApi.deliverablesApi.list).mockResolvedValue([]);
+    jest.mocked(runsApi.runsApi.listByProject).mockResolvedValue([]);
   });
 
   it('should render project detail page', async () => {
     renderWithProviders(<ProjectDetail />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Q1 Campaign')).toBeInTheDocument();
-    });
+    // Name renders in the heading (and repeats in the breadcrumb) — scope to heading.
+    expect(await screen.findByRole('heading', { name: 'Q1 Campaign' })).toBeInTheDocument();
   });
 
   it('should display client name', async () => {
@@ -72,13 +86,14 @@ describe('ProjectDetail Page', () => {
   it('should show project status', async () => {
     renderWithProviders(<ProjectDetail />);
 
+    // "ready" appears in the status badge and status filter/progress — assert presence.
     await waitFor(() => {
-      expect(screen.getByText(/ready/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/ready/i).length).toBeGreaterThan(0);
     });
   });
 
   it('should handle loading state', () => {
-    jest.mocked(projectsApi.get).mockImplementation(
+    jest.mocked(projectsApi.projectsApi.get).mockImplementation(
       () => new Promise(() => {}) // Never resolves
     );
 

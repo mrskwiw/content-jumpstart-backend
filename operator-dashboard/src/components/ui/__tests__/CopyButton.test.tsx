@@ -4,17 +4,19 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 
 const vi = jest;
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { CopyButton } from '../CopyButton';
 
 describe('CopyButton', () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+
   beforeEach(() => {
-    // Mock clipboard API
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockResolvedValue(undefined),
-      },
+    writeText.mockClear();
+    // jsdom exposes navigator.clipboard as a getter-only property, so it must be
+    // redefined (Object.assign throws). configurable:true lets each test reset it.
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
     });
   });
 
@@ -25,24 +27,22 @@ describe('CopyButton', () => {
   });
 
   it('should copy text to clipboard on click', async () => {
-    const user = userEvent.setup();
     const testText = 'Test content to copy';
 
     render(<CopyButton text={testText} />);
 
     const button = screen.getByRole('button');
-    await user.click(button);
+    // fireEvent (not userEvent) so userEvent's own clipboard stub does not shadow the mock.
+    fireEvent.click(button);
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(testText);
+    expect(writeText).toHaveBeenCalledWith(testText);
   });
 
   it('should show copied state after clicking', async () => {
-    const user = userEvent.setup();
-
     render(<CopyButton text="Test" />);
 
     const button = screen.getByRole('button');
-    await user.click(button);
+    fireEvent.click(button);
 
     // Button should show some feedback
     expect(button).toBeInTheDocument();

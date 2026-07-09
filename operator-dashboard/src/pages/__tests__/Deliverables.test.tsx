@@ -21,6 +21,17 @@ jest.mock('@/api/deliverables', () => ({
 
 jest.mock('@/api/clients', () => ({
   clientsApi: {
+    // The page resolves client names via clientsApi.list() (getClientName),
+    // not clientsApi.get(). Provide both to be safe.
+    list: jest.fn().mockResolvedValue([
+      {
+        id: 'c1',
+        name: 'Client c1',
+        businessDescription: 'Test business',
+        idealCustomer: 'Test customer',
+        createdAt: new Date().toISOString(),
+      },
+    ]),
     get: jest.fn().mockResolvedValue({
       id: 'c1',
       name: 'Client c1',

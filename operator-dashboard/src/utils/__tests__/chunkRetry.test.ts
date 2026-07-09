@@ -64,7 +64,8 @@ describe('chunkRetry', () => {
         .mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'))
         .mockResolvedValueOnce({ default: 'Component' });
 
-      const promise = retryChunkImport(mockImport);
+      // Default maxRetries is 1 (a single attempt, no retry) — opt in to a retry.
+      const promise = retryChunkImport(mockImport, { maxRetries: 2 });
 
       // Fast-forward through the delay
       await jest.advanceTimersByTimeAsync(1000);
@@ -89,7 +90,11 @@ describe('chunkRetry', () => {
         .mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'))
         .mockResolvedValueOnce({ default: 'Component' });
 
-      const promise = retryChunkImport(mockImport, { initialDelay: 1000, maxDelay: 5000 });
+      const promise = retryChunkImport(mockImport, {
+        maxRetries: 3,
+        initialDelay: 1000,
+        maxDelay: 5000,
+      });
 
       // First retry: 1000ms delay
       await jest.advanceTimersByTimeAsync(1000);
@@ -109,7 +114,11 @@ describe('chunkRetry', () => {
         .mockRejectedValueOnce(new Error('Failed to fetch dynamically imported module'))
         .mockResolvedValueOnce({ default: 'Component' });
 
-      const promise = retryChunkImport(mockImport, { initialDelay: 5000, maxDelay: 6000 });
+      const promise = retryChunkImport(mockImport, {
+        maxRetries: 3,
+        initialDelay: 5000,
+        maxDelay: 6000,
+      });
 
       // Delay should be capped at 6000ms, not 10000ms (5000 * 2)
       await jest.advanceTimersByTimeAsync(5000);
@@ -128,13 +137,16 @@ describe('chunkRetry', () => {
 
       const mockImport = jest.fn<() => Promise<unknown>>().mockRejectedValue(new Error('Failed to fetch dynamically imported module'));
 
+      // When retries are exhausted with shouldReload=true (the default), the util
+      // triggers window.location.reload() and returns a deliberately
+      // never-resolving promise (to halt further execution before the reload).
+      // We must NOT await that promise — attach a no-op catch and assert on the
+      // side effect (reload) once the retry timers have flushed.
       const promise = retryChunkImport(mockImport, { maxRetries: 2 });
+      promise.catch(() => {});
 
       await jest.advanceTimersByTimeAsync(1000);
       await jest.advanceTimersByTimeAsync(2000);
-
-      // Wait for promise to settle
-      await Promise.race([promise, new Promise(resolve => setTimeout(resolve, 100))]);
 
       expect(mockReload).toHaveBeenCalled();
       expect(mockImport).toHaveBeenCalledTimes(2);
@@ -145,9 +157,13 @@ describe('chunkRetry', () => {
 
       const promise = retryChunkImport(mockImport, { maxRetries: 2, shouldReload: false });
 
+      // Attach the rejection expectation BEFORE advancing timers so the eventual
+      // rejection is never briefly unhandled (which would fail the test run).
+      const assertion = expect(promise).rejects.toThrow('Failed to fetch dynamically imported module');
+
       await jest.advanceTimersByTimeAsync(1000);
 
-      await expect(promise).rejects.toThrow('Failed to fetch dynamically imported module');
+      await assertion;
       expect(mockImport).toHaveBeenCalledTimes(2);
     });
 
@@ -156,11 +172,15 @@ describe('chunkRetry', () => {
 
       const promise = retryChunkImport(mockImport, { maxRetries: 5, shouldReload: false });
 
+      // Attach the rejection expectation before advancing timers to avoid a
+      // transiently-unhandled rejection failing the test run.
+      const assertion = expect(promise).rejects.toThrow();
+
       for (let i = 0; i < 4; i++) {
         await jest.advanceTimersByTimeAsync(Math.min(1000 * Math.pow(2, i), 5000));
       }
 
-      await expect(promise).rejects.toThrow();
+      await assertion;
       expect(mockImport).toHaveBeenCalledTimes(5);
     });
   });

@@ -20,8 +20,9 @@ describe('QualityGatePanel', () => {
   });
 
   const mockProps = {
+    posts: [],
     projectId: 'proj-1',
-    onComplete: jest.fn(),
+    onRegenerated: jest.fn(),
   };
 
   beforeEach(() => {

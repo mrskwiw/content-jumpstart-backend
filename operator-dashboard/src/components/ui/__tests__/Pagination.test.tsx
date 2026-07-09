@@ -61,7 +61,9 @@ describe('Pagination', () => {
       );
 
       expect(screen.getByText(/Showing page/i)).toBeInTheDocument();
-      expect(screen.getByText(/100 total items/i)).toBeInTheDocument();
+      // The total count and its label render in separate elements.
+      expect(screen.getByText('100')).toBeInTheDocument();
+      expect(screen.getByText(/total items/i)).toBeInTheDocument();
     });
 
     it('should render pagination with cursor strategy', () => {

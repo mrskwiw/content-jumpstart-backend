@@ -60,24 +60,28 @@ describe('briefImportService', () => {
     });
   });
 
-  describe('validateParsedData', () => {
-    it('should validate parsed data', () => {
-      const validData = {
-        companyName: { value: 'Test', confidence: 'high' as const },
-      };
+  describe('parseFile error handling', () => {
+    it('should surface the structured error message from the backend detail', async () => {
+      // Backend returns FastAPI-style { detail: { code, message } }
+      mockedApi.post.mockRejectedValue({
+        response: {
+          data: { detail: { code: 'PARSE_ERROR', message: 'Unsupported file format' } },
+        },
+      });
 
-      const result = briefImportService.validateParsedData(validData);
+      const file = new File(['content'], 'brief.txt', { type: 'text/plain' });
 
-      expect(result.isValid).toBe(true);
+      await expect(briefImportService.parseFile(file)).rejects.toThrow('Unsupported file format');
     });
 
-    it('should detect missing required fields', () => {
-      const invalidData = {};
+    it('should surface a friendly message on request timeout', async () => {
+      mockedApi.post.mockRejectedValue({ code: 'ECONNABORTED' });
 
-      const result = briefImportService.validateParsedData(invalidData);
+      const file = new File(['content'], 'brief.txt', { type: 'text/plain' });
 
-      expect(result.isValid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
+      await expect(briefImportService.parseFile(file)).rejects.toThrow(
+        'Request timed out. Please try again.'
+      );
     });
   });
 });

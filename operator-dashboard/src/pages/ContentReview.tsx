@@ -75,14 +75,6 @@ export default function ContentReview() {
     queryFn: () => clientsApi.list(),
   });
 
-  if (postsError || projectsError || clientsError) {
-    return (
-      <div className="flex items-center justify-center h-64 text-red-500">
-        <span>Failed to load content. Please refresh the page.</span>
-      </div>
-    );
-  }
-
   const posts: PostDraft[] = postsResponse?.items ?? [];
   const projects: Project[] = projectsResponse?.items ?? [];
 
@@ -197,6 +189,16 @@ export default function ContentReview() {
       : postsWithContext.filter(p => p.clientName === clientFilter);
     return Array.from(new Set(filtered.map(p => p.projectName).filter(Boolean)));
   }, [postsWithContext, clientFilter]);
+
+  // Error state — placed after all hooks so the hook order stays stable across the
+  // loaded→error transition (Rules of Hooks).
+  if (postsError || projectsError || clientsError) {
+    return (
+      <div className="flex items-center justify-center h-64 text-red-500">
+        <span>Failed to load content. Please refresh the page.</span>
+      </div>
+    );
+  }
 
   // Handle inline editing
   const handleStartEdit = (post: PostWithContext) => {

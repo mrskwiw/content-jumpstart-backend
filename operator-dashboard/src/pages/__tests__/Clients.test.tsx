@@ -16,8 +16,8 @@ jest.mock('@/api/deliverables');
 
 // Mock navigate
 const mockNavigate = jest.fn();
-jest.mock('react-router-dom', async () => {
-  const actual = await jest.requireActual('react-router-dom');
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -28,25 +28,23 @@ describe('Clients Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Setup default mocks
-    jest.mocked(clientsApi.list).mockResolvedValue([
+    // Setup default mocks (each API module exposes a namespaced client object)
+    jest.mocked(clientsApi.clientsApi.list).mockResolvedValue([
       {
         id: 'client-1',
         name: 'Acme Corp',
         email: 'contact@acme.com',
-        status: 'active',
-        tags: ['enterprise', 'tech'],
+        createdAt: new Date().toISOString(),
       },
       {
         id: 'client-2',
         name: 'StartupXYZ',
         email: 'hello@startupxyz.com',
-        status: 'active',
-        tags: ['startup'],
+        createdAt: new Date().toISOString(),
       },
     ]);
 
-    jest.mocked(projectsApi.list).mockResolvedValue({
+    jest.mocked(projectsApi.projectsApi.list).mockResolvedValue({
       items: [
         {
           id: 'proj-1',
@@ -60,9 +58,10 @@ describe('Clients Page', () => {
       total: 1,
       page: 1,
       pageSize: 100,
+      totalPages: 1,
     });
 
-    jest.mocked(deliverablesApi.list).mockResolvedValue([]);
+    jest.mocked(deliverablesApi.deliverablesApi.list).mockResolvedValue([]);
   });
 
   it('should render clients page header', async () => {
@@ -90,23 +89,25 @@ describe('Clients Page', () => {
     });
   });
 
-  it('should display new client button', async () => {
+  it('should display add client button', async () => {
     renderWithProviders(<Clients />);
 
     await waitFor(() => {
-      const newButton = screen.getByRole('button', { name: /new client/i });
+      // Copy is "Add Client" (was previously "New Client").
+      const newButton = screen.getByRole('button', { name: /add client/i });
       expect(newButton).toBeInTheDocument();
     });
   });
 
   it('should handle loading state', () => {
-    jest.mocked(clientsApi.list).mockImplementation(
+    jest.mocked(clientsApi.clientsApi.list).mockImplementation(
       () => new Promise(() => {}) // Never resolves
     );
 
     renderWithProviders(<Clients />);
 
-    // Should show loading indicator or empty state
-    expect(screen.getByText(/Clients/i)).toBeInTheDocument();
+    // Header renders immediately (page shell is not gated on the query).
+    // Use an exact match to avoid colliding with "Total Clients"/"Active Clients".
+    expect(screen.getByText('Clients')).toBeInTheDocument();
   });
 });
