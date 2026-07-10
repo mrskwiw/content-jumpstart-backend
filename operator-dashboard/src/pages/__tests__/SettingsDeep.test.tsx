@@ -28,6 +28,10 @@ describe('Settings Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+    // Settings derives the active tab from the URL (?tab=), and renderWithProviders uses
+    // a BrowserRouter backed by the shared window.location — reset it so a tab click in
+    // one test can't leak a ?tab= param into the next test's initial render.
+    window.history.pushState({}, '', '/');
 
     // Mock successful fetch responses
     (global.fetch).mockResolvedValue({
@@ -160,6 +164,29 @@ describe('Settings Page', () => {
       await waitFor(() => {
         expect(usersTab.className).toMatch(/border-primary/);
       });
+    });
+
+    it('honors a ?tab=credits deep-link on initial render', () => {
+      window.history.pushState({}, '', '/?tab=credits');
+
+      renderWithProviders(<Settings />);
+
+      // Tab is derived from the URL during render, so Credits is active immediately.
+      const creditsTab = screen.getByRole('button', { name: /credits/i });
+      expect(creditsTab.className).toMatch(/border-primary/);
+    });
+
+    it('reflects a tab change back into the URL (bidirectional sync)', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Settings />);
+
+      await user.click(screen.getByRole('button', { name: /security/i }));
+
+      await waitFor(() => {
+        expect(window.location.search).toContain('tab=security');
+      });
+      // And the URL is the source of truth, so the Security tab is active.
+      expect(screen.getByRole('button', { name: /security/i }).className).toMatch(/border-primary/);
     });
 
     it('should not show users tab for non-admin', () => {

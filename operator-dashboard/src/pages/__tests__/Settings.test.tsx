@@ -1,7 +1,7 @@
 /**
  * Smoke tests for Settings page
  */
-import { describe, it, expect, jest } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Settings from '../Settings';
 
@@ -17,6 +17,12 @@ jest.mock('@/contexts/ThemeContext', () => ({
 }));
 
 describe('Settings Page', () => {
+  // Settings derives the active tab from the URL; reset window.location between tests so
+  // a ?tab= param can't leak across the shared BrowserRouter used by renderWithProviders.
+  beforeEach(() => {
+    window.history.pushState({}, '', '/');
+  });
+
   it('should render without crashing', () => {
     const { container } = renderWithProviders(<Settings />);
     expect(container).toBeInTheDocument();

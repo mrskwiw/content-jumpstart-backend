@@ -298,11 +298,17 @@ export const mockApi = {
   export: {
     export: async (input: ExportInput) => {
       await delay(1000);
+      // ExportInput.format is broader (txt|md|docx|html|json|wxr) than a stored
+      // Deliverable.format (txt|md|docx); the real backend normalizes this. Narrow it
+      // here so the fabricated mock Deliverable is well-typed, defaulting non-document
+      // export formats to txt.
+      const deliverableFormat: Deliverable['format'] =
+        input.format === 'md' || input.format === 'docx' ? input.format : 'txt';
       const newDeliverable: Deliverable = {
         id: `deliv-${Date.now()}`,
         projectId: input.projectId,
         clientId: input.clientId,
-        format: input.format,
+        format: deliverableFormat,
         path: `outputs/${input.clientId}/${input.projectId}-${new Date().toISOString().split('T')[0]}.${input.format}`,
         createdAt: new Date().toISOString(),
         status: 'ready',
