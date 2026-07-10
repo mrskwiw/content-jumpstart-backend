@@ -48,12 +48,17 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['html', 'text', 'json', 'lcov'],
+  // Calibrated coverage FLOOR (OPS-08b, 2026-07-10), not an aspirational target. Set a
+  // few points below the current real coverage (stmts ~46 / branch ~32 / funcs ~34 /
+  // lines ~48) so the blocking CI jest gate fails on a coverage CRATER without
+  // false-failing on normal fluctuation. The previous 90% was never met and was only
+  // tolerated because the gate was report-only. Ratchet these UP as coverage improves.
   coverageThreshold: {
     global: {
-      branches: 90,
-      functions: 90,
-      lines: 90,
-      statements: 90,
+      branches: 27,
+      functions: 29,
+      lines: 43,
+      statements: 42,
     },
   },
 };

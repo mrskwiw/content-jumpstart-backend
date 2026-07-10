@@ -85,23 +85,32 @@ jobs:
           cd operator-dashboard
           npm ci
 
-      - name: Lint TypeScript/React
+      - name: Lint TypeScript/React (blocking)
+        # BLOCKING (OPS-08b, 2026-07-10): the ESLint backlog was cleared to 0 errors
+        # (PR #9). `eslint .` passes on the remaining warnings, so this now fails only on
+        # a NEW lint error, preventing regressions from merging.
         run: |
           cd operator-dashboard
           npm run lint
-        continue-on-error: true  # Warning only
 
       - name: Type check
+        # Still report-only: the Build step below runs `tsc -b` (blocking), which already
+        # type-checks the app; this `--noEmit` pass is a redundant informational signal.
         run: |
           cd operator-dashboard
           npx tsc --noEmit
         continue-on-error: true  # Warning only
 
-      - name: Jest unit tests (report-only)
+      - name: Jest unit tests (blocking)
+        # BLOCKING (OPS-08b, 2026-07-10): the frontend suite is green (84 suites, 766
+        # passing) after the OPS-08 stale-test cleanup, so a test failure blocks the merge.
+        # Runs WITH coverage, enforcing the calibrated coverage FLOOR in jest.config.cjs
+        # (a few points below current real coverage), so the gate also fails on a coverage
+        # crater — not just test failures. --maxWorkers=2 keeps the long WizardFlow flows
+        # deterministic in CI.
         run: |
           cd operator-dashboard
-          npx jest --ci --passWithNoTests
-        continue-on-error: true  # report-only until frontend suite is triaged (BUGS #179)
+          npx jest --ci --maxWorkers=2 --passWithNoTests
 
       - name: Build frontend
         run: |

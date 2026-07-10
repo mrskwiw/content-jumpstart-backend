@@ -43,6 +43,9 @@ Object.defineProperty(window, 'matchMedia', {
 // PrismLight build and calls registerLanguage(), plus a deep per-language ESM module
 // that jest can't parse — stub all of them with a plain <pre> renderer.
 jest.mock('react-syntax-highlighter', () => {
+  // jest.mock factories are hoisted above the file's imports, so a top-level `import`
+  // can't be referenced here — require() is the supported pattern inside a factory.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require('react');
   interface MockHighlighterProps {
     children?: React.ReactNode;
