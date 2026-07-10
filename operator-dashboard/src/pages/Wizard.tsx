@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { WizardStepper } from '@/components/wizard/WizardStepper';
 import { ClientProfilePanel } from '@/components/wizard/ClientProfilePanel';
 import { ResearchPanel } from '@/components/wizard/ResearchPanel';
-import { TemplateSelectionPanel } from '@/components/wizard/TemplateSelectionPanel';
 import { TemplateQuantitySelector } from '@/components/wizard/TemplateQuantitySelector';
 import { GenerationPanel } from '@/components/wizard/GenerationPanel';
 import { QualityGatePanel } from '@/components/wizard/QualityGatePanel';
@@ -18,7 +17,6 @@ import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
 import { Button, Card, CardContent, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { stripeApi } from '@/api/stripe';
 
 type StepKey = 'profile' | 'research' | 'templates' | 'quality' | 'export';
 
@@ -32,7 +30,6 @@ const steps: { key: StepKey; label: string }[] = [
 
 export default function Wizard() {
   const location = useLocation();
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const STORAGE_KEY = 'wizard_state_v1';
@@ -47,7 +44,7 @@ export default function Wizard() {
   const [activeStep, setActiveStep] = useState<StepKey>('profile');
   const [maxReachedStep, setMaxReachedStep] = useState<StepKey>('profile');
   const [clientBrief, setClientBrief] = useState<ClientBrief | null>(null);
-  const [selectedTemplates, setSelectedTemplates] = useState<number[]>([]);
+  const [selectedTemplates] = useState<number[]>([]);
   const [showKeywordError, setShowKeywordError] = useState(false);
   const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
 
@@ -87,7 +84,7 @@ export default function Wizard() {
       const { id, ...updateData } = data;
       return clientsApi.update(id, updateData);
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['client', clientId] });
     },
@@ -138,6 +135,10 @@ export default function Wizard() {
   // Use a short timeout for known failures (posts won't appear); 5-min cap for success.
   useEffect(() => {
     if (!generationCompleted || posts.length > 0) return;
+    // Legit external sync: this effect subscribes to an external polling loop
+    // (setInterval refetch). Resetting the timed-out flag is part of (re)starting
+    // that subscription for a new generation cycle, not a derived-render value.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPostPollTimedOut(false);
     const interval = setInterval(() => { refetchPostsRef.current(); }, 2000);
     const timeoutMs = generationFailed ? 15 * 1000 : 5 * 60 * 1000;
@@ -164,6 +165,11 @@ export default function Wizard() {
         clientBrief?.idealCustomer !== (selectedClient.idealCustomer || '');
 
       if (needsUpdate) {
+        // Legit external sync: hydrate the editable local form state (clientBrief)
+        // from server-fetched query data (selectedClient) when loading an existing
+        // client. clientBrief is subsequently user-editable, so this can't be a
+        // derived useMemo; the needsUpdate guard prevents render loops.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setClientBrief({
           companyName: selectedClient.name,
           businessDescription: selectedClient.businessDescription || '',

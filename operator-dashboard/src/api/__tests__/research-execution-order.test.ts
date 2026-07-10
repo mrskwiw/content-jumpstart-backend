@@ -1,8 +1,19 @@
-import { describe, it, expect, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import type { AxiosResponse } from "axios";
 import { researchApi } from "../research";
 import apiClient from "../client";
 
 jest.mock("../client");
+
+const mockedApiClient = apiClient as jest.Mocked<typeof apiClient>;
+
+/** Raw snake_case shape returned by POST /api/research/execution-order. */
+interface ExecutionOrderResponse {
+  execution_order: string[];
+  tool_count: number;
+  parallel_groups?: string[][];
+  dependency_map: Record<string, string[]>;
+}
 
 describe("researchApi.getExecutionOrder", () => {
   beforeEach(() => {
@@ -10,7 +21,7 @@ describe("researchApi.getExecutionOrder", () => {
   });
 
   it("returns executionOrder, toolCount, and parallelGroups from response", async () => {
-    (apiClient.post as any).mockResolvedValueOnce({
+    mockedApiClient.post.mockResolvedValueOnce({
       data: {
         execution_order: ["seo_keyword_research", "platform_strategy", "content_calendar"],
         tool_count: 3,
@@ -25,7 +36,7 @@ describe("researchApi.getExecutionOrder", () => {
           content_calendar: ["platform_strategy"],
         },
       },
-    });
+    } as AxiosResponse<ExecutionOrderResponse>);
 
     const result = await researchApi.getExecutionOrder([
       "content_calendar",
@@ -47,14 +58,14 @@ describe("researchApi.getExecutionOrder", () => {
   });
 
   it("posts tool_names to the correct endpoint", async () => {
-    (apiClient.post as any).mockResolvedValueOnce({
+    mockedApiClient.post.mockResolvedValueOnce({
       data: {
         execution_order: ["voice_analysis"],
         tool_count: 1,
         parallel_groups: [["voice_analysis"]],
         dependency_map: { voice_analysis: [] },
       },
-    });
+    } as AxiosResponse<ExecutionOrderResponse>);
 
     await researchApi.getExecutionOrder(["voice_analysis"]);
 
@@ -65,14 +76,14 @@ describe("researchApi.getExecutionOrder", () => {
   });
 
   it("returns empty parallelGroups for empty tool list", async () => {
-    (apiClient.post as any).mockResolvedValueOnce({
+    mockedApiClient.post.mockResolvedValueOnce({
       data: {
         execution_order: [],
         tool_count: 0,
         parallel_groups: [],
         dependency_map: {},
       },
-    });
+    } as AxiosResponse<ExecutionOrderResponse>);
 
     const result = await researchApi.getExecutionOrder([]);
 
@@ -82,7 +93,7 @@ describe("researchApi.getExecutionOrder", () => {
   });
 
   it("returns independent tier-1 tools in a single parallel group", async () => {
-    (apiClient.post as any).mockResolvedValueOnce({
+    mockedApiClient.post.mockResolvedValueOnce({
       data: {
         execution_order: ["voice_analysis", "brand_archetype", "seo_keyword_research"],
         tool_count: 3,
@@ -93,7 +104,7 @@ describe("researchApi.getExecutionOrder", () => {
           seo_keyword_research: [],
         },
       },
-    });
+    } as AxiosResponse<ExecutionOrderResponse>);
 
     const result = await researchApi.getExecutionOrder([
       "voice_analysis",
@@ -106,13 +117,13 @@ describe("researchApi.getExecutionOrder", () => {
   });
 
   it("throws when response is missing parallel_groups field", async () => {
-    (apiClient.post as any).mockResolvedValueOnce({
+    mockedApiClient.post.mockResolvedValueOnce({
       data: {
         execution_order: ["seo_keyword_research"],
         tool_count: 1,
         // parallel_groups intentionally absent — simulates old backend
       },
-    });
+    } as AxiosResponse<ExecutionOrderResponse>);
 
     await expect(
       researchApi.getExecutionOrder(["seo_keyword_research"])

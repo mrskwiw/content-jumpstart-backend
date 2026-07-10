@@ -2,6 +2,7 @@
  * Tests for auth API module
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { authApi } from '../auth';
 import apiClient from '../client';
 
@@ -35,7 +36,7 @@ describe('Auth API', () => {
         headers: { 'content-type': 'application/json' },
       };
 
-      mockedApiClient.post.mockResolvedValue(mockResponse as any);
+      mockedApiClient.post.mockResolvedValue(mockResponse as unknown as AxiosResponse);
 
       const result = await authApi.login({
         email: 'test@example.com',
@@ -78,7 +79,7 @@ describe('Auth API', () => {
         },
       };
 
-      mockedApiClient.post.mockResolvedValue(mockResponse as any);
+      mockedApiClient.post.mockResolvedValue(mockResponse as unknown as AxiosResponse);
 
       const result = await authApi.refresh('old-refresh-token');
 

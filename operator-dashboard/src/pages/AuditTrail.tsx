@@ -12,7 +12,6 @@ import {
   Settings,
   FileEdit,
   Trash2,
-  Upload,
   CheckCircle,
   XCircle,
   AlertTriangle,

@@ -5,7 +5,6 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import {
-  DollarSign,
   Zap,
   FileText,
   Database,

@@ -4,27 +4,21 @@ import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/config/routes';
 import { clientsApi } from '@/api/clients';
 import { projectsApi } from '@/api/projects';
-import { deliverablesApi } from '@/api/deliverables';
 import {
   Users,
   Search,
-  Filter,
   Plus,
   ArrowUpDown,
   Mail,
   Briefcase,
-  DollarSign,
   TrendingUp,
-  CheckCircle2,
-  Clock
 } from 'lucide-react';
 import { DeleteClientDialog } from '@/components/DeleteClientDialog';
 import { deleteClient, exportClientData, downloadClientData } from '@/api/privacyApi';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell, Input, Select } from '@/components/ui';
+import { Button, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
 import { QuickActionsDropdown } from '@/components/ui/QuickActionsDropdown';
 
 interface ClientWithMetrics {
@@ -79,7 +73,7 @@ export default function Clients() {
       const data = await exportClientData(selectedClient.id);
       downloadClientData(data, selectedClient.name);
       toast.success('Client data exported successfully');
-    } catch (error) {
+    } catch {
       toast.error('Failed to export client data');
     }
   };
@@ -97,11 +91,6 @@ export default function Clients() {
   });
 
   const projects = projectsResponse?.items ?? [];
-
-  const { data: deliverables = [] } = useQuery({
-    queryKey: ['deliverables'],
-    queryFn: () => deliverablesApi.list({}),
-  });
 
   // Calculate metrics for each client
   const clientsWithMetrics: ClientWithMetrics[] = useMemo(() => {
@@ -188,7 +177,6 @@ export default function Clients() {
   // Calculate summary stats
   const totalClients = filteredClients.length;
   const activeClients = filteredClients.filter(c => c.activeProjects > 0).length;
-  const totalRevenue = filteredClients.reduce((sum, c) => sum + c.totalRevenue, 0);
   const avgProjectsPerClient = totalClients > 0
     ? Math.round(filteredClients.reduce((sum, c) => sum + c.totalProjects, 0) / totalClients * 10) / 10
     : 0;

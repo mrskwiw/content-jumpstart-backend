@@ -7,7 +7,8 @@
 const FALLBACK_API_URL = 'http://localhost:8000';
 
 function getEnvValue(key: string): string | undefined {
-  const env = (globalThis as any).__ENV__ || {};
+  const env =
+    (globalThis as { __ENV__?: Record<string, string | undefined> }).__ENV__ || {};
   return env[key];
 }
 

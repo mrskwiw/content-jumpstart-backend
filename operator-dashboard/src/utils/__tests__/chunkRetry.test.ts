@@ -186,9 +186,14 @@ describe('chunkRetry', () => {
   });
 
   describe('setupChunkErrorHandler', () => {
+    type MockChunkEvent = {
+      error?: unknown;
+      reason?: unknown;
+      preventDefault: () => void;
+    };
     let mockReload: jest.Mock;
-    let errorListeners: ((event: any) => void)[] = [];
-    let rejectionListeners: ((event: any) => void)[] = [];
+    let errorListeners: ((event: MockChunkEvent) => void)[] = [];
+    let rejectionListeners: ((event: MockChunkEvent) => void)[] = [];
 
     beforeEach(() => {
       mockReload = jest.fn();
@@ -200,13 +205,15 @@ describe('chunkRetry', () => {
       errorListeners = [];
       rejectionListeners = [];
 
-      window.addEventListener = jest.fn((event, handler: any) => {
-        if (event === 'error') {
-          errorListeners.push(handler);
-        } else if (event === 'unhandledrejection') {
-          rejectionListeners.push(handler);
+      window.addEventListener = jest.fn(
+        (event: string, handler: (event: MockChunkEvent) => void) => {
+          if (event === 'error') {
+            errorListeners.push(handler);
+          } else if (event === 'unhandledrejection') {
+            rejectionListeners.push(handler);
+          }
         }
-      });
+      ) as unknown as typeof window.addEventListener;
     });
 
     it('should set up error event listener', () => {

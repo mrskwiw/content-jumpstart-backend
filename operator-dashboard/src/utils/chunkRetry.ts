@@ -126,7 +126,7 @@ export async function retryChunkImport<T>(
  * const MyComponent = lazyWithRetry(() => import('./MyComponent'));
  * ```
  */
-export function lazyWithRetry<T extends React.ComponentType<any>>(
+export function lazyWithRetry<T extends React.ComponentType<Record<string, never>>>(
   importFn: () => Promise<{ default: T }>,
   options?: RetryOptions
 ): React.LazyExoticComponent<T> {

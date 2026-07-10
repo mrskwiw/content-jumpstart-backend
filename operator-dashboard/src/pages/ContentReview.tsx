@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Search,
   Filter,
@@ -14,11 +14,8 @@ import {
   Edit2,
   Save,
   X,
-  ChevronDown,
-  BarChart3,
   Eye,
 } from 'lucide-react';
-import { format } from 'date-fns';
 import { postsApi } from '@/api/posts';
 import { projectsApi } from '@/api/projects';
 import { clientsApi } from '@/api/clients';
@@ -45,7 +42,6 @@ interface PostWithContext {
 }
 
 export default function ContentReview() {
-  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { researchApi, ToolStats } from '@/api';
-import { DollarSign, TrendingDown, Zap, Target, Percent, Database } from 'lucide-react';
+import { DollarSign, TrendingDown, Target, Percent, Database } from 'lucide-react';
 
 export default function ResearchAnalytics() {
   const [dateRange, setDateRange] = useState(90);

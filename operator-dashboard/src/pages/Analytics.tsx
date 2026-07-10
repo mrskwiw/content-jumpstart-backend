@@ -3,18 +3,15 @@ import {
   BarChart3,
   TrendingUp,
   Clock,
-  DollarSign,
   FileText,
   CheckCircle,
-  AlertTriangle,
   Calendar,
   Users,
   Target,
   Award,
   Activity,
 } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval, isWithinInterval } from 'date-fns';
-import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { format, subMonths, startOfMonth, isWithinInterval } from 'date-fns';
 
 type TimeRange = 'month' | 'quarter' | 'year' | 'all';
 
@@ -311,7 +308,7 @@ export default function Analytics() {
             <BarChart3 className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
           </div>
           <div className="space-y-3">
-            {filteredData.map((data, index) => {
+            {filteredData.map((data) => {
               const maxProjects = Math.max(...filteredData.map(d => d.projects));
               const percentage = (data.projects / maxProjects) * 100;
               return (

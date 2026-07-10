@@ -1,4 +1,4 @@
-import { FileSearch, Filter, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { FileSearch, Filter, CheckCircle2, Clock } from 'lucide-react';
 
 export default function Content() {
   return (

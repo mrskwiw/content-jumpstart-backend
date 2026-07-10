@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { ClientProfilePanel } from '@/components/wizard/ClientProfilePanel';
 import { clientsApi } from '@/api';
-import type { ApiError } from '@/types/api-types';
 import { type ClientBrief } from '@/types/domain';
 
 export default function NewClient() {

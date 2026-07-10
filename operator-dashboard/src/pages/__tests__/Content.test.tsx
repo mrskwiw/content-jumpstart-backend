@@ -2,7 +2,6 @@
  * Tests for Content page component
  */
 import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Content from '../Content';
 

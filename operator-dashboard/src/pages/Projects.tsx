@@ -4,14 +4,13 @@ import { projectsApi } from '@/api/projects';
 import { generatorApi } from '@/api/generator';
 import { Project, ProjectStatus } from '@/types/domain';
 import { format } from 'date-fns';
-import { RefreshCw, Filter, Play, Sparkles, FileText, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { RefreshCw, Filter, Play, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from '@/config/routes';
 import { Pagination } from '@/components/ui/Pagination';
-import { Button, Badge, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
+import { Button, Card, CardContent, Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui';
 import { StatusProgressBar } from '@/components/ui/StatusProgressBar';
 import { QuickActionsDropdown } from '@/components/ui/QuickActionsDropdown';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getApiErrorMessage } from '@/utils/apiError';
 
 export default function Projects() {

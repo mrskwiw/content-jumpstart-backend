@@ -2,6 +2,7 @@
  * Smoke tests for briefImportService
  */
 import { describe, it, expect, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { briefImportService } from '../briefImportService';
 import api from '../../api/client';
 
@@ -33,7 +34,7 @@ describe('briefImportService', () => {
         },
       };
 
-      mockedApi.post.mockResolvedValue(mockResponse as any);
+      mockedApi.post.mockResolvedValue(mockResponse as unknown as AxiosResponse);
 
       const file = new File(['content'], 'brief.txt', { type: 'text/plain' });
       const result = await briefImportService.parseFile(file);

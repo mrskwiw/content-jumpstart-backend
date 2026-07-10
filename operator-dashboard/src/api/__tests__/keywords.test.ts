@@ -6,9 +6,9 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import type { AxiosInstance } from 'axios';
+import type { AxiosInstance, AxiosResponse } from 'axios';
 import apiClient from '../client';
-import { keywordsApi, KeywordResponseSchema, type ClientKeyword, type KeywordType } from '../keywords';
+import { keywordsApi, KeywordResponseSchema, KeywordTypeValues } from '../keywords';
 
 // ---------------------------------------------------------------------------
 // Mock the shared API client
@@ -121,7 +121,7 @@ describe('normalise() via getKeywords()', () => {
       quick_win: [],
       total: 1,
     };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: snakeList } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: snakeList } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywords('client-abc');
     const kw = result.primary[0];
@@ -144,7 +144,7 @@ describe('normalise() via getKeywords()', () => {
       quick_win: [],
       total: 1,
     };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: camelList } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: camelList } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywords('client-xyz');
     const kw = result.secondary[0];
@@ -159,7 +159,7 @@ describe('normalise() via getKeywords()', () => {
     // @ts-expect-error — intentionally removing both to test fallback
     delete raw.is_active;
     const list = { primary: [raw], secondary: [], negative: [], quick_win: [], total: 1 };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: list } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: list } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywords('client-abc');
     expect(result.primary[0].isActive).toBe(true);
@@ -170,7 +170,7 @@ describe('normalise() via getKeywords()', () => {
     // @ts-expect-error — intentionally removing both keys
     delete raw.keyword_type;
     const list = { primary: [raw], secondary: [], negative: [], quick_win: [], total: 1 };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: list } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: list } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywords('client-abc');
     expect(result.primary[0].keywordType).toBe('negative');
@@ -186,7 +186,7 @@ describe('getKeywords()', () => {
 
   it('calls correct URL without type filter', async () => {
     const empty = { primary: [], secondary: [], negative: [], quick_win: [], total: 0 };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: empty } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: empty } as unknown as AxiosResponse);
 
     await keywordsApi.getKeywords('client-123');
 
@@ -195,7 +195,7 @@ describe('getKeywords()', () => {
 
   it('passes type filter as query param', async () => {
     const empty = { primary: [], secondary: [], negative: [], quick_win: [], total: 0 };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: empty } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: empty } as unknown as AxiosResponse);
 
     await keywordsApi.getKeywords('client-123', 'negative');
 
@@ -213,7 +213,7 @@ describe('getKeywords()', () => {
       quick_win: [],
       total: 1,
     };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywords('client-123');
     expect(result.total).toBe(1);
@@ -237,7 +237,7 @@ describe('getKeywordsByType()', () => {
       quick_win: [],
       total: 1,
     };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywordsByType('client-123', 'primary');
     expect(result).toHaveLength(1);
@@ -246,7 +246,7 @@ describe('getKeywordsByType()', () => {
 
   it('returns empty array for a type with no keywords', async () => {
     const response = { primary: [], secondary: [], negative: [], quick_win: [], total: 0 };
-    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as any);
+    (mockedApiClient.get as jest.MockedFunction<AxiosInstance['get']>).mockResolvedValue({ data: response } as unknown as AxiosResponse);
 
     const result = await keywordsApi.getKeywordsByType('client-123', 'negative');
     expect(result).toEqual([]);
@@ -263,7 +263,7 @@ describe('addKeyword()', () => {
   it('converts camelCase payload to snake_case for backend', async () => {
     (mockedApiClient.post as jest.MockedFunction<AxiosInstance['post']>).mockResolvedValue({
       data: makeSnakeCaseResponse({ keyword: 'email strategy', keyword_type: 'primary' }),
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.addKeyword('client-abc', {
       keyword: 'email strategy',
@@ -285,7 +285,7 @@ describe('addKeyword()', () => {
   it('returns normalised ClientKeyword', async () => {
     (mockedApiClient.post as jest.MockedFunction<AxiosInstance['post']>).mockResolvedValue({
       data: makeSnakeCaseResponse(),
-    } as any);
+    } as unknown as AxiosResponse);
 
     const result = await keywordsApi.addKeyword('client-abc', {
       keyword: 'content marketing',
@@ -308,7 +308,7 @@ describe('updateKeyword()', () => {
   it('sends only provided fields as snake_case', async () => {
     (mockedApiClient.put as jest.MockedFunction<AxiosInstance['put']>).mockResolvedValue({
       data: makeSnakeCaseResponse({ notes: 'Updated note' }),
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.updateKeyword('client-abc', 1, { notes: 'Updated note' });
 
@@ -321,7 +321,7 @@ describe('updateKeyword()', () => {
   it('converts isActive → is_active', async () => {
     (mockedApiClient.put as jest.MockedFunction<AxiosInstance['put']>).mockResolvedValue({
       data: makeSnakeCaseResponse({ is_active: false }),
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.updateKeyword('client-abc', 1, { isActive: false });
 
@@ -334,7 +334,7 @@ describe('updateKeyword()', () => {
   it('converts searchIntent → search_intent', async () => {
     (mockedApiClient.put as jest.MockedFunction<AxiosInstance['put']>).mockResolvedValue({
       data: makeSnakeCaseResponse(),
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.updateKeyword('client-abc', 1, { searchIntent: 'commercial' });
 
@@ -346,7 +346,7 @@ describe('updateKeyword()', () => {
   it('omits undefined fields', async () => {
     (mockedApiClient.put as jest.MockedFunction<AxiosInstance['put']>).mockResolvedValue({
       data: makeSnakeCaseResponse(),
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.updateKeyword('client-abc', 1, {});
 
@@ -363,7 +363,7 @@ describe('deleteKeyword()', () => {
   beforeEach(() => { jest.clearAllMocks(); });
 
   it('calls DELETE on correct URL', async () => {
-    (mockedApiClient.delete as jest.MockedFunction<AxiosInstance['delete']>).mockResolvedValue({} as any);
+    (mockedApiClient.delete as jest.MockedFunction<AxiosInstance['delete']>).mockResolvedValue({} as unknown as AxiosResponse);
 
     await keywordsApi.deleteKeyword('client-abc', 42);
 
@@ -371,7 +371,7 @@ describe('deleteKeyword()', () => {
   });
 
   it('returns void on success', async () => {
-    (mockedApiClient.delete as jest.MockedFunction<AxiosInstance['delete']>).mockResolvedValue({} as any);
+    (mockedApiClient.delete as jest.MockedFunction<AxiosInstance['delete']>).mockResolvedValue({} as unknown as AxiosResponse);
 
     const result = await keywordsApi.deleteKeyword('client-abc', 1);
     expect(result).toBeUndefined();
@@ -388,7 +388,7 @@ describe('importFromResult()', () => {
   it('posts to correct URL', async () => {
     (mockedApiClient.post as jest.MockedFunction<AxiosInstance['post']>).mockResolvedValue({
       data: { imported: 5, skipped: 0, message: 'Imported 5 keywords.' },
-    } as any);
+    } as unknown as AxiosResponse);
 
     await keywordsApi.importFromResult('client-abc', 'rr-001');
 
@@ -400,7 +400,7 @@ describe('importFromResult()', () => {
   it('returns import stats', async () => {
     (mockedApiClient.post as jest.MockedFunction<AxiosInstance['post']>).mockResolvedValue({
       data: { imported: 3, skipped: 2, message: 'Imported 3 keywords from research result.' },
-    } as any);
+    } as unknown as AxiosResponse);
 
     const result = await keywordsApi.importFromResult('client-abc', 'rr-001');
     expect(result.imported).toBe(3);
@@ -419,7 +419,7 @@ describe('bulkUpsert()', () => {
   it('maps camelCase items to snake_case and posts to /bulk', async () => {
     (mockedApiClient.post as jest.MockedFunction<AxiosInstance['post']>).mockResolvedValue({
       data: { imported: 2, skipped: 1, deactivated: 0, message: 'Done: 2 added, 1 already existed.' },
-    } as any);
+    } as unknown as AxiosResponse);
 
     const result = await keywordsApi.bulkUpsert('client-abc', [
       {
@@ -469,7 +469,6 @@ describe('bulkUpsert()', () => {
 
 describe('KeywordTypeValues', () => {
   it('covers all four types', () => {
-    const { KeywordTypeValues } = require('../keywords');
     expect(KeywordTypeValues).toContain('primary');
     expect(KeywordTypeValues).toContain('secondary');
     expect(KeywordTypeValues).toContain('negative');

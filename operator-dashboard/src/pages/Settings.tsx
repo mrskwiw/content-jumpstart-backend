@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Settings as SettingsIcon, Server, Zap, Bell, Shield, HardDrive, Users, Coins, Save } from 'lucide-react';
@@ -30,15 +29,31 @@ export default function Settings() {
   const isAdmin = user?.isSuperuser === true;
   const isSuperAdmin = isAdmin;
 
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabId>('integrations');
-
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'credits') setActiveTab('credits');
-  }, [searchParams]);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const visibleTabs = TABS.filter(t => !t.adminOnly || (t.adminOnly && isAdmin));
+
+  // The URL query param is the single source of truth for the active tab, so tab state
+  // and the URL stay in sync in BOTH directions: deep-links (?tab=credits) and later
+  // navigations resolve to the right tab, and clicking a tab updates the URL. An unknown
+  // or not-permitted tab falls back to Integrations. No local state / effect needed, so
+  // there is no stale-tab window and no setState-in-effect.
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabId = visibleTabs.some(t => t.id === tabParam)
+    ? (tabParam as TabId)
+    : 'integrations';
+
+  const setActiveTab = (id: TabId) => {
+    // Push (not replace) so each tab is a distinct, shareable, back-navigable history
+    // entry — consistent with the URL being the source of truth for the active tab, and
+    // it preserves normal Back/Forward behavior across tab changes.
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id === 'integrations') next.delete('tab');
+      else next.set('tab', id);
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6">

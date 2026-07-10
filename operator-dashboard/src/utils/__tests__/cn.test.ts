@@ -19,7 +19,8 @@ describe('cn utility', () => {
   });
 
   it('should filter out falsy values', () => {
-    const result = cn('btn', false && 'hidden', null, undefined, 'visible');
+    const isHidden = false;
+    const result = cn('btn', isHidden && 'hidden', null, undefined, 'visible');
     expect(result).toContain('btn');
     expect(result).toContain('visible');
     expect(result).not.toContain('hidden');

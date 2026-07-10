@@ -130,7 +130,7 @@ describe('AuthContext', () => {
     it('should throw error if login response is missing access_token', async () => {
       mockedAuthApi.login.mockResolvedValue({
         ...mockLoginResponse,
-        access_token: undefined as any,
+        access_token: undefined as unknown as string,
       });
 
       const { result } = renderHook(() => useAuth(), {
@@ -210,7 +210,7 @@ describe('AuthContext', () => {
       await act(async () => {
         try {
           await result.current.logout();
-        } catch (error) {
+        } catch {
           // Expected error from API call
         }
       });

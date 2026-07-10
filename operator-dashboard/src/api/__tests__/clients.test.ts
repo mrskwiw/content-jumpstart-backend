@@ -2,6 +2,7 @@
  * Tests for clients API module
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { clientsApi } from '../clients';
 import apiClient from '../client';
 import type { Client } from '@/types/domain';
@@ -27,7 +28,7 @@ describe('Clients API', () => {
         },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockClients } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockClients } as AxiosResponse);
 
       const result = await clientsApi.list();
 
@@ -45,7 +46,7 @@ describe('Clients API', () => {
         createdAt: '2026-01-01T00:00:00Z',
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockClient } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockClient } as AxiosResponse);
 
       const result = await clientsApi.get('client-1');
 
@@ -66,7 +67,7 @@ describe('Clients API', () => {
         createdAt: '2026-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       const result = await clientsApi.create(input);
 
@@ -89,8 +90,8 @@ describe('Clients API', () => {
       };
 
       mockedApiClient.post.mockResolvedValue({
-        data: { id: 'client-x', name: 'Test Client', createdAt: '2026-01-01T00:00:00Z' } as any,
-      } as any);
+        data: { id: 'client-x', name: 'Test Client', createdAt: '2026-01-01T00:00:00Z' },
+      } as AxiosResponse);
 
       await clientsApi.create(input);
 
@@ -114,8 +115,8 @@ describe('Clients API', () => {
       };
 
       mockedApiClient.patch.mockResolvedValue({
-        data: { id: 'client-1', name: 'Updated', createdAt: '2026-01-01T00:00:00Z' } as any,
-      } as any);
+        data: { id: 'client-1', name: 'Updated', createdAt: '2026-01-01T00:00:00Z' },
+      } as AxiosResponse);
 
       await clientsApi.update('client-1', input);
 
@@ -132,7 +133,7 @@ describe('Clients API', () => {
       mockedApiClient.get.mockResolvedValue({
         data: mockBlob,
         headers: { 'content-disposition': 'attachment; filename="profile.md"' },
-      } as any);
+      } as AxiosResponse);
 
       const result = await clientsApi.exportProfile('client-1');
 

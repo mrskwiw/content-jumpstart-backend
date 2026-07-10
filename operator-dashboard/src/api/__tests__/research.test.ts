@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
+import type { AxiosResponse } from "axios";
 import { researchApi } from "../research";
 import apiClient from "../client";
 
@@ -18,7 +19,7 @@ describe("researchApi.getClientHistory", () => {
       },
     };
 
-    (apiClient.get as any).mockResolvedValueOnce(mockResponse);
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockResolvedValueOnce(mockResponse as unknown as AxiosResponse);
 
     const result = await researchApi.getClientHistory("cli-123");
 
@@ -38,7 +39,7 @@ describe("researchApi.getClientHistory", () => {
       },
     };
 
-    (apiClient.get as any).mockResolvedValueOnce(mockResponse);
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockResolvedValueOnce(mockResponse as unknown as AxiosResponse);
 
     await researchApi.getClientHistory("cli-123", "voice_analysis");
 
@@ -62,7 +63,7 @@ describe("researchApi.getClientHistory", () => {
       clientId: "cli-123",
     };
 
-    (apiClient.get as any).mockResolvedValueOnce({ data: mockData });
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockResolvedValueOnce({ data: mockData } as unknown as AxiosResponse);
 
     const result = await researchApi.getClientHistory("cli-123");
 
@@ -97,7 +98,7 @@ describe("researchApi.getClientHistory", () => {
       clientId: "cli-123",
     };
 
-    (apiClient.get as any).mockResolvedValueOnce({ data: mockData });
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockResolvedValueOnce({ data: mockData } as unknown as AxiosResponse);
 
     const result = await researchApi.getClientHistory("cli-123");
 
@@ -112,7 +113,7 @@ describe("researchApi.getClientHistory", () => {
       clientId: "cli-123",
     };
 
-    (apiClient.get as any).mockResolvedValueOnce({ data: mockData });
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockResolvedValueOnce({ data: mockData } as unknown as AxiosResponse);
 
     const result = await researchApi.getClientHistory("cli-123");
 
@@ -121,19 +122,19 @@ describe("researchApi.getClientHistory", () => {
   });
 
   it("should handle API errors", async () => {
-    (apiClient.get as any).mockRejectedValueOnce(new Error("Network error"));
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockRejectedValueOnce(new Error("Network error"));
 
     await expect(researchApi.getClientHistory("cli-123")).rejects.toThrow("Network error");
   });
 
   it("should handle 404 for non-existent client", async () => {
-    (apiClient.get as any).mockRejectedValueOnce({ response: { status: 404 } });
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockRejectedValueOnce({ response: { status: 404 } });
 
     await expect(researchApi.getClientHistory("cli-999")).rejects.toBeTruthy();
   });
 
   it("should handle 403 for unauthorized access", async () => {
-    (apiClient.get as any).mockRejectedValueOnce({ response: { status: 403 } });
+    (apiClient.get as jest.MockedFunction<typeof apiClient.get>).mockRejectedValueOnce({ response: { status: 403 } });
 
     await expect(researchApi.getClientHistory("cli-123")).rejects.toBeTruthy();
   });
@@ -159,7 +160,7 @@ describe("generatorApi.exportPackage", () => {
       },
     };
 
-    (apiClient.post as any).mockResolvedValueOnce(mockResponse);
+    (apiClient.post as jest.MockedFunction<typeof apiClient.post>).mockResolvedValueOnce(mockResponse as unknown as AxiosResponse);
 
     await generatorApi.exportPackage({
       projectId: "proj-123",
@@ -181,7 +182,7 @@ describe("generatorApi.exportPackage", () => {
   it("should convert camelCase to snake_case", async () => {
     const { generatorApi } = await import("../generator");
 
-    (apiClient.post as any).mockResolvedValueOnce({
+    (apiClient.post as jest.MockedFunction<typeof apiClient.post>).mockResolvedValueOnce({
       data: {
         id: "del-123",
         projectId: "proj-123",
@@ -191,7 +192,7 @@ describe("generatorApi.exportPackage", () => {
         createdAt: "2026-02-20T10:00:00Z",
         status: "ready",
       },
-    });
+    } as unknown as AxiosResponse);
 
     await generatorApi.exportPackage({
       projectId: "proj-123",
@@ -201,7 +202,7 @@ describe("generatorApi.exportPackage", () => {
       includeResearch: true,
     });
 
-    const callArgs = (apiClient.post as any).mock.calls[0];
+    const callArgs = (apiClient.post as jest.MockedFunction<typeof apiClient.post>).mock.calls[0];
     expect(callArgs[1]).toHaveProperty("include_research");
     expect(callArgs[1]).toHaveProperty("include_audit_log");
     expect(callArgs[1]).not.toHaveProperty("includeResearch");

@@ -4,7 +4,7 @@ import { generatorApi } from '@/api/generator';
 import { runsApi } from '@/api/runs';
 import { creditsApi } from '@/api/credits';
 import type { GenerateAllInput, Run } from '@/types/domain';
-import { Play, Loader2, CheckCircle2, Coins, AlertTriangle } from 'lucide-react';
+import { Play, Loader2, Coins, AlertTriangle } from 'lucide-react';
 import { getApiErrorMessage } from '@/utils/apiError';
 import { TokenUsageDisplay } from '@/components/costs';
 
@@ -26,11 +26,14 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   const onStartedCalledRef = useRef(false);
   const onStartedRef = useRef(onStarted);
   useEffect(() => { onStartedRef.current = onStarted; }, [onStarted]);
-  // Reset guards when a new run starts
+  // Reset guards when a new run starts. Resetting the timeout flag on a runId
+  // change is a deliberate key-change reset (not derived render state), so the
+  // setState is intentional here.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { onStartedCalledRef.current = false; setTimedOut(false); }, [runId]);
 
   // Fetch credit balance — don't retry on 401/403 (token expired; avoids console spam)
-  const { data: creditBalance, isError: creditError } = useQuery({
+  const { data: creditBalance } = useQuery({
     queryKey: ['credits', 'balance'],
     queryFn: () => creditsApi.getBalance(),
     refetchInterval: 30000,
@@ -58,7 +61,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   });
 
   // Poll for run status every 2s while pollingEnabled; effect handles stopping
-  const { data: runStatus, isError: runStatusError } = useQuery({
+  const { data: runStatus } = useQuery({
     queryKey: ['run-status', runId],
     queryFn: () => (runId ? runsApi.get(runId) : null),
     enabled: pollingEnabled && !!runId,
@@ -86,6 +89,9 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
   const hasRealTerminalStatus = (TERMINAL_STATUSES as readonly string[]).includes(runStatus?.status ?? '');
   useEffect(() => {
     if (!isTerminal || onStartedCalledRef.current) return;
+    // Legitimately reacting to external query data reaching a terminal status:
+    // stop polling the run-status endpoint and notify the parent once.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPollingEnabled(false);
     if (hasRealTerminalStatus && runStatus) {
       onStartedCalledRef.current = true;

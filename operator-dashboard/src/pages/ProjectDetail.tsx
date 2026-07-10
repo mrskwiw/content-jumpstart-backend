@@ -12,18 +12,15 @@ import {
   List,
   Download,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   BarChart3,
   Clock,
   User,
-  Calendar,
   TrendingUp,
   RefreshCw,
   Eye,
   Flag,
   ExternalLink,
-  ChevronDown,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { projectsApi } from '@/api/projects';
@@ -130,6 +127,11 @@ export default function ProjectDetail() {
 
   const client = clients.find(c => c.id === project.clientId);
 
+  // The project loaded, but a dependent query (client list, posts, deliverables, or run
+  // history) may have failed. Surface that explicitly — otherwise the page renders empty
+  // lists as if they were real (a believable-but-wrong view) instead of signaling failure.
+  const dependentDataError = clientsError || postsError || deliverablesError || runsError;
+
   const safeFormatDate = (value?: string | null, fallback = 'Not available') =>
     value ? format(new Date(value), 'MMM d, yyyy') : fallback;
 
@@ -207,6 +209,19 @@ export default function ProjectDetail() {
           </button>
         </div>
       </div>
+
+      {dependentDataError && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300"
+        >
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>
+            Some project data (posts, deliverables, client, or run history) failed to load,
+            so this view may be incomplete. Refresh to try again.
+          </span>
+        </div>
+      )}
 
       {/* Project Header Card */}
       <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 shadow-sm">

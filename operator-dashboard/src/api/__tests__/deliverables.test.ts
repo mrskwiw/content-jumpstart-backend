@@ -2,9 +2,10 @@
  * Comprehensive tests for Deliverables API
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { deliverablesApi } from '../deliverables';
 import apiClient from '../client';
-import type { Deliverable, DeliverableDetails } from '@/types/domain';
+import type { Deliverable } from '@/types/domain';
 
 jest.mock('../client');
 const mockedApiClient = apiClient as jest.Mocked<typeof apiClient>;
@@ -28,7 +29,7 @@ describe('deliverablesApi', () => {
         },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as unknown as AxiosResponse);
 
       const result = await deliverablesApi.list();
 
@@ -38,7 +39,7 @@ describe('deliverablesApi', () => {
 
     it('should fetch deliverables list with clientId filter', async () => {
       const mockDeliverables: Deliverable[] = [];
-      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as unknown as AxiosResponse);
 
       await deliverablesApi.list({ clientId: 'client-1' });
 
@@ -49,7 +50,7 @@ describe('deliverablesApi', () => {
 
     it('should fetch deliverables list with multiple filters', async () => {
       const mockDeliverables: Deliverable[] = [];
-      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockDeliverables } as unknown as AxiosResponse);
 
       await deliverablesApi.list({
         clientId: 'client-1',
@@ -79,7 +80,7 @@ describe('deliverablesApi', () => {
         createdAt: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockDeliverable } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockDeliverable } as unknown as AxiosResponse);
 
       const input = {
         projectId: 'proj-1',
@@ -142,7 +143,7 @@ describe('deliverablesApi', () => {
         createdAt: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockDeliverable } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockDeliverable } as unknown as AxiosResponse);
 
       const input = {
         projectId: 'proj-1',
@@ -165,7 +166,7 @@ describe('deliverablesApi', () => {
         headers: {
           'content-disposition': 'attachment; filename="deliverable.txt"',
         },
-      } as any);
+      } as unknown as AxiosResponse);
 
       const result = await deliverablesApi.download('del-1');
 
@@ -181,7 +182,7 @@ describe('deliverablesApi', () => {
       mockedApiClient.get.mockResolvedValue({
         data: mockBlob,
         headers: {},
-      } as any);
+      } as unknown as AxiosResponse);
 
       const result = await deliverablesApi.download('del-1');
 
@@ -195,7 +196,7 @@ describe('deliverablesApi', () => {
         headers: {
           'content-disposition': 'attachment; filename="report-2024.docx"',
         },
-      } as any);
+      } as unknown as AxiosResponse);
 
       const result = await deliverablesApi.download('del-1');
 
@@ -218,7 +219,7 @@ describe('deliverablesApi', () => {
         proofNotes: 'Sent via email',
       };
 
-      mockedApiClient.patch.mockResolvedValue({ data: mockDeliverable } as any);
+      mockedApiClient.patch.mockResolvedValue({ data: mockDeliverable } as unknown as AxiosResponse);
 
       const input = {
         deliveredAt: '2024-01-02T00:00:00Z',

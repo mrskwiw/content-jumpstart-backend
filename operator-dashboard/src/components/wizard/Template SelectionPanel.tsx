@@ -150,7 +150,6 @@
   export const TemplateSelectionPanel = memo(function TemplateSelectionPanel({
     initialSelection = [],
     targetPlatform = 'generic',
-    clientId,
     projectId,
     onPlatformChange = () => {},
     onContinue,

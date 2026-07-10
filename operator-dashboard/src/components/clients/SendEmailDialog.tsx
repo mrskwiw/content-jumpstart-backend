@@ -142,8 +142,10 @@ export function SendEmailDialog({ client, onClose, onSuccess }: SendEmailDialogP
 
   const config = EMAIL_TYPES[emailType];
 
-  // Auto-fill subject and body when type changes
+  // Auto-fill subject and body when type changes. Effect-based prop->state
+  // sync is the established pattern for repopulating this form on emailType change.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional prop->state sync on emailType change
     setSubject(config.defaultSubject);
     setBody(config.defaultBody(client.name));
     const defaults: Record<string, string> = {};

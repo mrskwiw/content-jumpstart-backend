@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- route config module: exports the `router` object (non-component) by design (HMR/DX rule, not correctness). */
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Suspense } from 'react';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
@@ -59,7 +60,7 @@ const PageLoader = () => (
 );
 
 // Wrapper to add Suspense and ErrorBoundary to lazy loaded components
-const withSuspense = (Component: React.LazyExoticComponent<any>) => (
+const withSuspense = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <ErrorBoundary>
     <Suspense fallback={<PageLoader />}>
       <Component />

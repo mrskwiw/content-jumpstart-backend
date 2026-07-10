@@ -2,6 +2,7 @@
  * Tests for posts API module
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { postsApi } from '../posts';
 import apiClient from '../client';
 import type { PaginatedResponse } from '@/types/pagination';
@@ -29,7 +30,7 @@ describe('Posts API', () => {
         },
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as unknown as AxiosResponse);
 
       const result = await postsApi.list();
 
@@ -38,7 +39,7 @@ describe('Posts API', () => {
     });
 
     it('should convert camelCase to snake_case in filters', async () => {
-      mockedApiClient.get.mockResolvedValue({ data: { items: [], metadata: { page_size: 10, has_next: false, has_prev: false, strategy: 'offset' as const } } } as any);
+      mockedApiClient.get.mockResolvedValue({ data: { items: [], metadata: { page_size: 10, has_next: false, has_prev: false, strategy: 'offset' as const } } } as unknown as AxiosResponse);
 
       await postsApi.list({ projectId: 'proj-1', runId: 'run-1' });
 
@@ -51,7 +52,7 @@ describe('Posts API', () => {
   describe('get', () => {
     it('should fetch single post', async () => {
       const mockPost = { id: 'post-1', content: 'Test' };
-      mockedApiClient.get.mockResolvedValue({ data: mockPost } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockPost } as unknown as AxiosResponse);
 
       const result = await postsApi.get('post-1');
 
@@ -63,7 +64,7 @@ describe('Posts API', () => {
   describe('update', () => {
     it('should update post content', async () => {
       const mockPost = { id: 'post-1', content: 'Updated' };
-      mockedApiClient.patch.mockResolvedValue({ data: mockPost } as any);
+      mockedApiClient.patch.mockResolvedValue({ data: mockPost } as unknown as AxiosResponse);
 
       await postsApi.update('post-1', { content: 'Updated' });
 

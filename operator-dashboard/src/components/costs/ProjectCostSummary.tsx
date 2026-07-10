@@ -5,7 +5,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { DollarSign, TrendingUp, Zap, FlaskConical, AlertCircle } from 'lucide-react';
-import { costsApi, type ProjectCostSummary as ProjectCostData } from '../../api/costs';
+import { costsApi } from '../../api/costs';
 
 interface ProjectCostSummaryProps {
   projectId: string;

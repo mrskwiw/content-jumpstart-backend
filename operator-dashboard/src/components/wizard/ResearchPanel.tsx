@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, memo, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { CheckCircle2, Circle, FlaskConical, ArrowRight, Loader2, Coins, Clock, Link2, AlertCircle, Settings } from 'lucide-react';
 import { ToolRunStatusList, type ToolStatusItem } from './ToolRunStatusList';
-import { researchApi, ResearchTool } from '@/api/research';
+import { researchApi, ResearchTool, type ResearchRunResult } from '@/api/research';
 import { clientsApi } from '@/api/clients';
 import { settingsApi } from '@/api/settings';
 import { getApiErrorMessage } from '@/utils/apiError';
@@ -72,8 +72,8 @@ interface ExecutionState {
 export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, onContinue }: Props) {
   const [step, setStep] = useState<Step>('selection');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [collectedData, setCollectedData] = useState<Record<string, any>>({});
-  const [results, setResults] = useState<Map<string, any>>(new Map());
+  const [collectedData, setCollectedData] = useState<Record<string, unknown>>({});
+  const [results, setResults] = useState<Map<string, ResearchRunResult>>(new Map());
   const [executionState, setExecutionState] = useState<ExecutionState>({
     currentTools: [],
     completed: [],
@@ -93,13 +93,16 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     if (!projectId) return;
 
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       const saved = sessionStorage.getItem(storageKey);
       if (saved) {
         const { step: savedStep, executionState: savedExecution, selected: savedSelected, collectedData: savedData } = JSON.parse(saved);
 
         // Only restore if we were in the executing step
         if (savedStep === 'executing') {
+          // One-time hydration of local state from sessionStorage (an external
+          // system) on mount / projectId change. This is a legitimate external
+          // -> React sync, not derived state, so the setState calls are kept.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setStep(savedStep);
           // Migrate from old shape (currentTool: string|null) to new (currentTools: string[])
           const normalized: ExecutionState = {
@@ -175,7 +178,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
   const historyData = historyQuery.data;
 
   // Fetch completed tools for current project (for prerequisite checking)
-  const { data: completedToolsData, isError: completedError } = useQuery({
+  const { data: completedToolsData } = useQuery({
     queryKey: ['research', 'completed', projectId],
     queryFn: () => projectId ? researchApi.getProjectResearchResults(projectId) : Promise.resolve(null),
     enabled: !!projectId,
@@ -183,14 +186,14 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
   });
 
   // Fetch integration status to check which tools can be enabled
-  const { data: integrationStatus, isError: integrationError } = useQuery({
+  const { data: integrationStatus } = useQuery({
     queryKey: ['integrations', 'status'],
     queryFn: () => settingsApi.getIntegrationStatus(),
     staleTime: 30 * 1000, // 30 seconds
   });
 
   // Fetch client data for pre-populating research tool inputs
-  const { data: clientData, isError: clientDataError } = useQuery({
+  const { data: clientData } = useQuery({
     queryKey: ['client', clientId],
     queryFn: () => clientId ? clientsApi.get(clientId) : Promise.resolve(null),
     enabled: !!clientId,
@@ -261,7 +264,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
 
   // Run research mutation
   const runResearchMutation = useMutation({
-    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, any> }) =>
+    mutationFn: ({ tool, params }: { tool: string; params?: Record<string, unknown> }) =>
       researchApi.run({
         projectId: projectId!,
         clientId: clientId!,
@@ -330,9 +333,6 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         if (missingRequired.length > 0) {
           // Auto-add required prerequisites
           missingRequired.forEach(prereqTool => newSelected.add(prereqTool));
-
-          // Show notification
-          const prereqNames = missingRequired.map(p => TOOL_LABELS[p] || p).join(', ');
         }
       }
     }
@@ -395,13 +395,13 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
     setStep('data-collection');
   };
 
-  const handleDataCollected = (data: Record<string, any>) => {
+  const handleDataCollected = (data: Record<string, unknown>) => {
     setCollectedData(data);
     setStep('executing');
     runSelectedResearch(data);
   };
 
-  const runSelectedResearch = async (params: Record<string, any>) => {
+  const runSelectedResearch = async (params: Record<string, unknown>) => {
     if (!projectId || !clientId) {
       alert('Project and client must be selected first');
       return;
@@ -474,7 +474,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
         currentTools: [...prev.currentTools, toolName],
       }));
 
-      const toolParams = params[toolName] || params;
+      const toolParams = (params[toolName] as Record<string, unknown> | undefined) || params;
 
       try {
         await withTimeout(

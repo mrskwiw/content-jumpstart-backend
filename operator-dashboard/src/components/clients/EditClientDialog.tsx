@@ -32,7 +32,11 @@ export function EditClientDialog({
   const [customerPainPoints, setCustomerPainPoints] = useState<string[]>(client.customerPainPoints ?? []);
   const [customerQuestions, setCustomerQuestions] = useState<string[]>(client.customerQuestions ?? []);
 
+  // Re-sync the controlled form fields when a different `client` is passed in
+  // (this dialog instance is reused across clients). Effect-based sync is the
+  // established pattern here; deps are complete (the whole `client` object).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional prop->state sync on entity change
     setName(client.name);
     setEmail(client.email ?? '');
     setIndustry(client.industry ?? '');

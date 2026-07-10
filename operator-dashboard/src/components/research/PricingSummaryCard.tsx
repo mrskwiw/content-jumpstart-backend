@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { CheckCircle2, Sparkles, TrendingDown, Coins } from 'lucide-react';
+import { Coins } from 'lucide-react';
 import { PricingPreview } from '../../api/research';
 
 interface PricingSummaryCardProps {

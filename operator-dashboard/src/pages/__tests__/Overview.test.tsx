@@ -19,8 +19,8 @@ describe('Overview Page', () => {
     jest.clearAllMocks();
 
     // Mock empty responses
-    (projectsApi.list as any).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 0 });
-    (clientsApi.list as any).mockResolvedValue([]);
+    jest.mocked(projectsApi.list).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 10, totalPages: 0 });
+    jest.mocked(clientsApi.list).mockResolvedValue([]);
   });
 
   it('should render without crashing', () => {

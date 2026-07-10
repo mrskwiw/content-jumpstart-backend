@@ -26,7 +26,6 @@ interface DeleteClientDialogProps {
 export function DeleteClientDialog({
   open,
   onOpenChange,
-  clientId,
   clientName,
   onConfirmDelete,
   onConfirmPermanentDelete,

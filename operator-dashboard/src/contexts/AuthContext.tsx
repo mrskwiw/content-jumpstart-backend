@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- intentional mixed export: context Provider component + `useAuth` hook share this module by design (HMR/DX rule, not correctness). */
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User, LoginRequest } from '@/types/api';
 import { authApi } from '@/api/auth';

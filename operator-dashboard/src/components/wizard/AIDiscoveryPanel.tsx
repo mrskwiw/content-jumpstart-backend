@@ -30,6 +30,15 @@ interface ClientBriefFormData {
 }
 
 /**
+ * Generate a unique message id. Defined at module scope so the impure
+ * `Date.now()` call lives outside the component body (satisfies
+ * react-hooks/purity) — these ids are only ever created inside event handlers.
+ */
+function makeMessageId(offset = 0): string {
+  return (Date.now() + offset).toString();
+}
+
+/**
  * AI-powered client discovery panel with conversational interface
  * Extracts structured client data from natural conversation
  */
@@ -87,7 +96,7 @@ export function AIDiscoveryPanel({ onDataExtracted, onComplete, onCancel }: AIDi
     if (!inputValue.trim() || isProcessing || !sessionId) return;
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: makeMessageId(),
       role: 'user',
       content: inputValue.trim(),
       timestamp: new Date(),
@@ -103,7 +112,7 @@ export function AIDiscoveryPanel({ onDataExtracted, onComplete, onCancel }: AIDi
 
       // Add AI response to messages
       const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: makeMessageId(1),
         role: 'assistant',
         content: response.message,
         timestamp: new Date(),
@@ -126,7 +135,7 @@ export function AIDiscoveryPanel({ onDataExtracted, onComplete, onCancel }: AIDi
 
       // Show error message
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: makeMessageId(1),
         role: 'assistant',
         content: "I'm sorry, I encountered an error. Please try again or switch to manual entry.",
         timestamp: new Date(),

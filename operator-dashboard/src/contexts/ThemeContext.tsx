@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- intentional mixed export: context Provider component + `useTheme` hook share this module by design (HMR/DX rule, not correctness). */
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';

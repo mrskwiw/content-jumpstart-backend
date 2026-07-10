@@ -80,8 +80,8 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should fetch and display fresh research history with green indicators", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
-    (researchApi.getClientHistory as any).mockResolvedValue(mockHistoryFresh);
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.getClientHistory).mockResolvedValue(mockHistoryFresh);
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" clientId="cli-123" />);
 
@@ -100,8 +100,8 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should display stale research history with amber indicators", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
-    (researchApi.getClientHistory as any).mockResolvedValue(mockHistoryStale);
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.getClientHistory).mockResolvedValue(mockHistoryStale);
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" clientId="cli-123" />);
 
@@ -117,8 +117,8 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should display fresh competitor analysis correctly", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
-    (researchApi.getClientHistory as any).mockResolvedValue(mockHistoryStale);
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.getClientHistory).mockResolvedValue(mockHistoryStale);
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" clientId="cli-123" />);
 
@@ -134,8 +134,8 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should display Never run for tools with no history", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
-    (researchApi.getClientHistory as any).mockResolvedValue(mockHistoryEmpty);
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.getClientHistory).mockResolvedValue(mockHistoryEmpty);
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" clientId="cli-123" />);
 
@@ -155,7 +155,7 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should handle missing clientId gracefully", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" />);
 
@@ -171,8 +171,8 @@ describe("ResearchPanel Integration Tests", () => {
   });
 
   it("should handle API errors gracefully", async () => {
-    (researchApi.listTools as any).mockResolvedValue(mockTools);
-    (researchApi.getClientHistory as any).mockRejectedValue(new Error("Network error"));
+    jest.mocked(researchApi.listTools).mockResolvedValue(mockTools);
+    jest.mocked(researchApi.getClientHistory).mockRejectedValue(new Error("Network error"));
 
     renderWithQueryClient(<ResearchPanel projectId="proj-123" clientId="cli-123" />);
 

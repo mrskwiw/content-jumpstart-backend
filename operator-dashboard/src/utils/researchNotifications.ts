@@ -84,7 +84,6 @@ export function notifyResearchError(options: ResearchErrorOptions) {
     error,
     actionMessage,
     onRetry,
-    onHelp,
   } = options;
 
   const displayName = toolLabel || toolName;
