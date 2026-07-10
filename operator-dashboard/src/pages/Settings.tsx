@@ -44,15 +44,15 @@ export default function Settings() {
     : 'integrations';
 
   const setActiveTab = (id: TabId) => {
-    setSearchParams(
-      prev => {
-        const next = new URLSearchParams(prev);
-        if (id === 'integrations') next.delete('tab');
-        else next.set('tab', id);
-        return next;
-      },
-      { replace: true }
-    );
+    // Push (not replace) so each tab is a distinct, shareable, back-navigable history
+    // entry — consistent with the URL being the source of truth for the active tab, and
+    // it preserves normal Back/Forward behavior across tab changes.
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id === 'integrations') next.delete('tab');
+      else next.set('tab', id);
+      return next;
+    });
   };
 
   return (

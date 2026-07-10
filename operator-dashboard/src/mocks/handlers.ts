@@ -309,7 +309,8 @@ export const mockApi = {
         projectId: input.projectId,
         clientId: input.clientId,
         format: deliverableFormat,
-        path: `outputs/${input.clientId}/${input.projectId}-${new Date().toISOString().split('T')[0]}.${input.format}`,
+        // Use the normalized format for the extension too, so format and path agree.
+        path: `outputs/${input.clientId}/${input.projectId}-${new Date().toISOString().split('T')[0]}.${deliverableFormat}`,
         createdAt: new Date().toISOString(),
         status: 'ready',
         runId: mockData.runs.find((r) => r.projectId === input.projectId)?.id,
