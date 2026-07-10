@@ -16,63 +16,51 @@ describe('aiDiscoveryService', () => {
   });
 
   describe('startDiscovery', () => {
-    it('should start AI discovery conversation', async () => {
-      const mockResponse = {
-        data: {
-          conversationId: 'conv-123',
-          message: 'Hello! Tell me about your business.',
-          fields: {},
-        },
-      };
+    // startDiscovery is purely local: it seeds an in-memory session with the
+    // first question and does NOT call the backend (no conversationId concept).
+    it('should start a local discovery session with a first question', async () => {
+      const session = await aiDiscoveryService.startDiscovery();
 
-      mockedApi.post.mockResolvedValue(mockResponse as any);
-
-      const result = await aiDiscoveryService.startDiscovery();
-
-      expect(api.post).toHaveBeenCalled();
-      expect(result.conversationId).toBe('conv-123');
+      expect(api.post).not.toHaveBeenCalled();
+      expect(session.id).toMatch(/^discovery_/);
+      expect(session.firstQuestion).toBeTruthy();
+      expect(session.createdAt).toBeInstanceOf(Date);
     });
   });
 
   describe('sendMessage', () => {
-    it('should send message and get AI response', async () => {
-      const mockResponse = {
-        data: {
-          conversationId: 'conv-123',
-          message: 'Thanks for sharing!',
-          fields: {
-            businessDescription: { value: 'Test business', confidence: 'high' as const },
-          },
-        },
-      };
+    it('should send message via the assistant endpoint and return the reply', async () => {
+      const session = await aiDiscoveryService.startDiscovery();
 
-      mockedApi.post.mockResolvedValue(mockResponse as any);
+      mockedApi.post.mockResolvedValue({ data: { message: 'Thanks for sharing!' } } as any);
 
-      const result = await aiDiscoveryService.sendMessage('conv-123', 'We sell software');
+      const result = await aiDiscoveryService.sendMessage(session.id, 'We sell software');
 
-      expect(api.post).toHaveBeenCalled();
-      expect(result.message).toBeTruthy();
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/assistant/chat',
+        expect.objectContaining({ context: { page: 'client-discovery' } })
+      );
+      expect(result.message).toBe('Thanks for sharing!');
     });
-  });
 
-  describe('extractFields', () => {
-    it('should extract client profile fields from conversation', async () => {
-      const mockResponse = {
-        data: {
-          fields: {
-            companyName: { value: 'Test Co', confidence: 'high' as const },
-            businessDescription: { value: 'Software company', confidence: 'high' as const },
-          },
-          completeness: 0.8,
-        },
-      };
+    it('should parse extracted fields from the <extracted> block in the reply', async () => {
+      const session = await aiDiscoveryService.startDiscovery();
 
-      mockedApi.post.mockResolvedValue(mockResponse as any);
+      const extracted = JSON.stringify({
+        companyName: 'Test Co',
+        businessDescription: 'Software company',
+      });
+      mockedApi.post.mockResolvedValue({
+        data: { message: `Great, thanks!<extracted>${extracted}</extracted>` },
+      } as any);
 
-      const result = await aiDiscoveryService.extractFields('conv-123');
+      const result = await aiDiscoveryService.sendMessage(session.id, 'We sell software');
 
-      expect(api.post).toHaveBeenCalled();
-      expect(result.completeness).toBe(0.8);
+      // Conversational reply has the tag block stripped out
+      expect(result.message).toBe('Great, thanks!');
+      expect(result.extractedFields.companyName).toBe('Test Co');
+      // Extracted (non-null) fields get a 0.9 confidence score
+      expect(result.confidence.companyName).toBe(0.9);
     });
   });
 });

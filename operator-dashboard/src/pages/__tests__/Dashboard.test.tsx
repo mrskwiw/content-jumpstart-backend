@@ -8,9 +8,11 @@ import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Dashboard from '../Dashboard';
 
 // Mock useNavigate
+// NOTE: factory must be synchronous — an async factory returns a Promise as the
+// module, leaving BrowserRouter/etc. undefined and crashing the shared providers.
 const mockNavigate = jest.fn();
-jest.mock('react-router-dom', async () => {
-  const actual = await jest.requireActual('react-router-dom');
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -18,6 +20,8 @@ jest.mock('react-router-dom', async () => {
 });
 
 // Mock useAuth
+// Field names follow the current camelCase User model (fullName / isSuperuser),
+// not the legacy snake_case shape.
 const mockLogout = jest.fn();
 jest.mock('@/contexts/AuthContext', () => ({
   // Passthrough provider so shared test-utils (which wraps in AuthProvider) works.
@@ -26,9 +30,8 @@ jest.mock('@/contexts/AuthContext', () => ({
     user: {
       id: 'user-1',
       email: 'test@example.com',
-      name: 'Test User',
-      role: 'admin',
-      is_superuser: true,
+      fullName: 'Test User',
+      isSuperuser: true,
     },
     logout: mockLogout,
   }),
@@ -45,7 +48,8 @@ describe('Dashboard Page', () => {
     expect(screen.getByText('Operator Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Welcome,')).toBeInTheDocument();
     expect(screen.getByText('Test User')).toBeInTheDocument();
-    expect(screen.getByText('admin')).toBeInTheDocument();
+    // Badge shows 'Admin' for superusers (component maps isSuperuser -> label).
+    expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
   it('should render welcome message', () => {

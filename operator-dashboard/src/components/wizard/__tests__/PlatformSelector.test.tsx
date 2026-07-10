@@ -10,23 +10,23 @@ describe('PlatformSelector Component', () => {
 
   it('should render without crashing', () => {
     const { container } = render(
-      <PlatformSelector selected={[]} onChange={mockOnChange} />
+      <PlatformSelector selected="" onChange={mockOnChange} />
     );
     expect(container).toBeInTheDocument();
   });
 
   it('should render platform options', () => {
     const { container } = render(
-      <PlatformSelector selected={[]} onChange={mockOnChange} />
+      <PlatformSelector selected="" onChange={mockOnChange} />
     );
-    // Should have platform buttons/options
-    const buttons = container.querySelectorAll('button, input[type="checkbox"], [role="checkbox"]');
-    expect(buttons.length).toBeGreaterThan(0);
+    // Platforms render as single-select radio inputs.
+    const options = container.querySelectorAll('input[type="radio"]');
+    expect(options.length).toBeGreaterThan(0);
   });
 
-  it('should render with selected platforms', () => {
+  it('should render with a selected platform', () => {
     const { container } = render(
-      <PlatformSelector selected={['linkedin', 'twitter']} onChange={mockOnChange} />
+      <PlatformSelector selected="linkedin" onChange={mockOnChange} />
     );
     expect(container).toBeInTheDocument();
   });

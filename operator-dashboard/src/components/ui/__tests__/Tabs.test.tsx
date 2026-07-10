@@ -119,7 +119,7 @@ describe('Tabs', () => {
     );
 
     const tab1 = screen.getByText('Tab 1');
-    expect(tab1.getAttribute('data-state')).toBe('active');
+    expect(tab1.getAttribute('aria-selected')).toBe('true');
   });
 
   it('should not show inactive tab content', () => {

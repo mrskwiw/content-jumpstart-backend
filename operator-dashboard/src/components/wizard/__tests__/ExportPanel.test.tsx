@@ -29,24 +29,25 @@ describe("ExportPanel - Research Results Checkbox", () => {
     expect(screen.getByLabelText(/include research results/i)).toBeInTheDocument();
   });
 
-  it("should have research checkbox unchecked by default", () => {
+  it("should have research checkbox checked by default", () => {
     renderComponent();
     const checkbox = screen.getByLabelText(/include research results/i);
-    expect(checkbox).not.toBeChecked();
+    expect(checkbox).toBeChecked();
   });
 
   it("should toggle research results checkbox", () => {
     renderComponent();
     const checkbox = screen.getByLabelText(/include research results/i);
 
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-
+    // Checked by default -> first click unchecks
     fireEvent.click(checkbox);
     expect(checkbox).not.toBeChecked();
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
   });
 
-  it("should call exportPackage with includeResearch=false by default", async () => {
+  it("should call exportPackage with includeResearch=true by default", async () => {
     (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
     renderComponent();
 
@@ -57,18 +58,19 @@ describe("ExportPanel - Research Results Checkbox", () => {
         projectId: "proj-123",
         clientId: "cli-456",
         format: "docx",
+        target: "docx",
         includeAuditLog: false,
-        includeResearch: false,
+        includeResearch: true,
       });
     });
   });
 
-  it("should call exportPackage with includeResearch=true when checked", async () => {
+  it("should call exportPackage with includeResearch=false when unchecked", async () => {
     (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
     renderComponent();
 
     const checkbox = screen.getByLabelText(/include research results/i);
-    fireEvent.click(checkbox);
+    fireEvent.click(checkbox); // uncheck (checked by default)
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
 
     await waitFor(() => {
@@ -76,8 +78,9 @@ describe("ExportPanel - Research Results Checkbox", () => {
         projectId: "proj-123",
         clientId: "cli-456",
         format: "docx",
+        target: "docx",
         includeAuditLog: false,
-        includeResearch: true,
+        includeResearch: false,
       });
     });
   });
@@ -86,8 +89,8 @@ describe("ExportPanel - Research Results Checkbox", () => {
     (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
     renderComponent();
 
+    // Research is checked by default; only need to check the audit log.
     fireEvent.click(screen.getByLabelText(/include audit log/i));
-    fireEvent.click(screen.getByLabelText(/include research results/i));
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
 
     await waitFor(() => {
@@ -95,6 +98,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
         projectId: "proj-123",
         clientId: "cli-456",
         format: "docx",
+        target: "docx",
         includeAuditLog: true,
         includeResearch: true,
       });
@@ -107,7 +111,6 @@ describe("ExportPanel - Research Results Checkbox", () => {
 
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "md" } });
-    fireEvent.click(screen.getByLabelText(/include research results/i));
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
 
     await waitFor(() => {
@@ -115,6 +118,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
         projectId: "proj-123",
         clientId: "cli-456",
         format: "md",
+        target: "markdown",
         includeAuditLog: false,
         includeResearch: true,
       });

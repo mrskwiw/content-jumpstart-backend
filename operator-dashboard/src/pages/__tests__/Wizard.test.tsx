@@ -12,6 +12,16 @@ jest.mock('@/api/projects', () => ({
       templates: ['t1'],
       platforms: ['linkedin'],
     }),
+    create: jest.fn(),
+  },
+}));
+
+jest.mock('@/api/clients', () => ({
+  clientsApi: {
+    list: jest.fn().mockResolvedValue([]),
+    get: jest.fn().mockResolvedValue({ id: 'c1', name: 'Client c1' }),
+    create: jest.fn(),
+    update: jest.fn(),
   },
 }));
 
@@ -23,16 +33,24 @@ jest.mock('@/api/runs', () => ({
 
 jest.mock('@/api/posts', () => ({
   postsApi: {
-    list: jest.fn().mockResolvedValue([
-      {
-        id: 'post1',
-        projectId: 'p1',
-        runId: 'r1',
-        content: 'foo',
-        status: 'flagged',
-        flags: ['too short', 'missing CTA'],
-      },
-    ]),
+    // The component reads postsResponse.items (paginated shape), not a bare array.
+    list: jest.fn().mockResolvedValue({
+      items: [
+        {
+          id: 'post1',
+          projectId: 'p1',
+          runId: 'r1',
+          content: 'foo',
+          status: 'flagged',
+          flags: ['too short', 'missing CTA'],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 500,
+      totalPages: 1,
+    }),
   },
 }));
 
@@ -53,15 +71,19 @@ jest.mock('@/api/generator', () => ({
 }));
 
 describe('Wizard page', () => {
-  it('renders flagged posts in quality gate', async () => {
+  it('surfaces the flagged post count in the wizard status panel', async () => {
     const { wrapper } = renderWithProviders([
       { pathname: '/dashboard/wizard', state: { projectId: 'p1', clientId: 'c1' } },
     ]);
     render(<Wizard />, { wrapper });
 
+    // Project + posts queries resolve and populate the always-visible status panel.
+    // The labels ("Flagged:", "Generated:") live in a <strong> with the value in a
+    // sibling text node, so assert against the containing paragraph's text content.
+    await screen.findByText(/Demo Project/);
     await waitFor(() => {
-      expect(screen.getByText(/Flagged posts: 1/)).toBeInTheDocument();
+      expect(screen.getByText('Flagged:').parentElement).toHaveTextContent('Flagged: 1');
     });
-    expect(screen.getByText(/missing CTA/i)).toBeInTheDocument();
+    expect(screen.getByText('Generated:').parentElement).toHaveTextContent('Generated: 1 posts');
   });
 });

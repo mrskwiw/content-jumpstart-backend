@@ -13,6 +13,7 @@ import { projectsApi } from '@/api/projects';
 import { clientsApi } from '@/api/clients';
 import { postsApi } from '@/api/posts';
 import { deliverablesApi } from '@/api/deliverables';
+import { ROUTES } from '@/config/routes';
 
 jest.mock('@/api/projects');
 jest.mock('@/api/clients');
@@ -68,16 +69,8 @@ describe('Project Workflow Integration', () => {
     });
   });
 
-  it('should create new project', async () => {
+  it('should start a new project via the wizard', async () => {
     const user = userEvent.setup();
-
-    const mockClients = [
-      {
-        id: 'client-1',
-        name: 'Acme Corp',
-        created_at: '2024-01-01T00:00:00Z',
-      },
-    ];
 
     mockProjectsApi.list.mockResolvedValue({
       items: [],
@@ -88,45 +81,31 @@ describe('Project Workflow Integration', () => {
         strategy: 'offset' as const,
       },
     });
-    mockClientsApi.list.mockResolvedValue(mockClients);
-    mockProjectsApi.create.mockResolvedValue({
-      id: 'proj-new',
-      name: 'New Project',
-      clientId: 'client-1',
-      status: 'draft',
-      platforms: ['linkedin' as const],
-    });
+    mockClientsApi.list.mockResolvedValue([]);
 
+    // Project creation is no longer an inline dialog on the Projects page — the
+    // "New Project" button navigates to the wizard.
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Projects />
+        <MemoryRouter initialEntries={[ROUTES.PROJECTS]}>
+          <Routes>
+            <Route path={ROUTES.PROJECTS} element={<Projects />} />
+            <Route path={ROUTES.WIZARD} element={<div>Project Wizard Page</div>} />
+          </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     );
 
-    // Click new project button
-    const newButton = await screen.findByRole('button', { name: /new|create/i });
+    const newButton = await screen.findByRole('button', { name: /new project/i });
     await user.click(newButton);
 
-    // Should open dialog
     await waitFor(() => {
-      expect(screen.getByLabelText(/project name|name/i)).toBeInTheDocument();
-    });
-
-    // Fill in project name
-    await user.type(screen.getByLabelText(/project name|name/i), 'New Project');
-
-    // Submit
-    const submitButton = screen.getByRole('button', { name: /create|save/i });
-    await user.click(submitButton);
-
-    // Should call create API
-    await waitFor(() => {
-      expect(mockProjectsApi.create).toHaveBeenCalled();
+      expect(screen.getByText('Project Wizard Page')).toBeInTheDocument();
     });
   });
 
+  // Previously blocked by a Rules-of-Hooks bug in ProjectDetail.tsx (useMemos ran after
+  // the loading/error early returns). Fixed by hoisting the hooks above the returns.
   it('should view project details with posts and deliverables', async () => {
     const mockProject = {
       id: 'proj-1',
@@ -181,10 +160,8 @@ describe('Project Workflow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show project name
-    await waitFor(() => {
-      expect(screen.getByText('Q1 Campaign')).toBeInTheDocument();
-    });
+    // Should show project name (renders in the heading and repeats in the breadcrumb).
+    expect(await screen.findByRole('heading', { name: 'Q1 Campaign' })).toBeInTheDocument();
 
     // Should fetch project data
     expect(mockProjectsApi.get).toHaveBeenCalledWith('proj-1');

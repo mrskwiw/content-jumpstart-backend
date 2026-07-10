@@ -136,8 +136,6 @@ describe('Projects API', () => {
         templates: ['1', '2'],
         template_quantities: undefined,
         num_posts: 30,
-        price_per_post: 40,
-        research_price_per_post: undefined,
         total_price: 1200,
         posts_cost: undefined,
         research_addon_cost: undefined,

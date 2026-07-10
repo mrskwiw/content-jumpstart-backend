@@ -136,24 +136,29 @@ describe('Settings Page', () => {
       await user.click(databaseTab);
 
       await waitFor(() => {
-        expect(screen.getByText(/database backup/i)).toBeInTheDocument();
-        expect(screen.getByText(/database restore/i)).toBeInTheDocument();
+        // "Database Backup" is both a heading and part of a button label; use the
+        // exact heading text. "Database Restore" is unique.
+        expect(screen.getByText('Database Backup')).toBeInTheDocument();
+        expect(screen.getByText('Database Restore')).toBeInTheDocument();
       });
     });
 
     it('should switch to users tab for admin', async () => {
       const user = userEvent.setup();
-      // Mock admin user
-      localStorage.setItem('user', JSON.stringify({ is_superuser: true }));
+      // AuthProvider loads the user from localStorage only when BOTH an access
+      // token and a user record are present, and the User model is camelCase.
+      localStorage.setItem('access_token', 'test-token');
+      localStorage.setItem('user', JSON.stringify({ isSuperuser: true }));
 
       renderWithProviders(<Settings />);
 
-      const usersTab = screen.getByRole('button', { name: /users/i });
+      // Wait for the auth effect to populate the user and reveal the admin tab.
+      const usersTab = await screen.findByRole('button', { name: /users/i });
       await user.click(usersTab);
 
-      // Users tab renders UsersTab component
+      // Users tab renders UsersTab component; active tab gets the primary border.
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /users/i })).toHaveClass(/border-primary/);
+        expect(usersTab.className).toMatch(/border-primary/);
       });
     });
 
@@ -194,7 +199,9 @@ describe('Settings Page', () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
 
-      const configureButtons = screen.getAllByText(/configure|connect/i);
+      // Query buttons, not text: /connect/i also matches the "Connected"/
+      // "Disconnected" status badges, which aren't clickable.
+      const configureButtons = screen.getAllByRole('button', { name: /configure|connect/i });
       await user.click(configureButtons[0]);
 
       await waitFor(() => {
@@ -206,13 +213,17 @@ describe('Settings Page', () => {
       const user = userEvent.setup();
       renderWithProviders(<Settings />);
 
-      const configureButtons = screen.getAllByText(/configure|connect/i);
+      const configureButtons = screen.getAllByRole('button', { name: /configure|connect/i });
       await user.click(configureButtons[0]);
 
       await waitFor(() => {
-        const closeButton = screen.getByRole('button', { name: /close/i });
-        user.click(closeButton);
+        expect(screen.getByText(/integration settings and credentials/i)).toBeInTheDocument();
       });
+
+      // The modal has both an X (aria-label "Close integration configuration")
+      // and a footer "Close" button; target the X by its specific label.
+      const closeButton = screen.getByRole('button', { name: /close integration configuration/i });
+      await user.click(closeButton);
 
       await waitFor(() => {
         expect(screen.queryByText(/integration settings and credentials/i)).not.toBeInTheDocument();
@@ -353,7 +364,9 @@ describe('Settings Page', () => {
       await user.click(preferencesTab);
 
       await waitFor(() => {
-        const themeSelect = screen.getByRole('combobox', { name: /theme/i });
+        // The Theme/Timezone <label>s aren't associated with their <select>s
+        // (no htmlFor/id), so query positionally: [0] = theme, [1] = timezone.
+        const themeSelect = screen.getAllByRole('combobox')[0];
         expect(themeSelect).toBeInTheDocument();
       });
     });
@@ -366,7 +379,7 @@ describe('Settings Page', () => {
       await user.click(preferencesTab);
 
       await waitFor(() => {
-        const timezoneSelect = screen.getByRole('combobox', { name: /timezone/i });
+        const timezoneSelect = screen.getAllByRole('combobox')[1];
         expect(timezoneSelect).toBeInTheDocument();
       });
     });
@@ -392,7 +405,8 @@ describe('Settings Page', () => {
       await user.click(preferencesTab);
 
       await waitFor(async () => {
-        const themeSelect = screen.getByRole('combobox', { name: /theme/i });
+        // Theme select is the first combobox (labels aren't associated).
+        const themeSelect = screen.getAllByRole('combobox')[0];
         await user.selectOptions(themeSelect, 'dark');
         expect(themeSelect).toHaveValue('dark');
       });
@@ -476,7 +490,8 @@ describe('Settings Page', () => {
       await user.click(databaseTab);
 
       await waitFor(() => {
-        expect(screen.getByText(/database backup/i)).toBeInTheDocument();
+        // Exact heading — /database backup/i also matches the download button.
+        expect(screen.getByText('Database Backup')).toBeInTheDocument();
         expect(screen.getByText(/download database backup/i)).toBeInTheDocument();
       });
     });
@@ -489,8 +504,9 @@ describe('Settings Page', () => {
       await user.click(databaseTab);
 
       await waitFor(() => {
-        expect(screen.getByText(/database restore/i)).toBeInTheDocument();
-        expect(screen.getByText(/select backup file/i)).toBeInTheDocument();
+        expect(screen.getByText('Database Restore')).toBeInTheDocument();
+        // Both the restore and merge sections have a "Select Backup File" label.
+        expect(screen.getAllByText(/select backup file/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -564,7 +580,9 @@ describe('Settings Page', () => {
       await user.click(databaseTab);
 
       await waitFor(async () => {
-        const fileInput = screen.getByLabelText(/select backup file/i);
+        // The file-input <label>s aren't associated (no htmlFor/id); the restore
+        // section's input is the first file input in the DOM.
+        const fileInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
         const file = new File(['database content'], 'backup.db', { type: 'application/x-sqlite3' });
         await user.upload(fileInput, file);
       });
@@ -582,7 +600,9 @@ describe('Settings Page', () => {
       await user.click(databaseTab);
 
       await waitFor(async () => {
-        const fileInput = screen.getByLabelText(/select backup file/i);
+        // The file-input <label>s aren't associated (no htmlFor/id); the restore
+        // section's input is the first file input in the DOM.
+        const fileInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
         const file = new File(['database content'], 'backup.db', { type: 'application/x-sqlite3' });
         await user.upload(fileInput, file);
       });
@@ -606,7 +626,9 @@ describe('Settings Page', () => {
 
       // Upload file
       await waitFor(async () => {
-        const fileInput = screen.getByLabelText(/select backup file/i);
+        // The file-input <label>s aren't associated (no htmlFor/id); the restore
+        // section's input is the first file input in the DOM.
+        const fileInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
         const file = new File(['database content'], 'backup.db', { type: 'application/x-sqlite3' });
         await user.upload(fileInput, file);
       });
@@ -643,7 +665,9 @@ describe('Settings Page', () => {
 
       // Upload file
       await waitFor(async () => {
-        const fileInput = screen.getByLabelText(/select backup file/i);
+        // The file-input <label>s aren't associated (no htmlFor/id); the restore
+        // section's input is the first file input in the DOM.
+        const fileInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
         const file = new File(['database content'], 'backup.db', { type: 'application/x-sqlite3' });
         await user.upload(fileInput, file);
       });
@@ -763,7 +787,9 @@ describe('Settings Page', () => {
 
       // Upload file
       await waitFor(async () => {
-        const fileInput = screen.getByLabelText(/select backup file/i);
+        // The file-input <label>s aren't associated (no htmlFor/id); the restore
+        // section's input is the first file input in the DOM.
+        const fileInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
         const file = new File(['database content'], 'backup.db', { type: 'application/x-sqlite3' });
         await user.upload(fileInput, file);
       });

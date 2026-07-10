@@ -4,7 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import Deliverables from '@/pages/Deliverables';
 import { QualityGatePanel } from '@/components/wizard/QualityGatePanel';
+import { generatorApi } from '@/api/generator';
 import type { PostDraft } from '@/types/domain';
+
+// QualityGatePanel's "Regenerate all flagged" action calls generatorApi.regenerate;
+// mock it so the regeneration flow resolves without a live server. A short delay keeps
+// the mutation in its pending ("Regenerating...") state long enough to observe.
+jest.mock('@/api/generator');
+const mockGeneratorApi = generatorApi as jest.Mocked<typeof generatorApi>;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockGeneratorApi.regenerate.mockImplementation(
+    () => new Promise((resolve) => setTimeout(() => resolve({ id: 'run-regen' } as never), 100))
+  );
+});
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({
@@ -75,7 +89,7 @@ describe('Quality Gate and Deliverables', () => {
       );
 
       // Should show regenerate button for flagged posts
-      expect(screen.getByRole('button', { name: /regenerate flagged/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /regenerate all flagged/i })).toBeInTheDocument();
     });
 
     it('should show flags for each flagged post', () => {
@@ -97,7 +111,7 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      expect(screen.getByRole('button', { name: /regenerate flagged/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /regenerate all flagged/i })).toBeInTheDocument();
     });
 
     it('should show success message when no flags', () => {
@@ -120,7 +134,11 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      expect(screen.getByText(/no flags detected.*ready for export/i)).toBeInTheDocument();
+      // The panel no longer renders a "no flags detected" banner; when nothing is
+      // flagged it omits the flagged section + regenerate control and shows only the
+      // approved posts.
+      expect(screen.queryByRole('button', { name: /regenerate all flagged/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/approved posts/i)).toBeInTheDocument();
     });
 
     it('should group posts by flag type', () => {
@@ -154,7 +172,8 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      // Deliverables now has two selects (status + format); the status filter is first.
+      expect(screen.getAllByRole('combobox')[0]).toBeInTheDocument();
     });
 
     it('should filter deliverables by status', async () => {
@@ -165,7 +184,7 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      const statusFilter = screen.getByRole('combobox');
+      const statusFilter = screen.getAllByRole('combobox')[0];
       await user.selectOptions(statusFilter, 'ready');
 
       expect(statusFilter).toHaveValue('ready');
@@ -280,7 +299,7 @@ describe('Quality Gate and Deliverables', () => {
       );
 
       // Regenerate button should not appear when there are no flagged posts
-      expect(screen.queryByRole('button', { name: /regenerate flagged/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /regenerate all flagged/i })).not.toBeInTheDocument();
     });
   });
 
@@ -295,7 +314,7 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      const regenerateButton = screen.getByRole('button', { name: /regenerate flagged/i });
+      const regenerateButton = screen.getByRole('button', { name: /regenerate all flagged/i });
       await user.click(regenerateButton);
 
       // Should trigger regeneration callback (mock API has 1500ms delay)
@@ -316,7 +335,7 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      const regenerateButton = screen.getByRole('button', { name: /regenerate flagged/i });
+      const regenerateButton = screen.getByRole('button', { name: /regenerate all flagged/i });
       await user.click(regenerateButton);
 
       // Button should show loading state
@@ -346,20 +365,23 @@ describe('Quality Gate and Deliverables', () => {
         </TestWrapper>
       );
 
-      // Should show the flags for each flagged post
-      expect(screen.getByText(/too_short, missing_cta/i)).toBeInTheDocument();
-      expect(screen.getByText(/too_long/i)).toBeInTheDocument();
+      // Flags render as individual badges, not a joined "a, b" string.
+      expect(screen.getByText('too_short')).toBeInTheDocument();
+      expect(screen.getByText('missing_cta')).toBeInTheDocument();
+      expect(screen.getByText('too_long')).toBeInTheDocument();
     });
 
-    it('should not show approved posts in preview', () => {
+    it('should show approved posts in their own section', () => {
       render(
         <TestWrapper>
           <QualityGatePanel posts={mockPosts} projectId="test" />
         </TestWrapper>
       );
 
-      // Post-1 is approved, should not be shown in flagged list
-      expect(screen.queryByText(/Post post-1/i)).not.toBeInTheDocument();
+      // The panel now renders approved posts in a dedicated "Approved Posts" section
+      // (post-1 is approved), alongside the flagged section.
+      expect(screen.getByText(/Post post-1/i)).toBeInTheDocument();
+      expect(screen.getByText(/approved posts/i)).toBeInTheDocument();
     });
   });
 });

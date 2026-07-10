@@ -17,6 +17,92 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithProviders, userEvent } from '@/__tests__/setup/test-utils';
 import AuditTrail from '../AuditTrail';
 
+// The page fetches audit logs + compliance stats via React Query against the real
+// axios client. In jsdom that request never resolves, so the component would sit
+// on its loading spinner forever. Mock the audit API module with correctly-shaped
+// (camelCase) data so the page renders its real UI.
+jest.mock('@/api/audit', () => {
+  const now = Date.now();
+  const mkTs = (minsAgo: number) => new Date(now - minsAgo * 60000).toISOString();
+
+  const sarah = { id: 'u1', name: 'Sarah Johnson', email: 'sarah.johnson@example.com', role: 'Admin' };
+  const michael = { id: 'u2', name: 'Michael Chen', email: 'michael.chen@example.com', role: 'Editor' };
+
+  const auditLogs = [
+    {
+      id: 'evt_001',
+      timestamp: mkTs(5),
+      user: sarah,
+      action: 'Updated deliverable status',
+      actionType: 'update',
+      resource: 'Q4 Campaign Post #12',
+      resourceType: 'deliverable',
+      details: 'Changed status from draft to approved',
+      ipAddress: '192.168.1.100',
+      status: 'success',
+      metadata: { previousStatus: 'draft', newStatus: 'approved' },
+    },
+    {
+      id: 'evt_002',
+      timestamp: mkTs(180),
+      user: michael,
+      action: 'Exported client data',
+      actionType: 'export',
+      resource: 'Acme Corp',
+      resourceType: 'client',
+      details: 'Exported client activity report as CSV',
+      ipAddress: '192.168.1.105',
+      status: 'success',
+      metadata: { format: 'csv', rows: 240 },
+    },
+    {
+      id: 'evt_003',
+      timestamp: mkTs(1440),
+      user: sarah,
+      action: 'Failed login attempt',
+      actionType: 'security',
+      resource: 'Authentication',
+      resourceType: 'user',
+      details: 'Invalid password provided',
+      ipAddress: '192.168.1.110',
+      status: 'failed',
+      metadata: {},
+    },
+  ];
+
+  const stats = {
+    totalEvents: 8456,
+    todayEvents: 127,
+    failedActions: 23,
+    securityEvents: 8,
+    avgEventsPerDay: 142,
+    retentionDays: 90,
+  };
+
+  return {
+    auditApi: {
+      list: jest.fn().mockResolvedValue(auditLogs),
+      stats: jest.fn().mockResolvedValue(stats),
+      exportUrl: jest.fn(() => '/api/audit/export.csv'),
+    },
+  };
+});
+
+/**
+ * The filter <label> elements in AuditTrail.tsx are not programmatically
+ * associated with their <select> (no `htmlFor`/`id`), so `getByLabelText` cannot
+ * resolve them. Locate the select via its label's sibling instead. This matches
+ * the current DOM (label + select are siblings inside a wrapper div).
+ */
+const getFilterSelect = (label: RegExp): HTMLSelectElement => {
+  const labelEl = screen.getByText(label, { selector: 'label' });
+  const select = labelEl.parentElement?.querySelector('select');
+  if (!(select instanceof HTMLSelectElement)) {
+    throw new Error(`No <select> associated with label ${label}`);
+  }
+  return select;
+};
+
 describe('AuditTrail Page - Comprehensive', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -53,7 +139,8 @@ describe('AuditTrail Page - Comprehensive', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/total events/i)).toBeInTheDocument();
-        expect(screen.getByText(/today/i)).toBeInTheDocument();
+        // "Today" is also a date-range <option>; scope to the stat card label <p>.
+        expect(screen.getByText('Today', { selector: 'p' })).toBeInTheDocument();
         expect(screen.getByText(/failed actions/i)).toBeInTheDocument();
         expect(screen.getByText(/security events/i)).toBeInTheDocument();
         expect(screen.getByText(/avg per day/i)).toBeInTheDocument();
@@ -89,8 +176,11 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByText(/all time/i)).toBeInTheDocument();
-        expect(screen.getByText(/last 30 days/i)).toBeInTheDocument();
+        // "All time" is also a date-range <option> ("All Time"); scope to the
+        // stat card subtitle <p>. "Last 30 days" appears on two stat cards and as
+        // an <option>, so assert at least one is present.
+        expect(screen.getByText('All time', { selector: 'p' })).toBeInTheDocument();
+        expect(screen.getAllByText(/last 30 days/i).length).toBeGreaterThan(0);
         expect(screen.getByText(/30-day average/i)).toBeInTheDocument();
       });
     });
@@ -136,11 +226,11 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/action type/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/resource type/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/status/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/user/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/date range/i)).toBeInTheDocument();
+        expect(getFilterSelect(/action type/i)).toBeInTheDocument();
+        expect(getFilterSelect(/resource type/i)).toBeInTheDocument();
+        expect(getFilterSelect(/status/i)).toBeInTheDocument();
+        expect(getFilterSelect(/user/i)).toBeInTheDocument();
+        expect(getFilterSelect(/date range/i)).toBeInTheDocument();
       });
     });
 
@@ -148,7 +238,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        const actionTypeFilter = screen.getByLabelText(/action type/i);
+        const actionTypeFilter = getFilterSelect(/action type/i);
         const options = within(actionTypeFilter).getAllByRole('option');
         const optionTexts = options.map(opt => opt.textContent);
 
@@ -167,7 +257,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        const resourceTypeFilter = screen.getByLabelText(/resource type/i);
+        const resourceTypeFilter = getFilterSelect(/resource type/i);
         const options = within(resourceTypeFilter).getAllByRole('option');
         const optionTexts = options.map(opt => opt.textContent);
 
@@ -185,7 +275,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        const statusFilter = screen.getByLabelText(/status/i);
+        const statusFilter = getFilterSelect(/status/i);
         const options = within(statusFilter).getAllByRole('option');
         const optionTexts = options.map(opt => opt.textContent);
 
@@ -200,7 +290,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        const dateRangeFilter = screen.getByLabelText(/date range/i);
+        const dateRangeFilter = getFilterSelect(/date range/i);
         const options = within(dateRangeFilter).getAllByRole('option');
         const optionTexts = options.map(opt => opt.textContent);
 
@@ -217,7 +307,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const actionTypeFilter = screen.getByLabelText(/action type/i);
+        const actionTypeFilter = getFilterSelect(/action type/i);
         await user.selectOptions(actionTypeFilter, 'create');
         expect(actionTypeFilter).toHaveValue('create');
       });
@@ -228,7 +318,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const resourceTypeFilter = screen.getByLabelText(/resource type/i);
+        const resourceTypeFilter = getFilterSelect(/resource type/i);
         await user.selectOptions(resourceTypeFilter, 'project');
         expect(resourceTypeFilter).toHaveValue('project');
       });
@@ -239,7 +329,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const statusFilter = screen.getByLabelText(/status/i);
+        const statusFilter = getFilterSelect(/status/i);
         await user.selectOptions(statusFilter, 'failed');
         expect(statusFilter).toHaveValue('failed');
       });
@@ -250,7 +340,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const dateRangeFilter = screen.getByLabelText(/date range/i);
+        const dateRangeFilter = getFilterSelect(/date range/i);
         await user.selectOptions(dateRangeFilter, 'today');
         expect(dateRangeFilter).toHaveValue('today');
       });
@@ -260,7 +350,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        const userFilter = screen.getByLabelText(/user/i);
+        const userFilter = getFilterSelect(/user/i);
         const options = within(userFilter).getAllByRole('option');
         const optionTexts = options.map(opt => opt.textContent);
 
@@ -293,7 +383,7 @@ describe('AuditTrail Page - Comprehensive', () => {
 
       // Apply filter
       await waitFor(async () => {
-        const actionTypeFilter = screen.getByLabelText(/action type/i);
+        const actionTypeFilter = getFilterSelect(/action type/i);
         await user.selectOptions(actionTypeFilter, 'security');
       });
 
@@ -309,7 +399,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByText(/export/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
       });
     });
 
@@ -318,7 +408,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const exportButton = screen.getByText(/export/i);
+        const exportButton = screen.getByRole('button', { name: /export/i });
         await user.click(exportButton);
       });
 
@@ -333,7 +423,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const exportButton = screen.getByText(/export/i);
+        const exportButton = screen.getByRole('button', { name: /export/i });
         await user.click(exportButton);
       });
 
@@ -348,7 +438,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const exportButton = screen.getByText(/export/i);
+        const exportButton = screen.getByRole('button', { name: /export/i });
         await user.click(exportButton);
       });
 
@@ -363,7 +453,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const exportButton = screen.getByText(/export/i);
+        const exportButton = screen.getByRole('button', { name: /export/i });
         await user.click(exportButton);
       });
 
@@ -383,13 +473,15 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByText(/timestamp/i)).toBeInTheDocument();
-        expect(screen.getByText(/user/i)).toBeInTheDocument();
-        expect(screen.getByText(/action/i)).toBeInTheDocument();
-        expect(screen.getByText(/resource/i)).toBeInTheDocument();
-        expect(screen.getByText(/ip address/i)).toBeInTheDocument();
-        expect(screen.getByText(/status/i)).toBeInTheDocument();
-        expect(screen.getByText(/details/i)).toBeInTheDocument();
+        // Scope to column headers: these words also appear in filter labels,
+        // options, and row cells, so plain getByText would be ambiguous.
+        expect(screen.getByRole('columnheader', { name: /timestamp/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /user/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /action/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /resource/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /ip address/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /details/i })).toBeInTheDocument();
       });
     });
 
@@ -406,8 +498,10 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByText(/sarah johnson/i)).toBeInTheDocument();
-        expect(screen.getByText(/michael chen/i)).toBeInTheDocument();
+        // Each user appears both in a table row and as a <option> in the user
+        // filter, so assert at least one occurrence of each.
+        expect(screen.getAllByText(/sarah johnson/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/michael chen/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -531,8 +625,13 @@ describe('AuditTrail Page - Comprehensive', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/timestamp/i)).toBeInTheDocument();
-        expect(screen.getByText(/time ago/i)).toBeInTheDocument();
+        // "Timestamp" is also a table column header behind the modal; scope to
+        // the modal overlay to disambiguate.
+        const modal = within(
+          screen.getByText(/event details/i).closest('div[class*="fixed"]') as HTMLElement
+        );
+        expect(modal.getByText(/timestamp/i)).toBeInTheDocument();
+        expect(modal.getByText(/time ago/i)).toBeInTheDocument();
       });
     });
 
@@ -546,7 +645,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       });
 
       await waitFor(() => {
-        const modalContent = screen.getByText(/event details/i).closest('div');
+        const modalContent = screen.getByText(/event details/i).closest('div[class*="fixed"]');
         expect(modalContent).toHaveTextContent(/user/i);
         expect(modalContent).toHaveTextContent(/role/i);
       });
@@ -562,7 +661,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       });
 
       await waitFor(() => {
-        const modalContent = screen.getByText(/event details/i).closest('div');
+        const modalContent = screen.getByText(/event details/i).closest('div[class*="fixed"]');
         expect(modalContent).toHaveTextContent(/action/i);
         expect(modalContent).toHaveTextContent(/type:/i);
       });
@@ -578,7 +677,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       });
 
       await waitFor(() => {
-        const modalContent = screen.getByText(/event details/i).closest('div');
+        const modalContent = screen.getByText(/event details/i).closest('div[class*="fixed"]');
         expect(modalContent).toHaveTextContent(/resource/i);
       });
     });
@@ -651,7 +750,7 @@ describe('AuditTrail Page - Comprehensive', () => {
 
       // Apply action type filter
       await waitFor(async () => {
-        const actionTypeFilter = screen.getByLabelText(/action type/i);
+        const actionTypeFilter = getFilterSelect(/action type/i);
         await user.selectOptions(actionTypeFilter, 'update');
       });
 
@@ -666,7 +765,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const userFilter = screen.getByLabelText(/user/i);
+        const userFilter = getFilterSelect(/user/i);
         // Select first user from dropdown
         const options = within(userFilter).getAllByRole('option');
         if (options[1]) await user.selectOptions(userFilter, options[1].value);
@@ -683,7 +782,7 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(async () => {
-        const dateRangeFilter = screen.getByLabelText(/date range/i);
+        const dateRangeFilter = getFilterSelect(/date range/i);
         await user.selectOptions(dateRangeFilter, 'today');
       });
 
@@ -729,11 +828,11 @@ describe('AuditTrail Page - Comprehensive', () => {
       renderWithProviders(<AuditTrail />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/action type/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/resource type/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/status/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/user/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/date range/i)).toBeInTheDocument();
+        expect(getFilterSelect(/action type/i)).toBeInTheDocument();
+        expect(getFilterSelect(/resource type/i)).toBeInTheDocument();
+        expect(getFilterSelect(/status/i)).toBeInTheDocument();
+        expect(getFilterSelect(/user/i)).toBeInTheDocument();
+        expect(getFilterSelect(/date range/i)).toBeInTheDocument();
       });
     });
   });

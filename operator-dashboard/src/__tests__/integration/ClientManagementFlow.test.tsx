@@ -11,6 +11,7 @@ import Clients from '@/pages/Clients';
 import ClientDetail from '@/pages/ClientDetail';
 import { clientsApi } from '@/api/clients';
 import { projectsApi } from '@/api/projects';
+import { ROUTES } from '@/config/routes';
 
 jest.mock('@/api/clients');
 jest.mock('@/api/projects');
@@ -59,59 +60,40 @@ describe('Client Management Flow Integration', () => {
     });
   });
 
-  it('should create new client', async () => {
+  it('should navigate to the new-client page from the Clients list', async () => {
     const user = userEvent.setup();
 
     mockClientsApi.list.mockResolvedValue([]);
-    mockClientsApi.create.mockResolvedValue({
-      id: 'client-new',
-      name: 'New Client',
-      businessDescription: 'New business',
-    });
 
+    // Client creation is no longer an inline dialog on the Clients page — the
+    // "Add Client" button navigates to a dedicated new-client route.
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Clients />
+        <MemoryRouter initialEntries={[ROUTES.CLIENTS]}>
+          <Routes>
+            <Route path={ROUTES.CLIENTS} element={<Clients />} />
+            <Route path={ROUTES.CLIENT_NEW} element={<div>New Client Page</div>} />
+          </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     );
 
-    // Click "New Client" button
-    const newButton = await screen.findByRole('button', { name: /new|create|add/i });
-    await user.click(newButton);
+    const addButton = await screen.findByRole('button', { name: /add client/i });
+    await user.click(addButton);
 
-    // Should open dialog/form
     await waitFor(() => {
-      expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
-    });
-
-    // Fill in form
-    await user.type(screen.getByLabelText(/name/i), 'New Client');
-
-    const descriptionField = screen.getByLabelText(/description/i);
-    await user.type(descriptionField, 'New business');
-
-    // Submit
-    const submitButton = screen.getByRole('button', { name: /create|save/i });
-    await user.click(submitButton);
-
-    // Should call create API
-    await waitFor(() => {
-      expect(mockClientsApi.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'New Client',
-        })
-      );
+      expect(screen.getByText('New Client Page')).toBeInTheDocument();
     });
   });
 
   it('should view client details', async () => {
+    const user = userEvent.setup();
     const mockClient = {
       id: 'client-1',
       name: 'Acme Corp',
       businessDescription: 'Software company',
       idealCustomer: 'B2B SaaS',
+      industry: 'Software',
     };
 
     const mockProjects = {
@@ -145,13 +127,15 @@ describe('Client Management Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show client details
+    // Client name appears in both the header and the contact card, so assert at least
+    // one match. The overview tab shows business details (industry), not the raw
+    // businessDescription field.
     await waitFor(() => {
-      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
-      expect(screen.getByText(/Software company/i)).toBeInTheDocument();
+      expect(screen.getAllByText('Acme Corp').length).toBeGreaterThan(0);
     });
 
-    // Should show associated projects
+    // Associated projects live under the Projects tab, not the default Overview tab.
+    await user.click(screen.getByRole('button', { name: /projects/i }));
     await waitFor(() => {
       expect(screen.getByText('Q1 Campaign')).toBeInTheDocument();
     });
@@ -168,9 +152,10 @@ describe('Client Management Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show empty state
+    // Should show empty state ("No clients found" + "Add your first client to get
+    // started" both match, so assert at least one).
     await waitFor(() => {
-      expect(screen.getByText(/no clients|empty|get started/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/no clients|empty|get started/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -185,11 +170,12 @@ describe('Client Management Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show error message or empty state
+    // Should show error message or empty state (queryByText throws on multiple
+    // matches, so use queryAllByText).
     await waitFor(() => {
-      const errorMessage = screen.queryByText(/error|failed|try again/i);
-      const emptyState = screen.queryByText(/no clients|empty|get started/i);
-      expect(errorMessage || emptyState).toBeTruthy();
+      const errorMessages = screen.queryAllByText(/error|failed|try again/i);
+      const emptyState = screen.queryAllByText(/no clients|empty|get started/i);
+      expect(errorMessages.length > 0 || emptyState.length > 0).toBeTruthy();
     }, { timeout: 3000 });
   });
 });

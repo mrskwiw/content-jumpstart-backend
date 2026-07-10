@@ -5,18 +5,21 @@ import { describe, it, expect, jest } from '@jest/globals';
 import { render } from '@testing-library/react';
 import { AIDiscoveryPanel } from '../AIDiscoveryPanel';
 
-// Mock the AI discovery service
+// Mock the AI discovery service. Shapes mirror DiscoverySession / AIResponse
+// from src/services/aiDiscoveryService.ts.
 jest.mock('@/services/aiDiscoveryService', () => ({
   aiDiscoveryService: {
     startDiscovery: jest.fn().mockResolvedValue({
-      conversationId: 'conv-1',
-      message: 'Hello!',
-      fields: {},
+      id: 'discovery-1',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      firstQuestion: 'Hello! What is your company name?',
     }),
     sendMessage: jest.fn().mockResolvedValue({
-      conversationId: 'conv-1',
       message: 'Thanks!',
-      fields: {},
+      extractedFields: {},
+      confidence: {},
+      nextQuestion: 'Thanks!',
+      isComplete: false,
     }),
   },
 }));
@@ -26,6 +29,8 @@ describe('AIDiscoveryPanel', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // jsdom does not implement scrollIntoView; the panel auto-scrolls on new messages.
+    Element.prototype.scrollIntoView = jest.fn();
   });
 
   it('should render without crashing', () => {

@@ -43,10 +43,12 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        expect(screen.getByText(/team members/i)).toBeInTheDocument();
-        expect(screen.getByText(/active projects/i)).toBeInTheDocument();
-        expect(screen.getByText(/avg quality/i)).toBeInTheDocument();
-        expect(screen.getByText(/hours this month/i)).toBeInTheDocument();
+        // Exact strings — the subtitle "Manage team members, roles, ..." also
+        // matches /team members/i, so scope to the stat-card labels.
+        expect(screen.getByText('Team Members')).toBeInTheDocument();
+        expect(screen.getByText('Active Projects')).toBeInTheDocument();
+        expect(screen.getByText('Avg Quality')).toBeInTheDocument();
+        expect(screen.getByText('Hours This Month')).toBeInTheDocument();
       });
     });
 
@@ -74,7 +76,8 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        const roleFilter = screen.getByRole('combobox');
+        // Two filter dropdowns exist (role + status); scope to the first.
+        const roleFilter = screen.getAllByRole('combobox')[0];
         const optionTexts = within(roleFilter).getAllByRole('option').map(opt => opt.textContent);
         expect(optionTexts).toContain('All Roles');
         expect(optionTexts).toContain('Admin');
@@ -172,13 +175,16 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        expect(screen.getByText(/member/i)).toBeInTheDocument();
-        expect(screen.getByText(/role/i)).toBeInTheDocument();
-        expect(screen.getByText(/status/i)).toBeInTheDocument();
-        expect(screen.getByText(/projects/i)).toBeInTheDocument();
-        expect(screen.getByText(/posts/i)).toBeInTheDocument();
-        expect(screen.getByText(/quality/i)).toBeInTheDocument();
-        expect(screen.getByText(/last active/i)).toBeInTheDocument();
+        // Assert on column headers directly — the words appear elsewhere
+        // (stat cards, permissions matrix, buttons), so plain getByText is ambiguous.
+        const headerTexts = screen.getAllByRole('columnheader').map(h => h.textContent);
+        expect(headerTexts).toContain('Member');
+        expect(headerTexts).toContain('Role');
+        expect(headerTexts).toContain('Status');
+        expect(headerTexts).toContain('Projects');
+        expect(headerTexts).toContain('Posts');
+        expect(headerTexts).toContain('Quality');
+        expect(headerTexts).toContain('Last Active');
       });
     });
 
@@ -186,8 +192,9 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        expect(screen.getByText(/sarah johnson/i)).toBeInTheDocument();
-        expect(screen.getByText(/michael chen/i)).toBeInTheDocument();
+        // Names also appear in the activity feed, so use getAllByText.
+        expect(screen.getAllByText(/sarah johnson/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/michael chen/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -195,9 +202,9 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        // Avatar initials should be displayed
-        expect(screen.getByText('SJ')).toBeInTheDocument();
-        expect(screen.getByText('MC')).toBeInTheDocument();
+        // Avatar initials appear in both the table and the activity feed.
+        expect(screen.getAllByText('SJ').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('MC').length).toBeGreaterThan(0);
       });
     });
 
@@ -244,18 +251,19 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(async () => {
-        const actionButtons = screen.getAllByRole('button');
-        const menuButton = actionButtons.find(btn => {
-          const svg = btn.querySelector('svg');
-          return svg !== null;
-        });
-        if (menuButton) await user.click(menuButton);
+        // Row action toggles are icon-only (svg, no text); the Invite Member
+        // button also has an svg but has text, so filter it out.
+        const menuButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(menuButtons[0]);
       });
 
       await waitFor(() => {
         expect(screen.getByText(/edit role/i)).toBeInTheDocument();
         expect(screen.getByText(/send email/i)).toBeInTheDocument();
-        expect(screen.getByText(/remove/i)).toBeInTheDocument();
+        // Exact — /remove/i also matches the "...and remove team members" permission text.
+        expect(screen.getByText('Remove')).toBeInTheDocument();
       });
     });
   });
@@ -271,7 +279,8 @@ describe('Team Page - Comprehensive', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/sarah johnson/i)).toBeInTheDocument();
+        // Table row remains; the activity feed (unfiltered) also shows the name.
+        expect(screen.getAllByText(/sarah johnson/i).length).toBeGreaterThan(0);
         // Other members might be filtered out (tested via integration)
       });
     });
@@ -319,10 +328,12 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        expect(screen.getByText(/create projects/i)).toBeInTheDocument();
-        expect(screen.getByText(/delete projects/i)).toBeInTheDocument();
-        expect(screen.getByText(/generate content/i)).toBeInTheDocument();
-        expect(screen.getByText(/manage team/i)).toBeInTheDocument();
+        // Exact names — /manage team/i also matches the "Manage team members..."
+        // subtitle, so use exact strings for the permission rows.
+        expect(screen.getByText('Create Projects')).toBeInTheDocument();
+        expect(screen.getByText('Delete Projects')).toBeInTheDocument();
+        expect(screen.getByText('Generate Content')).toBeInTheDocument();
+        expect(screen.getByText('Manage Team')).toBeInTheDocument();
       });
     });
 
@@ -371,8 +382,10 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        expect(screen.getByText(/created project/i)).toBeInTheDocument();
-        expect(screen.getByText(/generated content/i)).toBeInTheDocument();
+        // Each activity shows both an action label and a details line that
+        // repeat the phrase, so match all occurrences.
+        expect(screen.getAllByText(/created project/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/generated content/i).length).toBeGreaterThan(0);
       });
     });
 
@@ -469,12 +482,14 @@ describe('Team Page - Comprehensive', () => {
       });
 
       await waitFor(async () => {
-        const roleSelect = screen.getByRole('combobox');
+        // The two filter dropdowns are still mounted behind the modal; the
+        // modal's role select is the last combobox in the DOM.
+        const roleSelect = screen.getAllByRole('combobox').at(-1)!;
         await user.selectOptions(roleSelect, 'admin');
       });
 
       await waitFor(() => {
-        const roleSelect = screen.getByRole('combobox');
+        const roleSelect = screen.getAllByRole('combobox').at(-1)!;
         expect(roleSelect).toHaveValue('admin');
       });
     });
@@ -543,9 +558,11 @@ describe('Team Page - Comprehensive', () => {
       });
 
       await waitFor(async () => {
-        const closeButtons = screen.getAllByRole('button');
-        const xButton = closeButtons.find(btn => btn.querySelector('svg'));
-        if (xButton) await user.click(xButton);
+        // Icon-only buttons: 5 row action toggles then the modal's X (last).
+        const iconButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(iconButtons.at(-1)!);
       });
 
       await waitFor(() => {
@@ -561,9 +578,11 @@ describe('Team Page - Comprehensive', () => {
 
       // Open action menu
       await waitFor(async () => {
-        const actionButtons = screen.getAllByRole('button');
-        const menuButton = actionButtons.find(btn => btn.querySelector('svg'));
-        if (menuButton) await user.click(menuButton);
+        // Icon-only row action toggle (svg, no text) — skip text-bearing buttons.
+        const menuButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(menuButtons[0]);
       });
 
       // Click edit role
@@ -583,9 +602,11 @@ describe('Team Page - Comprehensive', () => {
 
       // Open action menu and edit modal
       await waitFor(async () => {
-        const actionButtons = screen.getAllByRole('button');
-        const menuButton = actionButtons.find(btn => btn.querySelector('svg'));
-        if (menuButton) await user.click(menuButton);
+        // Icon-only row action toggle (svg, no text) — skip text-bearing buttons.
+        const menuButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(menuButtons[0]);
       });
 
       await waitFor(async () => {
@@ -605,9 +626,11 @@ describe('Team Page - Comprehensive', () => {
 
       // Open edit modal
       await waitFor(async () => {
-        const actionButtons = screen.getAllByRole('button');
-        const menuButton = actionButtons.find(btn => btn.querySelector('svg'));
-        if (menuButton) await user.click(menuButton);
+        // Icon-only row action toggle (svg, no text) — skip text-bearing buttons.
+        const menuButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(menuButtons[0]);
       });
 
       await waitFor(async () => {
@@ -627,9 +650,11 @@ describe('Team Page - Comprehensive', () => {
 
       // Open edit modal
       await waitFor(async () => {
-        const actionButtons = screen.getAllByRole('button');
-        const menuButton = actionButtons.find(btn => btn.querySelector('svg'));
-        if (menuButton) await user.click(menuButton);
+        // Icon-only row action toggle (svg, no text) — skip text-bearing buttons.
+        const menuButtons = screen
+          .getAllByRole('button')
+          .filter(btn => btn.querySelector('svg') && !btn.textContent?.trim());
+        await user.click(menuButtons[0]);
       });
 
       await waitFor(async () => {
@@ -674,8 +699,8 @@ describe('Team Page - Comprehensive', () => {
       renderWithProviders(<Team />);
 
       await waitFor(() => {
-        // Total members stat should be visible
-        const statsSection = screen.getByText(/team members/i).closest('div');
+        // Total members stat should be visible (exact label, not the subtitle).
+        const statsSection = screen.getByText('Team Members').closest('div');
         expect(statsSection).toBeInTheDocument();
       });
     });

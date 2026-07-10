@@ -32,7 +32,7 @@ describe('deliverablesApi', () => {
 
       const result = await deliverablesApi.list();
 
-      expect(apiClient.get).toHaveBeenCalledWith('/api/deliverables/', { params: undefined });
+      expect(apiClient.get).toHaveBeenCalledWith('/api/deliverables/', { params: {} });
       expect(result).toEqual(mockDeliverables);
     });
 
@@ -43,7 +43,7 @@ describe('deliverablesApi', () => {
       await deliverablesApi.list({ clientId: 'client-1' });
 
       expect(apiClient.get).toHaveBeenCalledWith('/api/deliverables/', {
-        params: { clientId: 'client-1' },
+        params: { client_id: 'client-1' },
       });
     });
 
@@ -59,8 +59,8 @@ describe('deliverablesApi', () => {
 
       expect(apiClient.get).toHaveBeenCalledWith('/api/deliverables/', {
         params: {
-          clientId: 'client-1',
-          projectId: 'proj-1',
+          client_id: 'client-1',
+          project_id: 'proj-1',
           status: 'ready',
         },
       });
@@ -185,7 +185,7 @@ describe('deliverablesApi', () => {
 
       const result = await deliverablesApi.download('del-1');
 
-      expect(result.filename).toBe('download');
+      expect(result.filename).toBe('deliverable');
     });
 
     it('should handle filename extraction correctly', async () => {

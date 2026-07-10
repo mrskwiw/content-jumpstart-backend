@@ -4,7 +4,6 @@
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Wizard from '@/pages/Wizard';
@@ -51,9 +50,10 @@ describe('Content Generation Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show wizard UI
+    // Should show wizard UI. The redesigned wizard renders several matching strings
+    // (heading + stepper labels), so assert at least one match rather than a unique one.
     await waitFor(() => {
-      expect(screen.getByText(/step|wizard|profile|template/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/wizard|profile|template/i).length).toBeGreaterThan(0);
     });
   });
 
@@ -74,8 +74,6 @@ describe('Content Generation Flow Integration', () => {
   });
 
   it('should handle wizard navigation', async () => {
-    const user = userEvent.setup();
-
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
@@ -96,8 +94,6 @@ describe('Content Generation Flow Integration', () => {
   });
 
   it('should allow selecting existing client', async () => {
-    const user = userEvent.setup();
-
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
@@ -106,16 +102,16 @@ describe('Content Generation Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should show existing clients option
+    // Should show existing clients option (queryByText throws on multiple matches,
+    // and the redesign renders "Select Client"/"Use Existing Client"/"Select Existing
+    // Client", so use queryAllByText).
     await waitFor(() => {
-      const existingButton = screen.queryByText(/existing|select client/i);
-      expect(existingButton || screen.queryAllByRole('button').length > 0).toBeTruthy();
+      const existingMatches = screen.queryAllByText(/existing|select client/i);
+      expect(existingMatches.length > 0 || screen.queryAllByRole('button').length > 0).toBeTruthy();
     });
   });
 
   it('should create project on wizard completion', async () => {
-    const user = userEvent.setup();
-
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>

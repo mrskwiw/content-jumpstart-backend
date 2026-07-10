@@ -86,6 +86,33 @@ export default function ProjectDetail() {
     enabled: !!projectId,
   });
 
+  // Derived data — memoized BEFORE any early return so the hook order stays stable
+  // across the loading→loaded transition (Rules of Hooks). `project` is undefined
+  // while loading, so each memo guards against it.
+  const projectPosts = useMemo(
+    () => (project ? allPosts.filter((p) => p.projectId === project.id) : []),
+    [allPosts, project]
+  );
+
+  const projectDeliverables = useMemo(
+    () => (project ? allDeliverables.filter((d) => d.projectId === project.id) : []),
+    [allDeliverables, project]
+  );
+
+  const filteredPosts = useMemo<PostWithMeta[]>(() => {
+    let filtered = projectPosts as PostWithMeta[];
+
+    if (platformFilter !== 'all') {
+      filtered = filtered.filter((p) => p.targetPlatform === platformFilter);
+    }
+
+    if (templateFilter !== 'all') {
+      filtered = filtered.filter((p) => p.templateId?.toString() === templateFilter);
+    }
+
+    return filtered;
+  }, [projectPosts, platformFilter, templateFilter]);
+
   if (projectError) {
     return (
       <div className="flex items-center justify-center h-64 text-red-500">
@@ -103,33 +130,8 @@ export default function ProjectDetail() {
 
   const client = clients.find(c => c.id === project.clientId);
 
-  const projectPosts = useMemo(
-    () => allPosts.filter((p) => p.projectId === project.id),
-    [allPosts, project.id]
-  );
-
-  const projectDeliverables = useMemo(
-    () => allDeliverables.filter(d => d.projectId === project.id),
-    [allDeliverables, project.id]
-  );
-
   const safeFormatDate = (value?: string | null, fallback = 'Not available') =>
     value ? format(new Date(value), 'MMM d, yyyy') : fallback;
-
-  // Filter posts
-  const filteredPosts = useMemo<PostWithMeta[]>(() => {
-    let filtered = projectPosts as PostWithMeta[];
-
-    if (platformFilter !== 'all') {
-      filtered = filtered.filter(p => p.targetPlatform === platformFilter);
-    }
-
-    if (templateFilter !== 'all') {
-      filtered = filtered.filter(p => p.templateId?.toString() === templateFilter);
-    }
-
-    return filtered;
-  }, [projectPosts, platformFilter, templateFilter]);
 
   // Calculate quality metrics (mock data)
   const qualityScore = 87;

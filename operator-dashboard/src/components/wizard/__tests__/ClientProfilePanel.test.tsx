@@ -34,9 +34,10 @@ describe('ClientProfilePanel', () => {
       idealCustomer: 'B2B SaaS companies',
     };
 
-    const { container } = render(<ClientProfilePanel initialData={initialData} />);
+    render(<ClientProfilePanel initialData={initialData} />);
 
-    expect(container).toHaveTextContent('Test Company');
+    // Field values live in input elements, not text content.
+    expect(screen.getByDisplayValue('Test Company')).toBeInTheDocument();
   });
 
   it('should allow adding pain points', async () => {
@@ -84,15 +85,15 @@ describe('ClientProfilePanel', () => {
   });
 
   it('should update form data when initialData changes', () => {
-    const { container, rerender } = render(
+    const { rerender } = render(
       <ClientProfilePanel initialData={{ companyName: 'Original' }} />
     );
 
-    expect(container).toHaveTextContent('Original');
+    expect(screen.getByDisplayValue('Original')).toBeInTheDocument();
 
     rerender(<ClientProfilePanel initialData={{ companyName: 'Updated' }} />);
 
-    expect(container).toHaveTextContent('Updated');
+    expect(screen.getByDisplayValue('Updated')).toBeInTheDocument();
   });
 
   it('should handle brief import', () => {

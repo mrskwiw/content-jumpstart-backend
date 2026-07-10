@@ -7,7 +7,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import { authApi } from '@/api/auth';
@@ -158,8 +158,10 @@ describe('Authentication Flow Integration', () => {
       </QueryClientProvider>
     );
 
-    // Should be authenticated (not redirected to login)
-    expect(screen.getByText(/dashboard|overview/i)).toBeInTheDocument();
+    // Should be authenticated (not redirected to login). The Dashboard renders the
+    // text in multiple places ("Operator Dashboard" heading + "Welcome to the
+    // Operator Dashboard"), so assert at least one match rather than a unique one.
+    expect(screen.getAllByText(/dashboard|overview/i).length).toBeGreaterThan(0);
   });
 
   it('should complete logout flow', async () => {
@@ -179,7 +181,7 @@ describe('Authentication Flow Integration', () => {
     mockAuthApi.logout.mockResolvedValue(undefined);
 
     const TestComponent = () => {
-      const { logout } = require('@/contexts/AuthContext').useAuth();
+      const { logout } = useAuth();
       return (
         <div>
           <button onClick={logout}>Logout</button>
