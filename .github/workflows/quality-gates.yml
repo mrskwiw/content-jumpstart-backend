@@ -103,13 +103,14 @@ jobs:
 
       - name: Jest unit tests (blocking)
         # BLOCKING (OPS-08b, 2026-07-10): the frontend suite is green (84 suites, 766
-        # passing) after the OPS-08 stale-test cleanup, so a test failure now blocks the
-        # merge. --coverage=false so the gate fails on test pass/fail, NOT the aspirational
-        # 90% coverageThreshold (real coverage ~46%; calibrating a real floor is a separate
-        # follow-up). --maxWorkers=2 keeps the long WizardFlow flows deterministic in CI.
+        # passing) after the OPS-08 stale-test cleanup, so a test failure blocks the merge.
+        # Runs WITH coverage, enforcing the calibrated coverage FLOOR in jest.config.cjs
+        # (a few points below current real coverage), so the gate also fails on a coverage
+        # crater — not just test failures. --maxWorkers=2 keeps the long WizardFlow flows
+        # deterministic in CI.
         run: |
           cd operator-dashboard
-          npx jest --ci --coverage=false --maxWorkers=2 --passWithNoTests
+          npx jest --ci --maxWorkers=2 --passWithNoTests
 
       - name: Build frontend
         run: |
