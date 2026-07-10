@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from '@jest/globals';
 import { getAuthErrorMessage } from '../errorMessages';
-import axios, { AxiosError } from 'axios';
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 describe('getAuthErrorMessage', () => {
   describe('Axios errors', () => {
@@ -13,7 +13,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'Invalid credentials' },
         statusText: 'Unauthorized',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Invalid credentials');
@@ -25,7 +25,7 @@ describe('getAuthErrorMessage', () => {
         data: { code: 'invalid_credentials', detail: 'Wrong password' },
         statusText: 'Bad Request',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Wrong password');
@@ -37,7 +37,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Unauthorized',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Invalid email or password. Please try again.');
@@ -49,7 +49,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'User does not exist' },
         statusText: 'Not Found',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('User does not exist');
@@ -61,7 +61,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Not Found',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Account not found. Please check your email or ask an admin to create one.');
@@ -73,7 +73,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'Access denied' },
         statusText: 'Forbidden',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Access denied');
@@ -85,7 +85,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Forbidden',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('You do not have access to this application.');
@@ -97,7 +97,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'Rate limit exceeded' },
         statusText: 'Too Many Requests',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Rate limit exceeded');
@@ -109,7 +109,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Too Many Requests',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Too many attempts. Please wait and retry.');
@@ -121,7 +121,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'Database connection failed' },
         statusText: 'Internal Server Error',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Database connection failed');
@@ -133,7 +133,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Internal Server Error',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Server error. Please try again shortly.');
@@ -145,7 +145,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Service Unavailable',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Server error. Please try again shortly.');
@@ -164,7 +164,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: '',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Cannot reach the server. Check your connection or VPN and try again.');
@@ -176,7 +176,7 @@ describe('getAuthErrorMessage', () => {
         data: '<!DOCTYPE html><html><body>Error</body></html>',
         statusText: 'OK',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Received HTML instead of an API response. Check VITE_API_URL and that the backend is running.');
@@ -188,7 +188,7 @@ describe('getAuthErrorMessage', () => {
         data: '<html><body>Error</body></html>',
         statusText: 'OK',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Received HTML instead of an API response. Check VITE_API_URL and that the backend is running.');
@@ -200,7 +200,7 @@ describe('getAuthErrorMessage', () => {
         data: { detail: 'Email format is invalid' },
         statusText: 'Bad Request',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Email format is invalid');
@@ -212,7 +212,7 @@ describe('getAuthErrorMessage', () => {
         data: {},
         statusText: 'Bad Request',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Request was invalid. Please verify your input.');
@@ -224,7 +224,7 @@ describe('getAuthErrorMessage', () => {
         data: { message: 'Custom error message' },
         statusText: 'Bad Request',
         headers: {},
-        config: {} as any,
+        config: {} as InternalAxiosRequestConfig,
       });
 
       expect(getAuthErrorMessage(error)).toBe('Custom error message');

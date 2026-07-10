@@ -216,7 +216,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   const disabledTemplateIds = useMemo(() => getDisabledTemplateIds(), []);
 
   const [quantities, setQuantities] = useState<Record<number, number>>(initialQuantities);
-  const [includeResearch, setIncludeResearch] = useState(initialIncludeResearch);
+  const [includeResearch] = useState(initialIncludeResearch);
   const [customTopics, setCustomTopics] = useState<string[]>(initialTopics);
   const [rawTopicInput, setRawTopicInput] = useState<string>(initialTopics.join(', '));
   const [targetPlatform, setTargetPlatform] = useState<string>(initialTargetPlatform);
@@ -394,7 +394,8 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
       if (storyLimit !== undefined) newValue = Math.min(newValue, storyLimit);
 
       if (newValue === 0) {
-        const { [templateId]: _, ...rest } = prev;
+        const rest = { ...prev };
+        delete rest[templateId];
         return rest;
       }
       return { ...prev, [templateId]: newValue };
@@ -405,7 +406,8 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
     const newValue = Math.max(0, Math.min(100, value));
     setQuantities((prev) => {
       if (newValue === 0) {
-        const { [templateId]: _, ...rest } = prev;
+        const rest = { ...prev };
+        delete rest[templateId];
         return rest;
       }
       return { ...prev, [templateId]: newValue };
@@ -979,7 +981,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                 </p>
                 <ul className="list-disc list-inside space-y-1">
                   {Array.from(validationResults.entries())
-                    .filter(([_, v]) => v.blocked)
+                    .filter(([, v]) => v.blocked)
                     .map(([templateId, validation]) => {
                       const template = TEMPLATES.find((t) => t.id === templateId);
                       return (

@@ -2,6 +2,7 @@
  * Tests for projects API module
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { projectsApi } from '../projects';
 import apiClient from '../client';
 import type { Project } from '@/types/domain';
@@ -44,7 +45,7 @@ describe('Projects API', () => {
         },
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       const result = await projectsApi.list();
 
@@ -63,7 +64,7 @@ describe('Projects API', () => {
         },
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       await projectsApi.list({ clientId: 'client-1', status: 'draft', page: 2 });
 
@@ -90,7 +91,7 @@ describe('Projects API', () => {
         updatedAt: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockProject } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockProject } as AxiosResponse);
 
       const result = await projectsApi.get('proj-1');
 
@@ -126,7 +127,7 @@ describe('Projects API', () => {
         updatedAt: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       const result = await projectsApi.create(input);
 
@@ -172,7 +173,7 @@ describe('Projects API', () => {
         updatedAt: '2024-01-02T00:00:00Z',
       };
 
-      mockedApiClient.patch.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.patch.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       const result = await projectsApi.update('proj-1', input);
 

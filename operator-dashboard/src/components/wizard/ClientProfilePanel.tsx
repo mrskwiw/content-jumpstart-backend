@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from 'react';
-import { ClientBriefSchema, type ClientBrief, type Platform } from '@/types/domain';
+import { ClientBriefSchema, type ClientBrief } from '@/types/domain';
 import { User, Building2, Target, Lightbulb, MessageSquare, Save, MapPin } from 'lucide-react';
 import { BriefImportSection, type ParsedBriefResponse } from './BriefImportSection';
 import { ImportPreviewModal } from '../ui/ImportPreviewModal';
@@ -14,7 +14,7 @@ interface Props {
 }
 
 // Memoized to prevent re-renders when parent updates (Performance optimization - December 25, 2025)
-export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: _projectId, initialData, onSave }: Props) {
+export const ClientProfilePanel = memo(function ClientProfilePanel({ initialData, onSave }: Props) {
   const [formData, setFormData] = useState<Partial<ClientBrief>>({
     companyName: initialData?.companyName || '',
     founderName: initialData?.founderName || '',
@@ -59,9 +59,13 @@ export const ClientProfilePanel = memo(function ClientProfilePanel({ projectId: 
   const [showPreview, setShowPreview] = useState(false);
   const [importedData, setImportedData] = useState<ParsedBriefResponse | null>(null);
 
-  // Update form when initialData changes (e.g., when selecting existing client)
+  // Update form when initialData changes (e.g., when selecting existing client).
+  // This resyncs the editable form to a newly-loaded/selected client record (an
+  // external data source that arrives asynchronously), so the setState is a
+  // deliberate external->state sync rather than derived render state.
   useEffect(() => {
     if (initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         companyName: initialData.companyName || '',
         founderName: initialData.founderName || '',

@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { researchApi, costsApi, ResearchTool, clientsApi } from "@/api";
+import { researchApi, ResearchTool, clientsApi } from "@/api";
 import type { Client } from '@/types/domain';
 import { deliverablesApi } from '@/api/deliverables';
 import { getDisabledToolIds } from '@/config/featureRegistry';
 import { ToolCard } from '../../components/research/ToolCard';
-import { PricingSummaryCard } from '../../components/research/PricingSummaryCard';
 import { Search, Filter, AlertCircle, Link2, Info, Loader2, FileOutput } from 'lucide-react';
 import { ToolRunStatusList, type ToolStatusItem } from '@/components/wizard/ToolRunStatusList';
 
@@ -70,20 +69,20 @@ export default function ResearchToolsLibrary() {
   });
 
   // Fetch clients for client selector
-  const { data: clients = [], isError: clientsError } = useQuery<Client[]>({
+  const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['clients'],
     queryFn: () => clientsApi.list(),
   });
 
   // Fetch client prerequisite status when client is selected
-  const { data: clientPrerequisites, isError: prerequisitesError } = useQuery({
+  const { data: clientPrerequisites } = useQuery({
     queryKey: ['client-prerequisites', selectedClientId],
     queryFn: () => selectedClientId ? researchApi.getClientPrerequisites(selectedClientId) : null,
     enabled: selectedClientId !== null,
   });
 
   // Fetch run history for the selected client to show completion indicators on cards
-  const { data: clientHistory, isError: historyError } = useQuery({
+  const { data: clientHistory } = useQuery({
     queryKey: ['research-history', selectedClientId],
     queryFn: () => selectedClientId ? researchApi.getClientHistory(selectedClientId) : null,
     enabled: selectedClientId !== null,

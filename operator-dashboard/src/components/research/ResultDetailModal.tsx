@@ -25,8 +25,12 @@ export function ResultDetailModal({ result, onClose }: ResultDetailModalProps) {
 
   const previewFormat = pickPreviewFormat(result.outputs ?? {});
 
+  // Data-fetch effect: loads preview content from the research API and
+  // synchronizes loading/error state around the async call. The synchronous
+  // setState calls here manage the fetch lifecycle, which is intentional.
   useEffect(() => {
     if (!previewFormat) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset loading when there is nothing to fetch
       setPreviewLoading(false);
       return;
     }

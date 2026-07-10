@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { deliverablesApi } from '@/api/deliverables';
 import { clientsApi } from '@/api/clients';
 import type { Deliverable, DeliverableStatus, Client } from '@/types/domain';
@@ -10,17 +10,14 @@ import {
   CheckCircle,
   X,
   Download,
-  Mail,
   Search,
   FileText,
   Clock,
-  Send,
   Eye,
-  MoreVertical,
   Calendar,
   Package,
 } from 'lucide-react';
-import { format, isAfter, isBefore, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatFileSize } from '@/utils/formatters';
@@ -56,9 +53,7 @@ export default function Deliverables() {
   const [formatFilter, setFormatFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
   const [selected, setSelected] = useState<Deliverable | null>(null);
-  const [selectedForEmail, setSelectedForEmail] = useState<Deliverable | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const qc = useQueryClient();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['deliverables', { status, projectId, clientId }],

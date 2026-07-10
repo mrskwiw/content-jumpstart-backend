@@ -2,6 +2,7 @@
  * Tests for users API module (admin user management)
  */
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { usersApi } from '../users';
 import apiClient from '../client';
 import type { SystemUser, UserStats, CreateUserRequest } from '@/types/user';
@@ -22,7 +23,7 @@ describe('Users API', () => {
         { id: 'user-1', email: 'test@example.com', fullName: 'Test User', is_active: true, isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockUsers } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockUsers } as AxiosResponse);
 
       const result = await usersApi.list(0, 100);
 
@@ -43,7 +44,7 @@ describe('Users API', () => {
         admins: 1,
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockStats } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockStats } as AxiosResponse);
 
       const result = await usersApi.getStats();
 
@@ -58,7 +59,7 @@ describe('Users API', () => {
         { id: 'user-2', email: 'inactive@example.com', fullName: 'Inactive User', is_active: false, isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockInactiveUsers } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockInactiveUsers } as AxiosResponse);
 
       const result = await usersApi.listInactive(0, 100);
 
@@ -87,7 +88,7 @@ describe('Users API', () => {
         isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockResponse } as AxiosResponse);
 
       const result = await usersApi.create(newUser);
 
@@ -112,7 +113,7 @@ describe('Users API', () => {
         isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockUser } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockUser } as AxiosResponse);
 
       const result = await usersApi.activate('user-1');
 
@@ -131,7 +132,7 @@ describe('Users API', () => {
         isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockUser } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockUser } as AxiosResponse);
 
       const result = await usersApi.deactivate('user-1');
 
@@ -150,7 +151,7 @@ describe('Users API', () => {
         isSuperuser: true, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockUser } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockUser } as AxiosResponse);
 
       const result = await usersApi.promote('user-1');
 
@@ -169,7 +170,7 @@ describe('Users API', () => {
         isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockUser } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockUser } as AxiosResponse);
 
       const result = await usersApi.demote('user-1');
 
@@ -188,7 +189,7 @@ describe('Users API', () => {
         isSuperuser: false, created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.post.mockResolvedValue({ data: mockUser } as any);
+      mockedApiClient.post.mockResolvedValue({ data: mockUser } as AxiosResponse);
 
       const result = await usersApi.resetPassword('user-1', 'newpassword123');
 

@@ -2,6 +2,7 @@
  * Smoke tests for aiDiscoveryService
  */
 import { describe, it, expect, jest } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { aiDiscoveryService } from '../aiDiscoveryService';
 import api from '../../api/client';
 
@@ -32,7 +33,9 @@ describe('aiDiscoveryService', () => {
     it('should send message via the assistant endpoint and return the reply', async () => {
       const session = await aiDiscoveryService.startDiscovery();
 
-      mockedApi.post.mockResolvedValue({ data: { message: 'Thanks for sharing!' } } as any);
+      mockedApi.post.mockResolvedValue({
+        data: { message: 'Thanks for sharing!' },
+      } as unknown as AxiosResponse);
 
       const result = await aiDiscoveryService.sendMessage(session.id, 'We sell software');
 
@@ -52,7 +55,7 @@ describe('aiDiscoveryService', () => {
       });
       mockedApi.post.mockResolvedValue({
         data: { message: `Great, thanks!<extracted>${extracted}</extracted>` },
-      } as any);
+      } as unknown as AxiosResponse);
 
       const result = await aiDiscoveryService.sendMessage(session.id, 'We sell software');
 

@@ -1,13 +1,21 @@
 import { getAuthErrorMessage } from './errorMessages';
+import type { AxiosError } from 'axios';
 
-const axiosError = (overrides: Partial<any>) =>
+interface MockAxiosError {
+  isAxiosError: true;
+  response?: { status?: number; data?: unknown };
+  code?: string;
+  message?: string;
+}
+
+const axiosError = (overrides: Partial<MockAxiosError>): AxiosError =>
   ({
     isAxiosError: true,
     response: undefined,
     code: undefined,
     message: 'Axios error',
     ...overrides,
-  }) as any;
+  }) as unknown as AxiosError;
 
 describe('getAuthErrorMessage', () => {
   it('returns network message on network failure', () => {

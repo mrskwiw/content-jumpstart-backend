@@ -10,6 +10,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ClientDetail from '../ClientDetail';
+import { clientsApi } from '@/api/clients';
+import { projectsApi } from '@/api/projects';
+import { postsApi } from '@/api/posts';
+import { deliverablesApi } from '@/api/deliverables';
+import { researchApi } from '@/api/research';
+import { communicationsApi } from '@/api/communications';
+import { storiesApi } from '@/api/stories';
 
 jest.mock('@/api/clients');
 jest.mock('@/api/projects');
@@ -43,13 +50,6 @@ describe('ClientDetail', () => {
 
   beforeEach(() => {
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { clientsApi } = require('@/api/clients');
-    const { projectsApi } = require('@/api/projects');
-    const { postsApi } = require('@/api/posts');
-    const { deliverablesApi } = require('@/api/deliverables');
-    const { researchApi } = require('@/api/research');
-    const { communicationsApi } = require('@/api/communications');
-    const { storiesApi } = require('@/api/stories');
 
     clientsApi.get = jest.fn().mockResolvedValue(mockClient);
     projectsApi.list = jest.fn().mockResolvedValue(mockProjects);

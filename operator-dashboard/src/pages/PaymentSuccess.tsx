@@ -35,7 +35,9 @@ export default function PaymentSuccess() {
             state: { projectId, clientId, step: 'quality' },
           });
           return;
-        } catch (_) {}
+        } catch {
+          // ignore — malformed pending payload; fall through to default dashboard nav
+        }
       }
       navigate('/dashboard');
     }

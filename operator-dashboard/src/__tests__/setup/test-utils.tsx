@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- test helper module (render wrappers + re-exports); fast refresh is irrelevant here. */
 /**
  * Test utilities for React component testing.
  *
@@ -175,7 +176,7 @@ export async function waitForLoadingToFinish(timeout = 3000): Promise<void> {
  * expect(screen.getByText('Success')).toBeInTheDocument();
  * ```
  */
-export async function waitForMutation(timeout = 3000): Promise<void> {
+export async function waitForMutation(): Promise<void> {
   const { waitFor } = await import('@testing-library/react');
   // Wait a tick for the mutation to process
   await waitFor(() => {}, { timeout: 100 });

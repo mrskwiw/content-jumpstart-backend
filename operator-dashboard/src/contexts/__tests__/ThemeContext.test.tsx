@@ -1,7 +1,7 @@
 /**
  * Comprehensive tests for ThemeContext
  */
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { renderHook, act } from '@testing-library/react';
 import { ThemeProvider, useTheme } from '../ThemeContext';
 

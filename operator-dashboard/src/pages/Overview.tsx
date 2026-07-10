@@ -20,8 +20,7 @@ import {
   AlertTriangle,
   type LucideIcon
 } from 'lucide-react';
-import { format, formatDistanceToNow, isAfter, addDays } from 'date-fns';
-import { Button, Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { formatDistanceToNow } from 'date-fns';
 
 function StatCard({
   title,
@@ -99,9 +98,6 @@ export default function Overview() {
     p.status === 'generating' || p.status === 'qa' || p.status === 'ready'
   );
   const activeProjectsCount = activeProjects.length;
-  const completedProjects = projects.filter(p =>
-    p.status === 'delivered' || p.status === 'exported'
-  ).length;
   const pendingDeliverables = deliverables.filter(d => d.status === 'ready').length;
 
   // Quality score: average QA composite score across all runs (0.0–1.0 → display as %)
@@ -111,9 +107,6 @@ export default function Overview() {
         (scoredRuns.reduce((sum, r) => sum + (r.qaScore ?? 0), 0) / scoredRuns.length) * 100
       )
     : null;
-
-  // Client metrics
-  const totalClients = clients.length;
 
   // NEW: Content in review count (projects in QA status)
   const contentInReview = projects.filter(p => p.status === 'qa').length;

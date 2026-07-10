@@ -33,9 +33,15 @@ export default function Settings() {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabId>('integrations');
 
+  // Deep-link support: sync the active tab from the URL (?tab=credits) on mount AND
+  // whenever the query param changes while the page stays mounted (e.g. a post-payment
+  // redirect to Credits). Tab clicks below use local state and do not rewrite the URL.
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'credits') setActiveTab('credits');
+    if (tabParam === 'credits') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- external sync: activeTab is driven by the URL deep-link, not a value derivable during render
+      setActiveTab('credits');
+    }
   }, [searchParams]);
 
   const visibleTabs = TABS.filter(t => !t.adminOnly || (t.adminOnly && isAdmin));

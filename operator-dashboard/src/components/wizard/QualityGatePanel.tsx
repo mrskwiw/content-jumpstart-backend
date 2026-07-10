@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { generatorApi } from '@/api/generator';
 import { postsApi } from '@/api/posts';
 import type { PostDraft } from '@/types/domain';
@@ -15,7 +15,6 @@ interface Props {
 }
 
 export function QualityGatePanel({ posts, projectId, onRegenerated }: Props) {
-  const queryClient = useQueryClient();
   const [editingPost, setEditingPost] = useState<PostDraft | null>(null);
   const [editedContent, setEditedContent] = useState('');
 

@@ -2,6 +2,7 @@
  * Comprehensive tests for Runs API
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import type { AxiosResponse } from 'axios';
 import { runsApi } from '../runs';
 import apiClient from '../client';
 import type { Run } from '@/types/domain';
@@ -32,7 +33,7 @@ describe('runsApi', () => {
         },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as AxiosResponse);
 
       const result = await runsApi.list();
 
@@ -51,7 +52,7 @@ describe('runsApi', () => {
         },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as AxiosResponse);
 
       const result = await runsApi.list({ projectId: 'proj-1' });
 
@@ -62,7 +63,7 @@ describe('runsApi', () => {
     });
 
     it('should handle empty runs list', async () => {
-      mockedApiClient.get.mockResolvedValue({ data: [] } as any);
+      mockedApiClient.get.mockResolvedValue({ data: [] } as AxiosResponse);
 
       const result = await runsApi.list();
 
@@ -94,7 +95,7 @@ describe('runsApi', () => {
         },
       ];
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRuns } as AxiosResponse);
 
       const result = await runsApi.list({ projectId: 'proj-1' });
 
@@ -115,7 +116,7 @@ describe('runsApi', () => {
         completedAt: '2024-01-01T01:00:00Z',
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRun } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRun } as AxiosResponse);
 
       const result = await runsApi.get('run-1');
 
@@ -133,7 +134,7 @@ describe('runsApi', () => {
         errorMessage: 'Claude API rate limit exceeded',
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRun } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRun } as AxiosResponse);
 
       const result = await runsApi.get('run-2');
 
@@ -149,7 +150,7 @@ describe('runsApi', () => {
         startedAt: '2024-01-01T00:00:00Z',
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRun } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRun } as AxiosResponse);
 
       const result = await runsApi.get('run-3');
 
@@ -169,7 +170,7 @@ describe('runsApi', () => {
         logs: ['Starting generation', 'Templates loaded', 'Generation complete'],
       };
 
-      mockedApiClient.get.mockResolvedValue({ data: mockRun } as any);
+      mockedApiClient.get.mockResolvedValue({ data: mockRun } as AxiosResponse);
 
       const result = await runsApi.get('run-4');
 

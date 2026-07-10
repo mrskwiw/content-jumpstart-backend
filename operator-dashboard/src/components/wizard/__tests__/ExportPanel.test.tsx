@@ -2,6 +2,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/__tests__/setup/test-utils";
 import { ExportPanel } from "@/components/wizard/ExportPanel";
 import { generatorApi } from "@/api/generator";
+import type { Deliverable } from "@/types/domain";
 import { describe, it, expect, beforeEach } from "@jest/globals";
 
 jest.mock("@/api/generator", () => ({
@@ -48,7 +49,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
   });
 
   it("should call exportPackage with includeResearch=true by default", async () => {
-    (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
+    jest.mocked(generatorApi.exportPackage).mockResolvedValueOnce({ id: "del-123" } as unknown as Deliverable);
     renderComponent();
 
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
@@ -66,7 +67,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
   });
 
   it("should call exportPackage with includeResearch=false when unchecked", async () => {
-    (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
+    jest.mocked(generatorApi.exportPackage).mockResolvedValueOnce({ id: "del-123" } as unknown as Deliverable);
     renderComponent();
 
     const checkbox = screen.getByLabelText(/include research results/i);
@@ -86,7 +87,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
   });
 
   it("should work with both checkboxes checked", async () => {
-    (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
+    jest.mocked(generatorApi.exportPackage).mockResolvedValueOnce({ id: "del-123" } as unknown as Deliverable);
     renderComponent();
 
     // Research is checked by default; only need to check the audit log.
@@ -106,7 +107,7 @@ describe("ExportPanel - Research Results Checkbox", () => {
   });
 
   it("should work with markdown format", async () => {
-    (generatorApi.exportPackage as any).mockResolvedValueOnce({ id: "del-123" });
+    jest.mocked(generatorApi.exportPackage).mockResolvedValueOnce({ id: "del-123" } as unknown as Deliverable);
     renderComponent();
 
     const select = screen.getByRole("combobox");

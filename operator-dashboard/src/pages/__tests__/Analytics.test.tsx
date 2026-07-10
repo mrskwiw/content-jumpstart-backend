@@ -2,7 +2,6 @@
  * Smoke tests for Analytics page
  */
 import { describe, it, expect } from '@jest/globals';
-import { render } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Analytics from '../Analytics';
 

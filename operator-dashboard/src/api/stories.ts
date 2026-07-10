@@ -1,5 +1,23 @@
 import apiClient from './client';
 
+/** A single narrative section of a story (e.g. challenge, results). Free-form key/value content rendered by the UI. */
+export type StorySection = Record<string, unknown>;
+
+/** Structured, sectioned narrative body of a story. Sections are optional and rendered when present. */
+export interface StoryContent {
+  customer_background?: StorySection;
+  challenge?: StorySection;
+  decision_process?: StorySection;
+  implementation?: StorySection;
+  results?: StorySection;
+  testimonials?: StorySection;
+  future_plans?: StorySection;
+  [section: string]: StorySection | undefined;
+}
+
+/** Named quantitative results for a story; values are rendered as text in the UI. */
+export type StoryMetrics = Record<string, string | number | boolean>;
+
 export interface Story {
   id: string;
   clientId: string;
@@ -8,8 +26,8 @@ export interface Story {
   storyType?: string;
   title?: string;
   summary?: string;
-  fullStory?: Record<string, any>;
-  keyMetrics?: Record<string, any>;
+  fullStory?: StoryContent;
+  keyMetrics?: StoryMetrics;
   emotionalHook?: string;
   source?: string;
   createdAt: string;
@@ -29,8 +47,8 @@ export interface CreateStoryInput {
   storyType?: string;
   title?: string;
   summary?: string;
-  fullStory?: Record<string, any>;
-  keyMetrics?: Record<string, any>;
+  fullStory?: StoryContent;
+  keyMetrics?: StoryMetrics;
   emotionalHook?: string;
   source?: string;
 }
@@ -39,8 +57,8 @@ export interface UpdateStoryInput {
   storyType?: string;
   title?: string;
   summary?: string;
-  fullStory?: Record<string, any>;
-  keyMetrics?: Record<string, any>;
+  fullStory?: StoryContent;
+  keyMetrics?: StoryMetrics;
   emotionalHook?: string;
   source?: string;
 }
@@ -91,7 +109,7 @@ export const storiesApi = {
   },
 
   async create(input: CreateStoryInput): Promise<Story> {
-    const backendInput: Record<string, any> = {
+    const backendInput: Record<string, unknown> = {
       client_id: input.clientId,
     };
 
@@ -109,7 +127,7 @@ export const storiesApi = {
   },
 
   async update(storyId: string, input: UpdateStoryInput): Promise<Story> {
-    const backendInput: Record<string, any> = {};
+    const backendInput: Record<string, unknown> = {};
 
     if (input.storyType !== undefined) backendInput.story_type = input.storyType;
     if (input.title !== undefined) backendInput.title = input.title;
@@ -128,7 +146,7 @@ export const storiesApi = {
   },
 
   async trackUsage(input: TrackUsageInput): Promise<StoryUsage> {
-    const backendInput: Record<string, any> = {
+    const backendInput: Record<string, unknown> = {
       story_id: input.storyId,
       post_id: input.postId,
     };
@@ -147,7 +165,7 @@ export const storiesApi = {
     storyType?: string,
     limit = 10
   ): Promise<StoryListResponse> {
-    const requestBody: Record<string, any> = {
+    const requestBody: Record<string, unknown> = {
       client_id: clientId,
       limit,
     };

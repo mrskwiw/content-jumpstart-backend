@@ -3,8 +3,51 @@
 
 import type { AxiosInstance } from 'axios';
 import { mockProjects, mockDeliverables, mockPosts, mockRuns, mockClients } from './data';
-import type { Project, Deliverable, PostDraft, Run } from '@/types/domain';
+import type {
+  Project,
+  Deliverable,
+  PostDraft,
+  Run,
+  MarkDeliveredInput,
+  GenerateAllInput,
+  RegenerateInput,
+  ExportInput,
+} from '@/types/domain';
 import { getUseMocksEnabled } from '@/utils/env';
+
+// Local request-shape types for the mock API (kept out of domain.ts).
+interface ProjectListParams {
+  search?: string;
+  status?: string;
+}
+interface ProjectCreateInput {
+  clientId: string;
+  name: string;
+  templates?: string[];
+  platforms?: string[];
+  tone?: string;
+}
+interface DeliverableListParams {
+  status?: string;
+  clientId?: string;
+}
+interface PostListParams {
+  projectId?: string;
+  runId?: string;
+  status?: string;
+}
+interface RunListParams {
+  projectId?: string;
+}
+interface LoginCredentials {
+  email: string;
+  password: string;
+}
+// Shape thrown by the mock handlers to short-circuit the axios request interceptor.
+interface MockRejection {
+  config: unknown;
+  response: { data: unknown; status: number; config: unknown };
+}
 
 let mockEnabled = getUseMocksEnabled();
 
@@ -34,7 +77,7 @@ const mockData = {
 // Mock API functions (used as fallback when backend is unavailable)
 export const mockApi = {
   projects: {
-    list: async (params?: any) => {
+    list: async (params?: ProjectListParams) => {
       await delay(300);
       let filtered = [...mockData.projects];
 
@@ -59,7 +102,7 @@ export const mockApi = {
       return project;
     },
 
-    create: async (input: any) => {
+    create: async (input: ProjectCreateInput) => {
       await delay(400);
       const newProject: Project = {
         id: `project-${Date.now()}`,
@@ -76,7 +119,7 @@ export const mockApi = {
       return newProject;
     },
 
-    update: async (id: string, input: any) => {
+    update: async (id: string, input: Partial<Project>) => {
       await delay(300);
       const index = mockData.projects.findIndex((p) => p.id === id);
       if (index === -1) throw new Error('Project not found');
@@ -90,7 +133,7 @@ export const mockApi = {
   },
 
   deliverables: {
-    list: async (params?: any) => {
+    list: async (params?: DeliverableListParams) => {
       await delay(250);
       let filtered = [...mockData.deliverables];
 
@@ -112,7 +155,7 @@ export const mockApi = {
       return deliverable;
     },
 
-    markDelivered: async (id: string, input: any) => {
+    markDelivered: async (id: string, input: MarkDeliveredInput) => {
       await delay(400);
       const index = mockData.deliverables.findIndex((d) => d.id === id);
       if (index === -1) throw new Error('Deliverable not found');
@@ -128,7 +171,7 @@ export const mockApi = {
   },
 
   posts: {
-    list: async (params?: any) => {
+    list: async (params?: PostListParams) => {
       await delay(300);
       let filtered = [...mockData.posts];
 
@@ -156,7 +199,7 @@ export const mockApi = {
   },
 
   runs: {
-    list: async (params?: any) => {
+    list: async (params?: RunListParams) => {
       await delay(250);
       let filtered = [...mockData.runs];
 
@@ -176,7 +219,7 @@ export const mockApi = {
   },
 
   generator: {
-    generateAll: async (input: any) => {
+    generateAll: async (input: GenerateAllInput) => {
       const runId = `run-${Date.now()}`;
       const newRun: Run = {
         id: runId,
@@ -234,7 +277,7 @@ export const mockApi = {
       return newRun;
     },
 
-    regenerate: async (input: any) => {
+    regenerate: async (input: RegenerateInput) => {
       await delay(1500);
       // Update flagged posts to approved
       input.postIds.forEach((postId: string) => {
@@ -253,7 +296,7 @@ export const mockApi = {
   },
 
   export: {
-    export: async (input: any) => {
+    export: async (input: ExportInput) => {
       await delay(1000);
       const newDeliverable: Deliverable = {
         id: `deliv-${Date.now()}`,
@@ -272,7 +315,7 @@ export const mockApi = {
   },
 
   auth: {
-    login: async (credentials: any) => {
+    login: async (credentials: LoginCredentials) => {
       await delay(500);
       if (credentials.email === 'demo@example.com' && credentials.password === 'demo') {
         return {
@@ -389,9 +432,14 @@ export function setupMockInterceptor(axiosInstance: AxiosInstance) {
         }
 
         return config;
-      } catch (mockError: any) {
+      } catch (mockError: unknown) {
         // Return mocked response
-        if (mockError.response) {
+        if (
+          mockError &&
+          typeof mockError === 'object' &&
+          'response' in mockError &&
+          (mockError as MockRejection).response
+        ) {
           return Promise.reject(mockError);
         }
         throw mockError;

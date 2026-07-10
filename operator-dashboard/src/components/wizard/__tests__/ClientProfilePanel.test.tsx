@@ -2,9 +2,8 @@
  * Comprehensive tests for ClientProfilePanel
  */
 import { describe, it, expect, jest } from '@jest/globals';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { renderWithProviders as render } from '@/__tests__/setup/test-utils';
-import userEvent from '@testing-library/user-event';
 import { ClientProfilePanel } from '../ClientProfilePanel';
 
 describe('ClientProfilePanel', () => {
@@ -41,7 +40,6 @@ describe('ClientProfilePanel', () => {
   });
 
   it('should allow adding pain points', async () => {
-    const user = userEvent.setup();
     const { container } = render(<ClientProfilePanel onSave={mockOnSave} />);
 
     // Find pain point input and add button

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type { DeliverableDetails } from '@/types/domain';
 import { postsApi } from '@/api/posts';
 import { FileText, AlertCircle, Edit, Loader2 } from 'lucide-react';
@@ -13,7 +13,6 @@ interface Props {
 
 export function PostsTab({ deliverable }: Props) {
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
   // Fetch the full post when editing (includes full content)
   const { data: editingPost, isLoading: isLoadingPost } = useQuery({

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- intentional mixed export: shadcn component + `badgeVariants` cva consts share this module by design (HMR/DX rule, not correctness). */
 import * as React from 'react';
 import { memo } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';

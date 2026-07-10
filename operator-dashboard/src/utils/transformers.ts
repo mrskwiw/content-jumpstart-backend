@@ -38,11 +38,11 @@ export function toCamelCase(str: string): string {
  * objectToSnakeCase({ firstName: 'John', lastName: 'Doe' })
  * // { first_name: 'John', last_name: 'Doe' }
  */
-export function objectToSnakeCase<T extends Record<string, any>>(
+export function objectToSnakeCase<T extends Record<string, unknown>>(
   obj: T,
   excludeUndefined = true
-): Record<string, any> {
-  const result: Record<string, any> = {};
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {
     // Skip undefined values if excludeUndefined is true
@@ -54,7 +54,7 @@ export function objectToSnakeCase<T extends Record<string, any>>(
 
     // Recursively convert nested objects
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      result[snakeKey] = objectToSnakeCase(value, excludeUndefined);
+      result[snakeKey] = objectToSnakeCase(value as Record<string, unknown>, excludeUndefined);
     } else {
       result[snakeKey] = value;
     }
@@ -73,17 +73,17 @@ export function objectToSnakeCase<T extends Record<string, any>>(
  * objectToCamelCase({ first_name: 'John', last_name: 'Doe' })
  * // { firstName: 'John', lastName: 'Doe' }
  */
-export function objectToCamelCase<T extends Record<string, any>>(
+export function objectToCamelCase<T extends Record<string, unknown>>(
   obj: T
-): Record<string, any> {
-  const result: Record<string, any> = {};
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(obj)) {
     const camelKey = toCamelCase(key);
 
     // Recursively convert nested objects
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      result[camelKey] = objectToCamelCase(value);
+      result[camelKey] = objectToCamelCase(value as Record<string, unknown>);
     } else {
       result[camelKey] = value;
     }
@@ -102,7 +102,7 @@ export function objectToCamelCase<T extends Record<string, any>>(
  * buildQueryParams({ page: 1, limit: 10, search: undefined })
  * // URLSearchParams with "page=1&limit=10" (search excluded)
  */
-export function buildQueryParams(params: Record<string, any>): URLSearchParams {
+export function buildQueryParams(params: Record<string, unknown>): URLSearchParams {
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -195,9 +195,9 @@ export function normalizeTemplateQuantities(
  * buildUpdatePayload({ name: 'John', email: undefined, age: 30 })
  * // { name: 'John', age: 30 }
  */
-export function buildUpdatePayload<T extends Record<string, any>>(
+export function buildUpdatePayload<T extends Record<string, unknown>>(
   input: Partial<T>
-): Record<string, any> {
+): Record<string, unknown> {
   return objectToSnakeCase(input, true);
 }
 

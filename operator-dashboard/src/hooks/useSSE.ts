@@ -39,6 +39,9 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  // Holds the latest `connect` so the reconnect timer can call it without
+  // referencing `connect` before its own declaration (avoids self-reference).
+  const connectRef = useRef<() => void>(() => {});
 
   const {
     onMessage,
@@ -78,7 +81,7 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
           } else {
             onMessage?.(data);
           }
-        } catch (err) {
+        } catch {
           const parseError = new Error('Failed to parse SSE message');
           setError(parseError);
           onError?.(parseError);
@@ -95,7 +98,7 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
         // Auto-reconnect logic
         if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current += 1;
-          setTimeout(() => connect(), 1000 * reconnectAttemptsRef.current);
+          setTimeout(() => connectRef.current(), 1000 * reconnectAttemptsRef.current);
         }
       };
     } catch (err) {
@@ -105,6 +108,11 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
     }
   }, [url, onMessage, onComplete, onError, autoReconnect, maxReconnectAttempts]);
 
+  // Keep the reconnect timer pointing at the latest `connect`.
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -113,8 +121,12 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
     }
   }, []);
 
+  // Open/close the SSE connection to the external EventSource system on mount
+  // and when `url` changes. `connect` only sets state from async EventSource
+  // event handlers, not synchronously, so this is a valid external-sync effect.
   useEffect(() => {
     if (url) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- connect() only setState()s inside async EventSource handlers
       connect();
     }
 

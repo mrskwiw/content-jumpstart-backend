@@ -579,6 +579,79 @@ const TOOL_MINIMUM_VIABLE_INPUTS: Record<string, { anyOf: string[] }> = {
   platform_strategy: { anyOf: ['posting_frequency', 'tone_preference', 'brand_personality'] },
 };
 
+interface ClientContextPreviewProps {
+  clientData: Client | null;
+  expanded: boolean;
+  onToggle: () => void;
+}
+
+// Client context preview — shows business_description + target_audience the tools
+// will silently consume. Declared at module scope (not inside the panel) so it is
+// a stable component that keeps its state across parent re-renders.
+function ClientContextPreview({ clientData, expanded, onToggle }: ClientContextPreviewProps) {
+  if (!clientData) return null;
+
+  const businessDesc = clientData.businessDescription ?? '';
+  const targetAudience = clientData.idealCustomer ?? '';
+
+  if (!businessDesc && !targetAudience) return null;
+
+  const PREVIEW_LEN = 200;
+
+  const truncate = (text: string) =>
+    text.length > PREVIEW_LEN ? text.slice(0, PREVIEW_LEN).trimEnd() + '…' : text;
+
+  return (
+    <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          Client context the tools will use
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+          {expanded ? (
+            <>Hide <ChevronUp className="h-3.5 w-3.5" /></>
+          ) : (
+            <>Show <ChevronDown className="h-3.5 w-3.5" /></>
+          )}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-neutral-200 px-4 py-3 dark:border-neutral-700 space-y-3">
+          {businessDesc && (
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                Business Description
+              </p>
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                {truncate(businessDesc)}
+              </p>
+            </div>
+          )}
+          {targetAudience && (
+            <div>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                Ideal Customer / Target Audience
+              </p>
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
+                {truncate(targetAudience)}
+              </p>
+            </div>
+          )}
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 flex items-center gap-1">
+            <ExternalLink className="h-3 w-3" />
+            To update these, edit the client profile before running the tools.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ResearchDataCollectionPanel({
   selectedTools,
   clientData,
@@ -603,7 +676,7 @@ export function ResearchDataCollectionPanel({
   useEffect(() => {
     if (!clientData) return;
 
-    const updates: Record<string, any> = {};
+    const updates: Record<string, unknown> = {};
     const autoFilled = new Set<string>();
 
     // Helper: set a field only if not already populated by the user
@@ -759,6 +832,11 @@ export function ResearchDataCollectionPanel({
     }
 
     if (Object.keys(updates).length > 0) {
+      // One-time auto-fill of form fields from asynchronously-loaded external data
+      // (client profile + prior research query results). This is an external->state
+      // sync that only writes fields the user hasn't already filled, not derived
+      // render state, so the setState calls are intentional here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollectedData(prev => ({ ...prev, ...updates }));
       setAutoFilledFields(autoFilled);
     }
@@ -966,71 +1044,6 @@ export function ResearchDataCollectionPanel({
   // Collapsed/expanded state for the client context preview
   const [contextExpanded, setContextExpanded] = useState(false);
 
-  // Client context preview — shows business_description + target_audience the tools will silently consume
-  const ClientContextPreview = () => {
-    if (!clientData) return null;
-
-    const businessDesc = clientData.businessDescription ?? '';
-    const targetAudience = clientData.idealCustomer ?? '';
-
-    if (!businessDesc && !targetAudience) return null;
-
-    const PREVIEW_LEN = 200;
-
-    const truncate = (text: string) =>
-      text.length > PREVIEW_LEN ? text.slice(0, PREVIEW_LEN).trimEnd() + '…' : text;
-
-    return (
-      <div className="mb-6 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800/50">
-        <button
-          type="button"
-          onClick={() => setContextExpanded(prev => !prev)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left"
-        >
-          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Client context the tools will use
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-            {contextExpanded ? (
-              <>Hide <ChevronUp className="h-3.5 w-3.5" /></>
-            ) : (
-              <>Show <ChevronDown className="h-3.5 w-3.5" /></>
-            )}
-          </span>
-        </button>
-
-        {contextExpanded && (
-          <div className="border-t border-neutral-200 px-4 py-3 dark:border-neutral-700 space-y-3">
-            {businessDesc && (
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                  Business Description
-                </p>
-                <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-                  {truncate(businessDesc)}
-                </p>
-              </div>
-            )}
-            {targetAudience && (
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                  Ideal Customer / Target Audience
-                </p>
-                <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap">
-                  {truncate(targetAudience)}
-                </p>
-              </div>
-            )}
-            <p className="text-xs text-neutral-400 dark:text-neutral-500 flex items-center gap-1">
-              <ExternalLink className="h-3 w-3" />
-              To update these, edit the client profile before running the tools.
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // Auto-fill badge component
   const AutoFillBadge = ({ isAutoFilled }: { isAutoFilled: boolean }) => {
     if (!isAutoFilled) return null;
@@ -1061,7 +1074,11 @@ export function ResearchDataCollectionPanel({
           </p>
         </div>
 
-        <ClientContextPreview />
+        <ClientContextPreview
+          clientData={clientData}
+          expanded={contextExpanded}
+          onToggle={() => setContextExpanded(prev => !prev)}
+        />
 
         <div className="space-y-6">
           {(() => {
