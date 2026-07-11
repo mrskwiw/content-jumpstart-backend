@@ -962,6 +962,54 @@ class TestBusinessReportTool:
         )
         assert inputs["company_name"] == "Explicit Co"
 
+    def test_business_report_route_auto_populates_company_name(
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a
+    ):
+        """Route-level guard for the endpoint -> _prepare_inputs wiring.
+
+        Unlike the other business_report tests (which mock execute_research_tool
+        wholesale and never reach _prepare_inputs), this mocks ONLY the leaf
+        tool.execute so the REAL execute_research_tool path runs. It proves the live
+        HTTP route auto-populates company_name from the client and passes it into the
+        tool — so a regression in the route (not just _prepare_inputs in isolation)
+        would fail this test. No external API calls: the tool leaf is stubbed.
+        """
+        from datetime import datetime
+        from backend.services.research_service import RESEARCH_TOOL_MAP
+        from src.research.base import ResearchResult
+
+        fake_result = ResearchResult(
+            tool_name="business_report",
+            project_id=project_for_user_a.id,
+            executed_at=datetime.utcnow(),
+            success=True,
+            outputs={"json": "out.json", "markdown": "out.md", "txt": "out.txt"},
+            metadata={
+                "data": {"company_name": client_for_user_a.name},
+                "duration_seconds": 0.1,
+            },
+            error=None,
+        )
+        ToolClass = RESEARCH_TOOL_MAP["business_report"]
+
+        with patch.object(ToolClass, "execute", return_value=fake_result) as mock_execute:
+            response = client.post(
+                "/api/research/run",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": client_for_user_a.id,
+                    "tool": "business_report",
+                    "params": {"location": "Seattle, WA"},  # company_name omitted
+                },
+            )
+
+        assert response.status_code == 200, response.text
+        # The real _prepare_inputs ran inside execute_research_tool and auto-filled it.
+        assert mock_execute.call_count == 1
+        passed_inputs = mock_execute.call_args.args[0]
+        assert passed_inputs["company_name"] == client_for_user_a.name == "Research Test Client A"
+
     def test_business_report_missing_location(
         self,
         client,
