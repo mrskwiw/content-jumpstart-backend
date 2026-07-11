@@ -336,19 +336,16 @@ def test_project(db_session, test_user, test_client):
 
 
 @pytest.fixture
-def enforce_ownership(monkeypatch):
-    """Enable per-user resource ownership enforcement for tests that verify IDOR protection.
+def enforce_ownership():
+    """No-op retained for backward compatibility with IDOR tests that request it.
 
-    The global default (ENFORCE_RESOURCE_OWNERSHIP=False) uses org-wide access.
-    Add this fixture to any test that checks cross-user access is denied.
-
-    Patches the enforcement-check function directly (more reliable than settings attribute)
-    since Pydantic v2 attribute restoration can interfere when run alongside autouse fixtures.
+    Ownership enforcement is now UNCONDITIONAL in backend/middleware/authorization.py
+    (`_check_ownership` always compares resource.user_id to the current user). The old
+    `_ownership_enforcement_enabled()` feature flag was removed, so there is no longer
+    anything to toggle — tests exercise the always-on behavior directly. The fixture is
+    kept (as a no-op) so the many tests that list it as a parameter still resolve.
     """
-    monkeypatch.setattr(
-        "backend.middleware.authorization._ownership_enforcement_enabled",
-        lambda: True,
-    )
+    return None
 
 
 @pytest.fixture

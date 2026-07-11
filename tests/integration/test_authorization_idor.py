@@ -20,13 +20,11 @@ from backend.utils.auth import get_password_hash
 from tests.fixtures.model_factories import create_test_client
 
 
-@pytest.fixture(autouse=True)
-def _idor_enforce_ownership(monkeypatch):
-    """Enable per-user ownership enforcement for all IDOR tests."""
-    monkeypatch.setattr(
-        "backend.middleware.authorization._ownership_enforcement_enabled",
-        lambda: True,
-    )
+# NOTE: ownership enforcement is now UNCONDITIONAL in
+# backend/middleware/authorization.py (`_check_ownership` always compares
+# resource.user_id to the current user). The old `_ownership_enforcement_enabled()`
+# feature flag was removed, so the autouse monkeypatch that used to force it on is
+# gone — these tests exercise the always-on behavior directly.
 
 
 # ---------------------------------------------------------------------------

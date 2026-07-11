@@ -879,14 +879,36 @@ class TestBusinessReportTool:
         assert "outputs" in data
         assert "metadata" in data
 
+    @patch(
+        "backend.services.research_service.research_service.execute_research_tool",
+        new_callable=AsyncMock,
+    )
     def test_business_report_missing_company_name(
         self,
+        mock_execute_research,
         client,
         auth_headers_user_a,
         project_for_user_a,
         client_for_user_a,
     ):
-        """Test business report with missing company_name"""
+        """Test business report with missing company_name.
+
+        company_name is now Optional and auto-populates from the client name
+        (see BusinessReportInput in backend/schemas/research_schemas.py), so a
+        request omitting it is accepted rather than rejected. execute_research_tool
+        is mocked to keep this a validation/acceptance check with no real tool
+        execution (no Anthropic/SerpAPI/Tavily calls, no credit burn).
+        """
+        mock_execute_research.return_value = {
+            "success": True,
+            "outputs": {
+                "json": "output.json",
+                "markdown": "output.md",
+                "txt": "output.txt",
+            },
+            "metadata": {"data": {"company_name": "Research Test Client A"}},
+        }
+
         response = client.post(
             "/api/research/run",
             headers=auth_headers_user_a,
@@ -896,13 +918,15 @@ class TestBusinessReportTool:
                 "tool": "business_report",
                 "params": {
                     "location": "Seattle, WA",
-                    # Missing company_name
+                    # company_name omitted — auto-populated from the client
                 },
             },
         )
 
-        # company_name is optional (auto-populated from client); tool may fail with 400/422
-        assert response.status_code in [400, 422]
+        # company_name is optional; omitting it is accepted (auto-populated from client)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["tool"] == "business_report"
 
     def test_business_report_missing_location(
         self,
