@@ -22,9 +22,15 @@ class TestDatabaseMigrator:
     """Integration tests for DatabaseMigrator."""
 
     def _add_schema_versions(self, cursor, version: int) -> None:
-        """Add schema_versions table and set version (replaces PRAGMA user_version)."""
-        cursor.execute("CREATE TABLE IF NOT EXISTS schema_versions (version INTEGER PRIMARY KEY)")
-        cursor.execute("INSERT OR REPLACE INTO schema_versions (version) VALUES (?)", (version,))
+        """Set the schema version the migrator reads (SQLite PRAGMA user_version).
+
+        The DatabaseMigrator / schema_inspector version mechanism is
+        ``PRAGMA user_version`` (see backend/services/schema_inspector.py:
+        get_schema_version). There is no ``schema_versions`` table in the app,
+        so the version must be written via the PRAGMA for can_migrate() to see
+        it.
+        """
+        cursor.execute(f"PRAGMA user_version = {int(version)}")
 
     def create_v0_database(self, db_path: Path) -> None:
         """Create a v0 (unversioned) database with basic schema."""

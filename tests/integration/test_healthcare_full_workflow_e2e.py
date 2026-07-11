@@ -299,11 +299,15 @@ class TestHealthcareFullWorkflow:
             f"/api/research/results?client_id={self.created_client_id}", headers=self.headers
         )
         assert response.status_code == 200
+        # /api/research/results returns a ResearchResultListResponse wrapper
+        # ({results, total, project_id, client_id}), not a bare list.
         stored_results = response.json()
+        stored_count = stored_results["total"]
+        assert len(stored_results["results"]) == stored_count
         assert (
-            len(stored_results) == executed_count
-        ), f"Expected {executed_count} results, got {len(stored_results)}"
-        print(f"[TEST] ✓ Verified {len(stored_results)} research results stored in database")
+            stored_count == executed_count
+        ), f"Expected {executed_count} results, got {stored_count}"
+        print(f"[TEST] ✓ Verified {stored_count} research results stored in database")
 
         # ========================================
         # STEP 5: Generate Content for All Platforms
@@ -358,7 +362,7 @@ class TestHealthcareFullWorkflow:
         print(f"✓ Client created: {client_data['name']}")
         print(f"✓ Project created: {project_data['name']}")
         print(f"✓ Research tools executed: {len(research_tools)}")
-        print(f"✓ Research results stored: {len(stored_results)}")
+        print(f"✓ Research results stored: {stored_count}")
         print(f"✓ Platforms generated: {len(platforms)}")
         print("✓ Full workflow completed successfully!")
         print("=" * 70)

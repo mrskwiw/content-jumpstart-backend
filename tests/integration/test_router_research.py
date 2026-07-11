@@ -879,14 +879,36 @@ class TestBusinessReportTool:
         assert "outputs" in data
         assert "metadata" in data
 
+    @patch(
+        "backend.services.research_service.research_service.execute_research_tool",
+        new_callable=AsyncMock,
+    )
     def test_business_report_missing_company_name(
         self,
+        mock_execute_research,
         client,
         auth_headers_user_a,
         project_for_user_a,
         client_for_user_a,
     ):
-        """Test business report with missing company_name"""
+        """Test business report with missing company_name.
+
+        company_name is now Optional and auto-populates from the client name
+        (see BusinessReportInput in backend/schemas/research_schemas.py), so a
+        request omitting it is accepted rather than rejected. execute_research_tool
+        is mocked to keep this a validation/acceptance check with no real tool
+        execution (no Anthropic/SerpAPI/Tavily calls, no credit burn).
+        """
+        mock_execute_research.return_value = {
+            "success": True,
+            "outputs": {
+                "json": "output.json",
+                "markdown": "output.md",
+                "txt": "output.txt",
+            },
+            "metadata": {"data": {"company_name": "Research Test Client A"}},
+        }
+
         response = client.post(
             "/api/research/run",
             headers=auth_headers_user_a,
@@ -896,13 +918,97 @@ class TestBusinessReportTool:
                 "tool": "business_report",
                 "params": {
                     "location": "Seattle, WA",
-                    # Missing company_name
+                    # company_name omitted — auto-populated from the client
                 },
             },
         )
 
-        # company_name is optional (auto-populated from client); tool may fail with 400/422
-        assert response.status_code in [400, 422]
+        # company_name is optional; omitting it is accepted (auto-populated from client)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["tool"] == "business_report"
+
+    def test_business_report_auto_populates_company_name_from_client(
+        self, project_for_user_a, client_for_user_a
+    ):
+        """Directly verify the auto-population path the endpoint test's mock bypasses.
+
+        The endpoint mocks execute_research_tool, but the actual auto-population lives
+        in ResearchService._prepare_inputs (backend/services/research_service.py:1264):
+        when params omit company_name, it is filled from the client's name. This test
+        exercises that branch with no HTTP / external calls.
+        """
+        from backend.services.research_service import ResearchService
+
+        inputs = ResearchService()._prepare_inputs(
+            project=project_for_user_a,
+            client=client_for_user_a,
+            tool_name="business_report",
+            params={"location": "Seattle, WA"},  # company_name omitted
+        )
+        assert inputs["company_name"] == client_for_user_a.name == "Research Test Client A"
+
+    def test_business_report_keeps_explicit_company_name(
+        self, project_for_user_a, client_for_user_a
+    ):
+        """The auto-population must NOT override an explicitly provided company_name."""
+        from backend.services.research_service import ResearchService
+
+        inputs = ResearchService()._prepare_inputs(
+            project=project_for_user_a,
+            client=client_for_user_a,
+            tool_name="business_report",
+            params={"company_name": "Explicit Co", "location": "Seattle, WA"},
+        )
+        assert inputs["company_name"] == "Explicit Co"
+
+    def test_business_report_route_auto_populates_company_name(
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a
+    ):
+        """Route-level guard for the endpoint -> _prepare_inputs wiring.
+
+        Unlike the other business_report tests (which mock execute_research_tool
+        wholesale and never reach _prepare_inputs), this mocks ONLY the leaf
+        tool.execute so the REAL execute_research_tool path runs. It proves the live
+        HTTP route auto-populates company_name from the client and passes it into the
+        tool — so a regression in the route (not just _prepare_inputs in isolation)
+        would fail this test. No external API calls: the tool leaf is stubbed.
+        """
+        from datetime import datetime
+        from backend.services.research_service import RESEARCH_TOOL_MAP
+        from src.research.base import ResearchResult
+
+        fake_result = ResearchResult(
+            tool_name="business_report",
+            project_id=project_for_user_a.id,
+            executed_at=datetime.utcnow(),
+            success=True,
+            outputs={"json": "out.json", "markdown": "out.md", "txt": "out.txt"},
+            metadata={
+                "data": {"company_name": client_for_user_a.name},
+                "duration_seconds": 0.1,
+            },
+            error=None,
+        )
+        ToolClass = RESEARCH_TOOL_MAP["business_report"]
+
+        with patch.object(ToolClass, "execute", return_value=fake_result) as mock_execute:
+            response = client.post(
+                "/api/research/run",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": client_for_user_a.id,
+                    "tool": "business_report",
+                    "params": {"location": "Seattle, WA"},  # company_name omitted
+                },
+            )
+
+        assert response.status_code == 200, response.text
+        # The real _prepare_inputs ran inside execute_research_tool and auto-filled it.
+        assert mock_execute.call_count == 1
+        passed_inputs = mock_execute.call_args.args[0]
+        assert passed_inputs["company_name"] == client_for_user_a.name == "Research Test Client A"
 
     def test_business_report_missing_location(
         self,

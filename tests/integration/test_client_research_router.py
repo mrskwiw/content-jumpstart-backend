@@ -23,8 +23,8 @@ from backend.utils.auth import get_password_hash, create_access_token
 
 def _make_fake_result():
     """Build a ClientResearchResult with known field values for assertion."""
-    from project.src.agents.client_research_agent import ClientResearchResult
-    from project.src.models.client_brief import ClientBrief, DataUsagePreference
+    from src.agents.client_research_agent import ClientResearchResult
+    from src.models.client_brief import ClientBrief, DataUsagePreference
 
     brief = ClientBrief(
         company_name="Acme Agency",
@@ -256,8 +256,8 @@ class TestResearchBriefEndpoint:
     def test_includes_stub_warning_when_provider_is_stub(
         self, client, auth_headers, user_with_credits
     ):
-        from project.src.agents.client_research_agent import ClientResearchResult
-        from project.src.models.client_brief import ClientBrief, DataUsagePreference
+        from src.agents.client_research_agent import ClientResearchResult
+        from src.models.client_brief import ClientBrief, DataUsagePreference
 
         stub_result = ClientResearchResult(
             brief=ClientBrief(
@@ -421,8 +421,8 @@ class TestResearchApplyEndpoint:
         client_with_location.industry = "Existing industry"
         db_session.commit()
 
-        from project.src.agents.client_research_agent import ClientResearchResult
-        from project.src.models.client_brief import ClientBrief, DataUsagePreference
+        from src.agents.client_research_agent import ClientResearchResult
+        from src.models.client_brief import ClientBrief, DataUsagePreference
 
         # Simulate what the agent returns when Claude couldn't find these fields:
         # _convert_to_client_brief fills in "No description provided" / "Not specified".
