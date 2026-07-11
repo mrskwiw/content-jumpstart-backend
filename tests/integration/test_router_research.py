@@ -928,6 +928,40 @@ class TestBusinessReportTool:
         data = response.json()
         assert data["tool"] == "business_report"
 
+    def test_business_report_auto_populates_company_name_from_client(
+        self, project_for_user_a, client_for_user_a
+    ):
+        """Directly verify the auto-population path the endpoint test's mock bypasses.
+
+        The endpoint mocks execute_research_tool, but the actual auto-population lives
+        in ResearchService._prepare_inputs (backend/services/research_service.py:1264):
+        when params omit company_name, it is filled from the client's name. This test
+        exercises that branch with no HTTP / external calls.
+        """
+        from backend.services.research_service import ResearchService
+
+        inputs = ResearchService()._prepare_inputs(
+            project=project_for_user_a,
+            client=client_for_user_a,
+            tool_name="business_report",
+            params={"location": "Seattle, WA"},  # company_name omitted
+        )
+        assert inputs["company_name"] == client_for_user_a.name == "Research Test Client A"
+
+    def test_business_report_keeps_explicit_company_name(
+        self, project_for_user_a, client_for_user_a
+    ):
+        """The auto-population must NOT override an explicitly provided company_name."""
+        from backend.services.research_service import ResearchService
+
+        inputs = ResearchService()._prepare_inputs(
+            project=project_for_user_a,
+            client=client_for_user_a,
+            tool_name="business_report",
+            params={"company_name": "Explicit Co", "location": "Seattle, WA"},
+        )
+        assert inputs["company_name"] == "Explicit Co"
+
     def test_business_report_missing_location(
         self,
         client,
