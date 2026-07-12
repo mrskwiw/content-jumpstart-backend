@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import get_db
+from backend.middleware.auth_dependency import get_current_user
 from backend.utils.db_monitor import get_pool_events, get_pool_status
 from backend.utils.query_cache import clear_cache, get_cache_info, reset_cache_stats
 from backend.utils.query_profiler import (
@@ -50,14 +51,14 @@ async def liveness_check() -> Dict[str, Any]:
     return {"status": "ok"}
 
 
-@router.get("/database")
+@router.get("/database", dependencies=[Depends(get_current_user)])
 async def database_health() -> Dict[str, Any]:
     """Return database connection pool details."""
 
     return get_pool_status()
 
 
-@router.get("/database/events")
+@router.get("/database/events", dependencies=[Depends(get_current_user)])
 async def database_events() -> Dict[str, Any]:
     """Return database pool event counters."""
 
@@ -99,7 +100,7 @@ def _cache_recommendations(stats: Dict[str, Any]) -> List[Dict[str, str]]:
     return recommendations
 
 
-@router.get("/cache")
+@router.get("/cache", dependencies=[Depends(get_current_user)])
 async def cache_health(tier: Optional[str] = None) -> Dict[str, Any]:
     """Return cache statistics for one tier or all tiers."""
 
@@ -120,7 +121,7 @@ async def cache_health(tier: Optional[str] = None) -> Dict[str, Any]:
     }
 
 
-@router.post("/cache/clear")
+@router.post("/cache/clear", dependencies=[Depends(get_current_user)])
 async def clear_cache_health(
     tier: Optional[str] = Query(default=None),
     key_prefix: Optional[str] = Query(default=None),
@@ -138,7 +139,7 @@ async def clear_cache_health(
     }
 
 
-@router.post("/cache/reset-stats")
+@router.post("/cache/reset-stats", dependencies=[Depends(get_current_user)])
 async def reset_cache_health() -> Dict[str, Any]:
     """Reset cache statistics counters."""
 
@@ -146,7 +147,7 @@ async def reset_cache_health() -> Dict[str, Any]:
     return {"success": True, "stats": get_cache_info()}
 
 
-@router.get("/full")
+@router.get("/full", dependencies=[Depends(get_current_user)])
 async def full_health() -> Dict[str, Any]:
     """Aggregate API, database, cache, and profiling health."""
 
@@ -174,7 +175,7 @@ async def full_health() -> Dict[str, Any]:
     }
 
 
-@router.get("/profiling")
+@router.get("/profiling", dependencies=[Depends(get_current_user)])
 async def profiling_overview() -> Dict[str, Any]:
     """Return a profiling summary for the health dashboard."""
 
@@ -186,7 +187,7 @@ async def profiling_overview() -> Dict[str, Any]:
     return report
 
 
-@router.get("/profiling/queries")
+@router.get("/profiling/queries", dependencies=[Depends(get_current_user)])
 async def profiling_queries(
     min_execution_count: int = Query(default=0, ge=0),
     min_avg_time_ms: float = Query(default=0, ge=0),
@@ -224,7 +225,7 @@ async def profiling_queries(
     }
 
 
-@router.get("/profiling/slow-queries")
+@router.get("/profiling/slow-queries", dependencies=[Depends(get_current_user)])
 async def profiling_slow_queries(
     since_minutes: int = Query(default=60, ge=1),
     very_slow_only: bool = Query(default=False),
@@ -247,7 +248,7 @@ async def profiling_slow_queries(
     }
 
 
-@router.post("/profiling/reset")
+@router.post("/profiling/reset", dependencies=[Depends(get_current_user)])
 async def profiling_reset() -> Dict[str, Any]:
     """Reset profiling statistics."""
 

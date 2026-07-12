@@ -14,25 +14,14 @@ from backend.models import User
 from backend.utils.auth import get_password_hash
 
 # ---------------------------------------------------------------------------
-# KNOWN REAL APP BUG (BUGS #186) — these tests intentionally FAIL (not xfail/skip).
+# BUGS #186 — RESOLVED 2026-07-12. These tests now PASS (green).
 #
-# This module encodes the INTENDED Postgres/Supabase contract for the database
-# router: a GET /status endpoint, GET /backup returning pg_dump-style *instructions*
-# (JSON), and POST /restore + POST /merge returning 501 Not Implemented.
-#
-# The live router `backend/routers/database.py` was NEVER migrated off SQLite:
-#   * there is no GET /api/database/status endpoint (returns 404);
-#   * GET /api/database/backup streams a .db FileResponse (no pg_dump text);
-#   * POST /api/database/restore and /merge run live SQLite operations
-#     (require a file upload → 422, never 501).
-# On the real Postgres-only deployment `get_database_path()` (database.py:69)
-# raises HTTP 400 for a non-SQLite URL, so backup/restore/merge are broken in prod.
-#
-# These assertions are deliberately kept RED (not xfailed, not rewritten to bless
-# the dead SQLite path) so the broken production surface keeps tripping the suite
-# until the router is reworked — xfail-ing a live prod bug would hide it right as
-# we harden CI. Consequently the nightly integration job STAYS report-only until
-# BUGS #186 is fixed; only then can it be ratcheted to blocking.
+# `backend/routers/database.py` was migrated off SQLite to the Postgres/Supabase
+# contract encoded here: GET /status, GET /backup returning pg_dump-style
+# *instructions* (JSON), and POST /restore + POST /merge returning 501. The old
+# SQLite file backup/restore/merge operations (get_database_path, DatabaseMigrator,
+# DatabaseMerger, restore_to_restore_point) were removed. The legacy SQLite unit
+# tests in backend/tests/test_database_backup.py were reconciled accordingly.
 # ---------------------------------------------------------------------------
 
 

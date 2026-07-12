@@ -12,17 +12,38 @@ Tests cover:
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # Import from backend (conftest.py sets up environment)
 from main import app
+from backend.middleware.auth_dependency import get_current_user
 from backend.utils.query_profiler import record_query, reset_statistics
 from backend.utils.query_cache import cache_short, clear_cache, reset_cache_stats
 
 
+def _fake_authenticated_user():
+    """Stand-in authenticated superuser for the gated diagnostic endpoints."""
+    user = MagicMock()
+    user.is_active = True
+    user.is_superuser = True
+    user.email = "test-admin@example.com"
+    return user
+
+
 @pytest.fixture
 def client():
-    """Create test client"""
+    """Authenticated test client — diagnostic endpoints are gated behind get_current_user."""
+    app.dependency_overrides[get_current_user] = _fake_authenticated_user
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture
+def unauth_client():
+    """Unauthenticated test client for verifying the auth gate rejects anonymous access."""
+    app.dependency_overrides.pop(get_current_user, None)
     return TestClient(app)
 
 
@@ -36,6 +57,33 @@ def reset_monitoring():
     reset_statistics()
     clear_cache()
     reset_cache_stats()
+
+
+class TestDiagnosticEndpointsRequireAuth:
+    """Bug #185: diagnostic endpoints must not be reachable anonymously."""
+
+    @pytest.mark.parametrize(
+        "method,path",
+        [
+            ("get", "/api/health/database"),
+            ("get", "/api/health/database/events"),
+            ("get", "/api/health/cache"),
+            ("post", "/api/health/cache/clear"),
+            ("post", "/api/health/cache/reset-stats"),
+            ("get", "/api/health/full"),
+            ("get", "/api/health/profiling"),
+            ("get", "/api/health/profiling/queries"),
+            ("get", "/api/health/profiling/slow-queries"),
+            ("post", "/api/health/profiling/reset"),
+        ],
+    )
+    def test_gated_endpoints_reject_anonymous(self, unauth_client, method, path):
+        response = getattr(unauth_client, method)(path)
+        assert response.status_code in (401, 403)
+
+    def test_public_probes_stay_open(self, unauth_client):
+        assert unauth_client.get("/api/health").status_code == 200
+        assert unauth_client.get("/api/health/live").status_code == 200
 
 
 class TestBasicHealthEndpoints:
@@ -430,7 +478,10 @@ class TestErrorConditions:
     @patch("routers.health.get_pool_status")
     def test_database_health_with_error(self, mock_get_pool_status, client):
         """Test database health when pool status raises error"""
-        mock_get_pool_status.return_value = {"error": "Database not available", "has_pool": False}
+        mock_get_pool_status.return_value = {
+            "error": "Database not available",
+            "has_pool": False,
+        }
 
         response = client.get("/api/health/database")
 
@@ -481,7 +532,12 @@ class TestResponseFormats:
         data = response.json()
 
         # Required sections
-        required_sections = ["summary", "top_slowest_queries", "recommendations", "thresholds"]
+        required_sections = [
+            "summary",
+            "top_slowest_queries",
+            "recommendations",
+            "thresholds",
+        ]
         for section in required_sections:
             assert section in data
 

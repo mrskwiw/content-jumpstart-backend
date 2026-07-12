@@ -106,7 +106,7 @@ async def get_all_metrics(
     )
 
 
-@router.get("/prometheus")
+@router.get("/prometheus", dependencies=[Depends(get_current_user)])
 async def get_prometheus_metrics():
     """
     Get metrics in Prometheus exposition format.

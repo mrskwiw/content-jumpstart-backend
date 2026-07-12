@@ -774,7 +774,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health/database/events": {
@@ -798,7 +803,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health/cache": {
@@ -810,6 +820,11 @@
         "summary": "Cache Health",
         "description": "Return cache statistics for one tier or all tiers.",
         "operationId": "cache_health_api_health_cache_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
         "parameters": [
           {
             "name": "tier",
@@ -862,6 +877,11 @@
         "summary": "Clear Cache Health",
         "description": "Clear cache entries and return before/after statistics.",
         "operationId": "clear_cache_health_api_health_cache_clear_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
         "parameters": [
           {
             "name": "tier",
@@ -942,7 +962,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health/full": {
@@ -966,7 +991,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health/profiling": {
@@ -990,7 +1020,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health/profiling/queries": {
@@ -1002,6 +1037,11 @@
         "summary": "Profiling Queries",
         "description": "Return aggregated query statistics.",
         "operationId": "profiling_queries_api_health_profiling_queries_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
         "parameters": [
           {
             "name": "min_execution_count",
@@ -1070,6 +1110,11 @@
         "summary": "Profiling Slow Queries",
         "description": "Return the recent slow query buffer.",
         "operationId": "profiling_slow_queries_api_health_profiling_slow_queries_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
         "parameters": [
           {
             "name": "since_minutes",
@@ -1150,7 +1195,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/clients/": {
@@ -7109,18 +7159,55 @@
         ]
       }
     },
+    "/api/database/status": {
+      "get": {
+        "tags": [
+          "Database",
+          "database"
+        ],
+        "summary": "Database Status",
+        "description": "Report database connectivity, backend engine, host, and schema version.",
+        "operationId": "database_status_api_database_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Database Status Api Database Status Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/database/backup": {
       "get": {
         "tags": [
           "Database",
           "database"
         ],
-        "summary": "Download Database Backup",
-        "description": "Download a backup of the SQLite database.\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nCreates a timestamped copy of the database file and returns it for download.\nThis endpoint downloads the ENTIRE database including all users' data.\n\nArgs:\n    admin: Authenticated admin user (verified by require_admin dependency)\n\nReturns:\n    FileResponse: Database file download\n\nRaises:\n    HTTPException 403: User is not an admin\n    HTTPException: If database is not SQLite or file cannot be accessed",
-        "operationId": "download_database_backup_api_database_backup_get",
+        "summary": "Backup Instructions",
+        "description": "Return instructions for backing up the PostgreSQL database.\n\nSQLite file backups no longer apply; use ``pg_dump`` or Supabase's managed\nbackups instead of downloading a ``.db`` file.",
+        "operationId": "backup_instructions_api_database_backup_get",
         "responses": {
           "200": {
-            "description": "Successful Response"
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Backup Instructions Api Database Backup Get"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -7136,19 +7223,9 @@
           "Database",
           "database"
         ],
-        "summary": "Restore Database From Backup",
-        "description": "Restore database from an uploaded SQLite backup file.\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nBehaviour:\n- File-based SQLite: replaces the database file on disk (preferred).\n- In-memory SQLite (PostgreSQL unavailable at startup): loads the backup\n  into the live in-memory engine via the sqlite3 backup API so the\n  restored data is immediately available for the current session.\n\n\u26a0\ufe0f **DESTRUCTIVE OPERATION**: All current data will be replaced.\n\nArgs:\n    file: Uploaded SQLite .db backup file\n    admin: Authenticated admin user (verified by require_admin dependency)\n    db: Database session (closed before restore)\n\nReturns:\n    dict: Status message and restore details\n\nRaises:\n    HTTPException 400: Invalid file\n    HTTPException 403: Not an admin\n    HTTPException 500: Restore failed",
-        "operationId": "restore_database_from_backup_api_database_restore_post",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_restore_database_from_backup_api_database_restore_post"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "Restore Not Available",
+        "description": "SQLite restore has been removed; restore PostgreSQL via pg_restore/Supabase.",
+        "operationId": "restore_not_available_api_database_restore_post",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7156,17 +7233,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Restore Database From Backup Api Database Restore Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "title": "Response Restore Not Available Api Database Restore Post"
                 }
               }
             }
@@ -7177,85 +7244,6 @@
             "HTTPBearerWith401": []
           }
         ]
-      }
-    },
-    "/api/database/restore-points": {
-      "get": {
-        "tags": [
-          "Database",
-          "database"
-        ],
-        "summary": "List Restore Points",
-        "description": "List available restore points (pre-restore backups from previous restore operations).\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nReturns backups created by the restore operation, allowing admins to revert\nto the state before a restore if needed.\n\nReturns:\n    dict: List of restore points with timestamps and file sizes",
-        "operationId": "list_restore_points_api_database_restore_points_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response List Restore Points Api Database Restore Points Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearerWith401": []
-          }
-        ]
-      }
-    },
-    "/api/database/restore-to-point": {
-      "post": {
-        "tags": [
-          "Database",
-          "database"
-        ],
-        "summary": "Restore To Restore Point",
-        "description": "Revert database to a previous restore point (pre-restore backup).\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nThis allows undoing a restore operation by reverting to the database state\nthat existed before the restore was performed.\n\nArgs:\n    filename: Name of the pre_restore_backup_*.db file to restore to\n    admin: Authenticated admin user (verified by require_admin dependency)\n\nReturns:\n    dict: Status message and restore details\n\nRaises:\n    HTTPException 400: Invalid filename or file not found\n    HTTPException 403: Not an admin\n    HTTPException 500: Restore failed",
-        "operationId": "restore_to_restore_point_api_database_restore_to_point_post",
-        "security": [
-          {
-            "HTTPBearerWith401": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "filename",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Filename"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Restore To Restore Point Api Database Restore To Point Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/database/merge": {
@@ -7264,36 +7252,9 @@
           "Database",
           "database"
         ],
-        "summary": "Merge Database From Backup",
-        "description": "Merge content records from an uploaded SQLite backup into the live database.\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nUnlike a full restore, this operation **does not replace existing data**.\nIt imports clients, projects, runs, posts, briefs, research_results,\ndeliverables, communications, mined_stories, and story_usage.\n\nThe following are **never overwritten**: users, credit_transactions,\ncredit_packages, settings, stripe_payments, deletion_audit_log.\n\n- Primary and foreign keys are remapped to avoid conflicts.\n- Source users are matched to target users by email; unmatched source\n  users are assigned to the admin user.\n- Duplicate records (same client name, same project/client, etc.) are\n  skipped automatically.\n\nArgs:\n    file: Uploaded SQLite .db backup file to merge from\n    dry_run: If True, return a preview of what would be merged without\n        writing any data (the full merge logic runs inside a rolled-back\n        transaction, so counts are accurate)\n    admin: Authenticated admin user (verified by require_admin dependency)\n\nReturns:\n    dict: Per-table merged/skipped counts, user mapping, and warnings\n\nRaises:\n    HTTPException 400: Invalid file\n    HTTPException 403: Not an admin\n    HTTPException 500: Merge failed",
-        "operationId": "merge_database_from_backup_api_database_merge_post",
-        "security": [
-          {
-            "HTTPBearerWith401": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "dry_run",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Dry Run"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_merge_database_from_backup_api_database_merge_post"
-              }
-            }
-          }
-        },
+        "summary": "Merge Not Available",
+        "description": "SQLite merge has been removed; not supported on PostgreSQL.",
+        "operationId": "merge_not_available_api_database_merge_post",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7301,22 +7262,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Merge Database From Backup Api Database Merge Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "title": "Response Merge Not Available Api Database Merge Post"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/database/cleanup-backups": {
@@ -7325,26 +7281,9 @@
           "Database",
           "database"
         ],
-        "summary": "Cleanup Old Backups",
-        "description": "Delete backup files older than specified number of days.\n\n**ADMIN ONLY**: Requires superuser privileges.\n\nArgs:\n    days: Number of days to keep backups (default: 30)\n    admin: Authenticated admin user (verified by require_admin dependency)\n\nReturns:\n    dict: Number of backups deleted\n\nRaises:\n    HTTPException 403: User is not an admin",
-        "operationId": "cleanup_old_backups_api_database_cleanup_backups_delete",
-        "security": [
-          {
-            "HTTPBearerWith401": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "days",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 30,
-              "title": "Days"
-            }
-          }
-        ],
+        "summary": "Cleanup Backups Not Available",
+        "description": "Local SQLite backup files no longer exist; cleanup does not apply.",
+        "operationId": "cleanup_backups_not_available_api_database_cleanup_backups_delete",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7352,22 +7291,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "title": "Response Cleanup Old Backups Api Database Cleanup Backups Delete"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "title": "Response Cleanup Backups Not Available Api Database Cleanup Backups Delete"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/cache/cache/stats": {
@@ -7571,7 +7505,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/stripe/checkout": {
@@ -8411,20 +8350,6 @@
         ],
         "title": "BillingPortalResponse"
       },
-      "Body_merge_database_from_backup_api_database_merge_post": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_merge_database_from_backup_api_database_merge_post"
-      },
       "Body_parse_brief_file_api_briefs_parse_post": {
         "properties": {
           "file": {
@@ -8438,20 +8363,6 @@
           "file"
         ],
         "title": "Body_parse_brief_file_api_briefs_parse_post"
-      },
-      "Body_restore_database_from_backup_api_database_restore_post": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_restore_database_from_backup_api_database_restore_post"
       },
       "Body_upload_brief_file_api_briefs_upload_post": {
         "properties": {

@@ -180,72 +180,12 @@ class TestEndpointRouteRegistration:
             ), f"Expected endpoint {path} not found in router. Found: {route_paths}"
 
 
-class TestDatabasePathValidation:
-    """Tests for database path validation."""
-
-    def test_non_sqlite_rejected(self):
-        """Non-SQLite databases should be rejected."""
-        from backend.routers.database import get_database_path
-
-        with patch("backend.routers.database.engine") as mock_engine:
-            mock_engine.url = "postgresql://localhost/db"
-
-            with pytest.raises(HTTPException) as exc_info:
-                get_database_path()
-
-            assert exc_info.value.status_code == 400
-            assert "SQLite" in exc_info.value.detail
-
-    def test_missing_db_file_rejected(self):
-        """Missing database file should return 404."""
-        from backend.routers.database import get_database_path
-
-        with patch("backend.routers.database.engine") as mock_engine:
-            mock_engine.url = "sqlite:///nonexistent/path/db.db"
-
-            with pytest.raises(HTTPException) as exc_info:
-                get_database_path()
-
-            assert exc_info.value.status_code == 404
-
-
-class TestRestoreValidation:
-    """Tests for restore file validation."""
-
-    def test_non_db_file_rejected(self):
-        """Non-.db files should be rejected."""
-        # This would be tested via TestClient with actual file upload
-        # For unit test, we verify the validation logic exists
-        pass
-
-    def test_invalid_sqlite_rejected(self):
-        """Invalid SQLite files should be rejected."""
-        # This would be tested with actual file content
-        pass
-
-    def test_restore_point_path_traversal_rejected(self):
-        """Bug #180: a restore-point filename that escapes data/backups is rejected.
-
-        The prefix/suffix checks alone do not stop traversal
-        (e.g. 'pre_restore_backup_/../../x.db' satisfies both), so the
-        confinement check must reject it with HTTP 400 before touching disk.
-        """
-        import asyncio
-
-        from backend.routers.database import restore_to_restore_point
-
-        admin = MagicMock()
-        admin.email = "admin@example.com"
-
-        malicious = "pre_restore_backup_/../../../../tmp/evil.db"
-
-        with pytest.raises(HTTPException) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
-                restore_to_restore_point(filename=malicious, admin=admin)
-            )
-
-        assert exc_info.value.status_code == 400
-        assert "Invalid restore point filename" in exc_info.value.detail
+# NOTE: The former TestDatabasePathValidation and TestRestoreValidation classes
+# were removed when the router dropped SQLite file backup/restore (Bug #186).
+# get_database_path() and restore_to_restore_point() no longer exist — the
+# SQLite restore path (and its Bug #180 traversal risk) is gone entirely. The
+# Postgres contract (status/backup-instructions/restore-501/merge-501) is
+# covered by tests/integration/test_router_database.py.
 
 
 # Run tests if executed directly
