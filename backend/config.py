@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     # Database (use DATA_DIR constant defined at module level)
     DATABASE_URL: str = f"sqlite:///{DATA_DIR / 'operator.db'}"
 
+    # When True, a failed connection to a configured PostgreSQL database is
+    # allowed to silently fall back to an ephemeral in-memory SQLite database.
+    # This is a DEV-ONLY convenience: in production it hides a real outage and
+    # runs on data that vanishes on restart. Default False so a broken
+    # DATABASE_URL fails loudly at startup instead of degrading silently.
+    ALLOW_SQLITE_FALLBACK: bool = False
+
     # Database Connection Pool Settings
     # These settings optimize connection management for production PostgreSQL
     # For SQLite (default), pooling is limited due to single-threaded nature

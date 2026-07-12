@@ -5,6 +5,7 @@ Database configuration and session management.
 from typing import Generator
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.engine.url import make_url
@@ -14,39 +15,44 @@ from backend.config import settings
 from backend.utils.query_profiler import enable_sqlalchemy_profiling
 from src.config.pricing import PricingConfig
 
-# Create SQLAlchemy engine with optimized connection pooling
-database_url = make_url(settings.DATABASE_URL)
 
-print(f">> DEBUG: Creating database engine for {database_url.drivername}")
+def _build_engine() -> Engine:
+    """Create the SQLAlchemy engine from ``settings.DATABASE_URL``.
 
-# SQLite-specific connection args (single-threaded, no real pooling)
-if database_url.drivername.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
-    # SQLite uses NullPool or SingletonThreadPool by default
-    # Connection pooling settings don't apply
-    try:
-        engine = create_engine(
-            settings.DATABASE_URL,
-            connect_args=connect_args,
-            echo_pool=settings.DB_ECHO_POOL,
-        )
-        # Enable WAL mode so readers (e.g. login) are not blocked by concurrent
-        # writers. Without WAL, SQLite serialises all reads during any write,
-        # causing login to hang while a 60s research tool holds an open session.
-        with engine.connect() as _wal_conn:
-            _wal_conn.execute(text("PRAGMA journal_mode=WAL"))
-            _wal_conn.execute(text("PRAGMA busy_timeout=5000"))
-        print(">> DEBUG: SQLite engine created successfully (WAL mode enabled)")
-    except Exception as e:
-        print(f">> ERROR: Failed to create SQLite engine: {e}")
-        raise
-else:
+    SQLite: enables WAL mode so reads aren't blocked by a concurrent writer.
+    PostgreSQL/MySQL: applies pool tuning and verifies connectivity at startup.
+    If the production connection fails, this raises rather than silently
+    degrading to ephemeral in-memory SQLite (a silent fallback once hid a prod
+    outage for months — see BUGS.md / DATA-01), unless
+    ``settings.ALLOW_SQLITE_FALLBACK`` explicitly opts into the dev-only fallback.
+    """
+    database_url = make_url(settings.DATABASE_URL)
+    print(f">> DEBUG: Creating database engine for {database_url.drivername}")
+
+    # SQLite-specific connection args (single-threaded, no real pooling)
+    if database_url.drivername.startswith("sqlite"):
+        try:
+            eng = create_engine(
+                settings.DATABASE_URL,
+                connect_args={"check_same_thread": False},
+                echo_pool=settings.DB_ECHO_POOL,
+            )
+            # WAL mode so readers (e.g. login) aren't blocked by concurrent
+            # writers (e.g. a 60s research tool holding an open session).
+            with eng.connect() as _wal_conn:
+                _wal_conn.execute(text("PRAGMA journal_mode=WAL"))
+                _wal_conn.execute(text("PRAGMA busy_timeout=5000"))
+            print(">> DEBUG: SQLite engine created successfully (WAL mode enabled)")
+            return eng
+        except Exception as e:
+            print(f">> ERROR: Failed to create SQLite engine: {e}")
+            raise
+
     # PostgreSQL/MySQL connection pooling (production)
-    connect_args = {}
     try:
-        engine = create_engine(
+        eng = create_engine(
             settings.DATABASE_URL,
-            connect_args=connect_args,
+            connect_args={},
             pool_size=settings.DB_POOL_SIZE,
             max_overflow=settings.DB_MAX_OVERFLOW,
             pool_recycle=settings.DB_POOL_RECYCLE,
@@ -56,56 +62,42 @@ else:
         )
         print(">> DEBUG: PostgreSQL engine created successfully")
 
-        # Test connection immediately
+        # Test the connection immediately so a bad DATABASE_URL surfaces now,
+        # at startup, rather than on the first request.
         print(">> DEBUG: Testing PostgreSQL connection...")
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text("SELECT 1"))
-                result.fetchone()
-            print(">> DEBUG: PostgreSQL connection test PASSED")
-        except OperationalError as e:
-            error_msg = str(e.orig) if hasattr(e, "orig") else str(e)
-            print(">> WARNING: PostgreSQL connection FAILED")
-            print(f">> WARNING: Details: {error_msg}")
-
-            # Fall back to in-memory SQLite
-            print("=" * 60)
-            print(">> FALLBACK: Using in-memory SQLite database")
-            print(">> WARNING: Data will NOT persist between restarts")
-            print(">> WARNING: This is suitable for development/testing only")
-            print("=" * 60)
-
-            # Create in-memory SQLite engine
-            engine = create_engine(
-                "sqlite:///:memory:",
-                connect_args={"check_same_thread": False},
-                echo_pool=settings.DB_ECHO_POOL,
-            )
-            print(">> DEBUG: In-memory SQLite fallback engine created")
-
-        except Exception as e:
-            print(f">> WARNING: Unexpected database error: {e}")
-            print(">> FALLBACK: Using in-memory SQLite database")
-
-            # Create in-memory SQLite engine
-            engine = create_engine(
-                "sqlite:///:memory:",
-                connect_args={"check_same_thread": False},
-                echo_pool=settings.DB_ECHO_POOL,
-            )
-            print(">> DEBUG: In-memory SQLite fallback engine created")
-
+        with eng.connect() as conn:
+            conn.execute(text("SELECT 1")).fetchone()
+        print(">> DEBUG: PostgreSQL connection test PASSED")
+        return eng
     except Exception as e:
-        print(f">> WARNING: Failed to create PostgreSQL engine: {e}")
-        print(">> FALLBACK: Using in-memory SQLite database")
+        error_msg = str(e.orig) if hasattr(e, "orig") else str(e)
+        print(">> ERROR: PostgreSQL connection FAILED")
+        print(f">> ERROR: Details: {error_msg}")
 
-        # Create in-memory SQLite engine
-        engine = create_engine(
+        if not settings.ALLOW_SQLITE_FALLBACK:
+            raise RuntimeError(
+                "Could not connect to the configured PostgreSQL database and "
+                "ALLOW_SQLITE_FALLBACK is disabled. Refusing to start on an "
+                "ephemeral in-memory SQLite database. Check DATABASE_URL and "
+                f"database connectivity. Original error: {error_msg}"
+            ) from e
+
+        print("=" * 60)
+        print(">> FALLBACK: ALLOW_SQLITE_FALLBACK=true — using in-memory SQLite")
+        print(">> WARNING: Data will NOT persist between restarts")
+        print(">> WARNING: This is suitable for development/testing only")
+        print("=" * 60)
+        eng = create_engine(
             "sqlite:///:memory:",
             connect_args={"check_same_thread": False},
-            echo_pool=False,
+            echo_pool=settings.DB_ECHO_POOL,
         )
         print(">> DEBUG: In-memory SQLite fallback engine created")
+        return eng
+
+
+# Create SQLAlchemy engine with optimized connection pooling
+engine = _build_engine()
 
 # Enable query profiling for performance monitoring
 enable_sqlalchemy_profiling(engine)
@@ -147,7 +139,6 @@ def init_db():
     Handles existing indexes gracefully to support database persistence.
     """
     from sqlalchemy import text, inspect
-    from sqlalchemy.exc import OperationalError
 
     # Import all models to ensure they're registered with SQLAlchemy
     # This must happen before Base.metadata.create_all() or mapper configuration
