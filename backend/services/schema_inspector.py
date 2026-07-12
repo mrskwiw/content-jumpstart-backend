@@ -64,16 +64,15 @@ def get_schema_version(db_path_or_engine: str | Path | Engine) -> int:
         should_dispose = False
 
     try:
+        # Read-only path: never issue DDL here, so a version check works for
+        # restricted/read-only roles. An absent table means "unversioned".
+        if engine.dialect.name != "sqlite" and not inspect(engine).has_table("schema_version"):
+            return 0
         with engine.connect() as conn:
             if engine.dialect.name == "sqlite":
                 result = conn.execute(text("PRAGMA user_version"))
             else:
-                # Non-SQLite backends have no PRAGMA; use a version table.
-                conn.execute(
-                    text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-                )
-                conn.commit()
-                result = conn.execute(text("SELECT version FROM schema_version LIMIT 1"))
+                result = conn.execute(text("SELECT version FROM schema_version WHERE id = 1"))
             version = result.scalar() or 0
             logger.debug(f"Schema version: {version}")
             return int(version)
@@ -109,13 +108,20 @@ def set_schema_version(db_path_or_engine: str | Path | Engine, version: int) -> 
                 # PRAGMA does not accept bind parameters; version is a validated int.
                 conn.execute(text(f"PRAGMA user_version = {int(version)}"))
             else:
-                # Upsert the single version row on non-SQLite backends.
+                # Structurally-singleton row (id=1) with an atomic upsert, so
+                # concurrent writers (e.g. overlapping deploys) cannot create
+                # duplicate rows the way DELETE+INSERT could.
                 conn.execute(
-                    text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+                    text(
+                        "CREATE TABLE IF NOT EXISTS schema_version "
+                        "(id INTEGER PRIMARY KEY, version INTEGER NOT NULL)"
+                    )
                 )
-                conn.execute(text("DELETE FROM schema_version"))
                 conn.execute(
-                    text("INSERT INTO schema_version (version) VALUES (:version)"),
+                    text(
+                        "INSERT INTO schema_version (id, version) VALUES (1, :version) "
+                        "ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version"
+                    ),
                     {"version": int(version)},
                 )
             conn.commit()
