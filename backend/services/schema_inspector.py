@@ -2,7 +2,7 @@
 Schema inspection and version management for database migrations.
 
 Provides utilities to:
-- Track schema version using SQLite PRAGMA user_version
+- Track schema version (SQLite PRAGMA user_version; schema_version table on Postgres)
 - Extract complete schema snapshots
 - Compare schemas between databases
 - Generate column-level diffs for migrations
@@ -44,7 +44,11 @@ class SchemaDiff:
 
 def get_schema_version(db_path_or_engine: str | Path | Engine) -> int:
     """
-    Read schema version from SQLite PRAGMA user_version.
+    Read the schema version from the database.
+
+    Uses SQLite's ``PRAGMA user_version`` on SQLite, and a dedicated
+    ``schema_version`` table on other backends (e.g. PostgreSQL), since
+    ``PRAGMA`` is SQLite-only syntax.
 
     Args:
         db_path_or_engine: Path to database file or SQLAlchemy engine
@@ -61,7 +65,15 @@ def get_schema_version(db_path_or_engine: str | Path | Engine) -> int:
 
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("PRAGMA user_version"))
+            if engine.dialect.name == "sqlite":
+                result = conn.execute(text("PRAGMA user_version"))
+            else:
+                # Non-SQLite backends have no PRAGMA; use a version table.
+                conn.execute(
+                    text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+                )
+                conn.commit()
+                result = conn.execute(text("SELECT version FROM schema_version LIMIT 1"))
             version = result.scalar() or 0
             logger.debug(f"Schema version: {version}")
             return int(version)
@@ -75,7 +87,10 @@ def get_schema_version(db_path_or_engine: str | Path | Engine) -> int:
 
 def set_schema_version(db_path_or_engine: str | Path | Engine, version: int) -> None:
     """
-    Set schema version in SQLite PRAGMA user_version.
+    Persist the schema version to the database.
+
+    Uses SQLite's ``PRAGMA user_version`` on SQLite, and a single-row
+    ``schema_version`` table on other backends (e.g. PostgreSQL).
 
     Args:
         db_path_or_engine: Path to database file or SQLAlchemy engine
@@ -90,7 +105,19 @@ def set_schema_version(db_path_or_engine: str | Path | Engine, version: int) -> 
 
     try:
         with engine.connect() as conn:
-            conn.execute(text(f"PRAGMA user_version = {int(version)}"))
+            if engine.dialect.name == "sqlite":
+                # PRAGMA does not accept bind parameters; version is a validated int.
+                conn.execute(text(f"PRAGMA user_version = {int(version)}"))
+            else:
+                # Upsert the single version row on non-SQLite backends.
+                conn.execute(
+                    text("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
+                )
+                conn.execute(text("DELETE FROM schema_version"))
+                conn.execute(
+                    text("INSERT INTO schema_version (version) VALUES (:version)"),
+                    {"version": int(version)},
+                )
             conn.commit()
             logger.info(f"Set schema version to {version}")
     except Exception as e:
@@ -101,7 +128,9 @@ def set_schema_version(db_path_or_engine: str | Path | Engine, version: int) -> 
             engine.dispose()
 
 
-def get_schema_snapshot(db_path_or_engine: str | Path | Engine) -> dict[str, list[ColumnInfo]]:
+def get_schema_snapshot(
+    db_path_or_engine: str | Path | Engine,
+) -> dict[str, list[ColumnInfo]]:
     """
     Extract complete schema snapshot using SQLAlchemy inspector.
 
