@@ -136,11 +136,17 @@ def fulfill_payment(db: Session, session_id: str) -> bool:
         return False
 
     try:
+        # commit=False so the credit grant and the status flip land in ONE commit
+        # while the FOR UPDATE lock above is still held. If purchase_credits
+        # committed on its own (its default), it would release the lock with
+        # status still "pending", and a concurrent duplicate delivery could slip
+        # in and double-grant before this function sets status="completed".
         tx = credit_service.purchase_credits(
             db=db,
             user_id=payment.user_id,
             package_id=payment.package_id,
             payment_reference=session_id,
+            commit=False,
         )
         payment.status = "completed"
         payment.credit_transaction_id = str(tx.id) if tx else None

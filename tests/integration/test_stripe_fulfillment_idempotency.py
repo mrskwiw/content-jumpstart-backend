@@ -86,3 +86,28 @@ class TestFulfillPaymentIdempotency:
 
     def test_unknown_session_returns_false(self, db_session):
         assert stripe_service.fulfill_payment(db_session, "cs_does_not_exist") is False
+
+    def test_credit_grant_and_status_flip_are_atomic(self, db_session, buyer, pending_payment):
+        """The grant and the status flip must land in one transaction. If the
+        commit never happens (simulated by a rollback), NEITHER the credits nor
+        the completed status may persist — otherwise the FOR UPDATE lock could be
+        released with credits granted but status still pending (Bug #177)."""
+        from backend.services import credit_service
+
+        # Mirror fulfill_payment's inner steps but roll back instead of commit.
+        tx = credit_service.purchase_credits(
+            db_session,
+            user_id=buyer.id,
+            package_id=pending_payment.package_id,
+            payment_reference="cs_test_177",
+            commit=False,
+        )
+        assert tx is not None
+        pending_payment.status = "completed"
+
+        db_session.rollback()
+
+        db_session.refresh(buyer)
+        db_session.refresh(pending_payment)
+        assert buyer.credit_balance == 0  # grant did not leak out
+        assert pending_payment.status == "pending"  # status did not leak out
