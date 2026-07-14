@@ -94,7 +94,7 @@ export default function ResearchAnalytics() {
             <div className="relative h-8 bg-gray-200 dark:bg-neutral-700 rounded-full overflow-hidden">
               <div
                 className="absolute h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all"
-                style={{ width: `${analytics.profitMargin}%` }}
+                style={{ width: `${analytics?.profitMargin ?? 0}%` }}
               />
             </div>
             <div className="flex justify-between mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -122,9 +122,9 @@ export default function ResearchAnalytics() {
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           Most Popular Tools
         </h2>
-        {analytics.topTools.length > 0 ? (
+        {(analytics.topTools?.length ?? 0) > 0 ? (
           <div className="space-y-3">
-            {analytics.topTools.map((tool: ToolStats, index: number) => (
+            {(analytics.topTools ?? []).map((tool: ToolStats, index: number) => (
               <div
                 key={tool.toolName}
                 className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-800 rounded-lg"

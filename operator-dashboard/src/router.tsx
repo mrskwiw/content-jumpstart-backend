@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- route config module: exports the `router` object (non-component) by design (HMR/DX rule, not correctness). */
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { Suspense } from 'react';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import RootRedirect from '@/components/RootRedirect';
@@ -59,13 +59,22 @@ const PageLoader = () => (
   </div>
 );
 
+// Resets the boundary when the route changes. Because every route reuses the
+// same <RouteBoundary> element at the same tree position, React keeps a single
+// ErrorBoundary instance mounted across navigation; keying its reset on
+// location.pathname clears a prior page's crash instead of poisoning the SPA.
+const RouteBoundary = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+};
+
 // Wrapper to add Suspense and ErrorBoundary to lazy loaded components
 const withSuspense = (Component: React.LazyExoticComponent<React.ComponentType>) => (
-  <ErrorBoundary>
+  <RouteBoundary>
     <Suspense fallback={<PageLoader />}>
       <Component />
     </Suspense>
-  </ErrorBoundary>
+  </RouteBoundary>
 );
 
 export const router = createBrowserRouter([
