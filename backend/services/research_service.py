@@ -276,6 +276,37 @@ class ResearchService:
 
         return {tool[0] for tool in completed}
 
+    def _get_incomplete_tool_states_for_client(
+        self, db: Session, client_id: str, tool_ids: list[str]
+    ) -> dict[str, str]:
+        """
+        For each tool in ``tool_ids``, return the status of its most recent
+        (non-deleted) ResearchResult for this client when that latest attempt is
+        NOT ``completed``.
+
+        Used to distinguish "prerequisite never run" from "prerequisite ran but
+        its latest attempt is still running / failed", so a blocking message can
+        tell the operator to wait/re-run rather than misleadingly asking them to
+        run a tool they already ran (Bug #188 / report F4).
+        """
+        from backend.models import ResearchResult
+
+        states: dict[str, str] = {}
+        for tool_id in tool_ids:
+            latest = (
+                db.query(ResearchResult.status)
+                .filter(
+                    ResearchResult.client_id == client_id,
+                    ResearchResult.tool_name == tool_id,
+                    ResearchResult.is_deleted.is_(False),
+                )
+                .order_by(ResearchResult.created_at.desc())
+                .first()
+            )
+            if latest and latest[0] and latest[0] != "completed":
+                states[tool_id] = latest[0]
+        return states
+
     def check_client_prerequisites(
         self,
         db: Session,
@@ -490,7 +521,27 @@ class ResearchService:
             error_msg = self.prerequisites.get_missing_prerequisites_message(
                 tool_name, missing_required, missing_recommended
             )
-            logger.warning(f"Prerequisites not met for {tool_name}: {missing_required}")
+            # Bug #188 / report F4: a required prerequisite can be "missing" not
+            # because it was never run, but because its latest attempt hasn't
+            # completed (e.g. Platform Strategy is a slow synthesis tool). Surface
+            # that so the operator waits/re-runs instead of running it anew.
+            incomplete_states = self._get_incomplete_tool_states_for_client(
+                db, client_id, missing_required
+            )
+            if incomplete_states:
+                detail = "; ".join(
+                    f"{t.replace('_', ' ').title()} — latest attempt: {s}"
+                    for t, s in incomplete_states.items()
+                )
+                error_msg += (
+                    f"\n\nNote: {detail}. This prerequisite has already been run, but its "
+                    "most recent attempt has not completed — wait for it to finish or re-run "
+                    "it, rather than treating it as never started."
+                )
+            logger.warning(
+                f"Prerequisites not met for {tool_name}: missing={missing_required}, "
+                f"incomplete={incomplete_states}"
+            )
             return {
                 "success": False,
                 "outputs": {},
@@ -499,6 +550,7 @@ class ResearchService:
                     "blocked": True,
                     "missing_required": missing_required,
                     "missing_recommended": missing_recommended,
+                    "incomplete_prerequisites": incomplete_states,
                 },
                 "error": error_msg,
             }
@@ -528,7 +580,14 @@ class ResearchService:
         # results to the correct company.  Without it, results from same-named
         # businesses in other regions contaminate the report.
         if tool_name == "business_report":
-            _LOCATION_PLACEHOLDERS = {"not specified", "n/a", "unknown", "none", "tbd", ""}
+            _LOCATION_PLACEHOLDERS = {
+                "not specified",
+                "n/a",
+                "unknown",
+                "none",
+                "tbd",
+                "",
+            }
             _location = inputs.get("location", "").strip().lower()
             if _location in _LOCATION_PLACEHOLDERS:
                 logger.warning(f"Business Report blocked for client {client_id}: location not set")
@@ -691,7 +750,9 @@ class ResearchService:
             # Seed client_keywords table from SEO keyword research results
             if tool_name == "seo_keyword_research" and result.success and research_result.data:
                 try:
-                    from backend.services.crud_client_keywords import seed_from_research_result
+                    from backend.services.crud_client_keywords import (
+                        seed_from_research_result,
+                    )
 
                     seed_stats = seed_from_research_result(
                         db,

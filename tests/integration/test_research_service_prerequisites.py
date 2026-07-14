@@ -88,6 +88,51 @@ class TestGetCompletedTools:
         assert mock_db.query().filter.called
 
 
+class TestIncompleteToolStates:
+    """Bug #188 / report F4: distinguish a prerequisite that was *never run* from
+    one whose latest attempt has not completed (e.g. the slow Platform Strategy
+    synthesis tool), so the blocking message is accurate."""
+
+    def test_reports_running_latest_attempt(self, research_service, mock_db):
+        """A prerequisite whose most recent attempt is not completed is surfaced."""
+        mock_db.query().filter().order_by().first.return_value = ("running",)
+
+        states = research_service._get_incomplete_tool_states_for_client(
+            mock_db, "client-test", ["platform_strategy"]
+        )
+
+        assert states == {"platform_strategy": "running"}
+
+    def test_completed_latest_attempt_is_not_reported(self, research_service, mock_db):
+        """When the latest attempt is completed, it is NOT flagged as incomplete."""
+        mock_db.query().filter().order_by().first.return_value = ("completed",)
+
+        states = research_service._get_incomplete_tool_states_for_client(
+            mock_db, "client-test", ["platform_strategy"]
+        )
+
+        assert states == {}
+
+    def test_never_run_returns_empty(self, research_service, mock_db):
+        """A prerequisite with no ResearchResult rows yields no incomplete state."""
+        mock_db.query().filter().order_by().first.return_value = None
+
+        states = research_service._get_incomplete_tool_states_for_client(
+            mock_db, "client-test", ["platform_strategy"]
+        )
+
+        assert states == {}
+
+    def test_empty_tool_ids(self, research_service, mock_db):
+        """No tool ids → empty result, no queries needed."""
+        assert (
+            research_service._get_incomplete_tool_states_for_client(
+                mock_db, "client-test", []
+            )
+            == {}
+        )
+
+
 class TestCheckPrerequisites:
     """Test prerequisite checking"""
 

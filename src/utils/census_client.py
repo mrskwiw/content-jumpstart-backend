@@ -24,12 +24,14 @@ _CENSUS_API_BASE = "https://api.census.gov/data/2022/acs/acs5"
 # Labels kept in sync with _VARIABLE_LABELS below.
 _VARIABLES = [
     "NAME",  # Geographic name (e.g. "ZCTA5 63376")
-    "B01003_001E",  # Total population
+    "B01003_001E",  # Total population (all ages)
     "B19013_001E",  # Median household income (past 12 months)
     "B01002_001E",  # Median age
+    "B15003_001E",  # Population 25+ (universe for the B15003 education table)
     "B15003_022E",  # Population 25+ with Bachelor's degree
     "B15003_023E",  # Population 25+ with Master's degree
-    "B15003_025E",  # Population 25+ with Professional degree
+    "B15003_024E",  # Population 25+ with Professional school degree
+    "B15003_025E",  # Population 25+ with Doctorate degree
     "B11001_001E",  # Total households
 ]
 
@@ -37,9 +39,11 @@ _VARIABLE_LABELS = {
     "B01003_001E": "Total population",
     "B19013_001E": "Median household income",
     "B01002_001E": "Median age",
+    "B15003_001E": "Population 25 and over",
     "B15003_022E": "Bachelor's degree holders (25+)",
     "B15003_023E": "Master's degree holders (25+)",
-    "B15003_025E": "Professional/doctoral degree holders (25+)",
+    "B15003_024E": "Professional-school degree holders (25+)",
+    "B15003_025E": "Doctorate degree holders (25+)",
     "B11001_001E": "Total households",
 }
 
@@ -146,16 +150,21 @@ def _format_response(raw: list, zip_code: str) -> Optional[str]:
     lines.append(f"  Population: {pop}  |  Households: {households}")
     lines.append(f"  Median household income: {income}  |  Median age: {age}")
 
-    # Education breakdown
+    # Education breakdown. The B15003 table's universe is the population 25 and
+    # over, so the college-educated share must be divided by that 25+ population
+    # (B15003_001E), NOT the all-ages total (B01003_001E) — otherwise the rate is
+    # understated. Numerator = bachelor's + master's + professional-school +
+    # doctorate degree holders.
     try:
-        pop_int = int(data.get("B01003_001E") or 0)
+        pop_25plus = int(data.get("B15003_001E") or 0)
         bachelors = int(data.get("B15003_022E") or 0)
         masters = int(data.get("B15003_023E") or 0)
-        professional = int(data.get("B15003_025E") or 0)
-        college_plus = bachelors + masters + professional
-        if pop_int > 0 and college_plus > 0:
-            pct = round(college_plus / pop_int * 100, 1)
-            lines.append(f"  College-educated (bachelor's+): ~{pct}% of population")
+        professional = int(data.get("B15003_024E") or 0)
+        doctorate = int(data.get("B15003_025E") or 0)
+        college_plus = bachelors + masters + professional + doctorate
+        if pop_25plus > 0 and college_plus > 0:
+            pct = round(college_plus / pop_25plus * 100, 1)
+            lines.append(f"  College-educated (bachelor's+): ~{pct}% of adults 25+")
     except (TypeError, ValueError):
         pass
 

@@ -109,7 +109,11 @@ def deduct_credits(
 
 
 def purchase_credits(
-    db: Session, user_id: str, package_id: str, payment_reference: Optional[str] = None
+    db: Session,
+    user_id: str,
+    package_id: str,
+    payment_reference: Optional[str] = None,
+    commit: bool = True,
 ) -> CreditTransaction:
     """
     Purchase credits from a package.
@@ -119,6 +123,14 @@ def purchase_credits(
         user_id: User ID
         package_id: Credit package ID
         payment_reference: Optional payment/invoice reference
+        commit: When True (default) the credit grant is committed here. Pass False
+            when the caller needs the grant to be part of a larger atomic
+            transaction — e.g. the Stripe webhook, which must flip
+            ``StripePayment.status`` to "completed" in the SAME commit while
+            holding a ``FOR UPDATE`` lock, so a concurrent duplicate delivery
+            cannot commit early, release the lock, and double-grant (Bug #177).
+            With ``commit=False`` the rows are flushed but not committed, so the
+            caller is responsible for committing (or rolling back).
 
     Returns:
         Created transaction record
@@ -159,8 +171,13 @@ def purchase_credits(
     )
 
     db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
+    if commit:
+        db.commit()
+        db.refresh(transaction)
+    else:
+        # Persist within the caller's transaction (surfaces integrity errors now)
+        # without ending it, so the caller can commit atomically with its own work.
+        db.flush()
 
     return transaction
 

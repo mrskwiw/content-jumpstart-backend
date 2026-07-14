@@ -5,6 +5,15 @@ import { Button } from '@/components/ui';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /**
+   * When this value changes while an error is displayed, the boundary resets
+   * itself. Wire it to the current route (e.g. `location.pathname`) so a crash
+   * on one page does not persist across client-side navigation. Without this,
+   * a single ErrorBoundary instance reused at a fixed position in the tree keeps
+   * `hasError` set forever, and every subsequently-navigated page renders the
+   * fallback until a full reload.
+   */
+  resetKey?: string | number;
 }
 
 interface State {
@@ -46,6 +55,19 @@ export class ErrorBoundary extends Component<Props, State> {
       error,
       isChunkError,
     };
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    // Recover from an error when the route (resetKey) changes, so a crash on one
+    // page doesn't leave the fallback stuck across navigation.
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({
+        hasError: false,
+        error: null,
+        errorInfo: null,
+        isChunkError: false,
+      });
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {

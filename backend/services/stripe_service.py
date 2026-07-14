@@ -111,8 +111,21 @@ def fulfill_payment(db: Session, session_id: str) -> bool:
     """
     Idempotent payment fulfillment. Called by webhook on checkout.session.completed.
     Returns True if credits were added, False if already fulfilled.
+
+    Bug #177: Stripe retries webhooks, and two duplicate deliveries can arrive
+    concurrently. A plain status check is not atomic — both could read
+    ``status == "pending"`` before either commits and double-grant credits. We
+    take a row-level lock (``SELECT ... FOR UPDATE``) on the payment so duplicate
+    deliveries serialize: the second one blocks until the first commits, then
+    reads ``status == "completed"`` and short-circuits. On PostgreSQL (prod) this
+    is real row locking; SQLite serializes writers regardless.
     """
-    payment = db.query(StripePayment).filter(StripePayment.stripe_session_id == session_id).first()
+    payment = (
+        db.query(StripePayment)
+        .filter(StripePayment.stripe_session_id == session_id)
+        .with_for_update()
+        .first()
+    )
 
     if not payment:
         logger.warning(f"Webhook: StripePayment not found for session {session_id}")
@@ -123,11 +136,17 @@ def fulfill_payment(db: Session, session_id: str) -> bool:
         return False
 
     try:
+        # commit=False so the credit grant and the status flip land in ONE commit
+        # while the FOR UPDATE lock above is still held. If purchase_credits
+        # committed on its own (its default), it would release the lock with
+        # status still "pending", and a concurrent duplicate delivery could slip
+        # in and double-grant before this function sets status="completed".
         tx = credit_service.purchase_credits(
             db=db,
             user_id=payment.user_id,
             package_id=payment.package_id,
             payment_reference=session_id,
+            commit=False,
         )
         payment.status = "completed"
         payment.credit_transaction_id = str(tx.id) if tx else None
