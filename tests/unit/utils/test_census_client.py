@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from src.utils.census_client import (
     _extract_zip,
@@ -21,13 +20,15 @@ from src.utils.census_client import (
 _SAMPLE_RAW = [
     [
         "NAME",
-        "B01003_001E",
-        "B19013_001E",
-        "B01002_001E",
-        "B15003_022E",
-        "B15003_023E",
-        "B15003_025E",
-        "B11001_001E",
+        "B01003_001E",  # total population (all ages)
+        "B19013_001E",  # median household income
+        "B01002_001E",  # median age
+        "B15003_001E",  # population 25+ (education universe)
+        "B15003_022E",  # bachelor's
+        "B15003_023E",  # master's
+        "B15003_024E",  # professional-school
+        "B15003_025E",  # doctorate
+        "B11001_001E",  # households
         "zip code tabulation area",
     ],
     [
@@ -35,8 +36,10 @@ _SAMPLE_RAW = [
         "42531",
         "75400",
         "38.5",
+        "28000",
         "8100",
         "3200",
+        "400",
         "850",
         "16200",
         "63376",
@@ -98,6 +101,24 @@ class TestFormatResponse:
         assert "College-educated" in out
         assert "%" in out
 
+    def test_college_percentage_uses_25plus_universe(self):
+        """Bug #62: the college-educated share must divide degree-holders by the
+        25+ population (B15003_001E), not the all-ages total, and must include
+        professional-school (024E) as well as bachelor's/master's/doctorate."""
+        # (8100 + 3200 + 400 + 850) / 28000 = 44.8%  (NOT / 42531 = 29.5%)
+        out = _format_response(_SAMPLE_RAW, "63376")
+        assert "44.8% of adults 25+" in out
+
+    def test_college_line_skipped_when_25plus_universe_missing(self):
+        """If the 25+ universe column is absent, skip the line rather than
+        dividing by the wrong denominator."""
+        headers = [h for h in _SAMPLE_RAW[0] if h != "B15003_001E"]
+        idx = _SAMPLE_RAW[0].index("B15003_001E")
+        values = [v for i, v in enumerate(_SAMPLE_RAW[1]) if i != idx]
+        out = _format_response([headers, values], "63376")
+        assert out is not None
+        assert "College-educated" not in out
+
     def test_handles_negative_income_gracefully(self):
         """Negative values (Census sentinel for N/A) should not crash."""
         raw = [_SAMPLE_RAW[0], list(_SAMPLE_RAW[1])]
@@ -126,7 +147,6 @@ class TestFetchZipDemographics:
 
     def test_returns_formatted_string_on_success(self):
         """Mock urllib to return the sample Census response."""
-        import io
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(_SAMPLE_RAW).encode()
@@ -148,7 +168,6 @@ class TestFetchZipDemographics:
 
     def test_uses_zip_from_complex_location(self):
         """Verify zip extraction works on realistic location strings."""
-        import io
 
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps(_SAMPLE_RAW).encode()
