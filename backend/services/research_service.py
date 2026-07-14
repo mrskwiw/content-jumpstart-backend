@@ -159,24 +159,34 @@ class ResearchService:
             # Extract relevant data based on prerequisite tool type
             if prereq_tool == "seo_keyword_research" and result.data:
                 # Extract SEO keywords for tools that need them
-                prerequisite_data["seo_keywords"] = result.data.get("primary_keywords", [])
+                prerequisite_data["seo_keywords"] = result.data.get(
+                    "primary_keywords", []
+                )
                 if not prerequisite_data["seo_keywords"]:
                     # Fallback to all keywords if primary not available
                     prerequisite_data["seo_keywords"] = result.data.get("keywords", [])
 
-                logger.info(f"Loaded {len(prerequisite_data.get('seo_keywords', []))} SEO keywords")
+                logger.info(
+                    f"Loaded {len(prerequisite_data.get('seo_keywords', []))} SEO keywords"
+                )
 
             elif prereq_tool == "audience_research" and result.data:
                 # Extract audience personas for Platform Strategy, ICP, etc.
                 prerequisite_data["audience_personas"] = result.data.get("personas", [])
-                prerequisite_data["audience_demographics"] = result.data.get("demographics", {})
-                prerequisite_data["audience_pain_points"] = result.data.get("pain_points", [])
+                prerequisite_data["audience_demographics"] = result.data.get(
+                    "demographics", {}
+                )
+                prerequisite_data["audience_pain_points"] = result.data.get(
+                    "pain_points", []
+                )
 
                 logger.info("Loaded audience research data")
 
             elif prereq_tool == "competitive_analysis" and result.data:
                 # Extract competitor insights for Content Gap
-                prerequisite_data["competitor_insights"] = result.data.get("competitors", [])
+                prerequisite_data["competitor_insights"] = result.data.get(
+                    "competitors", []
+                )
                 prerequisite_data["competitor_gaps"] = result.data.get("gaps", [])
 
                 logger.info("Loaded competitive analysis data")
@@ -184,7 +194,9 @@ class ResearchService:
             elif prereq_tool == "market_trends_research" and result.data:
                 # Extract trends for Platform Strategy, Content Calendar
                 prerequisite_data["market_trends"] = result.data.get("trends", [])
-                prerequisite_data["trending_topics"] = result.data.get("trending_topics", [])
+                prerequisite_data["trending_topics"] = result.data.get(
+                    "trending_topics", []
+                )
 
                 logger.info("Loaded market trends data")
 
@@ -210,7 +222,9 @@ class ResearchService:
             elif prereq_tool == "content_gap_analysis" and result.data:
                 # Extract content gaps for Content Calendar
                 prerequisite_data["content_gaps"] = result.data.get("gaps", [])
-                prerequisite_data["priority_topics"] = result.data.get("priority_topics", [])
+                prerequisite_data["priority_topics"] = result.data.get(
+                    "priority_topics", []
+                )
 
                 logger.info("Loaded content gap data")
 
@@ -223,7 +237,9 @@ class ResearchService:
 
             elif prereq_tool == "brand_archetype" and result.data:
                 # Extract archetype for Story Mining, Platform Strategy
-                prerequisite_data["brand_archetype"] = result.data.get("primary_archetype", "")
+                prerequisite_data["brand_archetype"] = result.data.get(
+                    "primary_archetype", ""
+                )
                 prerequisite_data["archetype_traits"] = result.data.get("traits", [])
 
                 logger.info("Loaded brand archetype data")
@@ -240,7 +256,9 @@ class ResearchService:
 
                 logger.info("Loaded story mining data")
 
-        logger.info(f"Fetched prerequisite data for {tool_name}: {list(prerequisite_data.keys())}")
+        logger.info(
+            f"Fetched prerequisite data for {tool_name}: {list(prerequisite_data.keys())}"
+        )
         return prerequisite_data
 
     def _get_completed_tools(self, db: Session, project_id: str) -> set[str]:
@@ -275,6 +293,37 @@ class ResearchService:
         )
 
         return {tool[0] for tool in completed}
+
+    def _get_incomplete_tool_states_for_client(
+        self, db: Session, client_id: str, tool_ids: list[str]
+    ) -> dict[str, str]:
+        """
+        For each tool in ``tool_ids``, return the status of its most recent
+        (non-deleted) ResearchResult for this client when that latest attempt is
+        NOT ``completed``.
+
+        Used to distinguish "prerequisite never run" from "prerequisite ran but
+        its latest attempt is still running / failed", so a blocking message can
+        tell the operator to wait/re-run rather than misleadingly asking them to
+        run a tool they already ran (Bug #188 / report F4).
+        """
+        from backend.models import ResearchResult
+
+        states: dict[str, str] = {}
+        for tool_id in tool_ids:
+            latest = (
+                db.query(ResearchResult.status)
+                .filter(
+                    ResearchResult.client_id == client_id,
+                    ResearchResult.tool_name == tool_id,
+                    ResearchResult.is_deleted.is_(False),
+                )
+                .order_by(ResearchResult.created_at.desc())
+                .first()
+            )
+            if latest and latest[0] and latest[0] != "completed":
+                states[tool_id] = latest[0]
+        return states
 
     def check_client_prerequisites(
         self,
@@ -321,8 +370,8 @@ class ResearchService:
         status_map = {}
 
         for tool_id in tool_ids:
-            can_run, missing_required, missing_recommended = self.check_client_prerequisites(
-                db, client_id, tool_id
+            can_run, missing_required, missing_recommended = (
+                self.check_client_prerequisites(db, client_id, tool_id)
             )
 
             status_map[tool_id] = {
@@ -335,7 +384,9 @@ class ResearchService:
 
         return status_map
 
-    def _get_last_run_time(self, db: Session, client_id: str, tool_id: str) -> Optional[str]:
+    def _get_last_run_time(
+        self, db: Session, client_id: str, tool_id: str
+    ) -> Optional[str]:
         """
         Get the last run time for a specific tool for a client.
 
@@ -482,15 +533,35 @@ class ResearchService:
 
         # Check prerequisites — client-scoped so tools completed in any prior
         # project for this client count (prevents false "missing prerequisite" errors).
-        can_run, missing_required, missing_recommended = self.check_client_prerequisites(
-            db, client_id, tool_name
+        can_run, missing_required, missing_recommended = (
+            self.check_client_prerequisites(db, client_id, tool_name)
         )
 
         if not can_run:
             error_msg = self.prerequisites.get_missing_prerequisites_message(
                 tool_name, missing_required, missing_recommended
             )
-            logger.warning(f"Prerequisites not met for {tool_name}: {missing_required}")
+            # Bug #188 / report F4: a required prerequisite can be "missing" not
+            # because it was never run, but because its latest attempt hasn't
+            # completed (e.g. Platform Strategy is a slow synthesis tool). Surface
+            # that so the operator waits/re-runs instead of running it anew.
+            incomplete_states = self._get_incomplete_tool_states_for_client(
+                db, client_id, missing_required
+            )
+            if incomplete_states:
+                detail = "; ".join(
+                    f"{t.replace('_', ' ').title()} — latest attempt: {s}"
+                    for t, s in incomplete_states.items()
+                )
+                error_msg += (
+                    f"\n\nNote: {detail}. This prerequisite has already been run, but its "
+                    "most recent attempt has not completed — wait for it to finish or re-run "
+                    "it, rather than treating it as never started."
+                )
+            logger.warning(
+                f"Prerequisites not met for {tool_name}: missing={missing_required}, "
+                f"incomplete={incomplete_states}"
+            )
             return {
                 "success": False,
                 "outputs": {},
@@ -499,6 +570,7 @@ class ResearchService:
                     "blocked": True,
                     "missing_required": missing_required,
                     "missing_recommended": missing_recommended,
+                    "incomplete_prerequisites": incomplete_states,
                 },
                 "error": error_msg,
             }
@@ -528,10 +600,19 @@ class ResearchService:
         # results to the correct company.  Without it, results from same-named
         # businesses in other regions contaminate the report.
         if tool_name == "business_report":
-            _LOCATION_PLACEHOLDERS = {"not specified", "n/a", "unknown", "none", "tbd", ""}
+            _LOCATION_PLACEHOLDERS = {
+                "not specified",
+                "n/a",
+                "unknown",
+                "none",
+                "tbd",
+                "",
+            }
             _location = inputs.get("location", "").strip().lower()
             if _location in _LOCATION_PLACEHOLDERS:
-                logger.warning(f"Business Report blocked for client {client_id}: location not set")
+                logger.warning(
+                    f"Business Report blocked for client {client_id}: location not set"
+                )
                 return {
                     "success": False,
                     "outputs": {},
@@ -551,7 +632,9 @@ class ResearchService:
         # placeholder and returns a meaningless health score.  Block the run
         # early so credits are refunded via the router's blocked-result path.
         if tool_name == "content_audit" and not inputs.get("content_inventory"):
-            logger.warning(f"Content Audit blocked for client {client_id}: no content inventory")
+            logger.warning(
+                f"Content Audit blocked for client {client_id}: no content inventory"
+            )
             return {
                 "success": False,
                 "outputs": {},
@@ -593,7 +676,9 @@ class ResearchService:
                 _avoid = _mix.get("avoid_platforms", [])
                 if _avoid:
                     inputs["avoid_platforms"] = _avoid
-                    logger.info(f"Injected platform avoid list into content_gap_analysis: {_avoid}")
+                    logger.info(
+                        f"Injected platform avoid list into content_gap_analysis: {_avoid}"
+                    )
 
         if prerequisite_data:
             logger.info(
@@ -618,8 +703,12 @@ class ResearchService:
                     )
                 else:
                     # Fallback: use business description
-                    current_topics = client.business_description or "General business topics"
-                    logger.info("Auto-generated current_content_topics from business description")
+                    current_topics = (
+                        client.business_description or "General business topics"
+                    )
+                    logger.info(
+                        "Auto-generated current_content_topics from business description"
+                    )
 
                 inputs["current_content_topics"] = current_topics
 
@@ -689,9 +778,15 @@ class ResearchService:
             db.refresh(research_result)
 
             # Seed client_keywords table from SEO keyword research results
-            if tool_name == "seo_keyword_research" and result.success and research_result.data:
+            if (
+                tool_name == "seo_keyword_research"
+                and result.success
+                and research_result.data
+            ):
                 try:
-                    from backend.services.crud_client_keywords import seed_from_research_result
+                    from backend.services.crud_client_keywords import (
+                        seed_from_research_result,
+                    )
 
                     seed_stats = seed_from_research_result(
                         db,
@@ -704,7 +799,9 @@ class ResearchService:
                         f"{seed_stats['imported']} imported, {seed_stats['skipped']} skipped"
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to seed client_keywords (non-critical): {e}")
+                    logger.warning(
+                        f"Failed to seed client_keywords (non-critical): {e}"
+                    )
 
             # Sync token usage from cost_tracker.db to database
             try:
@@ -720,7 +817,9 @@ class ResearchService:
                         f"${usage_data.get('total_cost', 0):.4f} cost"
                     )
             except Exception as e:
-                logger.warning(f"Failed to sync research token usage (non-critical): {e}")
+                logger.warning(
+                    f"Failed to sync research token usage (non-critical): {e}"
+                )
 
             # Story Mining Integration: Save mined stories to database
             if tool_name == "story_mining" and result.success:
@@ -734,7 +833,9 @@ class ResearchService:
                     if story_data:
                         # Build structured full_story JSON
                         full_story = {
-                            "customer_background": story_data.get("customer_background"),
+                            "customer_background": story_data.get(
+                                "customer_background"
+                            ),
                             "challenge": story_data.get("challenge"),
                             "decision_process": story_data.get("decision_process"),
                             "implementation": story_data.get("implementation"),
@@ -768,7 +869,9 @@ class ResearchService:
                         )
 
                         # Save to database
-                        db_story = story_service.create_story(db, story_create, project.user_id)
+                        db_story = story_service.create_story(
+                            db, story_create, project.user_id
+                        )
 
                         # Classify story for content template eligibility
                         try:
@@ -776,7 +879,9 @@ class ResearchService:
                             from src.research.story_mining import StoryMiner
 
                             _story_ns = _types.SimpleNamespace(
-                                one_sentence_summary=story_data.get("one_sentence_summary", "")
+                                one_sentence_summary=story_data.get(
+                                    "one_sentence_summary", ""
+                                )
                                 or story_data.get("story_title", ""),
                                 customer_background=_types.SimpleNamespace(
                                     starting_situation=(
@@ -784,18 +889,22 @@ class ResearchService:
                                     ).get("starting_situation", "")
                                 ),
                                 challenge=_types.SimpleNamespace(
-                                    problem_description=(story_data.get("challenge") or {}).get(
-                                        "problem_description", ""
-                                    )
+                                    problem_description=(
+                                        story_data.get("challenge") or {}
+                                    ).get("problem_description", "")
                                 ),
                                 results=_types.SimpleNamespace(
-                                    quantitative_results=(story_data.get("results") or {}).get(
-                                        "quantitative_results", []
-                                    )
+                                    quantitative_results=(
+                                        story_data.get("results") or {}
+                                    ).get("quantitative_results", [])
                                 ),
                             )
-                            _miner = StoryMiner(project_id=project_id or "service-classification")
-                            eligible_templates = _miner._classify_story_templates(_story_ns)
+                            _miner = StoryMiner(
+                                project_id=project_id or "service-classification"
+                            )
+                            eligible_templates = _miner._classify_story_templates(
+                                _story_ns
+                            )
                             if eligible_templates:
                                 db_story.eligible_templates = eligible_templates
                                 db.commit()
@@ -852,7 +961,9 @@ class ResearchService:
             # Invalidate research context cache (Phase 4: Cache invalidation)
             try:
                 invalidate_cache(client_id)
-                logger.info(f"Invalidated research context cache for client {client_id}")
+                logger.info(
+                    f"Invalidated research context cache for client {client_id}"
+                )
             except Exception as e:
                 logger.warning(f"Could not invalidate research context cache: {e}")
 
@@ -911,7 +1022,9 @@ class ResearchService:
         # batch endpoint returns a 422 rather than silently running tools out of order.
         ordered_tools = self.prerequisites.get_execution_order(tool_names)
 
-        logger.info(f"Batch execution order for {len(tool_names)} tools: {ordered_tools}")
+        logger.info(
+            f"Batch execution order for {len(tool_names)} tools: {ordered_tools}"
+        )
 
         # Execute tools in order
         results = {}
@@ -939,14 +1052,18 @@ class ResearchService:
                 can_run,
                 missing_required,
                 missing_recommended,
-            ) = self.prerequisites.check_prerequisites_met(tool_name, completed_for_client)
+            ) = self.prerequisites.check_prerequisites_met(
+                tool_name, completed_for_client
+            )
 
             if not can_run:
                 # Tool is blocked - missing required prerequisites
                 error_msg = self.prerequisites.get_missing_prerequisites_message(
                     tool_name, missing_required, missing_recommended
                 )
-                logger.warning(f"Skipping {tool_name} - prerequisites not met: {missing_required}")
+                logger.warning(
+                    f"Skipping {tool_name} - prerequisites not met: {missing_required}"
+                )
                 results[tool_name] = {
                     "success": False,
                     "blocked": True,
@@ -1159,7 +1276,9 @@ class ResearchService:
             "business_description": cached_client_business_description
             or client.business_description
             or "",
-            "target_audience": cached_client_ideal_customer or client.ideal_customer or "",
+            "target_audience": cached_client_ideal_customer
+            or client.ideal_customer
+            or "",
             "platforms": cached_project_platforms or project.platforms or ["LinkedIn"],
             **params,  # Merge in additional parameters (explicit params take precedence)
         }
@@ -1200,25 +1319,37 @@ class ResearchService:
 
         elif tool_name == "seo_keyword_research":  # Fixed: was "seo_keyword"
             # SEO keyword research needs industry/niche
-            inputs["industry"] = params.get("industry") or client.industry or "General business"
+            inputs["industry"] = (
+                params.get("industry") or client.industry or "General business"
+            )
             inputs["target_keywords"] = params.get("target_keywords", [])
             inputs["main_topics"] = params.get("main_topics", [])  # Required by tool
 
         elif tool_name == "competitive_analysis":
             # Competitive analysis needs competitor list and industry
-            inputs["competitors"] = params.get("competitors") or client.competitors or []
-            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
+            inputs["competitors"] = (
+                params.get("competitors") or client.competitors or []
+            )
+            inputs["industry"] = (
+                params.get("industry") or client.industry or "Not specified"
+            )
 
         elif tool_name == "content_gap_analysis":
             # Content gap needs current topics - will auto-populate after prerequisite merge if empty
             inputs["current_content_topics"] = params.get("current_content_topics", "")
             # Inject competitors and industry from client so web search fires correctly
-            inputs["competitors"] = params.get("competitors") or client.competitors or []
-            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
+            inputs["competitors"] = (
+                params.get("competitors") or client.competitors or []
+            )
+            inputs["industry"] = (
+                params.get("industry") or client.industry or "Not specified"
+            )
 
         elif tool_name == "market_trends":
             # Market trends needs industry context
-            inputs["industry"] = params.get("industry") or client.industry or "General business"
+            inputs["industry"] = (
+                params.get("industry") or client.industry or "General business"
+            )
 
         elif tool_name == "audience_research":
             # Audience research needs business name, industry, and optional location for Census lookup
@@ -1232,13 +1363,17 @@ class ResearchService:
         elif tool_name == "platform_strategy":
             # Platform strategy needs current platforms - fallback to client.platforms
             # BUG FIX #38: Add data injection and type normalization
-            inputs["industry"] = params.get("industry") or client.industry or "Not specified"
+            inputs["industry"] = (
+                params.get("industry") or client.industry or "Not specified"
+            )
             current_platforms = params.get("current_platforms")
 
             # Type normalization: handle string, None, or list
             if isinstance(current_platforms, str):
                 # Convert comma-separated string to list
-                current_platforms = [p.strip() for p in current_platforms.split(",") if p.strip()]
+                current_platforms = [
+                    p.strip() for p in current_platforms.split(",") if p.strip()
+                ]
             elif current_platforms is None or current_platforms == "":
                 # Fallback to client platforms
                 current_platforms = client.platforms or []
