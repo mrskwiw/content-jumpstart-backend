@@ -30,6 +30,27 @@ def test_cache_initialization(temp_cache_dir):
     assert cache.ttl_seconds == 86400  # default
 
 
+def test_by_key_rejects_path_traversal(cache, temp_cache_dir):
+    """A by-key operation with a traversing key must not read/write/delete
+    outside cache_dir (py/path-injection guard)."""
+    # Plant a file outside the cache dir that a traversal key would target.
+    outside = temp_cache_dir.parent / "escape.json"
+    outside.write_text('{"data": "secret", "timestamp": 0, "ttl": 999999}', encoding="utf-8")
+
+    traversal_key = "../escape"
+
+    # put must not create/overwrite outside the cache dir
+    cache.put_by_key(traversal_key, {"attacker": "data"})
+    assert outside.read_text(encoding="utf-8").startswith('{"data": "secret"')
+
+    # get must not read outside the cache dir
+    assert cache.get_by_key(traversal_key) is None
+
+    # delete must not remove the outside file
+    assert cache.delete(traversal_key) is False
+    assert outside.exists()
+
+
 def test_cache_disabled():
     """Test that disabled cache returns None"""
     cache = ResponseCache(enabled=False)

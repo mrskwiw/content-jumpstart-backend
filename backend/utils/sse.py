@@ -7,8 +7,11 @@ long-running operations like content generation and research execution.
 
 import asyncio
 import json
+import logging
 from typing import AsyncGenerator, Any, Dict
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger(__name__)
 
 
 class SSEMessage:
@@ -61,9 +64,13 @@ async def create_sse_response(
         except asyncio.CancelledError:
             # Client disconnected
             pass
-        except Exception as e:
-            # Send error event
-            yield SSEMessage.format({"error": str(e), "type": "error"}, event="error")
+        except Exception:
+            # Log the detail server-side; send the client a generic error rather
+            # than the raw exception text (py/stack-trace-exposure).
+            logger.exception("SSE stream error")
+            yield SSEMessage.format(
+                {"error": "An internal error occurred", "type": "error"}, event="error"
+            )
 
     return StreamingResponse(
         event_generator(),

@@ -231,6 +231,22 @@ class ResponseCache:
         except Exception as e:
             logger.error(f"Failed to cache response: {e}")
 
+    def _safe_cache_file(self, cache_key: str) -> Optional[Path]:
+        """Build the by-key cache file path, confined within ``cache_dir``.
+
+        By-key cache keys are normally hashes or internal id-based strings, but a
+        key containing path separators or ``..`` could otherwise escape the cache
+        directory (py/path-injection). Returns None when the resolved path would
+        fall outside ``cache_dir``; callers treat that as a miss / no-op.
+        """
+        candidate = self.cache_dir / f"{cache_key}.json"
+        try:
+            candidate.resolve().relative_to(self.cache_dir.resolve())
+        except ValueError:
+            logger.warning("Rejected unsafe cache key (path escape): %r", cache_key[:16])
+            return None
+        return candidate
+
     def get_by_key(self, cache_key: str) -> Optional[Any]:
         """Retrieve cached data by key (generic caching)
 
@@ -243,7 +259,9 @@ class ResponseCache:
         if not self.enabled:
             return None
 
-        cache_file = self.cache_dir / f"{cache_key}.json"
+        cache_file = self._safe_cache_file(cache_key)
+        if cache_file is None:
+            return None
 
         try:
             if not cache_file.exists():
@@ -283,7 +301,9 @@ class ResponseCache:
         if not self.enabled:
             return
 
-        cache_file = self.cache_dir / f"{cache_key}.json"
+        cache_file = self._safe_cache_file(cache_key)
+        if cache_file is None:
+            return
 
         try:
             cache_data = {
@@ -313,7 +333,9 @@ class ResponseCache:
         if not self.enabled or not self.cache_dir.exists():
             return False
 
-        cache_file = self.cache_dir / f"{cache_key}.json"
+        cache_file = self._safe_cache_file(cache_key)
+        if cache_file is None:
+            return False
         if cache_file.exists():
             try:
                 cache_file.unlink()

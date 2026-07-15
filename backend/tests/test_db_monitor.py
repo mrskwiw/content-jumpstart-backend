@@ -97,7 +97,9 @@ class TestGetPoolStatus:
         result = get_pool_status()
 
         assert result["error"] is not None
-        assert "Database not available" in result["error"]
+        # Security (py/stack-trace-exposure): the raw exception text must not be
+        # returned in the response — a generic message is used instead.
+        assert "Database not available" not in result["error"]
         assert result["has_pool"] is False
 
 
@@ -161,7 +163,8 @@ class TestGetPoolEvents:
         result = get_pool_events()
         assert result["has_listener"] is False
         assert result["database_type"] == "unknown"
-        assert "boom" in result["error"]
+        # Security (py/stack-trace-exposure): raw exception text must not leak.
+        assert "boom" not in result["error"]
 
 
 class TestGetRecommendations:

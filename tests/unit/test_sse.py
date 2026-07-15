@@ -1,6 +1,5 @@
 """Unit tests for backend.utils.sse (Server-Sent Events utilities)."""
 
-import asyncio
 import json
 import pytest
 
@@ -93,4 +92,7 @@ class TestCreateSSEResponse:
 
         combined = "".join(chunks)
         assert "error" in combined
-        assert "generator blew up" in combined
+        # Security (py/stack-trace-exposure): the raw exception text must NOT be
+        # sent to the client — only a generic message.
+        assert "generator blew up" not in combined
+        assert "An internal error occurred" in combined

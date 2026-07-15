@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.engine.url import make_url
 
 from backend.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_engine():
@@ -99,6 +102,9 @@ def get_pool_status() -> Dict[str, Any]:
         result["recommendations"] = _get_recommendations(result)
         return result
     except Exception as exc:
+        # Log the detail server-side; do NOT return the raw exception text in the
+        # HTTP response (py/stack-trace-exposure — leaks internal DB/config detail).
+        logger.warning("get_pool_status failed: %s", exc, exc_info=True)
         return {
             "has_pool": False,
             "database_type": "unknown",
@@ -108,8 +114,8 @@ def get_pool_status() -> Dict[str, Any]:
             "checked_in": 0,
             "utilization_percent": 0.0,
             "health_status": "error",
-            "error": str(exc),
-            "recommendations": _get_recommendations({"has_pool": False, "error": str(exc)}),
+            "error": "Unable to read pool status",
+            "recommendations": _get_recommendations({"has_pool": False, "error": "unavailable"}),
         }
 
 
@@ -232,10 +238,12 @@ def get_pool_events() -> Dict[str, Any]:
             "reset_count": int(getattr(listener, "reset_count", 0)),
         }
     except Exception as exc:
+        # Log detail server-side; keep the raw exception out of the HTTP response.
+        logger.warning("get_pool_events failed: %s", exc, exc_info=True)
         return {
             "has_listener": False,
             "database_type": "unknown",
-            "error": str(exc),
+            "error": "Unable to read pool event counters",
             "message": "Unable to read pool event counters",
         }
 
