@@ -142,7 +142,13 @@ def list_conversations(
     )
     total = base.count()
     rows = (
-        base.order_by(Conversation.updated_at.desc().nullslast())
+        # created_at + id are deterministic tie-breakers so same-tick updates
+        # (coarse DB clock precision) still yield a stable total order.
+        base.order_by(
+            Conversation.updated_at.desc().nullslast(),
+            Conversation.created_at.desc().nullslast(),
+            Conversation.id.desc(),
+        )
         .offset(skip)
         .limit(min(limit, 100))
         .all()
