@@ -5,6 +5,8 @@ Database models.
 from .brief import Brief
 from .client import Client
 from .communication import Communication  # noqa: F401
+from .conversation import Conversation
+from .message import Message
 from .credit import CreditTransaction, CreditPackage
 from .deliverable import Deliverable
 from .post import Post
@@ -48,4 +50,6 @@ __all__ = [
     "AuditLog",
     "DeletionAuditLog",
     "ClientKeyword",
+    "Conversation",
+    "Message",
 ]

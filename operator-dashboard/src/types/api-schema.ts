@@ -3187,13 +3187,61 @@ export interface paths {
         put?: never;
         /**
          * Chat Stream
-         * @description Stream AI assistant responses in real-time.
+         * @description Stream AI assistant responses in real-time (Server-Sent Events).
          *
-         *     Returns Server-Sent Events with response chunks as they're generated.
-         *     Provides better UX for long responses by showing progress immediately.
+         *     Runs the agentic chat loop: streams token deltas, runs user-scoped read-only
+         *     tools when the model requests them, and persists the conversation. Yields
+         *     events of type: start, token, tool_running, tool_result, suggestions,
+         *     complete, error.
+         *
+         *     Rate limit: 50/hour (moderate limit for AI chat).
          */
         post: operations["chat_stream_api_assistant_chat_stream_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description List the current user's assistant conversations (most recent first).
+         */
+        get: operations["list_conversations_api_assistant_conversations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Conversation
+         * @description Get one conversation and its messages (ownership-checked).
+         */
+        get: operations["get_conversation_api_assistant_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Conversation
+         * @description Soft-delete a conversation the current user owns.
+         */
+        delete: operations["delete_conversation_api_assistant_conversations__conversation_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3298,6 +3346,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/database/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Database Status
+         * @description Report database connectivity, backend engine, host, and schema version.
+         */
+        get: operations["database_status_api_database_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/database/backup": {
         parameters: {
             query?: never;
@@ -3306,25 +3374,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download Database Backup
-         * @description Download a backup of the SQLite database.
+         * Backup Instructions
+         * @description Return instructions for backing up the PostgreSQL database.
          *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Creates a timestamped copy of the database file and returns it for download.
-         *     This endpoint downloads the ENTIRE database including all users' data.
-         *
-         *     Args:
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *
-         *     Returns:
-         *         FileResponse: Database file download
-         *
-         *     Raises:
-         *         HTTPException 403: User is not an admin
-         *         HTTPException: If database is not SQLite or file cannot be accessed
+         *     SQLite file backups no longer apply; use ``pg_dump`` or Supabase's managed
+         *     backups instead of downloading a ``.db`` file.
          */
-        get: operations["download_database_backup_api_database_backup_get"];
+        get: operations["backup_instructions_api_database_backup_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3343,98 +3399,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Restore Database From Backup
-         * @description Restore database from an uploaded SQLite backup file.
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Behaviour:
-         *     - File-based SQLite: replaces the database file on disk (preferred).
-         *     - In-memory SQLite (PostgreSQL unavailable at startup): loads the backup
-         *       into the live in-memory engine via the sqlite3 backup API so the
-         *       restored data is immediately available for the current session.
-         *
-         *     ⚠️ **DESTRUCTIVE OPERATION**: All current data will be replaced.
-         *
-         *     Args:
-         *         file: Uploaded SQLite .db backup file
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *         db: Database session (closed before restore)
-         *
-         *     Returns:
-         *         dict: Status message and restore details
-         *
-         *     Raises:
-         *         HTTPException 400: Invalid file
-         *         HTTPException 403: Not an admin
-         *         HTTPException 500: Restore failed
+         * Restore Not Available
+         * @description SQLite restore has been removed; restore PostgreSQL via pg_restore/Supabase.
          */
-        post: operations["restore_database_from_backup_api_database_restore_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/database/restore-points": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Restore Points
-         * @description List available restore points (pre-restore backups from previous restore operations).
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Returns backups created by the restore operation, allowing admins to revert
-         *     to the state before a restore if needed.
-         *
-         *     Returns:
-         *         dict: List of restore points with timestamps and file sizes
-         */
-        get: operations["list_restore_points_api_database_restore_points_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/database/restore-to-point": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Restore To Restore Point
-         * @description Revert database to a previous restore point (pre-restore backup).
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     This allows undoing a restore operation by reverting to the database state
-         *     that existed before the restore was performed.
-         *
-         *     Args:
-         *         filename: Name of the pre_restore_backup_*.db file to restore to
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *
-         *     Returns:
-         *         dict: Status message and restore details
-         *
-         *     Raises:
-         *         HTTPException 400: Invalid filename or file not found
-         *         HTTPException 403: Not an admin
-         *         HTTPException 500: Restore failed
-         */
-        post: operations["restore_to_restore_point_api_database_restore_to_point_post"];
+        post: operations["restore_not_available_api_database_restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3451,40 +3419,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Merge Database From Backup
-         * @description Merge content records from an uploaded SQLite backup into the live database.
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Unlike a full restore, this operation **does not replace existing data**.
-         *     It imports clients, projects, runs, posts, briefs, research_results,
-         *     deliverables, communications, mined_stories, and story_usage.
-         *
-         *     The following are **never overwritten**: users, credit_transactions,
-         *     credit_packages, settings, stripe_payments, deletion_audit_log.
-         *
-         *     - Primary and foreign keys are remapped to avoid conflicts.
-         *     - Source users are matched to target users by email; unmatched source
-         *       users are assigned to the admin user.
-         *     - Duplicate records (same client name, same project/client, etc.) are
-         *       skipped automatically.
-         *
-         *     Args:
-         *         file: Uploaded SQLite .db backup file to merge from
-         *         dry_run: If True, return a preview of what would be merged without
-         *             writing any data (the full merge logic runs inside a rolled-back
-         *             transaction, so counts are accurate)
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *
-         *     Returns:
-         *         dict: Per-table merged/skipped counts, user mapping, and warnings
-         *
-         *     Raises:
-         *         HTTPException 400: Invalid file
-         *         HTTPException 403: Not an admin
-         *         HTTPException 500: Merge failed
+         * Merge Not Available
+         * @description SQLite merge has been removed; not supported on PostgreSQL.
          */
-        post: operations["merge_database_from_backup_api_database_merge_post"];
+        post: operations["merge_not_available_api_database_merge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3502,22 +3440,10 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * Cleanup Old Backups
-         * @description Delete backup files older than specified number of days.
-         *
-         *     **ADMIN ONLY**: Requires superuser privileges.
-         *
-         *     Args:
-         *         days: Number of days to keep backups (default: 30)
-         *         admin: Authenticated admin user (verified by require_admin dependency)
-         *
-         *     Returns:
-         *         dict: Number of backups deleted
-         *
-         *     Raises:
-         *         HTTPException 403: User is not an admin
+         * Cleanup Backups Not Available
+         * @description Local SQLite backup files no longer exist; cleanup does not apply.
          */
-        delete: operations["cleanup_old_backups_api_database_cleanup_backups_delete"];
+        delete: operations["cleanup_backups_not_available_api_database_cleanup_backups_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3993,24 +3919,8 @@ export interface components {
             /** Portal Url */
             portal_url: string;
         };
-        /** Body_merge_database_from_backup_api_database_merge_post */
-        Body_merge_database_from_backup_api_database_merge_post: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
         /** Body_parse_brief_file_api_briefs_parse_post */
         Body_parse_brief_file_api_briefs_parse_post: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
-        /** Body_restore_database_from_backup_api_database_restore_post */
-        Body_restore_database_from_backup_api_database_restore_post: {
             /**
              * File
              * Format: binary
@@ -4161,6 +4071,18 @@ export interface components {
              * @default []
              */
             suggestions: string[];
+        };
+        /**
+         * ChatStreamRequest
+         * @description Request body for the streaming chat endpoint.
+         */
+        ChatStreamRequest: {
+            /** Message */
+            message: string;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Context */
+            context?: Record<string, never> | null;
         };
         /** CheckoutSessionRequest */
         CheckoutSessionRequest: {
@@ -4511,6 +4433,53 @@ export interface components {
              * @default []
              */
             quick_actions: Record<string, never>[];
+        };
+        /**
+         * ConversationDetail
+         * @description A conversation plus its messages.
+         */
+        ConversationDetail: {
+            /** Id */
+            id: string;
+            /** Title */
+            title?: string | null;
+            /** Page Context */
+            page_context?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Messages */
+            messages?: components["schemas"]["MessageOut"][];
+        };
+        /**
+         * ConversationListResponse
+         * @description Paginated list of a user's conversations.
+         */
+        ConversationListResponse: {
+            /** Conversations */
+            conversations?: components["schemas"]["ConversationSummary"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
+        /**
+         * ConversationSummary
+         * @description Lightweight conversation entry for list views.
+         */
+        ConversationSummary: {
+            /** Id */
+            id: string;
+            /** Title */
+            title?: string | null;
+            /** Page Context */
+            page_context?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /**
          * CostEstimateResponse
@@ -5215,6 +5184,24 @@ export interface components {
             content: string;
             /** Timestamp */
             timestamp?: string | null;
+        };
+        /**
+         * MessageOut
+         * @description A single persisted message.
+         */
+        MessageOut: {
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
+            /** Content */
+            content?: string | null;
+            /** Tool Calls */
+            tool_calls?: Record<string, never>[] | null;
+            /** Tool Call Id */
+            tool_call_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
         };
         /**
          * MetricsSummary
@@ -10964,9 +10951,103 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ChatRequest"];
+                "application/json": components["schemas"]["ChatStreamRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_conversations_api_assistant_conversations_get: {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_conversation_api_assistant_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_conversation_api_assistant_conversations__conversation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -11125,58 +11206,7 @@ export interface operations {
             };
         };
     };
-    download_database_backup_api_database_backup_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    restore_database_from_backup_api_database_restore_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_restore_database_from_backup_api_database_restore_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_restore_points_api_database_restore_points_get: {
+    database_status_api_database_status_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -11196,11 +11226,9 @@ export interface operations {
             };
         };
     };
-    restore_to_restore_point_api_database_restore_to_point_post: {
+    backup_instructions_api_database_backup_get: {
         parameters: {
-            query: {
-                filename: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -11216,57 +11244,11 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    merge_database_from_backup_api_database_merge_post: {
+    restore_not_available_api_database_restore_post: {
         parameters: {
-            query?: {
-                dry_run?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_merge_database_from_backup_api_database_merge_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cleanup_old_backups_api_database_cleanup_backups_delete: {
-        parameters: {
-            query?: {
-                days?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -11282,13 +11264,44 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    merge_not_available_api_database_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    cleanup_backups_not_available_api_database_cleanup_backups_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
         };

@@ -92,6 +92,20 @@ class Settings(BaseSettings):
             return []
         return [email.strip().lower() for email in self.SUPER_ADMIN_EMAILS.split(",")]
 
+    # Authorization / data ownership
+    # Governs whether the instance treats data as per-user or shared:
+    #   True  -> per-user isolation (the AI assistant filters reads/actions to
+    #            the requesting user; superusers bypass).
+    #   False -> "global" mode (default): every authenticated operator shares the
+    #            instance's data, matching the one-database-per-customer model.
+    # The AI assistant reads THIS flag (via authorization.assistant_scope_query)
+    # so its data visibility tracks the app's ownership policy in one place.
+    # NOTE: the per-endpoint IDOR guards (verify_*_ownership / filter_user_* in
+    # backend.middleware.authorization) currently enforce per-user independently
+    # of this flag; unifying them onto it is a separate security review (they are
+    # covered by the IDOR test suite) and is intentionally out of scope here.
+    ENFORCE_RESOURCE_OWNERSHIP: bool = False
+
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

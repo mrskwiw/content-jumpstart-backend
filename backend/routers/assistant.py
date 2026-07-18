@@ -7,7 +7,7 @@ Provides context-aware AI assistance throughout the operator dashboard.
 from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,11 @@ from backend.middleware.auth_dependency import get_current_user
 from backend.models import User
 from backend.utils.logger import logger
 from backend.utils.http_rate_limiter import standard_limiter, lenient_limiter
-from backend.config import settings
+from backend.schemas.assistant_schemas import (
+    ChatStreamRequest,
+    ConversationDetail,
+    ConversationListResponse,
+)
 from src.validators.prompt_injection_defense import (
     sanitize_prompt_input,
     detect_prompt_leakage,
@@ -237,17 +241,17 @@ async def chat_with_assistant(
             assistant_message = cached_response
             logger.info(f"AI assistant cache hit for user {current_user.email} on page {page}")
         else:
-            # Call Claude API
+            # Call Claude API. NOTE: create_message returns the response *text*
+            # (a str) and uses the client's configured model — it takes no
+            # `model` kwarg. (Previously this passed model=... and indexed
+            # .content[0].text on a str, which raised AttributeError.)
             client = get_default_client()
-            response = client.create_message(
-                model=settings.ANTHROPIC_MODEL,
+            assistant_message = client.create_message(
                 max_tokens=1024,
                 temperature=0.7,
                 system=system_prompt,
                 messages=messages,
             )
-
-            assistant_message = response.content[0].text
 
             # TR-005: Validate LLM output for prompt leakage
             if detect_prompt_leakage(assistant_message):
@@ -387,38 +391,92 @@ def generate_quick_actions(page: str, context: dict) -> List[dict]:
 
 
 @router.post("/chat/stream")
+@standard_limiter.limit("50/hour")  # TR-004: Moderate limit for Claude API chat
 async def chat_stream(
-    request: ChatRequest,
+    request: Request,  # Required for rate limiter (Starlette Request)
+    body: ChatStreamRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
-    Stream AI assistant responses in real-time.
+    Stream AI assistant responses in real-time (Server-Sent Events).
 
-    Returns Server-Sent Events with response chunks as they're generated.
-    Provides better UX for long responses by showing progress immediately.
+    Runs the agentic chat loop: streams token deltas, runs user-scoped read-only
+    tools when the model requests them, and persists the conversation. Yields
+    events of type: start, token, tool_running, tool_result, suggestions,
+    complete, error.
+
+    Rate limit: 50/hour (moderate limit for AI chat).
     """
+    if not CLAUDE_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI assistant is not available (Claude API client not configured)",
+        )
+
     from backend.utils.sse import create_sse_response
+    from backend.services import chat_service
 
-    async def response_stream():
-        """Stream AI response chunks"""
-        try:
-            # Yield start event
-            yield {
-                "type": "start",
-                "message_id": "temp-id",  # Would be generated
-            }
+    generator = chat_service.stream_chat(
+        db,
+        current_user,
+        message=body.message,
+        conversation_id=body.conversation_id,
+        context=body.context or {},
+    )
+    return await create_sse_response(generator, event_type="chat")
 
-            # TODO: Integrate with actual streaming Anthropic API
-            # For now, placeholder that demonstrates the pattern
 
-            yield {
-                "type": "complete",
-                "message": "Streaming infrastructure ready",
-            }
-        except Exception as e:
-            yield {
-                "type": "error",
-                "error": str(e),
-            }
+# ==================== Conversation history ====================
 
-    return await create_sse_response(response_stream(), event_type="chat")
+
+@router.get("/conversations", response_model=ConversationListResponse)
+@lenient_limiter.limit("1000/hour")
+async def list_conversations(
+    request: Request,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List the current user's assistant conversations (most recent first)."""
+    from backend.services import chat_service
+
+    result = chat_service.list_conversations(db, current_user, skip=skip, limit=limit)
+    return ConversationListResponse(conversations=result["conversations"], total=result["total"])
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+@lenient_limiter.limit("1000/hour")
+async def get_conversation(
+    request: Request,
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get one conversation and its messages (ownership-checked)."""
+    from backend.services import chat_service
+
+    try:
+        conv = chat_service.get_conversation_detail(db, current_user, conversation_id)
+    except (LookupError, PermissionError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return conv
+
+
+@router.delete("/conversations/{conversation_id}")
+@lenient_limiter.limit("1000/hour")
+async def delete_conversation(
+    request: Request,
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete a conversation the current user owns."""
+    from backend.services import chat_service
+
+    try:
+        chat_service.delete_conversation(db, current_user, conversation_id)
+    except (LookupError, PermissionError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return {"success": True, "message": "Conversation deleted"}

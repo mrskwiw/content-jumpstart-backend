@@ -683,6 +683,183 @@ class AnthropicClient:
         else:
             raise RuntimeError(f"All {self.max_retries} retries failed")
 
+    async def create_message_stream_async(
+        self,
+        messages: List[Dict[str, Any]],
+        system: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        enable_prompt_caching: Optional[bool] = None,
+        project_id: Optional[str] = None,
+        operation: str = "assistant_chat",
+        **kwargs,
+    ):
+        """Stream a completion token-by-token, yielding structured events.
+
+        Unlike :meth:`create_message_async` this is an async generator and does
+        NOT use the disk response cache (a per-user streamed turn is not safely
+        cacheable). Supports Anthropic tool use: when ``tools`` is provided the
+        model may emit ``tool_use`` blocks, surfaced in the final event so the
+        caller can run its agentic loop.
+
+        Yields dicts:
+            {"type": "text_delta", "text": str}         # incremental output text
+            {"type": "message_stop",                    # terminal event
+             "stop_reason": str,                        # "end_turn" | "tool_use" | ...
+             "content": [ {block}, ... ],               # final assembled blocks
+             "usage": {"input_tokens": int, "output_tokens": int, ...}}
+            {"type": "error", "error": str}             # on unrecoverable failure
+
+        Content blocks are normalized to plain dicts:
+            {"type": "text", "text": str}
+            {"type": "tool_use", "id": str, "name": str, "input": dict}
+
+        Args:
+            messages: Conversation messages (role/content dicts).
+            system: Optional system prompt.
+            max_tokens: Output budget (defaults to settings.MAX_TOKENS).
+            temperature: Sampling temperature (defaults to settings.TEMPERATURE).
+            tools: Optional list of Anthropic tool definitions.
+            enable_prompt_caching: Use Anthropic prompt caching for the system
+                prompt (default: from settings).
+            project_id: Optional project id for cost tracking.
+            operation: Operation label for cost tracking.
+            **kwargs: Extra args forwarded to the SDK stream call.
+        """
+        max_tokens = max_tokens or settings.MAX_TOKENS
+        temperature = temperature or settings.TEMPERATURE
+
+        if enable_prompt_caching is None:
+            enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
+
+        # Estimate tokens for logging (rough approximation)
+        total_chars = sum(len(str(msg.get("content", ""))) for msg in messages)
+        if system:
+            total_chars += len(system)
+        log_api_call(self.model, total_chars // 4)
+
+        system_messages = (
+            self._prepare_system_with_caching(system, enable_prompt_caching) if system else None
+        )
+
+        # Retry only applies BEFORE the first token is emitted; once we have
+        # started streaming, retrying would duplicate output, so mid-stream
+        # failures surface as an error event instead.
+        for attempt in range(self.max_retries):
+            emitted = False
+            try:
+                api_params: Dict[str, Any] = {
+                    "model": self.model,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                    "messages": messages,
+                    **kwargs,
+                }
+                if system_messages:
+                    api_params["system"] = system_messages
+                elif system:
+                    api_params["system"] = system
+                if tools:
+                    api_params["tools"] = tools
+
+                async with self.async_client.messages.stream(**api_params) as stream:
+                    async for text in stream.text_stream:
+                        emitted = True
+                        yield {"type": "text_delta", "text": text}
+
+                    final_message = await stream.get_final_message()
+
+                # Normalize final content blocks to plain dicts.
+                content_blocks: List[Dict[str, Any]] = []
+                for block in final_message.content:
+                    btype = getattr(block, "type", None)
+                    if btype == "text":
+                        content_blocks.append({"type": "text", "text": getattr(block, "text", "")})
+                    elif btype == "tool_use":
+                        content_blocks.append(
+                            {
+                                "type": "tool_use",
+                                "id": getattr(block, "id", None),
+                                "name": getattr(block, "name", None),
+                                "input": getattr(block, "input", {}),
+                            }
+                        )
+
+                usage_obj = getattr(final_message, "usage", None)
+                usage = {}
+                if usage_obj is not None:
+                    usage = {
+                        "input_tokens": getattr(usage_obj, "input_tokens", 0),
+                        "output_tokens": getattr(usage_obj, "output_tokens", 0),
+                        "cache_creation_input_tokens": getattr(
+                            usage_obj, "cache_creation_input_tokens", 0
+                        ),
+                        "cache_read_input_tokens": getattr(usage_obj, "cache_read_input_tokens", 0),
+                    }
+                    # Track cost when a project id is supplied.
+                    if project_id:
+                        try:
+                            self.cost_tracker.track_api_call(
+                                project_id=project_id,
+                                operation=operation,
+                                model=self.model,
+                                input_tokens=usage.get("input_tokens", 0),
+                                output_tokens=usage.get("output_tokens", 0),
+                                cache_creation_tokens=usage.get("cache_creation_input_tokens", 0),
+                                cache_read_tokens=usage.get("cache_read_input_tokens", 0),
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to track streamed API cost: {e}")
+
+                self._record_success()
+
+                yield {
+                    "type": "message_stop",
+                    "stop_reason": getattr(final_message, "stop_reason", None),
+                    "content": content_blocks,
+                    "usage": usage,
+                }
+                return
+
+            except (RateLimitError, APIConnectionError) as e:
+                # If we already streamed tokens, we cannot safely restart.
+                if emitted:
+                    logger.error(f"Streaming failed mid-response: {e}")
+                    yield {"type": "error", "error": "The response was interrupted."}
+                    return
+
+                run_diag = isinstance(e, APIConnectionError)
+                self._record_error(
+                    exception=e,
+                    operation=operation,
+                    attempt=attempt + 1,
+                    max_attempts=self.max_retries,
+                    run_diagnostics=run_diag,
+                )
+                wait_time = self.retry_delay * (2**attempt)
+                logger.warning(
+                    f"Streaming setup failed (attempt {attempt + 1}/{self.max_retries}), "
+                    f"retrying in {wait_time}s: {type(e).__name__}"
+                )
+                await asyncio.sleep(wait_time)
+
+            except APIError as e:
+                self._record_error(
+                    exception=e,
+                    operation=operation,
+                    attempt=attempt + 1,
+                    max_attempts=self.max_retries,
+                    run_diagnostics=False,
+                )
+                log_error(f"Streaming API error: {str(e)}", exc_info=True)
+                yield {"type": "error", "error": "The assistant service returned an error."}
+                return
+
+        # All retries exhausted before any token was emitted.
+        log_error(f"All {self.max_retries} streaming retries failed", exc_info=True)
+        yield {"type": "error", "error": "The assistant service is temporarily unavailable."}
+
     def create_brief_analysis(self, brief_content: str, system_prompt: Optional[str] = None) -> str:
         """
         Analyze a client brief and extract structured information

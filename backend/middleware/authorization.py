@@ -426,3 +426,64 @@ async def verify_brief_ownership(
         )
 
     return brief
+
+
+# ==================== AI Assistant Data Scoping ====================
+
+
+def assistant_scope_query(query, model, current_user: User):
+    """Scope an AI-assistant data query according to ENFORCE_RESOURCE_OWNERSHIP.
+
+    The assistant must never expose data the same user couldn't reach through the
+    normal API. Its visibility follows the app-wide ownership policy from a single
+    source (``settings.ENFORCE_RESOURCE_OWNERSHIP``):
+
+    - Flag OFF (default / "global" mode): every authenticated operator shares the
+      instance's data — return the query unfiltered.
+    - Flag ON (per-user isolation): filter to rows owned by ``current_user`` via
+      the model's ``user_id`` column. Superusers always see everything.
+
+    Unlike the per-endpoint IDOR guards (``verify_*_ownership`` / ``filter_user_*``),
+    this helper is the assistant's single scoping point and honors the toggle so
+    the assistant's reach matches whatever policy the deployment runs.
+
+    Args:
+        query: A SQLAlchemy Query to scope.
+        model: The mapped model being queried (must expose ``user_id`` to scope).
+        current_user: The authenticated user the assistant is acting for.
+
+    Returns:
+        The (possibly filtered) query.
+    """
+    from backend.config import settings
+
+    # Global mode or superuser: no scoping.
+    if not settings.ENFORCE_RESOURCE_OWNERSHIP or getattr(current_user, "is_superuser", False):
+        return query
+
+    # Per-user mode: fail closed if the model can't be scoped, mirroring
+    # _check_ownership's security-first posture.
+    if not hasattr(model, "user_id"):
+        logger.error(
+            f"SECURITY: assistant_scope_query called for {getattr(model, '__name__', model)} "
+            f"which has no user_id column while ENFORCE_RESOURCE_OWNERSHIP is on - "
+            f"returning no rows (fail closed)"
+        )
+        return query.filter(False)
+
+    return query.filter(model.user_id == current_user.id)
+
+
+def assistant_can_access(resource, current_user: User) -> bool:
+    """Return True if the assistant may surface ``resource`` for ``current_user``.
+
+    Object-level counterpart to :func:`assistant_scope_query` for single-row
+    checks. Honors ENFORCE_RESOURCE_OWNERSHIP: always True in global mode or for
+    superusers; otherwise delegates to the shared ``_check_ownership`` logic.
+    """
+    from backend.config import settings
+
+    if not settings.ENFORCE_RESOURCE_OWNERSHIP or getattr(current_user, "is_superuser", False):
+        return True
+
+    return _check_ownership(type(resource).__name__, resource, current_user)
