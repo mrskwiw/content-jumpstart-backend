@@ -236,6 +236,12 @@ def test_add_message_bumps_recency(db, seeded):
 
     chat_service.add_message(db, c1, role="user", content="new activity")
 
+    # In-memory value must be a real datetime (not a SQL expression) — the
+    # session uses expire_on_commit=False, so a func.now() would leak through.
+    import datetime as _dt
+
+    assert isinstance(c1.updated_at, _dt.datetime)
+
     listing = chat_service.list_conversations(db, seeded.ua)
     assert listing["conversations"][0].id == c1.id  # recency reflects the new message
 

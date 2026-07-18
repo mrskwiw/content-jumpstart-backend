@@ -18,9 +18,9 @@ user couldn't reach via the normal API.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.models import Conversation, Message, User
@@ -121,9 +121,10 @@ def add_message(
     if role == "user" and not conversation.title and content:
         conversation.title = content[:80]
     # Bump recency: inserting a child Message does not touch the conversation
-    # row, so `onupdate` won't fire. Set updated_at explicitly so list ordering
-    # reflects actual activity.
-    conversation.updated_at = func.now()
+    # row, so `onupdate` won't fire. Assign a concrete tz-aware datetime (not a
+    # SQL func expression): with expire_on_commit=False the instance keeps the
+    # assigned value after commit, so callers always read a real datetime.
+    conversation.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
     return msg
