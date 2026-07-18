@@ -20,6 +20,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.models import Conversation, Message, User
@@ -119,6 +120,10 @@ def add_message(
     # Derive a title from the first user message.
     if role == "user" and not conversation.title and content:
         conversation.title = content[:80]
+    # Bump recency: inserting a child Message does not touch the conversation
+    # row, so `onupdate` won't fire. Set updated_at explicitly so list ordering
+    # reflects actual activity.
+    conversation.updated_at = func.now()
     db.commit()
     db.refresh(msg)
     return msg
@@ -316,8 +321,19 @@ async def stream_chat(
         final_assistant_text = collected_text
         break
     else:
-        # Exhausted the tool-iteration budget.
+        # Exhausted the tool-iteration budget without the model ending its turn:
+        # the last step was a tool call, so there is no final answer. Surface an
+        # explicit error instead of a normal `complete` (which would falsely
+        # report success on a truncated turn).
         logger.warning(f"Assistant hit MAX_TOOL_ITERATIONS for conversation {conv.id}")
+        yield {
+            "type": "error",
+            "error": (
+                "I couldn't finish this request within the step limit. "
+                "Please narrow it down or try again."
+            ),
+        }
+        return
 
     # 5. Safety net: prompt-leakage check on the final text.
     if final_assistant_text and detect_prompt_leakage(final_assistant_text):

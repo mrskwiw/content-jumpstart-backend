@@ -221,3 +221,55 @@ def test_conversation_crud_cross_user_denied(db, seeded):
 def test_missing_conversation_raises_lookup(db, seeded):
     with pytest.raises(LookupError):
         chat_service.get_conversation_detail(db, seeded.ua, "conv_does_not_exist")
+
+
+def test_add_message_bumps_recency(db, seeded):
+    """A new message must move its conversation to the front of the list."""
+    import datetime as dt
+
+    c1 = chat_service.get_or_create_conversation(db, seeded.ua, None, {})
+    c2 = chat_service.get_or_create_conversation(db, seeded.ua, None, {})
+    # Force a known stale ordering: c1 older than c2.
+    c1.updated_at = dt.datetime(2020, 1, 1)
+    c2.updated_at = dt.datetime(2021, 1, 1)
+    db.commit()
+
+    chat_service.add_message(db, c1, role="user", content="new activity")
+
+    listing = chat_service.list_conversations(db, seeded.ua)
+    assert listing["conversations"][0].id == c1.id  # recency reflects the new message
+
+
+class _AlwaysToolClient:
+    """A model that never stops requesting tools — exercises the iteration cap."""
+
+    def __init__(self):
+        self.calls = 0
+        self.model = "fake"
+
+    def create_message_stream_async(self, **kwargs):
+        self.calls += 1
+        return self._gen()
+
+    async def _gen(self):
+        yield {"type": "text_delta", "text": "working…"}
+        yield {
+            "type": "message_stop",
+            "stop_reason": "tool_use",
+            "content": [{"type": "tool_use", "id": "t", "name": "list_projects", "input": {}}],
+            "usage": {},
+        }
+
+
+@pytest.mark.asyncio
+async def test_tool_iteration_exhaustion_errors_not_completes(db, seeded, monkeypatch):
+    fake = _AlwaysToolClient()
+    monkeypatch.setattr(chat_service, "get_default_client", lambda: fake)
+
+    events = await _collect(chat_service.stream_chat(db, seeded.ua, message="loop forever"))
+    types_seen = [e["type"] for e in events]
+
+    # Exhaustion surfaces as an error, never a false "complete".
+    assert "error" in types_seen
+    assert "complete" not in types_seen
+    assert fake.calls == chat_service.MAX_TOOL_ITERATIONS
