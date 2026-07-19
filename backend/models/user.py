@@ -42,6 +42,10 @@ class User(Base, SoftDeleteMixin):
     mfa_backup_codes = Column(Text, nullable=True)  # JSON array of hashed backup codes
     mfa_enforced = Column(Boolean, default=False, nullable=False)  # Admin enforcement flag
 
+    # Set when the user changes their password. Used to revoke pre-change sessions:
+    # legacy tokens carrying no "pv" claim are rejected once this is set.
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     settings = relationship("Setting", back_populates="user", cascade="all, delete-orphan")
 

@@ -136,6 +136,29 @@ def test_password_change_revokes_existing_sessions(client, db_session):
     assert r2.status_code == 401
 
 
+def test_legacy_token_without_pv_revoked_after_change(client, db_session):
+    """A token carrying NO pv claim is also revoked once the password changes."""
+    user = _make_user(db_session, "cp-legacy@example.com", OLD_PASSWORD)
+    legacy_token = create_access_token(data={"sub": user.id})  # no "pv" claim
+    hdr = {"Authorization": f"Bearer {legacy_token}"}
+
+    # Before any change (password_changed_at is NULL) the legacy token authenticates.
+    r0 = client.post(
+        "/api/auth/change-password",
+        json={"current_password": OLD_PASSWORD, "new_password": NEW_PASSWORD},
+        headers=hdr,
+    )
+    assert r0.status_code == 200, r0.text
+
+    # After the change, the same legacy token is rejected (no valid pv, pca set).
+    r1 = client.post(
+        "/api/auth/change-password",
+        json={"current_password": NEW_PASSWORD, "new_password": OLD_PASSWORD},
+        headers=hdr,
+    )
+    assert r1.status_code == 401
+
+
 # ── Instance export (superuser only) ──────────────────────────────────────────
 
 

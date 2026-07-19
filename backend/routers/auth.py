@@ -132,7 +132,12 @@ async def change_password(
             },
         )
 
+    from datetime import datetime, timezone
+
     current_user.hashed_password = get_password_hash(body.new_password)
+    # Stamp the change so pre-change sessions (incl. legacy tokens without a "pv"
+    # claim) are revoked in get_current_user / refresh.
+    current_user.password_changed_at = datetime.now(timezone.utc)
     db.add(current_user)
     db.commit()
 
@@ -183,10 +188,17 @@ async def refresh_token(
             detail="User not found or inactive",
         )
 
-    # Reject a refresh token issued before the current password (session revocation).
-    # Legacy tokens without "pv" are allowed.
+    # Reject a refresh token issued before the current password (session revocation):
+    #  - "pv" present → must match current hash; legacy (no "pv") → rejected once the
+    #    password has ever changed.
     token_pv = payload.get("pv")
-    if token_pv is not None and token_pv != password_fingerprint(user.hashed_password):
+    if token_pv is not None:
+        if token_pv != password_fingerprint(user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired. Please sign in again.",
+            )
+    elif user.password_changed_at is not None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session expired. Please sign in again.",

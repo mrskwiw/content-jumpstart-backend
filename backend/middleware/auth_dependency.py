@@ -110,11 +110,21 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Reject tokens issued before the user's current password (session revocation
-    # on password change). Tokens without a "pv" claim are legacy and allowed.
+    # Session revocation on password change:
+    #  - tokens with a "pv" claim must match the current password hash (race-free)
+    #  - legacy tokens with no "pv" are rejected once the password has EVER changed,
+    #    since any legitimately-current token would carry a matching "pv".
     token_pv = payload.get("pv")
-    if token_pv is not None and token_pv != password_fingerprint(user.hashed_password):
-        logger.warning(f"AUTH: Stale token (password changed) for {user.email}")
+    if token_pv is not None:
+        if token_pv != password_fingerprint(user.hashed_password):
+            logger.warning(f"AUTH: Stale token (password changed) for {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session expired. Please sign in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    elif user.password_changed_at is not None:
+        logger.warning(f"AUTH: Legacy token rejected after password change: {user.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session expired. Please sign in again.",
