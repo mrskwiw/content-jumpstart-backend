@@ -102,6 +102,51 @@
         }
       }
     },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Change Password",
+        "description": "Change the authenticated user's own password (self-service).\n\nRequires the current password for re-authentication, enforces the strong\npassword policy, and rejects reusing the current password.\n\nRate limit: 20/hour per IP+user.",
+        "operationId": "change_password_api_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "tags": [
@@ -3865,6 +3910,32 @@
             }
           }
         }
+      }
+    },
+    "/api/privacy/instance/export": {
+      "get": {
+        "tags": [
+          "Privacy & GDPR",
+          "privacy"
+        ],
+        "summary": "Export Instance",
+        "description": "Export the entire instance database as a single JSON bundle (migration).\n\nSuperuser-only. Secret columns (password hashes, MFA secrets, encrypted\nsetting values) are redacted. Intended for a customer migrating elsewhere.",
+        "operationId": "export_instance_api_privacy_instance_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/privacy/clients/{client_id}": {
@@ -8736,6 +8807,26 @@
         ],
         "title": "CalculatePriceResponse",
         "description": "Response model for price calculation"
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "title": "New Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordRequest",
+        "description": "Schema for a user changing their OWN password (self-service).\n\nRequires the current password for re-authentication and enforces the\nstrong-password policy on the new password."
       },
       "ChatRequest": {
         "properties": {

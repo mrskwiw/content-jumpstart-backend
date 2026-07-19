@@ -4,6 +4,7 @@ JWT authentication utilities with secret rotation support.
 
 from datetime import datetime, timedelta
 from typing import Optional
+import hashlib
 import logging
 
 import bcrypt
@@ -55,6 +56,20 @@ def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
     return hashed.decode("utf-8")
+
+
+def password_fingerprint(hashed_password: str) -> str:
+    """
+    Short, non-reversible fingerprint of a password hash.
+
+    Embedded in access/refresh tokens as the ``pv`` (password version) claim.
+    Because a bcrypt hash changes whenever the password changes, comparing a
+    token's ``pv`` against the user's current fingerprint lets us reject tokens
+    that were issued before a password change — i.e. revoke existing sessions on
+    password change without a stateful blacklist. Tokens minted before this
+    mechanism existed carry no ``pv`` and are treated as legacy (not rejected).
+    """
+    return hashlib.sha256(hashed_password.encode("utf-8")).hexdigest()[:16]
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

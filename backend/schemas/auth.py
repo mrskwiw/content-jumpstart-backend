@@ -248,6 +248,41 @@ class AdminUserCreate(BaseModel):
         return v.lower()
 
 
+class ChangePasswordRequest(BaseModel):
+    """
+    Schema for a user changing their OWN password (self-service).
+
+    Requires the current password for re-authentication and enforces the
+    strong-password policy on the new password.
+    """
+
+    current_password: str
+    new_password: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate new password strength (mirrors PasswordResetRequest)."""
+        if not v or len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 200:
+            raise ValueError("Password too long (max 200 characters)")
+
+        has_upper = any(c.isupper() for c in v)
+        has_lower = any(c.islower() for c in v)
+        has_digit = any(c.isdigit() for c in v)
+
+        if not (has_upper and has_lower and has_digit):
+            raise ValueError(
+                "Password must contain at least one uppercase letter, "
+                "one lowercase letter, and one digit"
+            )
+
+        return v
+
+
 class PasswordResetRequest(BaseModel):
     """
     Schema for admin resetting a user's password.

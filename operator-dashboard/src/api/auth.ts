@@ -64,6 +64,17 @@ export const authApi = {
     return data;
   },
 
+  changePassword: async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.post('/api/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return data;
+  },
+
   logout: async (): Promise<void> => {
     // Call logout endpoint if backend has one
     // await apiClient.post('/api/auth/logout');

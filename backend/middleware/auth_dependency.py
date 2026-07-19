@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
-from backend.utils.auth import decode_token
+from backend.utils.auth import decode_token, password_fingerprint
 
 
 class HTTPBearerWith401(HTTPBearer):
@@ -110,8 +110,36 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Reject tokens issued before the user's current password (session revocation
+    # on password change). Tokens without a "pv" claim are legacy and allowed.
+    token_pv = payload.get("pv")
+    if token_pv is not None and token_pv != password_fingerprint(user.hashed_password):
+        logger.warning(f"AUTH: Stale token (password changed) for {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     logger.debug(f"AUTH: Successfully authenticated user: {user.email}")
     return user
+
+
+async def require_superuser(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Dependency that requires the authenticated user to be a superuser.
+
+    Use for instance-wide/admin operations (e.g. full-database export).
+    Returns 403 for non-superusers.
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required",
+        )
+    return current_user
 
 
 async def get_current_user_for_mfa_setup(

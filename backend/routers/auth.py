@@ -4,6 +4,7 @@ Authentication router - login, refresh token, user creation.
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from backend.schemas.auth import (
+    ChangePasswordRequest,
     LoginRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
@@ -14,12 +15,15 @@ from backend.services import crud
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
+from backend.middleware.auth_dependency import get_current_user
+from backend.models import User
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
     create_access_token,
     create_refresh_token,
     decode_token,
     get_password_hash,
+    password_fingerprint,
     verify_password,
     verify_token_type,
 )
@@ -63,9 +67,10 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
     # MFA disabled by operator decision — password-only login for all accounts.
     # Re-enable by restoring should_enforce_mfa() and the TOTP block. See BUGS.md #172.
 
-    # Create tokens
-    access_token = create_access_token(data={"sub": user.id})
-    refresh_token = create_refresh_token(data={"sub": user.id})
+    # Create tokens (bind to current password version for session revocation)
+    token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
 
     # Import UserResponse
     from backend.schemas.auth import UserResponse
@@ -83,6 +88,58 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             updated_at=user.updated_at,
         ),
     )
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+@standard_limiter.limit("20/hour")  # TR-004: limit self-service password churn
+async def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change the authenticated user's own password (self-service).
+
+    Requires the current password for re-authentication, enforces the strong
+    password policy, and rejects reusing the current password.
+
+    Rate limit: 20/hour per IP+user.
+    """
+    # Re-authenticate with the current password.
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    # Reject a no-op change so "new password" is genuinely new.
+    if verify_password(body.new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the current password",
+        )
+
+    # Enforce the full strong-password policy (TR-013).
+    is_valid, password_errors = password_policy.validate_password(body.new_password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "WEAK_PASSWORD",
+                "message": "Password does not meet security requirements",
+                "requirements": password_errors,
+            },
+        )
+
+    current_user.hashed_password = get_password_hash(body.new_password)
+    db.add(current_user)
+    db.commit()
+
+    from backend.utils.logger import logger
+
+    logger.info(f"Password changed for user {current_user.email} (id={current_user.id})")
+    return {"status": "success", "message": "Password updated successfully"}
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse)
@@ -126,9 +183,19 @@ async def refresh_token(
             detail="User not found or inactive",
         )
 
-    # Create new tokens
-    access_token = create_access_token(data={"sub": user.id})
-    new_refresh_token = create_refresh_token(data={"sub": user.id})
+    # Reject a refresh token issued before the current password (session revocation).
+    # Legacy tokens without "pv" are allowed.
+    token_pv = payload.get("pv")
+    if token_pv is not None and token_pv != password_fingerprint(user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired. Please sign in again.",
+        )
+
+    # Create new tokens (re-bind to current password version)
+    token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
+    access_token = create_access_token(data=token_data)
+    new_refresh_token = create_refresh_token(data=token_data)
 
     return RefreshTokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
@@ -224,8 +291,9 @@ async def register_user(request: Request, user_data: UserCreate, db: Session = D
 
     # TR-023: Return tokens but user cannot use them until activated
     # This allows immediate testing in dev, but requires activation in production
-    access_token = create_access_token(data={"sub": user.id})
-    refresh_token = create_refresh_token(data={"sub": user.id})
+    token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
 
     # Import UserResponse
     from backend.schemas.auth import UserResponse
