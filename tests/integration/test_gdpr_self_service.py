@@ -302,6 +302,22 @@ def test_export_my_account_returns_user_scoped_data(client, db_session):
     db_session.commit()
     db_session.add(Message(id="msg-acct", conversation_id="conv-acct", role="user", content="hi"))
     db_session.commit()
+    # Raw-SQL cost-tracking table (no ORM model) — project-scoped, must be exported.
+    from sqlalchemy import text
+
+    db_session.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS api_calls "
+            "(call_id TEXT PRIMARY KEY, project_id TEXT, operation TEXT, cost NUMERIC)"
+        )
+    )
+    db_session.execute(
+        text(
+            "INSERT INTO api_calls (call_id, project_id, operation, cost) "
+            "VALUES ('call-acct', 'proj-acct', 'gen', 0.5)"
+        )
+    )
+    db_session.commit()
 
     resp = client.get("/api/privacy/account/export", headers=_headers(user))
     assert resp.status_code == 200, resp.text
@@ -319,6 +335,9 @@ def test_export_my_account_returns_user_scoped_data(client, db_session):
     assert any(m["id"] == "msg-acct" for m in body["messages"])
     # Project-scoped trends insight (no client_id) must be captured.
     assert any(t["id"] == "tki-acct" for t in body["trends_keyword_insights"])
+    # Raw-SQL cost-tracking table (no ORM model) must be captured.
+    assert any(a["call_id"] == "call-acct" for a in body["api_calls"])
+    assert "budget_alerts" in body and "deletion_audit_log" in body
     for key in ("settings", "credit_transactions", "audit_log", "deliverables", "client_keywords"):
         assert key in body
 

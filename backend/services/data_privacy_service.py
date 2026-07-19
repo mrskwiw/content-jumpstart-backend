@@ -52,6 +52,30 @@ def _rows_to_list(objs: Any) -> List[Dict[str, Any]]:
     return [_row_to_dict(o) for o in objs]
 
 
+def _raw_rows(db: Session, table: str, id_column: str = None, ids=None) -> List[Dict[str, Any]]:
+    """Export rows from a table with NO ORM model (raw-SQL-managed cost tracking,
+    e.g. api_calls / budget_alerts).
+
+    ``table`` and ``id_column`` are internal constants, never user input. Returns
+    [] if the table is absent (e.g. a test DB that never created it) or the id
+    filter is empty. Values are JSON-normalized like the ORM path.
+    """
+    from sqlalchemy import inspect as sqla_inspect, text, bindparam
+
+    if table not in sqla_inspect(db.bind).get_table_names():
+        return []
+    if id_column is not None:
+        if not ids:
+            return []
+        stmt = text(f"SELECT * FROM {table} WHERE {id_column} IN :ids").bindparams(  # nosec B608
+            bindparam("ids", expanding=True)
+        )
+        result = db.execute(stmt, {"ids": list(ids)})
+    else:
+        result = db.execute(text(f"SELECT * FROM {table}"))  # nosec B608
+    return [{k: _json_safe(v) for k, v in dict(r).items()} for r in result.mappings().all()]
+
+
 def soft_delete_client(client_id: str, db: Session, cascade: bool = True) -> Dict:
     client = db.query(Client).filter(Client.id == client_id, Client.is_deleted.is_(False)).first()
     if not client:
@@ -251,6 +275,12 @@ def export_full_instance(db: Session) -> Dict:
         data[key] = rows
         counts[key] = len(rows)
 
+    # Raw-SQL cost-tracking tables (no ORM model) — full dump for migration.
+    for raw_table in ("api_calls", "budget_alerts"):
+        rows = _raw_rows(db, raw_table)
+        data[raw_table] = rows
+        counts[raw_table] = len(rows)
+
     return {
         "export_metadata": {
             "exported_at": datetime.utcnow().isoformat(),
@@ -282,6 +312,7 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         Communication,
         Conversation,
         CreditTransaction,
+        DeletionAuditLog,
         Deliverable,
         Message,
         MinedStory,
@@ -368,6 +399,9 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         "stripe_payments": by_user(StripePayment),
         "communications": by_user(Communication),
         "audit_log": _rows_to_list(db.query(AuditLog).filter(AuditLog.user_id == user_id).all()),
+        "deletion_audit_log": _rows_to_list(
+            db.query(DeletionAuditLog).filter(DeletionAuditLog.deleted_by_user_id == user_id).all()
+        ),
         # Assistant history (user-owned).
         "conversations": _rows_to_list(conversations),
         "messages": by_ids(Message, Message.conversation_id, conversation_ids),
@@ -402,6 +436,9 @@ def export_user_data(user_id: str, db: Session) -> Dict:
             (StoryUsage.story_id, story_ids),
             (StoryUsage.project_id, project_ids),
         ),
+        # Raw-SQL cost-tracking tables (no ORM model), project-scoped.
+        "api_calls": _raw_rows(db, "api_calls", "project_id", project_ids),
+        "budget_alerts": _raw_rows(db, "budget_alerts", "project_id", project_ids),
     }
 
 
