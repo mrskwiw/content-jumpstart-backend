@@ -264,6 +264,124 @@ def export_full_instance(db: Session) -> Dict:
     }
 
 
+def export_user_data(user_id: str, db: Session) -> Dict:
+    """Export all data associated with a single user account (GDPR Article 15).
+
+    Includes the user's own account record plus every row keyed to their
+    ``user_id`` across settings, credits, billing, communications, audit, and the
+    clients/projects/research they created. Secret columns are redacted.
+    """
+    from backend.models import (
+        AuditLog,
+        Client,
+        Communication,
+        CreditTransaction,
+        MinedStory,
+        Project,
+        ResearchResult,
+        Setting,
+        StripeCustomer,
+        StripePayment,
+        TrendsSearch,
+        User,
+    )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError(f"User {user_id} not found")
+
+    def by_user(model):
+        return _rows_to_list(db.query(model).filter(model.user_id == user_id).all())
+
+    return {
+        "export_metadata": {
+            "user_id": user_id,
+            "exported_at": datetime.utcnow().isoformat(),
+            "format": "json",
+            "version": "1.0",
+            "scope": "user",
+        },
+        "account": _row_to_dict(user),
+        "settings": by_user(Setting),
+        "credit_transactions": by_user(CreditTransaction),
+        "stripe_customers": by_user(StripeCustomer),
+        "stripe_payments": by_user(StripePayment),
+        "communications": by_user(Communication),
+        "clients": by_user(Client),
+        "projects": by_user(Project),
+        "research_results": by_user(ResearchResult),
+        "trends_searches": by_user(TrendsSearch),
+        "mined_stories": by_user(MinedStory),
+        "audit_log": _rows_to_list(db.query(AuditLog).filter(AuditLog.user_id == user_id).all()),
+    }
+
+
+def delete_user_account(user_id: str, db: Session) -> Dict:
+    """Soft-delete and deactivate a user account, revoking its sessions.
+
+    Operators have no stake in the data, so this does NOT cascade to the
+    clients/projects they created (those belong to the instance). Refuses to
+    delete the last active superuser to avoid locking out the instance. Raises
+    PermissionError for that guard, ValueError for not-found / already-deleted.
+    """
+    from datetime import timezone
+    from backend.models import User
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError(f"User {user_id} not found")
+    if user.is_deleted:
+        raise ValueError(f"User {user_id} is already deleted")
+
+    if user.is_superuser:
+        remaining_admins = (
+            db.query(User)
+            .filter(
+                User.is_superuser.is_(True),
+                User.is_active.is_(True),
+                User.is_deleted.is_(False),
+                User.id != user_id,
+            )
+            .count()
+        )
+        if remaining_admins == 0:
+            raise PermissionError("Cannot delete the last active administrator")
+
+    now = datetime.now(timezone.utc)
+    user.is_active = False
+    user.is_deleted = True
+    user.deleted_at = now
+    user.password_changed_at = now  # revoke all of this user's sessions
+    db.commit()
+    return {
+        "status": "success",
+        "user_id": user_id,
+        "deleted_at": now.isoformat(),
+        "recovery_period_days": 30,
+    }
+
+
+def restore_user_account(user_id: str, db: Session) -> Dict:
+    """Restore a soft-deleted user account (superuser-gated at the router).
+
+    Sessions stay revoked (password_changed_at unchanged) — the user signs in
+    again after restore.
+    """
+    from backend.models import User
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError(f"User {user_id} not found")
+    if not user.is_deleted:
+        raise ValueError(f"User {user_id} is not deleted")
+
+    user.is_deleted = False
+    user.deleted_at = None
+    user.is_active = True
+    db.commit()
+    return {"status": "success", "user_id": user_id, "restored": True}
+
+
 def restore_soft_deleted_client(client_id: str, db: Session) -> Dict:
     client = db.query(Client).filter(Client.id == client_id, Client.is_deleted.is_(True)).first()
     if not client:

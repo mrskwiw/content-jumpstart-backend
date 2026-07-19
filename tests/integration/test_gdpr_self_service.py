@@ -276,3 +276,81 @@ def test_client_delete_forbidden_for_non_owner(client, db_session):
 
     resp = client.delete(f"/api/privacy/clients/{c.id}", headers=_headers(other))
     assert resp.status_code == 403
+
+
+# ── User-level (account) export + deletion ────────────────────────────────────
+
+
+def test_export_my_account_returns_user_scoped_data(client, db_session):
+    user = _make_user(db_session, "acct-exp@example.com", OLD_PASSWORD, uid="user-acctexp")
+    c = Client(
+        id="client-acct",
+        user_id=user.id,
+        name="My Client",
+        business_description="x" * 80,
+    )
+    db_session.add(c)
+    db_session.commit()
+
+    resp = client.get("/api/privacy/account/export", headers=_headers(user))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["export_metadata"]["scope"] == "user"
+    assert body["account"]["id"] == user.id
+    assert body["account"]["hashed_password"] == "[REDACTED]"
+    assert any(cl["id"] == "client-acct" for cl in body["clients"])
+    for key in ("settings", "credit_transactions", "audit_log", "projects"):
+        assert key in body
+
+
+def test_delete_my_account_soft_deletes_and_revokes_session(client, db_session):
+    user = _make_user(db_session, "acct-del@example.com", OLD_PASSWORD, uid="user-acctdel")
+    # A second admin so the account isn't the last active superuser (it isn't a
+    # superuser here anyway, but keeps intent explicit).
+    _make_user(
+        db_session, "keep-admin@example.com", OLD_PASSWORD, is_superuser=True, uid="user-keep"
+    )
+    hdr = _headers(user)
+
+    resp = client.delete("/api/privacy/account", headers=hdr)
+    assert resp.status_code == 200, resp.text
+    db_session.refresh(user)
+    assert user.is_deleted is True
+    assert user.is_active is False
+
+    # Session revoked — the same token no longer authenticates.
+    after = client.get("/api/privacy/account/export", headers=hdr)
+    assert after.status_code == 401
+
+
+def test_delete_last_admin_blocked(client, db_session):
+    admin = _make_user(
+        db_session, "sole-admin@example.com", OLD_PASSWORD, is_superuser=True, uid="user-soleadmin"
+    )
+    resp = client.delete("/api/privacy/account", headers=_headers(admin))
+    assert resp.status_code == 400
+    db_session.refresh(admin)
+    assert admin.is_deleted is False  # guard prevented deletion
+
+
+def test_restore_user_requires_superuser(client, db_session):
+    from datetime import datetime, timezone
+
+    admin = _make_user(
+        db_session, "r-admin@example.com", OLD_PASSWORD, is_superuser=True, uid="user-radmin"
+    )
+    victim = _make_user(db_session, "victim@example.com", OLD_PASSWORD, uid="user-victim")
+    victim.is_deleted = True
+    victim.is_active = False
+    victim.deleted_at = datetime.now(timezone.utc)
+    db_session.commit()
+
+    other = _make_user(db_session, "nobody@example.com", OLD_PASSWORD, uid="user-nobody")
+    forbidden = client.post(f"/api/privacy/users/{victim.id}/restore", headers=_headers(other))
+    assert forbidden.status_code == 403
+
+    ok = client.post(f"/api/privacy/users/{victim.id}/restore", headers=_headers(admin))
+    assert ok.status_code == 200
+    db_session.refresh(victim)
+    assert victim.is_deleted is False
+    assert victim.is_active is True

@@ -44,6 +44,50 @@ def export_instance(
     return data_privacy_service.export_full_instance(db)
 
 
+@router.get("/account/export")
+def export_my_account(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Export all data associated with the authenticated user's own account
+    (GDPR Article 15 / CCPA Right to Know). Secrets are redacted.
+    """
+    return data_privacy_service.export_user_data(current_user.id, db)
+
+
+@router.delete("/account")
+def delete_my_account(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Soft-delete and deactivate the authenticated user's own account
+    (GDPR Article 17 / CCPA Right to Deletion). Revokes all of the user's
+    sessions. Does not delete the clients/projects they created (those belong to
+    the instance). Refuses to delete the last active administrator.
+    """
+    try:
+        return data_privacy_service.delete_user_account(current_user.id, db)
+    except PermissionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/users/{user_id}/restore")
+def restore_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_superuser),
+):
+    """Restore a soft-deleted user account (superuser only)."""
+    try:
+        return data_privacy_service.restore_user_account(user_id, db)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.delete("/clients/{client_id}")
 def delete_client(
     client_id: str,

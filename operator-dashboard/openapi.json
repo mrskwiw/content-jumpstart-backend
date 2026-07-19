@@ -3938,6 +3938,105 @@
         ]
       }
     },
+    "/api/privacy/account/export": {
+      "get": {
+        "tags": [
+          "Privacy & GDPR",
+          "privacy"
+        ],
+        "summary": "Export My Account",
+        "description": "Export all data associated with the authenticated user's own account\n(GDPR Article 15 / CCPA Right to Know). Secrets are redacted.",
+        "operationId": "export_my_account_api_privacy_account_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/privacy/account": {
+      "delete": {
+        "tags": [
+          "Privacy & GDPR",
+          "privacy"
+        ],
+        "summary": "Delete My Account",
+        "description": "Soft-delete and deactivate the authenticated user's own account\n(GDPR Article 17 / CCPA Right to Deletion). Revokes all of the user's\nsessions. Does not delete the clients/projects they created (those belong to\nthe instance). Refuses to delete the last active administrator.",
+        "operationId": "delete_my_account_api_privacy_account_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/privacy/users/{user_id}/restore": {
+      "post": {
+        "tags": [
+          "Privacy & GDPR",
+          "privacy"
+        ],
+        "summary": "Restore User",
+        "description": "Restore a soft-deleted user account (superuser only).",
+        "operationId": "restore_user_api_privacy_users__user_id__restore_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/privacy/clients/{client_id}": {
       "delete": {
         "tags": [
