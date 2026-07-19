@@ -342,6 +342,42 @@ def test_export_my_account_returns_user_scoped_data(client, db_session):
         assert key in body
 
 
+def test_export_captures_client_scoped_cost_rows_and_flags_partial(client, db_session):
+    """Cost rows keyed by a CLIENT id (token_sync fallback) are exported, and a
+    missing raw table marks the export partial."""
+    from sqlalchemy import text
+
+    user = _make_user(db_session, "cost@example.com", OLD_PASSWORD, uid="user-cost")
+    db_session.add(
+        Client(id="client-cost", user_id=user.id, name="C", business_description="x" * 80)
+    )
+    db_session.commit()
+    # No project — the api_calls row is keyed by the client id in the project_id
+    # column (the token_sync_service fallback). budget_alerts table is absent.
+    db_session.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS api_calls "
+            "(call_id TEXT PRIMARY KEY, project_id TEXT, operation TEXT, cost NUMERIC)"
+        )
+    )
+    db_session.execute(
+        text(
+            "INSERT INTO api_calls (call_id, project_id, operation, cost) "
+            "VALUES ('call-client', 'client-cost', 'research', 300)"
+        )
+    )
+    db_session.commit()
+
+    resp = client.get("/api/privacy/account/export", headers=_headers(user))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    # Client-scoped cost row captured despite the user having no projects.
+    assert any(a["call_id"] == "call-client" for a in body["api_calls"])
+    # Missing raw table surfaced instead of a silent empty success.
+    assert body["export_metadata"]["partial"] is True
+    assert "budget_alerts" in body["export_metadata"]["missing_tables"]
+
+
 def test_delete_my_account_soft_deletes_and_revokes_session(client, db_session):
     user = _make_user(db_session, "acct-del@example.com", OLD_PASSWORD, uid="user-acctdel")
     # A second admin so the account isn't the last active superuser (it isn't a

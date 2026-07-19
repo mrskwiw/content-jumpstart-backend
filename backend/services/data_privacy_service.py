@@ -2,6 +2,7 @@
 Data Privacy Service - GDPR & CCPA Compliance
 """
 
+import logging
 import uuid
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -11,6 +12,8 @@ from backend.models.client import Client
 from backend.models.project import Project
 from backend.models.post import Post
 from backend.models.research_result import ResearchResult
+
+logger = logging.getLogger(__name__)
 
 # Column names redacted from any export — secrets that must never leave the DB,
 # even in an owner-initiated migration bundle.
@@ -52,17 +55,23 @@ def _rows_to_list(objs: Any) -> List[Dict[str, Any]]:
     return [_row_to_dict(o) for o in objs]
 
 
-def _raw_rows(db: Session, table: str, id_column: str = None, ids=None) -> List[Dict[str, Any]]:
+def _raw_rows(
+    db: Session, table: str, id_column: str = None, ids=None, missing: list = None
+) -> List[Dict[str, Any]]:
     """Export rows from a table with NO ORM model (raw-SQL-managed cost tracking,
     e.g. api_calls / budget_alerts).
 
-    ``table`` and ``id_column`` are internal constants, never user input. Returns
-    [] if the table is absent (e.g. a test DB that never created it) or the id
-    filter is empty. Values are JSON-normalized like the ORM path.
+    ``table`` and ``id_column`` are internal constants, never user input. If the
+    table is absent (e.g. schema drift or a test DB that never created it) the
+    table name is appended to ``missing`` (when provided) so the caller can flag
+    the export as partial rather than silently returning empty. Values are
+    JSON-normalized like the ORM path.
     """
     from sqlalchemy import inspect as sqla_inspect, text, bindparam
 
     if table not in sqla_inspect(db.bind).get_table_names():
+        if missing is not None:
+            missing.append(table)
         return []
     if id_column is not None:
         if not ids:
@@ -276,10 +285,13 @@ def export_full_instance(db: Session) -> Dict:
         counts[key] = len(rows)
 
     # Raw-SQL cost-tracking tables (no ORM model) — full dump for migration.
+    missing_tables: List[str] = []
     for raw_table in ("api_calls", "budget_alerts"):
-        rows = _raw_rows(db, raw_table)
+        rows = _raw_rows(db, raw_table, missing=missing_tables)
         data[raw_table] = rows
         counts[raw_table] = len(rows)
+    if missing_tables:
+        logger.warning("Instance export is PARTIAL — missing raw tables: %s", missing_tables)
 
     return {
         "export_metadata": {
@@ -287,6 +299,8 @@ def export_full_instance(db: Session) -> Dict:
             "format": "json",
             "version": "1.0",
             "scope": "instance",
+            "partial": bool(missing_tables),
+            "missing_tables": missing_tables,
             "row_counts": counts,
             "redacted_columns": sorted(_REDACTED_COLUMNS) + ["settings.value (when encrypted)"],
         },
@@ -383,8 +397,21 @@ def export_user_data(user_id: str, db: Session) -> Dict:
     )
     search_ids = [t.id for t in trends_searches]
 
+    # Cost-tracking tables (raw SQL, no ORM). The project_id column may hold a
+    # client_id as a fallback (token_sync_service), so query BOTH id sets.
+    cost_ids = project_ids + client_ids
+    missing_tables: List[str] = []
+    api_calls = _raw_rows(db, "api_calls", "project_id", cost_ids, missing_tables)
+    budget_alerts = _raw_rows(db, "budget_alerts", "project_id", cost_ids, missing_tables)
+    if missing_tables:
+        logger.warning(
+            "User export for %s is PARTIAL — missing raw tables: %s", user_id, missing_tables
+        )
+
     return {
         "export_metadata": {
+            "partial": bool(missing_tables),
+            "missing_tables": missing_tables,
             "user_id": user_id,
             "exported_at": datetime.utcnow().isoformat(),
             "format": "json",
@@ -436,9 +463,9 @@ def export_user_data(user_id: str, db: Session) -> Dict:
             (StoryUsage.story_id, story_ids),
             (StoryUsage.project_id, project_ids),
         ),
-        # Raw-SQL cost-tracking tables (no ORM model), project-scoped.
-        "api_calls": _raw_rows(db, "api_calls", "project_id", project_ids),
-        "budget_alerts": _raw_rows(db, "budget_alerts", "project_id", project_ids),
+        # Raw-SQL cost-tracking tables (no ORM model), project/client-scoped.
+        "api_calls": api_calls,
+        "budget_alerts": budget_alerts,
     }
 
 
