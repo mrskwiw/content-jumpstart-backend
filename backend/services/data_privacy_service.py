@@ -265,23 +265,37 @@ def export_full_instance(db: Session) -> Dict:
 
 
 def export_user_data(user_id: str, db: Session) -> Dict:
-    """Export all data associated with a single user account (GDPR Article 15).
+    """Export ALL data associated with a single user account (GDPR Article 15).
 
-    Includes the user's own account record plus every row keyed to their
-    ``user_id`` across settings, credits, billing, communications, audit, and the
-    clients/projects/research they created. Secret columns are redacted.
+    Comprehensive subject-access export: the user's account record, every row
+    keyed directly to their ``user_id`` (settings, credits, billing,
+    communications, audit, assistant conversations), and the full content tree
+    they generated — reached through the clients/projects they created (posts,
+    briefs, runs, deliverables, keywords, trends detail, story usage, messages).
+    Secret columns are redacted by ``_row_to_dict``.
     """
     from backend.models import (
         AuditLog,
+        Brief,
         Client,
+        ClientKeyword,
         Communication,
+        Conversation,
         CreditTransaction,
+        Deliverable,
+        Message,
         MinedStory,
+        Post,
         Project,
         ResearchResult,
+        Run,
         Setting,
+        StoryUsage,
         StripeCustomer,
         StripePayment,
+        TrendsInterestData,
+        TrendsKeywordInsight,
+        TrendsRelatedQuery,
         TrendsSearch,
         User,
     )
@@ -293,26 +307,64 @@ def export_user_data(user_id: str, db: Session) -> Dict:
     def by_user(model):
         return _rows_to_list(db.query(model).filter(model.user_id == user_id).all())
 
+    def by_ids(model, column, ids):
+        if not ids:
+            return []
+        return _rows_to_list(db.query(model).filter(column.in_(ids)).all())
+
+    # Resolve the id sets the child records hang off.
+    clients = db.query(Client).filter(Client.user_id == user_id).all()
+    projects = db.query(Project).filter(Project.user_id == user_id).all()
+    trends_searches = db.query(TrendsSearch).filter(TrendsSearch.user_id == user_id).all()
+    mined_stories = db.query(MinedStory).filter(MinedStory.user_id == user_id).all()
+    conversations = db.query(Conversation).filter(Conversation.user_id == user_id).all()
+
+    client_ids = [c.id for c in clients]
+    project_ids = [p.id for p in projects]
+    search_ids = [t.id for t in trends_searches]
+    story_ids = [s.id for s in mined_stories]
+    conversation_ids = [c.id for c in conversations]
+
     return {
         "export_metadata": {
             "user_id": user_id,
             "exported_at": datetime.utcnow().isoformat(),
             "format": "json",
-            "version": "1.0",
+            "version": "2.0",
             "scope": "user",
         },
         "account": _row_to_dict(user),
+        # Account-level records keyed directly to the user.
         "settings": by_user(Setting),
         "credit_transactions": by_user(CreditTransaction),
         "stripe_customers": by_user(StripeCustomer),
         "stripe_payments": by_user(StripePayment),
         "communications": by_user(Communication),
-        "clients": by_user(Client),
-        "projects": by_user(Project),
-        "research_results": by_user(ResearchResult),
-        "trends_searches": by_user(TrendsSearch),
-        "mined_stories": by_user(MinedStory),
         "audit_log": _rows_to_list(db.query(AuditLog).filter(AuditLog.user_id == user_id).all()),
+        # Assistant history (user-owned).
+        "conversations": _rows_to_list(conversations),
+        "messages": by_ids(Message, Message.conversation_id, conversation_ids),
+        # Clients + their full content tree.
+        "clients": _rows_to_list(clients),
+        "client_keywords": by_ids(ClientKeyword, ClientKeyword.client_id, client_ids),
+        "projects": _rows_to_list(projects),
+        "briefs": by_ids(Brief, Brief.project_id, project_ids),
+        "runs": by_ids(Run, Run.project_id, project_ids),
+        "posts": by_ids(Post, Post.project_id, project_ids),
+        "deliverables": by_ids(Deliverable, Deliverable.client_id, client_ids),
+        "research_results": by_user(ResearchResult),
+        "trends_searches": _rows_to_list(trends_searches),
+        "trends_interest_data": by_ids(
+            TrendsInterestData, TrendsInterestData.search_id, search_ids
+        ),
+        "trends_related_queries": by_ids(
+            TrendsRelatedQuery, TrendsRelatedQuery.search_id, search_ids
+        ),
+        "trends_keyword_insights": by_ids(
+            TrendsKeywordInsight, TrendsKeywordInsight.client_id, client_ids
+        ),
+        "mined_stories": _rows_to_list(mined_stories),
+        "story_usage": by_ids(StoryUsage, StoryUsage.story_id, story_ids),
     }
 
 

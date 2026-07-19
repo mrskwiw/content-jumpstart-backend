@@ -282,14 +282,22 @@ def test_client_delete_forbidden_for_non_owner(client, db_session):
 
 
 def test_export_my_account_returns_user_scoped_data(client, db_session):
+    from backend.models import Run, Post, Conversation, Message
+
     user = _make_user(db_session, "acct-exp@example.com", OLD_PASSWORD, uid="user-acctexp")
-    c = Client(
-        id="client-acct",
-        user_id=user.id,
-        name="My Client",
-        business_description="x" * 80,
-    )
+    c = Client(id="client-acct", user_id=user.id, name="My Client", business_description="x" * 80)
     db_session.add(c)
+    p = Project(id="proj-acct", user_id=user.id, client_id="client-acct", name="P", status="active")
+    db_session.add(p)
+    db_session.commit()
+    db_session.add(Run(id="run-acct", project_id="proj-acct", status="completed"))
+    db_session.commit()
+    db_session.add(
+        Post(id="post-acct", project_id="proj-acct", run_id="run-acct", content="generated post")
+    )
+    db_session.add(Conversation(id="conv-acct", user_id=user.id, title="Chat"))
+    db_session.commit()
+    db_session.add(Message(id="msg-acct", conversation_id="conv-acct", role="user", content="hi"))
     db_session.commit()
 
     resp = client.get("/api/privacy/account/export", headers=_headers(user))
@@ -299,7 +307,14 @@ def test_export_my_account_returns_user_scoped_data(client, db_session):
     assert body["account"]["id"] == user.id
     assert body["account"]["hashed_password"] == "[REDACTED]"
     assert any(cl["id"] == "client-acct" for cl in body["clients"])
-    for key in ("settings", "credit_transactions", "audit_log", "projects"):
+    assert any(pp["id"] == "proj-acct" for pp in body["projects"])
+    # Generated content tree must be present (was materially missing before).
+    assert any(po["id"] == "post-acct" for po in body["posts"])
+    assert any(rr["id"] == "run-acct" for rr in body["runs"])
+    # Assistant history (user-owned) must be present.
+    assert any(cv["id"] == "conv-acct" for cv in body["conversations"])
+    assert any(m["id"] == "msg-acct" for m in body["messages"])
+    for key in ("settings", "credit_transactions", "audit_log", "deliverables", "client_keywords"):
         assert key in body
 
 
