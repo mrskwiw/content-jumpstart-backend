@@ -314,38 +314,43 @@ def export_user_data(user_id: str, db: Session) -> Dict:
 
     from sqlalchemy import or_
 
+    def or_rows(model, *pairs):
+        """Serialize rows of `model` matching ANY (column, ids) with non-empty ids.
+
+        Used so records that carry no user_id (only client_id/project_id, e.g.
+        trends_keyword_insights) or that may be scoped to the user's client OR
+        project are still captured exhaustively.
+        """
+        conds = [col.in_(ids) for col, ids in pairs if ids]
+        return _rows_to_list(db.query(model).filter(or_(*conds)).all()) if conds else []
+
+    def or_objs(model, base_cond, *pairs):
+        conds = [base_cond] + [col.in_(ids) for col, ids in pairs if ids]
+        return db.query(model).filter(or_(*conds)).all()
+
     # Resolve the id sets the child records hang off.
     clients = db.query(Client).filter(Client.user_id == user_id).all()
     projects = db.query(Project).filter(Project.user_id == user_id).all()
-    mined_stories = db.query(MinedStory).filter(MinedStory.user_id == user_id).all()
     conversations = db.query(Conversation).filter(Conversation.user_id == user_id).all()
-
     client_ids = [c.id for c in clients]
     project_ids = [p.id for p in projects]
-    story_ids = [s.id for s in mined_stories]
     conversation_ids = [c.id for c in conversations]
 
-    # Trends may be scoped to the user directly OR to their clients/projects.
-    # trends_keyword_insights has NO user_id — only client_id/project_id — so it
-    # must be reached via both id sets or project-scoped rows are missed.
-    ts_conds = [TrendsSearch.user_id == user_id]
-    if project_ids:
-        ts_conds.append(TrendsSearch.project_id.in_(project_ids))
-    if client_ids:
-        ts_conds.append(TrendsSearch.client_id.in_(client_ids))
-    trends_searches = db.query(TrendsSearch).filter(or_(*ts_conds)).all()
-    search_ids = [t.id for t in trends_searches]
-
-    tki_conds = []
-    if client_ids:
-        tki_conds.append(TrendsKeywordInsight.client_id.in_(client_ids))
-    if project_ids:
-        tki_conds.append(TrendsKeywordInsight.project_id.in_(project_ids))
-    trends_keyword_insights = (
-        _rows_to_list(db.query(TrendsKeywordInsight).filter(or_(*tki_conds)).all())
-        if tki_conds
-        else []
+    # Stories & trends: user-owned OR scoped to the user's clients/projects.
+    mined_stories = or_objs(
+        MinedStory,
+        MinedStory.user_id == user_id,
+        (MinedStory.project_id, project_ids),
+        (MinedStory.client_id, client_ids),
     )
+    story_ids = [s.id for s in mined_stories]
+    trends_searches = or_objs(
+        TrendsSearch,
+        TrendsSearch.user_id == user_id,
+        (TrendsSearch.project_id, project_ids),
+        (TrendsSearch.client_id, client_ids),
+    )
+    search_ids = [t.id for t in trends_searches]
 
     return {
         "export_metadata": {
@@ -373,7 +378,11 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         "briefs": by_ids(Brief, Brief.project_id, project_ids),
         "runs": by_ids(Run, Run.project_id, project_ids),
         "posts": by_ids(Post, Post.project_id, project_ids),
-        "deliverables": by_ids(Deliverable, Deliverable.client_id, client_ids),
+        "deliverables": or_rows(
+            Deliverable,
+            (Deliverable.client_id, client_ids),
+            (Deliverable.project_id, project_ids),
+        ),
         "research_results": by_user(ResearchResult),
         "trends_searches": _rows_to_list(trends_searches),
         "trends_interest_data": by_ids(
@@ -382,9 +391,17 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         "trends_related_queries": by_ids(
             TrendsRelatedQuery, TrendsRelatedQuery.search_id, search_ids
         ),
-        "trends_keyword_insights": trends_keyword_insights,
+        "trends_keyword_insights": or_rows(
+            TrendsKeywordInsight,
+            (TrendsKeywordInsight.client_id, client_ids),
+            (TrendsKeywordInsight.project_id, project_ids),
+        ),
         "mined_stories": _rows_to_list(mined_stories),
-        "story_usage": by_ids(StoryUsage, StoryUsage.story_id, story_ids),
+        "story_usage": or_rows(
+            StoryUsage,
+            (StoryUsage.story_id, story_ids),
+            (StoryUsage.project_id, project_ids),
+        ),
     }
 
 
