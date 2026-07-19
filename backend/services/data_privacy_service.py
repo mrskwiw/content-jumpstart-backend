@@ -312,18 +312,40 @@ def export_user_data(user_id: str, db: Session) -> Dict:
             return []
         return _rows_to_list(db.query(model).filter(column.in_(ids)).all())
 
+    from sqlalchemy import or_
+
     # Resolve the id sets the child records hang off.
     clients = db.query(Client).filter(Client.user_id == user_id).all()
     projects = db.query(Project).filter(Project.user_id == user_id).all()
-    trends_searches = db.query(TrendsSearch).filter(TrendsSearch.user_id == user_id).all()
     mined_stories = db.query(MinedStory).filter(MinedStory.user_id == user_id).all()
     conversations = db.query(Conversation).filter(Conversation.user_id == user_id).all()
 
     client_ids = [c.id for c in clients]
     project_ids = [p.id for p in projects]
-    search_ids = [t.id for t in trends_searches]
     story_ids = [s.id for s in mined_stories]
     conversation_ids = [c.id for c in conversations]
+
+    # Trends may be scoped to the user directly OR to their clients/projects.
+    # trends_keyword_insights has NO user_id — only client_id/project_id — so it
+    # must be reached via both id sets or project-scoped rows are missed.
+    ts_conds = [TrendsSearch.user_id == user_id]
+    if project_ids:
+        ts_conds.append(TrendsSearch.project_id.in_(project_ids))
+    if client_ids:
+        ts_conds.append(TrendsSearch.client_id.in_(client_ids))
+    trends_searches = db.query(TrendsSearch).filter(or_(*ts_conds)).all()
+    search_ids = [t.id for t in trends_searches]
+
+    tki_conds = []
+    if client_ids:
+        tki_conds.append(TrendsKeywordInsight.client_id.in_(client_ids))
+    if project_ids:
+        tki_conds.append(TrendsKeywordInsight.project_id.in_(project_ids))
+    trends_keyword_insights = (
+        _rows_to_list(db.query(TrendsKeywordInsight).filter(or_(*tki_conds)).all())
+        if tki_conds
+        else []
+    )
 
     return {
         "export_metadata": {
@@ -360,9 +382,7 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         "trends_related_queries": by_ids(
             TrendsRelatedQuery, TrendsRelatedQuery.search_id, search_ids
         ),
-        "trends_keyword_insights": by_ids(
-            TrendsKeywordInsight, TrendsKeywordInsight.client_id, client_ids
-        ),
+        "trends_keyword_insights": trends_keyword_insights,
         "mined_stories": _rows_to_list(mined_stories),
         "story_usage": by_ids(StoryUsage, StoryUsage.story_id, story_ids),
     }

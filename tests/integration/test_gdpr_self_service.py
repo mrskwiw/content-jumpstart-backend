@@ -282,13 +282,16 @@ def test_client_delete_forbidden_for_non_owner(client, db_session):
 
 
 def test_export_my_account_returns_user_scoped_data(client, db_session):
-    from backend.models import Run, Post, Conversation, Message
+    from backend.models import Run, Post, Conversation, Message, TrendsKeywordInsight
 
     user = _make_user(db_session, "acct-exp@example.com", OLD_PASSWORD, uid="user-acctexp")
     c = Client(id="client-acct", user_id=user.id, name="My Client", business_description="x" * 80)
     db_session.add(c)
     p = Project(id="proj-acct", user_id=user.id, client_id="client-acct", name="P", status="active")
     db_session.add(p)
+    db_session.commit()
+    # Project-scoped trends insight with NO client_id (must still be exported).
+    db_session.add(TrendsKeywordInsight(id="tki-acct", project_id="proj-acct", keyword="kw"))
     db_session.commit()
     db_session.add(Run(id="run-acct", project_id="proj-acct", status="completed"))
     db_session.commit()
@@ -314,6 +317,8 @@ def test_export_my_account_returns_user_scoped_data(client, db_session):
     # Assistant history (user-owned) must be present.
     assert any(cv["id"] == "conv-acct" for cv in body["conversations"])
     assert any(m["id"] == "msg-acct" for m in body["messages"])
+    # Project-scoped trends insight (no client_id) must be captured.
+    assert any(t["id"] == "tki-acct" for t in body["trends_keyword_insights"])
     for key in ("settings", "credit_transactions", "audit_log", "deliverables", "client_keywords"):
         assert key in body
 
