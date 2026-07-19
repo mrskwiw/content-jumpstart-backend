@@ -332,8 +332,13 @@ def reset_user_password(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"User not found: {user_id}"
         )
 
-    # Hash and update the password
+    # Hash and update the password; stamp the change so the target user's existing
+    # sessions are revoked (incl. legacy tokens without a "pv" claim) — same
+    # session-revocation guarantee as self-service change-password.
+    from datetime import datetime, timezone
+
     user.hashed_password = get_password_hash(request.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(user)
 

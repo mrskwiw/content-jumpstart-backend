@@ -159,6 +159,31 @@ def test_legacy_token_without_pv_revoked_after_change(client, db_session):
     assert r1.status_code == 401
 
 
+def test_admin_reset_revokes_target_user_sessions(client, db_session):
+    """An admin password reset revokes the target user's existing sessions."""
+    admin = _make_user(
+        db_session, "admin-r@example.com", OLD_PASSWORD, is_superuser=True, uid="user-adminr"
+    )
+    target = _make_user(db_session, "target-r@example.com", OLD_PASSWORD, uid="user-targetr")
+    target_hdr = {"Authorization": f"Bearer {create_access_token(data={'sub': target.id})}"}
+
+    # Target's token authenticates before the reset (404 = auth ok, client missing).
+    pre = client.get("/api/privacy/clients/nope/export", headers=target_hdr)
+    assert pre.status_code == 404
+
+    # Admin resets the target's password.
+    reset = client.post(
+        f"/api/admin/users/{target.id}/reset-password",
+        json={"new_password": NEW_PASSWORD},
+        headers=_headers(admin),
+    )
+    assert reset.status_code == 200, reset.text
+
+    # Target's pre-reset session is now revoked.
+    post = client.get("/api/privacy/clients/nope/export", headers=target_hdr)
+    assert post.status_code == 401
+
+
 # ── Instance export (superuser only) ──────────────────────────────────────────
 
 

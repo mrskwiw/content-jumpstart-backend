@@ -237,7 +237,11 @@ async def lifespan(app: FastAPI):
 
                 if existing_user:
                     # Update existing user's password and superuser status
+                    from datetime import datetime, timezone
+
                     existing_user.hashed_password = get_password_hash(default_password)
+                    # Revoke pre-existing sessions when the admin password is reset.
+                    existing_user.password_changed_at = datetime.now(timezone.utc)
                     existing_user.is_superuser = user_data["is_superuser"]
                     existing_user.is_active = True
                     updated_count += 1
