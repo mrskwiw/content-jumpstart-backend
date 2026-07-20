@@ -344,21 +344,54 @@ def ensure_fresh_token(db: Session, cred) -> str:
     provider = PROVIDERS.get(cred.platform)
     if provider is None or not provider.supports_refresh or not provider.is_configured:
         return access
-    refresh = decrypt_value(cred.refresh_token) if cred.refresh_token else ""
+    if not cred.refresh_token:
+        return access
+
+    # Serialize refresh per credential so two concurrent callers (e.g. a
+    # user-triggered publish_now racing a scheduler tick) can't both refresh the
+    # same token and clobber each other — critical when the provider rotates
+    # refresh tokens, which would otherwise strand the account. On Postgres we
+    # take a row lock and re-check under it; on SQLite (dev/tests) the single
+    # writer makes locking unnecessary.
+    from backend.models.distribution import PlatformCredential
+
+    is_pg = db.bind is not None and db.bind.dialect.name == "postgresql"
+    locked = cred
+    if is_pg:
+        locked = (
+            db.query(PlatformCredential)
+            .filter(PlatformCredential.id == cred.id)
+            .populate_existing()  # read the committed row under the lock, not stale session state
+            .with_for_update()
+            .first()
+        ) or cred
+        exp = locked.token_expires_at
+        if exp is not None and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp is not None and exp > datetime.now(timezone.utc) + _REFRESH_SKEW:
+            # Another worker refreshed while we waited for the lock — use theirs.
+            db.commit()  # release the lock
+            return decrypt_value(locked.access_token) if locked.access_token else access
+
+    refresh = decrypt_value(locked.refresh_token) if locked.refresh_token else ""
     if not refresh:
+        if is_pg:
+            db.commit()  # release the lock
         return access
 
     try:
         token = refresh_access_token(cred.platform, refresh)
     except OAuthError as e:
         logger.warning("Token refresh failed for %s cred %s: %s", cred.platform, cred.id, e)
+        if is_pg:
+            db.commit()  # release the lock
         return access
 
-    cred.access_token = encrypt_value(token["access_token"])
+    locked.access_token = encrypt_value(token["access_token"])
     if token.get("refresh_token"):
-        cred.refresh_token = encrypt_value(token["refresh_token"])
+        locked.refresh_token = encrypt_value(token["refresh_token"])
     if token.get("expires_at"):
-        cred.token_expires_at = token["expires_at"]
-    db.commit()
+        locked.token_expires_at = token["expires_at"]
+    db.commit()  # persists and releases the lock
     logger.info("Refreshed %s access token for cred %s", cred.platform, cred.id)
     return token["access_token"]

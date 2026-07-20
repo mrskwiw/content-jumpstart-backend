@@ -132,9 +132,13 @@ class LinkedInPublisher(BasePublisher):
     def _person_urn(self, headers: dict) -> str:
         import requests
 
-        resp = requests.get(f"{self.BASE_URL}/me", headers=headers, timeout=30)
+        # Use the OpenID Connect userinfo endpoint, which matches the scopes the
+        # connect flow requests (`openid profile`). The legacy /v2/me endpoint
+        # needs r_liteprofile, which we do NOT request, so it would 403 on the
+        # common personal-account publish path.
+        resp = requests.get(f"{self.BASE_URL}/userinfo", headers=headers, timeout=30)
         resp.raise_for_status()
-        return f"urn:li:person:{resp.json()['id']}"
+        return f"urn:li:person:{resp.json()['sub']}"
 
 
 _HTTP_TIMEOUT = 30

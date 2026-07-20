@@ -112,6 +112,79 @@ def test_ensure_fresh_token_refreshes_and_persists(db_session, monkeypatch):
     assert decrypt_value(reloaded.refresh_token) == "REFRESH-2"
 
 
+def test_linkedin_person_publish_uses_oidc_userinfo(monkeypatch):
+    """Regression: a personal LinkedIn publish (no account_ref) must resolve the
+    author URN via the OIDC /userinfo endpoint (sub), matching the requested
+    scopes — not the legacy /v2/me, which would 403."""
+    import requests
+
+    from backend.services.distribution.publishers import LinkedInPublisher
+
+    calls = {}
+
+    class _Resp:
+        def __init__(self, status, payload=None, headers=None):
+            self.status_code = status
+            self._payload = payload or {}
+            self.headers = headers or {}
+
+        def json(self):
+            return self._payload
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(self.status_code)
+
+    def fake_get(url, **kw):
+        calls["get_url"] = url
+        return _Resp(200, {"sub": "MEMBER-123"})
+
+    def fake_post(url, **kw):
+        calls["post_url"] = url
+        calls["author"] = kw["json"]["author"]
+        return _Resp(201, {}, {"X-RestLi-Id": "urn:li:share:987"})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    result = LinkedInPublisher(access_token="tok", account_ref=None).publish("hello")
+    assert result.success, result.error
+    assert calls["get_url"].endswith("/userinfo")  # not /me
+    assert calls["author"] == "urn:li:person:MEMBER-123"
+
+
+def test_ensure_fresh_token_refreshes_only_once_when_repeated(db_session, monkeypatch):
+    """Regression: after one refresh advances the expiry, an immediately repeated
+    call must NOT refresh again (the basis of the concurrency re-check)."""
+    u = _make_user(db_session, "oauth-once@example.com", "user-oauthonce")
+    monkeypatch.setenv("LINKEDIN_CLIENT_ID", "li-id")
+    monkeypatch.setenv("LINKEDIN_CLIENT_SECRET", "li-secret")
+    cred = orchestrator.save_credential(
+        db_session,
+        u.id,
+        "linkedin",
+        "OLD",
+        refresh_token="R1",
+        token_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    count = {"n": 0}
+
+    def fake_refresh(platform, refresh_token):
+        count["n"] += 1
+        return {
+            "access_token": f"NEW-{count['n']}",
+            "refresh_token": "R2",
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+
+    monkeypatch.setattr(oauth, "refresh_access_token", fake_refresh)
+    first = oauth.ensure_fresh_token(db_session, cred)
+    second = oauth.ensure_fresh_token(db_session, cred)
+    assert first == "NEW-1"
+    assert second == "NEW-1"  # not refreshed again
+    assert count["n"] == 1
+
+
 def test_ensure_fresh_token_noop_when_not_expiring(db_session, monkeypatch):
     u = _make_user(db_session, "oauth-valid@example.com", "user-oauthvalid")
     cred = orchestrator.save_credential(
