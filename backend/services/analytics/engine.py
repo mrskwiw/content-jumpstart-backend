@@ -169,10 +169,14 @@ def trend(db: Session, user_id: str, window_days: int = 7) -> Dict:
     of daily rates — so a single low-volume spike day can't flip the direction.
     """
     series = daily_series(db, user_id, days=window_days * 2)
-    if len(series) < 2:
+    # Split by CALENDAR date, not by count of present days — otherwise sparse days
+    # make the two halves span unequal time and skew the comparison. `recent` is
+    # the last `window_days` days; `prior` is the window_days before that.
+    recent_cutoff = (date.today() - timedelta(days=window_days - 1)).isoformat()
+    recent = [p for p in series if p["date"] >= recent_cutoff]
+    prior = [p for p in series if p["date"] < recent_cutoff]
+    if not recent or not prior:
         return {"direction": "flat", "change_pct": 0.0, "recent_rate": 0.0, "prior_rate": 0.0}
-    mid = len(series) // 2
-    prior, recent = series[:mid], series[mid:]
 
     def _weighted_rate(rows: List[Dict]) -> float:
         eng = sum(r["engagement"] for r in rows)

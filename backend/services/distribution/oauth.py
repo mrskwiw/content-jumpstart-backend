@@ -369,7 +369,9 @@ def ensure_fresh_token(db: Session, cred) -> str:
     if locked is None:
         # Deleted or deactivated (possibly concurrently) — never fall back to the
         # stale ORM object; fail closed so the publish surfaces an auth failure.
-        db.rollback()
+        # No row matched, so the SELECT ... FOR UPDATE locked nothing and there is
+        # nothing to release — do NOT rollback (it would discard the caller's
+        # unrelated pending writes in this session).
         return ""
 
     exp = locked.token_expires_at

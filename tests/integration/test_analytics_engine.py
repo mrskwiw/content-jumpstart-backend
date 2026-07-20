@@ -93,7 +93,8 @@ def test_daily_series_and_upward_trend(db_session):
     assert len(series) == 4
     assert series[0]["date"] < series[-1]["date"]
 
-    tr = engine.trend(db_session, u.id)
+    # window_days=2: recent = {today, today-1} (5%), prior = {today-2, today-3} (1%).
+    tr = engine.trend(db_session, u.id, window_days=2)
     assert tr["direction"] == "up"
     assert tr["change_pct"] > 0
 
