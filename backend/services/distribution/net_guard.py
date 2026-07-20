@@ -1,29 +1,34 @@
 """
 SSRF guard for server-side fetches of user-supplied URLs (Phase 10 distribution).
 
-Only the YouTube publisher streams bytes from a caller-provided ``media_url``
+Only the YouTube publisher streams bytes from a caller-supplied ``media_url``
 through our own process; the other platforms hand the URL to the remote platform
 API, which fetches it on *their* side. This helper hardens that single
-server-side fetch (and any future one) against SSRF: it requires an ``http(s)``
-scheme, resolves the host, and refuses any address that maps to loopback,
-private, link-local, or otherwise-internal space — re-validating on **every
-redirect hop** so a ``302`` to ``169.254.169.254`` can't slip past the first
-check.
+server-side fetch (and any future one) against SSRF.
 
-Residual risk: a TOCTOU/DNS-rebinding window remains between our resolve-time
-check and ``requests``' own resolution at connect time. Closing it fully would
-require pinning the socket to the validated IP; for this scaffolded path
-(YouTube is not yet a live publisher) the resolve-then-request + per-hop
-re-validation is the standard, proportionate mitigation.
+Defense:
+
+* Require an ``http(s)`` scheme.
+* Resolve the host and refuse any address that maps to loopback, private,
+  link-local, reserved, or otherwise-internal space.
+* **Pin the connection to the exact validated IP.** We connect to that IP
+  literally (and, for TLS, keep the original hostname for SNI + certificate
+  verification), so ``requests``/``urllib3`` never performs a second DNS lookup.
+  This closes the TOCTOU/DNS-rebinding window where a hostname could pass the
+  check with a public IP and then rebind to ``169.254.169.254`` before the fetch.
+* Re-validate on **every redirect hop** so a ``302`` can't jump to an internal
+  target.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import socket
-from urllib.parse import urljoin, urlparse
+from typing import List, Tuple
+from urllib.parse import ParseResult, urljoin, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
 
 _MAX_REDIRECTS = 5
 
@@ -41,6 +46,25 @@ class UnsafeURLError(ValueError):
     """Raised when a user-supplied URL resolves to a disallowed address."""
 
 
+class _PinnedHostHTTPSAdapter(HTTPAdapter):
+    """Verify TLS against the real hostname while connected to a pinned IP.
+
+    We connect the socket to a literal validated IP, but SNI and certificate
+    hostname verification must still use the original hostname — otherwise the
+    cert wouldn't match. urllib3 forwards these connection kwargs down to each
+    HTTPS connection in the pool.
+    """
+
+    def __init__(self, server_hostname: str, **kw):
+        self._server_hostname = server_hostname
+        super().__init__(**kw)
+
+    def init_poolmanager(self, *args, **kwargs):  # type: ignore[override]
+        kwargs["server_hostname"] = self._server_hostname
+        kwargs["assert_hostname"] = self._server_hostname
+        super().init_poolmanager(*args, **kwargs)
+
+
 def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
     if (
         ip.is_private
@@ -54,7 +78,7 @@ def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
     return any(ip in net for net in _EXTRA_BLOCKED)
 
 
-def _resolve_ips(host: str) -> list:
+def _resolve_ips(host: str) -> List[ipaddress._BaseAddress]:
     try:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror as exc:
@@ -66,11 +90,12 @@ def _resolve_ips(host: str) -> list:
     return ips
 
 
-def assert_safe_url(url: str) -> None:
-    """Raise ``UnsafeURLError`` unless ``url`` is a public http(s) URL.
+def _validate_and_resolve(url: str) -> Tuple[ParseResult, List[ipaddress._BaseAddress]]:
+    """Return ``(parsed_url, validated_ips)`` or raise ``UnsafeURLError``.
 
     Validates the scheme, then every IP the host resolves to (or a literal IP),
-    rejecting loopback/private/link-local/reserved/internal addresses.
+    rejecting loopback/private/link-local/reserved/internal addresses. All
+    returned IPs are guaranteed public — so pinning to any of them is safe.
     """
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
@@ -87,21 +112,56 @@ def assert_safe_url(url: str) -> None:
     for ip in ips:
         if _ip_is_blocked(ip):
             raise UnsafeURLError(f"URL resolves to a disallowed address: {ip}")
+    return parsed, ips
+
+
+def assert_safe_url(url: str) -> None:
+    """Raise ``UnsafeURLError`` unless ``url`` is a public http(s) URL."""
+    _validate_and_resolve(url)
+
+
+def _pin(parsed: ParseResult, ip: ipaddress._BaseAddress) -> Tuple[str, str]:
+    """Build ``(connect_url, host_header)`` that targets the literal ``ip``.
+
+    The connect URL swaps the hostname for the validated IP (bracketed for
+    IPv6, original port preserved); the Host header carries the original
+    hostname[:port] so the far end still routes/serves the right vhost.
+    """
+    ip_host = f"[{ip}]" if ip.version == 6 else str(ip)
+    netloc = f"{ip_host}:{parsed.port}" if parsed.port else ip_host
+    connect_url = parsed._replace(netloc=netloc).geturl()
+    host_header = f"{parsed.hostname}:{parsed.port}" if parsed.port else parsed.hostname
+    return connect_url, host_header
 
 
 def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
-    """SSRF-guarded ``requests.get(stream=True)``.
+    """SSRF-guarded ``requests.get(stream=True)`` pinned to a validated IP.
 
-    Follows redirects manually, re-validating the target of each hop, and
+    Follows redirects manually, re-validating and re-pinning each hop, and
     returns the final streamed :class:`requests.Response`.
     """
     current = url
+    headers = dict(kwargs.pop("headers", {}) or {})
     for _ in range(_MAX_REDIRECTS + 1):
-        assert_safe_url(current)
-        resp = requests.get(current, stream=True, timeout=timeout, allow_redirects=False, **kwargs)
+        parsed, ips = _validate_and_resolve(current)
+        connect_url, host_header = _pin(parsed, ips[0])
+        req_headers = {**headers, "Host": host_header}
+
+        session = requests.Session()
+        if parsed.scheme == "https":
+            # Pin the socket to the IP but verify the cert against the real host.
+            session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
+        resp = session.get(
+            connect_url,
+            stream=True,
+            timeout=timeout,
+            allow_redirects=False,
+            headers=req_headers,
+            **kwargs,
+        )
         location = resp.headers.get("location")
         if resp.is_redirect and location:
-            nxt = urljoin(current, location)
+            nxt = urljoin(current, location)  # resolve relative Location vs real host
             resp.close()
             current = nxt
             continue

@@ -59,36 +59,52 @@ def test_assert_safe_url_allows_hostname_resolving_to_public():
         assert_safe_url("https://cdn.example.com/video.mp4")
 
 
+def _session_returning(response):
+    """A fake requests.Session whose .get returns `response`; records the mount."""
+    session = MagicMock()
+    session.get.return_value = response
+    return session
+
+
 def test_safe_stream_get_revalidates_redirect_to_internal():
     """A 302 pointing at an internal address must be caught on the next hop."""
     redirect = MagicMock()
     redirect.is_redirect = True
     redirect.headers = {"location": "http://169.254.169.254/latest/meta-data/"}
-
-    with patch(
-        "backend.services.distribution.net_guard.socket.getaddrinfo",
-        return_value=[(2, 1, 6, "", ("93.184.216.34", 0))],
-    ):
-        with patch("backend.services.distribution.net_guard.requests.get", return_value=redirect):
-            with pytest.raises(UnsafeURLError):
-                safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
-    redirect.close.assert_called_once()
-
-
-def test_safe_stream_get_returns_final_response():
-    ok = MagicMock()
-    ok.is_redirect = False
-    ok.headers = {}
+    session = _session_returning(redirect)
 
     with patch(
         "backend.services.distribution.net_guard.socket.getaddrinfo",
         return_value=[(2, 1, 6, "", ("93.184.216.34", 0))],
     ):
         with patch(
-            "backend.services.distribution.net_guard.requests.get", return_value=ok
-        ) as mock_get:
+            "backend.services.distribution.net_guard.requests.Session", return_value=session
+        ):
+            with pytest.raises(UnsafeURLError):
+                safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
+    redirect.close.assert_called_once()
+
+
+def test_safe_stream_get_pins_to_validated_ip_and_returns_response():
+    ok = MagicMock()
+    ok.is_redirect = False
+    ok.headers = {}
+    session = _session_returning(ok)
+
+    with patch(
+        "backend.services.distribution.net_guard.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("93.184.216.34", 0))],
+    ):
+        with patch(
+            "backend.services.distribution.net_guard.requests.Session", return_value=session
+        ):
             resp = safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
+
     assert resp is ok
-    # Guarded fetch must disable auto-redirect following.
-    assert mock_get.call_args.kwargs["allow_redirects"] is False
-    assert mock_get.call_args.kwargs["stream"] is True
+    call = session.get.call_args
+    # Pinned: connect to the validated literal IP, not the hostname (no 2nd DNS).
+    assert call.args[0] == "https://93.184.216.34/video.mp4"
+    # But route/serve the original vhost, and don't auto-follow redirects.
+    assert call.kwargs["headers"]["Host"] == "cdn.example.com"
+    assert call.kwargs["allow_redirects"] is False
+    assert call.kwargs["stream"] is True
