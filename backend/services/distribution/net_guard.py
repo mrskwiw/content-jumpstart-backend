@@ -120,6 +120,17 @@ def assert_safe_url(url: str) -> None:
     _validate_and_resolve(url)
 
 
+def _host_header(parsed: ParseResult) -> str:
+    """Original ``hostname[:port]`` for the Host header (IPv6 literal bracketed)."""
+    raw = parsed.hostname
+    try:
+        if isinstance(ipaddress.ip_address(raw), ipaddress.IPv6Address):
+            raw = f"[{raw}]"
+    except ValueError:
+        pass  # a normal hostname
+    return f"{raw}:{parsed.port}" if parsed.port else raw
+
+
 def _pin(parsed: ParseResult, ip: ipaddress._BaseAddress) -> Tuple[str, str]:
     """Build ``(connect_url, host_header)`` that targets the literal ``ip``.
 
@@ -130,35 +141,51 @@ def _pin(parsed: ParseResult, ip: ipaddress._BaseAddress) -> Tuple[str, str]:
     ip_host = f"[{ip}]" if ip.version == 6 else str(ip)
     netloc = f"{ip_host}:{parsed.port}" if parsed.port else ip_host
     connect_url = parsed._replace(netloc=netloc).geturl()
-    host_header = f"{parsed.hostname}:{parsed.port}" if parsed.port else parsed.hostname
-    return connect_url, host_header
+    return connect_url, _host_header(parsed)
+
+
+def _pinned_get(parsed: ParseResult, ip, headers: dict, timeout, kwargs) -> requests.Response:
+    """One streamed GET pinned to ``ip`` (TLS verified against the real host)."""
+    connect_url, host_header = _pin(parsed, ip)
+    session = requests.Session()
+    if parsed.scheme == "https":
+        # Pin the socket to the IP but verify the cert against the real host.
+        session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
+    return session.get(
+        connect_url,
+        stream=True,
+        timeout=timeout,
+        allow_redirects=False,
+        headers={**headers, "Host": host_header},
+        **kwargs,
+    )
 
 
 def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
     """SSRF-guarded ``requests.get(stream=True)`` pinned to a validated IP.
 
-    Follows redirects manually, re-validating and re-pinning each hop, and
-    returns the final streamed :class:`requests.Response`.
+    Follows redirects manually, re-validating and re-pinning each hop. Because
+    every resolved address is already vetted as public, we try them in resolver
+    order and fall back to the next on a connection failure — so a dual-stack /
+    CDN host doesn't hard-fail when its first (e.g. IPv6) address is unreachable.
+    Returns the final streamed :class:`requests.Response`.
     """
     current = url
     headers = dict(kwargs.pop("headers", {}) or {})
     for _ in range(_MAX_REDIRECTS + 1):
         parsed, ips = _validate_and_resolve(current)
-        connect_url, host_header = _pin(parsed, ips[0])
-        req_headers = {**headers, "Host": host_header}
 
-        session = requests.Session()
-        if parsed.scheme == "https":
-            # Pin the socket to the IP but verify the cert against the real host.
-            session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
-        resp = session.get(
-            connect_url,
-            stream=True,
-            timeout=timeout,
-            allow_redirects=False,
-            headers=req_headers,
-            **kwargs,
-        )
+        resp = None
+        last_err: Exception | None = None
+        for ip in ips:
+            try:
+                resp = _pinned_get(parsed, ip, headers, timeout, kwargs)
+                break
+            except requests.exceptions.RequestException as exc:
+                last_err = exc  # unreachable address — try the next validated IP
+        if resp is None:
+            raise last_err if last_err else UnsafeURLError(f"No usable address for {url}")
+
         location = resp.headers.get("location")
         if resp.is_redirect and location:
             nxt = urljoin(current, location)  # resolve relative Location vs real host

@@ -4,12 +4,16 @@ Covers backend.services.distribution.net_guard: URL scheme/IP validation and
 per-redirect-hop re-validation in safe_stream_get.
 """
 
+import ipaddress
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
+import requests
 
 from backend.services.distribution.net_guard import (
     UnsafeURLError,
+    _pin,
     assert_safe_url,
     safe_stream_get,
 )
@@ -108,3 +112,44 @@ def test_safe_stream_get_pins_to_validated_ip_and_returns_response():
     assert call.kwargs["headers"]["Host"] == "cdn.example.com"
     assert call.kwargs["allow_redirects"] is False
     assert call.kwargs["stream"] is True
+
+
+def test_safe_stream_get_falls_back_to_next_validated_ip():
+    """First (e.g. unreachable IPv6) validated IP fails → try the next one."""
+    ok = MagicMock()
+    ok.is_redirect = False
+    ok.headers = {}
+
+    sessions = []
+
+    def make_session():
+        s = MagicMock()
+        sessions.append(s)
+        # First session's .get raises a connection error; second returns ok.
+        s.get.side_effect = (
+            [requests.exceptions.ConnectionError("no route")] if len(sessions) == 1 else [ok]
+        )
+        return s
+
+    with patch(
+        "backend.services.distribution.net_guard.socket.getaddrinfo",
+        return_value=[
+            (10, 1, 6, "", ("2606:2800:220:1:248:1893:25c8:1946", 0, 0, 0)),  # public IPv6
+            (2, 1, 6, "", ("93.184.216.34", 0)),  # public IPv4
+        ],
+    ):
+        with patch(
+            "backend.services.distribution.net_guard.requests.Session", side_effect=make_session
+        ):
+            resp = safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
+
+    assert resp is ok
+    # Second (IPv4) address was tried after the first failed.
+    assert sessions[1].get.call_args.args[0] == "https://93.184.216.34/video.mp4"
+
+
+def test_pin_ipv6_literal_host_header_is_bracketed():
+    parsed = urlparse("https://[2606:2800:220:1:248:1893:25c8:1946]:8443/v.mp4")
+    connect_url, host_header = _pin(parsed, ipaddress.ip_address("93.184.216.34"))
+    assert connect_url == "https://93.184.216.34:8443/v.mp4"
+    assert host_header == "[2606:2800:220:1:248:1893:25c8:1946]:8443"
