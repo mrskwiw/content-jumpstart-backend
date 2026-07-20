@@ -19,6 +19,8 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+from backend.services.distribution.net_guard import safe_stream_get
+
 logger = logging.getLogger(__name__)
 
 
@@ -359,8 +361,12 @@ class YouTubePublisher(BasePublisher):
                     success=False, error=f"YouTube init {init.status_code}: {init.text[:300]}"
                 )
             session_url = init.headers["location"]
-            # 2) Stream the source video into the session.
-            with requests.get(media_url, stream=True, timeout=_HTTP_TIMEOUT) as src:
+            # 2) Stream the source video into the session. media_url is
+            # operator-supplied and fetched server-side here, so it goes through
+            # the SSRF guard (rejects internal/loopback/link-local targets and
+            # re-validates every redirect hop). session_url is LinkedIn/Google-
+            # issued, not user input, so it is not guarded.
+            with safe_stream_get(media_url, timeout=_HTTP_TIMEOUT) as src:
                 src.raise_for_status()
                 up = requests.put(
                     session_url,
