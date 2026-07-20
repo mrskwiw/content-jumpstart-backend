@@ -1,12 +1,17 @@
 """
 Engagement metric collectors (Phase 11).
 
-Real collectors hit each platform's insights API (Twitter/Meta/TikTok/YouTube)
-or scrape (LinkedIn) — those need platform apps + approvals, so they're
-scaffolded. The `StubCollector` produces deterministic (non-random) metrics from
-the post id so the collect → aggregate → serve loop works and is testable now.
-Enable stub collection with env `ANALYTICS_DRY_RUN=true` (default on until real
-collectors are wired).
+Two paths, chosen per-call by ANALYTICS_DRY_RUN (default ON until real platform
+apps are approved):
+  * dry-run  -> `_stub_metrics`, deterministic fake engagement from the post id,
+    so the collect → aggregate → serve loop works and is testable now.
+  * real     -> a per-platform `BaseCollector` that queries the platform's
+    insights API using the connected account's (refreshed) OAuth token, mirroring
+    the publisher abstraction. A platform with no collector or no credential is
+    skipped (logged), never faked.
+
+Set ANALYTICS_DRY_RUN=false once a platform app + token exist to collect real
+numbers. Endpoints reflect each platform's current public insights API.
 """
 
 from __future__ import annotations
@@ -18,17 +23,22 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
+import requests
 from sqlalchemy.orm import Session
 
 from backend.models import Post
 from backend.models.analytics import PostMetric
 from backend.models.distribution import PostedContent, ScheduledPost
+from backend.services.distribution import oauth, orchestrator
 
 logger = logging.getLogger(__name__)
 
+_METRIC_KEYS = ("likes", "comments", "shares", "impressions", "reach")
+_HTTP_TIMEOUT = 30
+
 
 def dry_run_enabled() -> bool:
-    # Default ON: without real platform collectors, stub is the only source.
+    # Default ON: without real platform collectors + creds, stub is the only source.
     return os.getenv("ANALYTICS_DRY_RUN", "true").strip().lower() in ("1", "true", "yes")
 
 
@@ -50,9 +60,187 @@ def _stub_metrics(seed: str) -> Dict[str, int]:
     }
 
 
-def _template_for(db: Session, pc: PostedContent) -> Optional[str]:
-    """Best-effort template name via posted_content → scheduled_post → post."""
-    sp = db.query(ScheduledPost).filter(ScheduledPost.id == pc.scheduled_post_id).first()
+def _zero() -> Dict[str, int]:
+    return {k: 0 for k in _METRIC_KEYS}
+
+
+# ── Real per-platform collectors ────────────────────────────────────────────────
+
+
+class BaseCollector:
+    """Fetch engagement metrics for one published post on one platform."""
+
+    platform = "base"
+
+    def collect(
+        self, platform_post_id: str, token: str, account_ref: Optional[str]
+    ) -> Dict[str, int]:  # pragma: no cover - overridden
+        raise NotImplementedError
+
+
+class TwitterCollector(BaseCollector):
+    platform = "twitter"
+
+    def collect(self, platform_post_id, token, account_ref):
+        resp = requests.get(
+            f"https://api.twitter.com/2/tweets/{platform_post_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"tweet.fields": "public_metrics"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        m = (resp.json().get("data") or {}).get("public_metrics") or {}
+        impressions = m.get("impression_count", 0)
+        return {
+            "likes": m.get("like_count", 0),
+            "comments": m.get("reply_count", 0),
+            "shares": m.get("retweet_count", 0) + m.get("quote_count", 0),
+            "impressions": impressions,
+            "reach": impressions,
+        }
+
+
+class LinkedInCollector(BaseCollector):
+    platform = "linkedin"
+
+    def collect(self, platform_post_id, token, account_ref):
+        # socialActions gives like/comment summaries for a share/ugcPost URN.
+        resp = requests.get(
+            f"https://api.linkedin.com/v2/socialActions/{platform_post_id}",
+            headers={"Authorization": f"Bearer {token}", "X-Restli-Protocol-Version": "2.0.0"},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        out = _zero()
+        out["likes"] = (body.get("likesSummary") or {}).get("totalLikes", 0)
+        out["comments"] = (body.get("commentsSummary") or {}).get("totalComments", 0)
+        return out
+
+
+class FacebookCollector(BaseCollector):
+    platform = "facebook"
+
+    def collect(self, platform_post_id, token, account_ref):
+        resp = requests.get(
+            f"https://graph.facebook.com/v19.0/{platform_post_id}",
+            params={
+                "fields": "likes.summary(true),comments.summary(true),shares,"
+                "insights.metric(post_impressions,post_impressions_unique)",
+                "access_token": token,
+            },
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        out = _zero()
+        out["likes"] = ((body.get("likes") or {}).get("summary") or {}).get("total_count", 0)
+        out["comments"] = ((body.get("comments") or {}).get("summary") or {}).get("total_count", 0)
+        out["shares"] = (body.get("shares") or {}).get("count", 0)
+        for row in (body.get("insights") or {}).get("data") or []:
+            val = (row.get("values") or [{}])[0].get("value", 0)
+            if row.get("name") == "post_impressions":
+                out["impressions"] = val
+            elif row.get("name") == "post_impressions_unique":
+                out["reach"] = val
+        return out
+
+
+class InstagramCollector(BaseCollector):
+    platform = "instagram"
+
+    def collect(self, platform_post_id, token, account_ref):
+        resp = requests.get(
+            f"https://graph.facebook.com/v19.0/{platform_post_id}/insights",
+            params={"metric": "impressions,reach,likes,comments,shares", "access_token": token},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        out = _zero()
+        mapping = {
+            "impressions": "impressions",
+            "reach": "reach",
+            "likes": "likes",
+            "comments": "comments",
+            "shares": "shares",
+        }
+        for row in resp.json().get("data") or []:
+            key = mapping.get(row.get("name"))
+            if key:
+                out[key] = (row.get("values") or [{}])[0].get("value", 0)
+        return out
+
+
+class TikTokCollector(BaseCollector):
+    platform = "tiktok"
+
+    def collect(self, platform_post_id, token, account_ref):
+        resp = requests.post(
+            "https://open.tiktokapis.com/v2/video/query/",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            params={"fields": "like_count,comment_count,share_count,view_count"},
+            json={"filters": {"video_ids": [platform_post_id]}},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        videos = (resp.json().get("data") or {}).get("videos") or []
+        v = videos[0] if videos else {}
+        views = v.get("view_count", 0)
+        return {
+            "likes": v.get("like_count", 0),
+            "comments": v.get("comment_count", 0),
+            "shares": v.get("share_count", 0),
+            "impressions": views,
+            "reach": views,
+        }
+
+
+class YouTubeCollector(BaseCollector):
+    platform = "youtube"
+
+    def collect(self, platform_post_id, token, account_ref):
+        resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/videos",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"part": "statistics", "id": platform_post_id},
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items") or []
+        stats = items[0].get("statistics", {}) if items else {}
+        views = int(stats.get("viewCount", 0))
+        return {
+            "likes": int(stats.get("likeCount", 0)),
+            "comments": int(stats.get("commentCount", 0)),
+            "shares": 0,  # not exposed by the API
+            "impressions": views,
+            "reach": views,
+        }
+
+
+_REAL_COLLECTORS = {
+    "twitter": TwitterCollector,
+    "linkedin": LinkedInCollector,
+    "facebook": FacebookCollector,
+    "instagram": InstagramCollector,
+    "tiktok": TikTokCollector,
+    "youtube": YouTubeCollector,
+}
+
+
+def get_collector(platform: str) -> Optional[BaseCollector]:
+    impl = _REAL_COLLECTORS.get(platform)
+    return impl() if impl else None
+
+
+# ── Orchestration ───────────────────────────────────────────────────────────────
+
+
+def _scheduled_post(db: Session, pc: PostedContent) -> Optional[ScheduledPost]:
+    return db.query(ScheduledPost).filter(ScheduledPost.id == pc.scheduled_post_id).first()
+
+
+def _template_for(db: Session, sp: Optional[ScheduledPost]) -> Optional[str]:
     if sp and sp.post_id:
         post = db.query(Post).filter(Post.id == sp.post_id).first()
         if post:
@@ -60,28 +248,49 @@ def _template_for(db: Session, pc: PostedContent) -> Optional[str]:
     return None
 
 
+def _real_metrics(db: Session, user_id: str, pc: PostedContent, sp: Optional[ScheduledPost]):
+    """Collect real metrics for one posted item, or None if it can't be collected."""
+    collector = get_collector(pc.platform)
+    if collector is None or not pc.platform_post_id:
+        return None
+    client_id = sp.client_id if sp else None
+    cred = orchestrator._load_credential(db, user_id, pc.platform, client_id)
+    if cred is None:
+        logger.info("Analytics: no credential for %s pc %s — skipped", pc.platform, pc.id)
+        return None
+    try:
+        token = oauth.ensure_fresh_token(db, cred)
+        metrics = collector.collect(pc.platform_post_id, token, cred.account_ref)
+    except Exception as e:  # noqa: BLE001 - one bad post must not abort the batch
+        logger.warning("Analytics collect failed for %s pc %s: %s", pc.platform, pc.id, e)
+        return None
+    # Fill any missing keys with 0.
+    return {k: int(metrics.get(k, 0)) for k in _METRIC_KEYS}
+
+
 def collect_for_user(db: Session, user_id: str) -> Dict[str, int]:
-    """Collect (stub) metrics for every published post the user owns.
+    """Collect engagement metrics for every published post the user owns.
 
     Idempotent per (posted_content, day): re-running the same day updates the
     existing snapshot rather than duplicating it.
     """
-    if not dry_run_enabled():
-        # Real collectors would branch per platform here.
-        logger.info("Analytics collection skipped: real collectors not configured")
-        return {"collected": 0, "skipped": True}
-
+    dry_run = dry_run_enabled()
     today = datetime.now(timezone.utc).date()
     posted = db.query(PostedContent).filter(PostedContent.user_id == user_id).all()
     collected = 0
+    skipped = 0
     for pc in posted:
-        metrics = _stub_metrics(pc.platform_post_id or pc.id)
+        sp = _scheduled_post(db, pc)
+        if dry_run:
+            metrics = _stub_metrics(pc.platform_post_id or pc.id)
+        else:
+            metrics = _real_metrics(db, user_id, pc, sp)
+            if metrics is None:
+                skipped += 1
+                continue
         existing = (
             db.query(PostMetric)
-            .filter(
-                PostMetric.posted_content_id == pc.id,
-                PostMetric.metric_date == today,
-            )
+            .filter(PostMetric.posted_content_id == pc.id, PostMetric.metric_date == today)
             .first()
         )
         if existing:
@@ -95,11 +304,11 @@ def collect_for_user(db: Session, user_id: str) -> Dict[str, int]:
                     posted_content_id=pc.id,
                     scheduled_post_id=pc.scheduled_post_id,
                     platform=pc.platform,
-                    template_name=_template_for(db, pc),
+                    template_name=_template_for(db, sp),
                     metric_date=today,
                     **metrics,
                 )
             )
         collected += 1
     db.commit()
-    return {"collected": collected, "skipped": False}
+    return {"collected": collected, "skipped": skipped, "dry_run": dry_run}
