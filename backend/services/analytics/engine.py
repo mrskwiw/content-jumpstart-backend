@@ -8,6 +8,7 @@ per post (not a sum across days) so re-collection doesn't inflate totals.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Dict, List
 
 from sqlalchemy.orm import Session
@@ -142,25 +143,30 @@ def by_platform_with_benchmark(db: Session, user_id: str) -> List[Dict]:
 
 def daily_series(db: Session, user_id: str, days: int = 30) -> List[Dict]:
     """Engagement time series: one point per collection day (all snapshots, not
-    latest-per-post), so it shows how engagement accrued over time."""
+    latest-per-post), so it shows how engagement accrued over time.
+
+    Bounded by a SQL date predicate (the `metric_date` index) so it never scans
+    a user's full metric history as data accumulates.
+    """
+    cutoff = date.today() - timedelta(days=days)
     rows = (
         db.query(PostMetric)
-        .filter(PostMetric.user_id == user_id)
+        .filter(PostMetric.user_id == user_id, PostMetric.metric_date >= cutoff)
         .order_by(PostMetric.metric_date.asc())
         .all()
     )
     by_day: Dict[str, List[PostMetric]] = {}
     for m in rows:
         by_day.setdefault(m.metric_date.isoformat(), []).append(m)
-    series = [{"date": day, **_totals(ms)} for day, ms in sorted(by_day.items())]
-    return series[-days:]
+    return [{"date": day, **_totals(ms)} for day, ms in sorted(by_day.items())]
 
 
 def trend(db: Session, user_id: str, window_days: int = 7) -> Dict:
     """Compare the most recent `window_days` of collection to the prior window.
 
-    Returns direction + percentage change in engagement rate. Uses the daily
-    series; needs at least two days of data to report a direction.
+    Returns direction + percentage change in engagement rate. Each window's rate
+    is volume-weighted (summed engagements / summed impressions), NOT an average
+    of daily rates — so a single low-volume spike day can't flip the direction.
     """
     series = daily_series(db, user_id, days=window_days * 2)
     if len(series) < 2:
@@ -168,11 +174,12 @@ def trend(db: Session, user_id: str, window_days: int = 7) -> Dict:
     mid = len(series) // 2
     prior, recent = series[:mid], series[mid:]
 
-    def _avg_rate(rows: List[Dict]) -> float:
-        rates = [r["engagement_rate"] for r in rows]
-        return round(sum(rates) / len(rates), 4) if rates else 0.0
+    def _weighted_rate(rows: List[Dict]) -> float:
+        eng = sum(r["engagement"] for r in rows)
+        impr = sum(r["impressions"] for r in rows)
+        return round(eng / impr, 4) if impr else 0.0
 
-    recent_rate, prior_rate = _avg_rate(recent), _avg_rate(prior)
+    recent_rate, prior_rate = _weighted_rate(recent), _weighted_rate(prior)
     if prior_rate == 0:
         change = 100.0 if recent_rate > 0 else 0.0
     else:

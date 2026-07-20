@@ -72,6 +72,7 @@ def test_real_collect_maps_twitter_metrics(db_session, monkeypatch):
 
     def fake_get(url, **kw):
         assert "TID-1" in url
+        # impressions come from non_public_metrics, not public_metrics.
         return _Resp(
             {
                 "data": {
@@ -80,8 +81,8 @@ def test_real_collect_maps_twitter_metrics(db_session, monkeypatch):
                         "reply_count": 2,
                         "retweet_count": 3,
                         "quote_count": 1,
-                        "impression_count": 100,
-                    }
+                    },
+                    "non_public_metrics": {"impression_count": 100},
                 }
             }
         )

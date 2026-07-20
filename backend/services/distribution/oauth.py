@@ -356,22 +356,30 @@ def ensure_fresh_token(db: Session, cred) -> str:
     from backend.models.distribution import PlatformCredential
 
     is_pg = db.bind is not None and db.bind.dialect.name == "postgresql"
-    locked = cred
+    # Re-read the credential requiring is_active — so a concurrent disconnect /
+    # deactivation is honoured (fail closed) instead of refreshing a revoked
+    # token. On Postgres also take a row lock + populate_existing to serialize
+    # concurrent refreshers and read the committed row, not stale session state.
+    q = db.query(PlatformCredential).filter(
+        PlatformCredential.id == cred.id, PlatformCredential.is_active.is_(True)
+    )
     if is_pg:
-        locked = (
-            db.query(PlatformCredential)
-            .filter(PlatformCredential.id == cred.id)
-            .populate_existing()  # read the committed row under the lock, not stale session state
-            .with_for_update()
-            .first()
-        ) or cred
-        exp = locked.token_expires_at
-        if exp is not None and exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
-        if exp is not None and exp > datetime.now(timezone.utc) + _REFRESH_SKEW:
-            # Another worker refreshed while we waited for the lock — use theirs.
+        q = q.populate_existing().with_for_update()
+    locked = q.first()
+    if locked is None:
+        # Deleted or deactivated (possibly concurrently) — never fall back to the
+        # stale ORM object; fail closed so the publish surfaces an auth failure.
+        db.rollback()
+        return ""
+
+    exp = locked.token_expires_at
+    if exp is not None and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp is not None and exp > datetime.now(timezone.utc) + _REFRESH_SKEW:
+        # Another worker refreshed while we waited for the lock — use theirs.
+        if is_pg:
             db.commit()  # release the lock
-            return decrypt_value(locked.access_token) if locked.access_token else access
+        return decrypt_value(locked.access_token) if locked.access_token else access
 
     refresh = decrypt_value(locked.refresh_token) if locked.refresh_token else ""
     if not refresh:

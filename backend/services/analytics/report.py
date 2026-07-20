@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timezone
+from html import escape
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -81,7 +82,9 @@ def build_pdf(db: Session, user_id: str) -> bytes:
 
     flow.append(Paragraph("Insights", styles["Heading2"]))
     for line in engine.insights(db, user_id):
-        flow.append(Paragraph(f"• {line}", styles["Normal"]))
+        # Insight lines embed user-controlled template names; ReportLab parses
+        # Paragraph text as XML-like markup, so escape &, <, > to avoid a 500.
+        flow.append(Paragraph(f"• {escape(line, quote=False)}", styles["Normal"]))
     flow.append(Spacer(1, 0.25 * inch))
 
     platforms = engine.by_platform_with_benchmark(db, user_id)

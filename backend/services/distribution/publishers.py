@@ -135,7 +135,9 @@ class LinkedInPublisher(BasePublisher):
         # Use the OpenID Connect userinfo endpoint, which matches the scopes the
         # connect flow requests (`openid profile`). The legacy /v2/me endpoint
         # needs r_liteprofile, which we do NOT request, so it would 403 on the
-        # common personal-account publish path.
+        # common personal-account publish path. Per LinkedIn's OIDC contract the
+        # `sub` claim IS the member id, and urn:li:person:{sub} is the correct UGC
+        # author URN (equivalent to persisting the id at connect time).
         resp = requests.get(f"{self.BASE_URL}/userinfo", headers=headers, timeout=30)
         resp.raise_for_status()
         return f"urn:li:person:{resp.json()['sub']}"

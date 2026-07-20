@@ -47,6 +47,25 @@ def _metric(db, user_id, d, likes, impressions, platform="twitter"):
     db.commit()
 
 
+def _metric_with_template(db, user_id, template_name, platform="stub"):
+    db.add(
+        PostMetric(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            posted_content_id=None,
+            platform=platform,
+            template_name=template_name,
+            metric_date=date.today(),
+            likes=20,
+            comments=2,
+            shares=1,
+            impressions=500,
+            reach=400,
+        )
+    )
+    db.commit()
+
+
 def test_benchmark_tier_bands():
     assert engine.benchmark_tier("twitter", 0.001) == "poor"
     assert engine.benchmark_tier("twitter", 0.005) == "average"
@@ -64,7 +83,7 @@ def test_insights_empty_when_no_data(db_session):
 
 def test_daily_series_and_upward_trend(db_session):
     u = _user(db_session, "eng-trend@example.com", "user-engtrend")
-    today = date(2026, 7, 20)
+    today = date.today()  # daily_series filters by a cutoff off the real date
     _metric(db_session, u.id, today - timedelta(days=3), likes=1, impressions=100)  # 1%
     _metric(db_session, u.id, today - timedelta(days=2), likes=1, impressions=100)  # 1%
     _metric(db_session, u.id, today - timedelta(days=1), likes=5, impressions=100)  # 5%
@@ -77,6 +96,34 @@ def test_daily_series_and_upward_trend(db_session):
     tr = engine.trend(db_session, u.id)
     assert tr["direction"] == "up"
     assert tr["change_pct"] > 0
+
+
+def test_trend_is_volume_weighted_not_daily_average(db_session):
+    """A tiny high-rate spike day must not flip the trend when the high-volume
+    days dominate. Unweighted daily averaging would call this 'up'; the
+    volume-weighted rate correctly calls it 'down'."""
+    u = _user(db_session, "eng-weight@example.com", "user-engweight")
+    today = date.today()
+    # Prior window: solid 1% on real volume.
+    _metric(db_session, u.id, today - timedelta(days=3), likes=10, impressions=1000)  # 1%
+    _metric(db_session, u.id, today - timedelta(days=2), likes=10, impressions=1000)  # 1%
+    # Recent window: a big-volume low day + a 1-impression 100% spike.
+    _metric(db_session, u.id, today - timedelta(days=1), likes=5, impressions=1000)  # 0.5%
+    _metric(db_session, u.id, today, likes=1, impressions=1)  # 100% but 1 impression
+
+    tr = engine.trend(db_session, u.id, window_days=2)
+    assert tr["direction"] == "down"  # weighted recent (~0.6%) < prior (1%)
+
+
+def test_report_pdf_survives_xml_special_template_name(db_session):
+    reportlab = pytest.importorskip("reportlab")  # noqa: F841
+    from backend.services.analytics import report
+
+    u = _user(db_session, "eng-xml@example.com", "user-engxml")
+    # A template name with XML-special chars would break ReportLab if unescaped.
+    _metric_with_template(db_session, u.id, "Tips & Tricks <b> / A>B")
+    pdf = report.build_pdf(db_session, u.id)
+    assert pdf[:4] == b"%PDF"
 
 
 def test_benchmarks_and_insights_endpoints(client, db_session):

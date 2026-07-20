@@ -185,6 +185,30 @@ def test_ensure_fresh_token_refreshes_only_once_when_repeated(db_session, monkey
     assert count["n"] == 1
 
 
+def test_ensure_fresh_token_fails_closed_when_deactivated(db_session, monkeypatch):
+    """A credential deactivated/deleted after load must not be refreshed or used —
+    ensure_fresh_token returns '' (fail closed) rather than a token."""
+    u = _make_user(db_session, "oauth-revoked@example.com", "user-oauthrevoked")
+    monkeypatch.setenv("LINKEDIN_CLIENT_ID", "li-id")
+    monkeypatch.setenv("LINKEDIN_CLIENT_SECRET", "li-secret")
+    cred = orchestrator.save_credential(
+        db_session,
+        u.id,
+        "linkedin",
+        "OLD",
+        refresh_token="R1",
+        token_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    cred.is_active = False
+    db_session.commit()
+
+    def boom(*a, **k):
+        raise AssertionError("must not refresh a revoked credential")
+
+    monkeypatch.setattr(oauth, "refresh_access_token", boom)
+    assert oauth.ensure_fresh_token(db_session, cred) == ""
+
+
 def test_ensure_fresh_token_noop_when_not_expiring(db_session, monkeypatch):
     u = _make_user(db_session, "oauth-valid@example.com", "user-oauthvalid")
     cred = orchestrator.save_credential(

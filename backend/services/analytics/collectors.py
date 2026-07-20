@@ -68,7 +68,15 @@ def _zero() -> Dict[str, int]:
 
 
 class BaseCollector:
-    """Fetch engagement metrics for one published post on one platform."""
+    """Fetch engagement metrics for one published post on one platform.
+
+    `account_ref` is part of the contract for symmetry with publishers, but the
+    read endpoints are self-scoping: the stored `platform_post_id` (a Facebook
+    compound id, IG media id, LinkedIn URN, tweet id, or video id) plus the
+    credential's token already identify the exact object, so most collectors
+    don't need account_ref. It's threaded through for platforms that may require
+    it later.
+    """
 
     platform = "base"
 
@@ -82,19 +90,29 @@ class TwitterCollector(BaseCollector):
     platform = "twitter"
 
     def collect(self, platform_post_id, token, account_ref):
+        # impression_count lives in non_public_metrics/organic_metrics (author
+        # context), NOT public_metrics — request both so impressions aren't 0.
         resp = requests.get(
             f"https://api.twitter.com/2/tweets/{platform_post_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"tweet.fields": "public_metrics"},
+            params={"tweet.fields": "public_metrics,non_public_metrics,organic_metrics"},
             timeout=_HTTP_TIMEOUT,
         )
         resp.raise_for_status()
-        m = (resp.json().get("data") or {}).get("public_metrics") or {}
-        impressions = m.get("impression_count", 0)
+        data = resp.json().get("data") or {}
+        pub = data.get("public_metrics") or {}
+        nonpub = data.get("non_public_metrics") or {}
+        organic = data.get("organic_metrics") or {}
+        impressions = (
+            nonpub.get("impression_count")
+            or organic.get("impression_count")
+            or pub.get("impression_count")
+            or 0
+        )
         return {
-            "likes": m.get("like_count", 0),
-            "comments": m.get("reply_count", 0),
-            "shares": m.get("retweet_count", 0) + m.get("quote_count", 0),
+            "likes": pub.get("like_count", 0),
+            "comments": pub.get("reply_count", 0),
+            "shares": pub.get("retweet_count", 0) + pub.get("quote_count", 0),
             "impressions": impressions,
             "reach": impressions,
         }
