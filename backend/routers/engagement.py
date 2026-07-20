@@ -7,12 +7,12 @@ by-template / top-posts. Distinct from the app-observability `/api/metrics`
 router and the internal-ops mock `Analytics.tsx` page.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user
-from backend.services.analytics import collectors, engine
+from backend.services.analytics import collectors, engine, report
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics & Engagement"])
 
@@ -57,3 +57,54 @@ def top_posts(
     current_user=Depends(get_current_user),
 ):
     return engine.top_posts(db, current_user.id, limit=min(limit, 50))
+
+
+@router.get("/benchmarks")
+def benchmarks(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Per-platform totals annotated with each platform's benchmark tier."""
+    return engine.by_platform_with_benchmark(db, current_user.id)
+
+
+@router.get("/daily")
+def daily(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Engagement time series, one point per collection day."""
+    return engine.daily_series(db, current_user.id, days=min(max(days, 1), 365))
+
+
+@router.get("/trend")
+def trend(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Recent-vs-prior engagement-rate trend."""
+    return engine.trend(db, current_user.id)
+
+
+@router.get("/insights")
+def insights(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Auto-generated plain-language observations."""
+    return {"insights": engine.insights(db, current_user.id)}
+
+
+@router.get("/report.pdf")
+def report_pdf(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Download a one-page PDF engagement report."""
+    pdf = report.build_pdf(db, current_user.id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="engagement-report.pdf"'},
+    )

@@ -15,11 +15,38 @@ from sqlalchemy.orm import Session
 from backend.models.analytics import PostMetric
 from backend.models.distribution import PostedContent
 
+# Reference engagement-rate benchmarks per platform as (low, median, high).
+# Code-defined and tunable — kept here rather than a materialized table so they
+# always resolve (no seed dependency) and never go stale against derived rollups.
+# Rough industry medians; adjust as real data accrues.
+_BENCHMARKS: Dict[str, tuple] = {
+    "linkedin": (0.020, 0.040, 0.060),
+    "twitter": (0.003, 0.009, 0.020),
+    "facebook": (0.005, 0.012, 0.030),
+    "instagram": (0.010, 0.030, 0.060),
+    "tiktok": (0.030, 0.060, 0.120),
+    "youtube": (0.010, 0.020, 0.040),
+    "stub": (0.020, 0.040, 0.060),
+}
+_DEFAULT_BENCHMARK = (0.010, 0.025, 0.050)
+
 
 def engagement_rate(likes: int, comments: int, shares: int, impressions: int) -> float:
     if not impressions:
         return 0.0
     return round((likes + comments + shares) / impressions, 4)
+
+
+def benchmark_tier(platform: str, rate: float) -> str:
+    """Classify an engagement rate against the platform's reference band."""
+    low, median, high = _BENCHMARKS.get(platform, _DEFAULT_BENCHMARK)
+    if rate < low:
+        return "poor"
+    if rate < median:
+        return "average"
+    if rate < high:
+        return "good"
+    return "excellent"
 
 
 def _latest_metrics(db: Session, user_id: str) -> List[PostMetric]:
@@ -102,4 +129,96 @@ def top_posts(db: Session, user_id: str, limit: int = 10) -> List[Dict]:
                 "platform_url": pc.platform_url if pc else None,
             }
         )
+    return out
+
+
+def by_platform_with_benchmark(db: Session, user_id: str) -> List[Dict]:
+    """Per-platform totals annotated with the benchmark tier for its rate."""
+    rows = by_platform(db, user_id)
+    for row in rows:
+        row["benchmark_tier"] = benchmark_tier(row["platform"], row["engagement_rate"])
+    return rows
+
+
+def daily_series(db: Session, user_id: str, days: int = 30) -> List[Dict]:
+    """Engagement time series: one point per collection day (all snapshots, not
+    latest-per-post), so it shows how engagement accrued over time."""
+    rows = (
+        db.query(PostMetric)
+        .filter(PostMetric.user_id == user_id)
+        .order_by(PostMetric.metric_date.asc())
+        .all()
+    )
+    by_day: Dict[str, List[PostMetric]] = {}
+    for m in rows:
+        by_day.setdefault(m.metric_date.isoformat(), []).append(m)
+    series = [{"date": day, **_totals(ms)} for day, ms in sorted(by_day.items())]
+    return series[-days:]
+
+
+def trend(db: Session, user_id: str, window_days: int = 7) -> Dict:
+    """Compare the most recent `window_days` of collection to the prior window.
+
+    Returns direction + percentage change in engagement rate. Uses the daily
+    series; needs at least two days of data to report a direction.
+    """
+    series = daily_series(db, user_id, days=window_days * 2)
+    if len(series) < 2:
+        return {"direction": "flat", "change_pct": 0.0, "recent_rate": 0.0, "prior_rate": 0.0}
+    mid = len(series) // 2
+    prior, recent = series[:mid], series[mid:]
+
+    def _avg_rate(rows: List[Dict]) -> float:
+        rates = [r["engagement_rate"] for r in rows]
+        return round(sum(rates) / len(rates), 4) if rates else 0.0
+
+    recent_rate, prior_rate = _avg_rate(recent), _avg_rate(prior)
+    if prior_rate == 0:
+        change = 100.0 if recent_rate > 0 else 0.0
+    else:
+        change = round((recent_rate - prior_rate) / prior_rate * 100, 1)
+    direction = "up" if change > 1 else "down" if change < -1 else "flat"
+    return {
+        "direction": direction,
+        "change_pct": change,
+        "recent_rate": recent_rate,
+        "prior_rate": prior_rate,
+    }
+
+
+def insights(db: Session, user_id: str) -> List[str]:
+    """Auto-generated plain-language observations from the aggregates."""
+    ov = overview(db, user_id)
+    out: List[str] = []
+    if ov["posts"] == 0:
+        return [
+            "No published content yet — connect an account and schedule posts to see analytics."
+        ]
+
+    out.append(
+        f"{ov['posts']} published posts drove {ov['engagement']:,} engagements "
+        f"across {ov['impressions']:,} impressions ({ov['engagement_rate'] * 100:.1f}% rate)."
+    )
+
+    platforms = by_platform_with_benchmark(db, user_id)
+    if platforms:
+        best = max(platforms, key=lambda r: r["engagement_rate"])
+        out.append(
+            f"{best['platform'].title()} is your strongest platform at "
+            f"{best['engagement_rate'] * 100:.1f}% ({best['benchmark_tier']} vs benchmark)."
+        )
+
+    templates = [t for t in by_template(db, user_id) if t["template"] != "untagged"]
+    if templates:
+        top = templates[0]
+        out.append(
+            f"Template '{top['template']}' performs best at "
+            f"{top['engagement_rate'] * 100:.1f}% engagement."
+        )
+
+    tr = trend(db, user_id)
+    if tr["direction"] != "flat":
+        arrow = "up" if tr["direction"] == "up" else "down"
+        out.append(f"Engagement is trending {arrow} {abs(tr['change_pct'])}% vs the prior period.")
+
     return out

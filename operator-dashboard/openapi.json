@@ -4971,6 +4971,158 @@
         }
       }
     },
+    "/api/analytics/benchmarks": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Benchmarks",
+        "description": "Per-platform totals annotated with each platform's benchmark tier.",
+        "operationId": "benchmarks_api_analytics_benchmarks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/daily": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Daily",
+        "description": "Engagement time series, one point per collection day.",
+        "operationId": "daily_api_analytics_daily_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/trend": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Trend",
+        "description": "Recent-vs-prior engagement-rate trend.",
+        "operationId": "trend_api_analytics_trend_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/insights": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Insights",
+        "description": "Auto-generated plain-language observations.",
+        "operationId": "insights_api_analytics_insights_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/report.pdf": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Report Pdf",
+        "description": "Download a one-page PDF engagement report.",
+        "operationId": "report_pdf_api_analytics_report_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/stories/": {
       "post": {
         "tags": [
