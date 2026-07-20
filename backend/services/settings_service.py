@@ -27,11 +27,37 @@ def _persist_to_env(env_key: str, value: str) -> None:
             pass  # env persistence is best-effort; DB is the primary store
 
 
-# Get encryption key from environment or generate one
-# In production, this should be stored securely (e.g., AWS Secrets Manager)
+# Get encryption key from environment or generate one.
+# This key encrypts every at-rest secret the app stores: user API keys (Settings)
+# AND OAuth platform tokens (Phase 10 platform_credentials). It MUST be stable
+# across restarts — a per-process key silently orphans every previously-encrypted
+# value (decrypt_value then returns "" and downstream publishing/lookups fail).
+# In production, store it in the platform secret store (Render env var / AWS
+# Secrets Manager). Generate one with:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY = os.getenv("SETTINGS_ENCRYPTION_KEY")
 if not ENCRYPTION_KEY:
-    # Generate a key for development (WARNING: This will change on restart!)
+    # DEBUG_MODE is the app's prod/dev switch (see backend/config.py). Outside
+    # dev, refuse to boot without a stable key rather than silently rotate it and
+    # lose access to every stored credential on the next restart.
+    _is_debug = os.getenv("DEBUG_MODE", "true").strip().lower() in ("1", "true", "yes")
+    if not _is_debug:
+        raise RuntimeError(
+            "SETTINGS_ENCRYPTION_KEY is not set. Refusing to start: a per-process "
+            "encryption key would orphan all stored API keys and OAuth tokens on "
+            "the next restart. Set SETTINGS_ENCRYPTION_KEY to a stable Fernet key "
+            '(python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())").'
+        )
+    # Dev-only fallback: generate an ephemeral key so local runs work, but warn
+    # loudly because anything encrypted this process will be unreadable next boot.
+    import logging as _logging
+
+    _logging.getLogger(__name__).warning(
+        "SETTINGS_ENCRYPTION_KEY not set - generated an EPHEMERAL dev key. "
+        "Stored API keys and OAuth tokens will NOT survive a restart. Set "
+        "SETTINGS_ENCRYPTION_KEY for any persistent environment."
+    )
     ENCRYPTION_KEY = Fernet.generate_key().decode()
 
 cipher_suite = Fernet(

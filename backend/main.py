@@ -10,11 +10,13 @@ This is the backend API for the Operator Dashboard, providing:
 - Static file serving for React frontend (eliminates CORS)
 """
 
+import asyncio
 import os
 import secrets
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -284,10 +286,29 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
+    # Optional in-process distribution scheduler (Phase 10). Enabled by
+    # RUN_SCHEDULER=true; publishes due posts every SCHEDULER_INTERVAL_SECONDS.
+    from backend.services.distribution import scheduler as distribution_scheduler
+
+    scheduler_stop: Optional[asyncio.Event] = None
+    scheduler_task = None
+    if distribution_scheduler.enabled():
+        scheduler_stop = asyncio.Event()
+        scheduler_task = asyncio.create_task(distribution_scheduler.scheduler_loop(scheduler_stop))
+        print(">> Distribution scheduler: ENABLED")
+    else:
+        print(">> Distribution scheduler: disabled (set RUN_SCHEDULER=true to enable)")
+
     yield  # Application runs here
 
     # Shutdown
     print(">> Shutting down Content Jumpstart API...")
+    if scheduler_task is not None and scheduler_stop is not None:
+        scheduler_stop.set()
+        try:
+            await asyncio.wait_for(scheduler_task, timeout=10)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            scheduler_task.cancel()
 
 
 # Create FastAPI app

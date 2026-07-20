@@ -24,8 +24,9 @@ from backend.models.distribution import (
     PostedContent,
     ScheduledPost,
 )
+from backend.services.distribution.oauth import ensure_fresh_token
 from backend.services.distribution.publishers import dry_run_enabled, get_publisher
-from backend.services.settings_service import decrypt_value, encrypt_value
+from backend.services.settings_service import encrypt_value
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,9 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
         db.commit()
         return sp
 
-    token = decrypt_value(cred.access_token) if cred else ""
+    # Refresh the token first if it's expiring and a refresh path exists; falls
+    # back to the current token otherwise (the live call surfaces any auth error).
+    token = ensure_fresh_token(db, cred) if cred else ""
     account_ref = cred.account_ref if cred else None
     publisher = get_publisher(sp.platform, token, account_ref)
     result = publisher.publish(sp.content, sp.media_url)

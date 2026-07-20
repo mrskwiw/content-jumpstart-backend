@@ -92,9 +92,10 @@ def test_process_due_requires_superuser(client, db_session):
     assert res.status_code == 403
 
 
-def test_unimplemented_platform_fails_closed(client, db_session):
+def test_video_platform_without_media_fails_closed(client, db_session):
     u = _make_user(db_session, "dist-ni@example.com", "user-distni")
-    # Real (non-stub) platform with a credential but no implementation yet.
+    # TikTok is video-only; publishing text with no media_url must fail closed
+    # with a clear message rather than crash or make a doomed network call.
     client.post(
         "/api/distribution/credentials",
         json={"platform": "tiktok", "access_token": "tok"},
@@ -109,7 +110,22 @@ def test_unimplemented_platform_fails_closed(client, db_session):
     assert pub.status_code == 200
     body = pub.json()
     assert body["status"] == "failed"
-    assert "not implemented" in (body["error_message"] or "").lower()
+    assert "video" in (body["error_message"] or "").lower()
+
+
+def test_no_credential_fails_closed(client, db_session):
+    u = _make_user(db_session, "dist-nocred@example.com", "user-distnocred")
+    # A real platform with NO connected account must fail closed (not publish).
+    sp = client.post(
+        "/api/distribution/schedule",
+        json={"platform": "twitter", "content": "hi", "scheduled_for": "2020-01-01T00:00:00Z"},
+        headers=_hdr(u),
+    ).json()
+    pub = client.post(f"/api/distribution/publish/{sp['id']}", headers=_hdr(u))
+    assert pub.status_code == 200
+    body = pub.json()
+    assert body["status"] == "failed"
+    assert "no active credential" in (body["error_message"] or "").lower()
 
 
 def test_queue_and_publish_scoped_to_owner(client, db_session):
