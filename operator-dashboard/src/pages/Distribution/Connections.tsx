@@ -40,6 +40,12 @@ export default function Connections() {
 
   const platforms = status.data?.all ?? [];
   const configured = new Set(status.data?.configured ?? []);
+  // The OAuth connect flow creates account-level credentials (client_id=null),
+  // and the backend unique constraint is (user_id, client_id, platform) — so
+  // there is at most one credential per platform in this UI's model, and keying
+  // by platform is safe. Per-client (multiple credentials per platform) routing
+  // is a documented follow-up (BUGS.md — multi-client distribution scoping);
+  // when added, index by credential id + client and add a client selector here.
   const credByPlatform = new Map<string, PlatformCredential>();
   (creds.data ?? []).forEach((c) => credByPlatform.set(c.platform, c));
 
