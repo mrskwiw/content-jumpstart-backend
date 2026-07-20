@@ -21,6 +21,8 @@ _REDACTED_COLUMNS = {
     "hashed_password",
     "mfa_secret",
     "mfa_backup_codes",
+    "access_token",  # platform_credentials — encrypted OAuth tokens
+    "refresh_token",
 }
 
 
@@ -248,6 +250,13 @@ def export_full_instance(db: Session) -> Dict:
         User,
     )
 
+    from backend.models import (
+        PlatformCredential,
+        PostMetric,
+        PostedContent,
+        ScheduledPost,
+    )
+
     # (json key, model) — order roughly follows dependency order for readability.
     tables = [
         ("users", User),
@@ -275,6 +284,10 @@ def export_full_instance(db: Session) -> Dict:
         ("deletion_audit_log", DeletionAuditLog),
         ("conversations", Conversation),
         ("messages", Message),
+        ("platform_credentials", PlatformCredential),
+        ("scheduled_posts", ScheduledPost),
+        ("posted_content", PostedContent),
+        ("post_metrics", PostMetric),
     ]
 
     data: Dict[str, Any] = {}
@@ -408,6 +421,13 @@ def export_user_data(user_id: str, db: Session) -> Dict:
             "User export for %s is PARTIAL — missing raw tables: %s", user_id, missing_tables
         )
 
+    from backend.models import (
+        PlatformCredential,
+        PostMetric,
+        PostedContent,
+        ScheduledPost,
+    )
+
     return {
         "export_metadata": {
             "partial": bool(missing_tables),
@@ -466,6 +486,11 @@ def export_user_data(user_id: str, db: Session) -> Dict:
         # Raw-SQL cost-tracking tables (no ORM model), project/client-scoped.
         "api_calls": api_calls,
         "budget_alerts": budget_alerts,
+        # Phase 10/11 — distribution + analytics (tokens redacted).
+        "platform_credentials": by_user(PlatformCredential),
+        "scheduled_posts": by_user(ScheduledPost),
+        "posted_content": by_user(PostedContent),
+        "post_metrics": by_user(PostMetric),
     }
 
 
