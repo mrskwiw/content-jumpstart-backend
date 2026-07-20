@@ -230,7 +230,8 @@ def oauth_callback(
     """Provider redirect target. Verifies the signed state, exchanges the code for
     tokens, stores the (encrypted) credential, then bounces back to the UI."""
     frontend = os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
-    done = f"{frontend}/settings/connections" if frontend else "/settings/connections"
+    path = "/dashboard/settings/connections"
+    done = f"{frontend}{path}" if frontend else path
 
     if error:
         return RedirectResponse(f"{done}?error={error}")

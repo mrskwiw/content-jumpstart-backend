@@ -1,4 +1,4 @@
-import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins, Globe } from 'lucide-react';
+import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins, Globe, Share2, Send, TrendingUp } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,12 @@ const navItems = [
   { to: '/dashboard/deliverables', label: 'Deliverables', icon: FileStack },
   { to: '/dashboard/wizard', label: 'Wizard / QA', icon: Rocket },
   { to: '/dashboard/settings', label: 'Settings', icon: Settings },
+];
+
+const distributionItems = [
+  { to: '/dashboard/settings/connections', label: 'Connections', icon: Share2 },
+  { to: '/dashboard/distribution/queue', label: 'Publishing Queue', icon: Send },
+  { to: '/dashboard/engagement', label: 'Engagement', icon: TrendingUp },
 ];
 
 const researchToolsItems = [
@@ -134,6 +140,33 @@ export default function AppLayout() {
                 Research Tools
               </div>
               {researchToolsItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      [
+                        'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300 border-l-2 border-primary-500'
+                          : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800',
+                      ].join(' ')
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </div>
+
+            {/* Distribution Section */}
+            <div className="pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700">
+              <div className="px-3 py-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Distribution
+              </div>
+              {distributionItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <NavLink

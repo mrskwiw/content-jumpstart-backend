@@ -29,6 +29,11 @@ const Analytics = lazyWithRetry(() => import('@/pages/Analytics'));
 const Calendar = lazyWithRetry(() => import('@/pages/Calendar'));
 const TemplateLibrary = lazyWithRetry(() => import('@/pages/TemplateLibrary'));
 
+// Distribution (Phase 10) + Engagement analytics (Phase 11)
+const Connections = lazyWithRetry(() => import('@/pages/Distribution/Connections'));
+const PublishingQueue = lazyWithRetry(() => import('@/pages/Distribution/Queue'));
+const Engagement = lazyWithRetry(() => import('@/pages/Engagement'));
+
 // NEW: Priority 3 pages
 const Team = lazyWithRetry(() => import('@/pages/Team'));
 const Notifications = lazyWithRetry(() => import('@/pages/Notifications'));
@@ -108,6 +113,9 @@ export const router = createBrowserRouter([
       { path: 'content-review', element: withSuspense(ContentReview) },
       { path: 'deliverables', element: withSuspense(Deliverables) },
       { path: 'analytics', element: withSuspense(Analytics) },
+      { path: 'engagement', element: withSuspense(Engagement) },
+      { path: 'distribution/queue', element: withSuspense(PublishingQueue) },
+      { path: 'settings/connections', element: withSuspense(Connections) },
       { path: 'calendar', element: withSuspense(Calendar) },
       { path: 'templates', element: withSuspense(TemplateLibrary) },
       { path: 'team', element: withSuspense(Team) },
