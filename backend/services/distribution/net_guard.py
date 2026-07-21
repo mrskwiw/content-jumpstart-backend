@@ -31,6 +31,9 @@ import requests
 from requests.adapters import HTTPAdapter
 
 _MAX_REDIRECTS = 5
+# Cap fallback attempts so a host returning many addresses can't stack timeouts
+# into a huge wall-clock; 4 covers realistic dual-stack A/AAAA answers.
+_MAX_PIN_ATTEMPTS = 4
 
 # Ranges not consistently covered by ``ipaddress.is_private`` across Python
 # versions — blocked explicitly for defense in depth.
@@ -145,20 +148,40 @@ def _pin(parsed: ParseResult, ip: ipaddress._BaseAddress) -> Tuple[str, str]:
 
 
 def _pinned_get(parsed: ParseResult, ip, headers: dict, timeout, kwargs) -> requests.Response:
-    """One streamed GET pinned to ``ip`` (TLS verified against the real host)."""
+    """One streamed GET pinned to ``ip`` (TLS verified against the real host).
+
+    The per-``Session`` lifetime is tied to the streamed response: a failed
+    attempt closes its session immediately, and a successful one closes it when
+    the caller closes the response (so no connection pool / socket is leaked).
+    """
     connect_url, host_header = _pin(parsed, ip)
     session = requests.Session()
-    if parsed.scheme == "https":
-        # Pin the socket to the IP but verify the cert against the real host.
-        session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
-    return session.get(
-        connect_url,
-        stream=True,
-        timeout=timeout,
-        allow_redirects=False,
-        headers={**headers, "Host": host_header},
-        **kwargs,
-    )
+    try:
+        if parsed.scheme == "https":
+            # Pin the socket to the IP but verify the cert against the real host.
+            session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
+        resp = session.get(
+            connect_url,
+            stream=True,
+            timeout=timeout,
+            allow_redirects=False,
+            headers={**headers, "Host": host_header},
+            **kwargs,
+        )
+    except BaseException:
+        session.close()
+        raise
+    # Close the session alongside the response it produced.
+    _orig_close = resp.close
+
+    def _close_both() -> None:
+        try:
+            _orig_close()
+        finally:
+            session.close()
+
+    resp.close = _close_both  # type: ignore[method-assign]
+    return resp
 
 
 def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
@@ -168,6 +191,8 @@ def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
     every resolved address is already vetted as public, we try them in resolver
     order and fall back to the next on a connection failure — so a dual-stack /
     CDN host doesn't hard-fail when its first (e.g. IPv6) address is unreachable.
+    Each attempt is bounded by ``timeout`` and the number of attempts is capped
+    (``_MAX_PIN_ATTEMPTS``) so fallback can't stack into an unbounded wall-clock.
     Returns the final streamed :class:`requests.Response`.
     """
     current = url
@@ -177,7 +202,7 @@ def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
 
         resp = None
         last_err: Exception | None = None
-        for ip in ips:
+        for ip in ips[:_MAX_PIN_ATTEMPTS]:
             try:
                 resp = _pinned_get(parsed, ip, headers, timeout, kwargs)
                 break

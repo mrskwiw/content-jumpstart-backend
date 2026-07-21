@@ -86,7 +86,8 @@ def test_safe_stream_get_revalidates_redirect_to_internal():
         ):
             with pytest.raises(UnsafeURLError):
                 safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
-    redirect.close.assert_called_once()
+    # The redirect hop's response/session are cleaned up before the next hop.
+    session.close.assert_called()
 
 
 def test_safe_stream_get_pins_to_validated_ip_and_returns_response():
@@ -146,6 +147,28 @@ def test_safe_stream_get_falls_back_to_next_validated_ip():
     assert resp is ok
     # Second (IPv4) address was tried after the first failed.
     assert sessions[1].get.call_args.args[0] == "https://93.184.216.34/video.mp4"
+    # The failed first attempt must not leak its session.
+    sessions[0].close.assert_called_once()
+
+
+def test_safe_stream_get_closes_session_when_response_closed():
+    """Closing the returned response also closes its underlying session."""
+    ok = MagicMock()
+    ok.is_redirect = False
+    ok.headers = {}
+    session = _session_returning(ok)
+
+    with patch(
+        "backend.services.distribution.net_guard.socket.getaddrinfo",
+        return_value=[(2, 1, 6, "", ("93.184.216.34", 0))],
+    ):
+        with patch(
+            "backend.services.distribution.net_guard.requests.Session", return_value=session
+        ):
+            resp = safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
+        resp.close()  # caller (e.g. `with ... as src`) closes the stream
+
+    session.close.assert_called_once()
 
 
 def test_pin_ipv6_literal_host_header_is_bracketed():
