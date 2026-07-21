@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import time
 from typing import List, Tuple
 from urllib.parse import ParseResult, urljoin, urlparse
 
@@ -31,9 +32,13 @@ import requests
 from requests.adapters import HTTPAdapter
 
 _MAX_REDIRECTS = 5
-# Cap fallback attempts so a host returning many addresses can't stack timeouts
-# into a huge wall-clock; 4 covers realistic dual-stack A/AAAA answers.
-_MAX_PIN_ATTEMPTS = 4
+# Fallback across a host's resolved addresses is bounded by wall-clock, not a
+# fixed count: we try *every unique* validated address (so a host publishing
+# many A/AAAA records is never rejected just for having >N of them) but stop
+# once total connect time exceeds this multiple of the caller's connect timeout
+# (so blackholed addresses can't stack into an unbounded hang). This is a
+# deliberate latency-vs-exhaustiveness trade-off — see BUGS #192.
+_FALLBACK_CONNECT_BUDGET = 4
 
 # Ranges not consistently covered by ``ipaddress.is_private`` across Python
 # versions — blocked explicitly for defense in depth.
@@ -79,6 +84,16 @@ def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
     ):
         return True
     return any(ip in net for net in _EXTRA_BLOCKED)
+
+
+def _unique(ips: List[ipaddress._BaseAddress]) -> List[ipaddress._BaseAddress]:
+    """De-duplicate resolved addresses, preserving resolver order."""
+    seen, out = set(), []
+    for ip in ips:
+        if ip not in seen:
+            seen.add(ip)
+            out.append(ip)
+    return out
 
 
 def _resolve_ips(host: str) -> List[ipaddress._BaseAddress]:
@@ -188,21 +203,30 @@ def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
     """SSRF-guarded ``requests.get(stream=True)`` pinned to a validated IP.
 
     Follows redirects manually, re-validating and re-pinning each hop. Because
-    every resolved address is already vetted as public, we try them in resolver
-    order and fall back to the next on a connection failure — so a dual-stack /
-    CDN host doesn't hard-fail when its first (e.g. IPv6) address is unreachable.
-    Each attempt is bounded by ``timeout`` and the number of attempts is capped
-    (``_MAX_PIN_ATTEMPTS``) so fallback can't stack into an unbounded wall-clock.
-    Returns the final streamed :class:`requests.Response`.
+    every resolved address is already vetted as public, we try each *unique*
+    address in resolver order and fall back to the next on a connection failure —
+    so a dual-stack / CDN host doesn't hard-fail when its first (e.g. IPv6)
+    address is unreachable. Fallback stops when addresses are exhausted or the
+    total connect wall-clock exceeds ``_FALLBACK_CONNECT_BUDGET`` × the caller's
+    connect timeout, whichever comes first (see BUGS #192). Returns the final
+    streamed :class:`requests.Response`.
     """
     current = url
     headers = dict(kwargs.pop("headers", {}) or {})
+    connect_timeout = timeout[0] if isinstance(timeout, (tuple, list)) else timeout
     for _ in range(_MAX_REDIRECTS + 1):
         parsed, ips = _validate_and_resolve(current)
 
         resp = None
         last_err: Exception | None = None
-        for ip in ips[:_MAX_PIN_ATTEMPTS]:
+        deadline = (
+            time.monotonic() + connect_timeout * _FALLBACK_CONNECT_BUDGET
+            if connect_timeout
+            else None
+        )
+        for ip in _unique(ips):
+            if deadline is not None and time.monotonic() >= deadline:
+                break  # latency budget spent — stop before an unbounded hang
             try:
                 resp = _pinned_get(parsed, ip, headers, timeout, kwargs)
                 break
