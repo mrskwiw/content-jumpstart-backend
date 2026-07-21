@@ -203,6 +203,32 @@ def test_safe_stream_get_tries_beyond_four_addresses(monkeypatch):
     assert sessions[4].get.call_args.args[0] == "https://93.184.216.38/video.mp4"
 
 
+def test_safe_stream_get_caps_pathological_address_set(monkeypatch):
+    """A huge fast-failing public-IP answer is capped at _MAX_UNIQUE_ADDRS so it
+    can't drive unbounded connect attempts even when the time budget never trips."""
+    from backend.services.distribution.net_guard import _MAX_UNIQUE_ADDRS
+
+    sessions = []
+
+    def make_session():
+        s = MagicMock()
+        sessions.append(s)
+        s.get.side_effect = [requests.exceptions.ConnectionError("down")]  # all fail fast
+        return s
+
+    # 40 distinct public IPs, all unreachable-but-instant.
+    addrs = [(2, 1, 6, "", (f"93.184.{n // 256}.{n % 256}", 0)) for n in range(40)]
+    monkeypatch.setattr("backend.services.distribution.net_guard.time.monotonic", lambda: 0.0)
+    with patch("backend.services.distribution.net_guard.socket.getaddrinfo", return_value=addrs):
+        with patch(
+            "backend.services.distribution.net_guard.requests.Session", side_effect=make_session
+        ):
+            with pytest.raises(requests.exceptions.ConnectionError):
+                safe_stream_get("https://cdn.example.com/video.mp4", timeout=5)
+
+    assert len(sessions) == _MAX_UNIQUE_ADDRS  # capped, not 40
+
+
 def test_pin_ipv6_literal_host_header_is_bracketed():
     parsed = urlparse("https://[2606:2800:220:1:248:1893:25c8:1946]:8443/v.mp4")
     connect_url, host_header = _pin(parsed, ipaddress.ip_address("93.184.216.34"))

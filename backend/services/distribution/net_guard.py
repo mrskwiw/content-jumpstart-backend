@@ -32,13 +32,18 @@ import requests
 from requests.adapters import HTTPAdapter
 
 _MAX_REDIRECTS = 5
-# Fallback across a host's resolved addresses is bounded by wall-clock, not a
-# fixed count: we try *every unique* validated address (so a host publishing
-# many A/AAAA records is never rejected just for having >N of them) but stop
-# once total connect time exceeds this multiple of the caller's connect timeout
-# (so blackholed addresses can't stack into an unbounded hang). This is a
-# deliberate latency-vs-exhaustiveness trade-off — see BUGS #192.
+# Fallback across a host's resolved addresses is bounded two ways at once
+# (see BUGS #192):
+#   * a wall-clock budget — stop once total connect time exceeds this multiple
+#     of the caller's connect timeout, so blackholed addresses can't stack into
+#     an unbounded hang; and
+#   * a generous unique-address ceiling — so a hostile/oversized DNS answer of
+#     many *fast-failing* public IPs (which the time budget alone wouldn't stop)
+#     can't drive an unbounded number of connect attempts.
+# The ceiling is far above any legitimate dual-stack/CDN answer, so no real host
+# is ever rejected for merely publishing several addresses.
 _FALLBACK_CONNECT_BUDGET = 4
+_MAX_UNIQUE_ADDRS = 16
 
 # Ranges not consistently covered by ``ipaddress.is_private`` across Python
 # versions — blocked explicitly for defense in depth.
@@ -206,10 +211,11 @@ def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
     every resolved address is already vetted as public, we try each *unique*
     address in resolver order and fall back to the next on a connection failure —
     so a dual-stack / CDN host doesn't hard-fail when its first (e.g. IPv6)
-    address is unreachable. Fallback stops when addresses are exhausted or the
-    total connect wall-clock exceeds ``_FALLBACK_CONNECT_BUDGET`` × the caller's
-    connect timeout, whichever comes first (see BUGS #192). Returns the final
-    streamed :class:`requests.Response`.
+    address is unreachable. Fallback stops when the unique addresses are
+    exhausted (up to ``_MAX_UNIQUE_ADDRS``) or the total connect wall-clock
+    exceeds ``_FALLBACK_CONNECT_BUDGET`` × the caller's connect timeout,
+    whichever comes first (see BUGS #192). Returns the final streamed
+    :class:`requests.Response`.
     """
     current = url
     headers = dict(kwargs.pop("headers", {}) or {})
@@ -224,7 +230,7 @@ def safe_stream_get(url: str, *, timeout, **kwargs) -> requests.Response:
             if connect_timeout
             else None
         )
-        for ip in _unique(ips):
+        for ip in _unique(ips)[:_MAX_UNIQUE_ADDRS]:
             if deadline is not None and time.monotonic() >= deadline:
                 break  # latency budget spent — stop before an unbounded hang
             try:
