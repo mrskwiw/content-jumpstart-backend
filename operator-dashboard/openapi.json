@@ -5123,6 +5123,381 @@
         ]
       }
     },
+    "/api/media/pipelines": {
+      "get": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "List Pipelines",
+        "description": "The pipelines this subsystem can run, with their provider chains.",
+        "operationId": "list_pipelines_api_media_pipelines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/generate": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Generate",
+        "description": "Estimate (confirm=false) or start (confirm=true) a media pipeline.\n\nReturns the cost estimate first; the caller must resend with `confirm=true`\nto actually spend. Over-budget submissions fail closed with HTTP 402.",
+        "operationId": "generate_api_media_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/media/jobs": {
+      "get": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "List Jobs",
+        "operationId": "list_jobs_api_media_jobs_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "pipeline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pipeline"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Api Media Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job_api_media_jobs__job_id__get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Cancel Job",
+        "operationId": "cancel_job_api_media_jobs__job_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/assemble": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Assemble",
+        "operationId": "assemble_api_media_assemble_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/media/webhooks/{provider}": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Webhook",
+        "description": "Ingest a signed provider completion callback (HMAC-verified).",
+        "operationId": "webhook_api_media_webhooks__provider__post",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/process-due": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Process Due",
+        "description": "Advance in-flight media jobs + retry recent failures. Call ~every minute\nfrom a scheduled worker (Render Cron Job) authenticated as an admin.",
+        "operationId": "process_due_api_media_process_due_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/stories/": {
       "post": {
         "tags": [
@@ -9407,6 +9782,80 @@
         "title": "AdminUserCreate",
         "description": "Schema for admin creating a user.\n\nExtends UserCreate to allow setting is_superuser.\nOnly admins can use this endpoint."
       },
+      "AssembleRequest": {
+        "properties": {
+          "asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Asset Ids"
+          },
+          "mux_audio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mux Audio"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "asset_ids"
+        ],
+        "title": "AssembleRequest"
+      },
+      "AssetOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "url"
+        ],
+        "title": "AssetOut"
+      },
       "AvailableStoriesRequest": {
         "properties": {
           "client_id": {
@@ -12473,6 +12922,53 @@
         "title": "GenerateAllInput",
         "description": "Input for generate-all endpoint"
       },
+      "GenerateRequest": {
+        "properties": {
+          "pipeline": {
+            "type": "string",
+            "title": "Pipeline",
+            "description": "talking_head | cinematic | audio_only"
+          },
+          "spec": {
+            "type": "object",
+            "title": "Spec",
+            "description": "Provider inputs (script, prompt, seconds\u2026)"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pipeline"
+        ],
+        "title": "GenerateRequest"
+      },
       "GrantCreditsRequest": {
         "properties": {
           "user_id": {
@@ -12623,6 +13119,210 @@
           "tavily": false,
           "web_search": true
         }
+      },
+      "JobDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline"
+          },
+          "stage_index": {
+            "type": "integer",
+            "title": "Stage Index"
+          },
+          "parent_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "output_asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Asset Id"
+          },
+          "cost_cents": {
+            "type": "integer",
+            "title": "Cost Cents"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetOut"
+            },
+            "type": "array",
+            "title": "Assets",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage_index",
+          "kind",
+          "provider",
+          "status",
+          "cost_cents",
+          "retry_count"
+        ],
+        "title": "JobDetail"
+      },
+      "JobOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "pipeline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline"
+          },
+          "stage_index": {
+            "type": "integer",
+            "title": "Stage Index"
+          },
+          "parent_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Job Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "output_asset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Asset Id"
+          },
+          "cost_cents": {
+            "type": "integer",
+            "title": "Cost Cents"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage_index",
+          "kind",
+          "provider",
+          "status",
+          "cost_cents",
+          "retry_count"
+        ],
+        "title": "JobOut"
       },
       "KeywordBulkUpsert": {
         "properties": {

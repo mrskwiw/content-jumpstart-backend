@@ -48,6 +48,7 @@ from backend.routers import (
     engagement,
     generator,
     health,
+    media,
     posts,
     privacy,
     pricing,
@@ -299,16 +300,35 @@ async def lifespan(app: FastAPI):
     else:
         print(">> Distribution scheduler: disabled (set RUN_SCHEDULER=true to enable)")
 
+    # Optional in-process media scheduler (Phase 12). Shares RUN_SCHEDULER; polls
+    # in-flight media renders every MEDIA_SCHEDULER_INTERVAL_SECONDS.
+    from backend.services.media import scheduler as media_scheduler
+
+    media_scheduler_stop: Optional[asyncio.Event] = None
+    media_scheduler_task = None
+    if media_scheduler.enabled():
+        media_scheduler_stop = asyncio.Event()
+        media_scheduler_task = asyncio.create_task(
+            media_scheduler.scheduler_loop(media_scheduler_stop)
+        )
+        print(">> Media scheduler: ENABLED")
+    else:
+        print(">> Media scheduler: disabled (set RUN_SCHEDULER=true to enable)")
+
     yield  # Application runs here
 
     # Shutdown
     print(">> Shutting down Content Jumpstart API...")
-    if scheduler_task is not None and scheduler_stop is not None:
-        scheduler_stop.set()
-        try:
-            await asyncio.wait_for(scheduler_task, timeout=10)
-        except (asyncio.TimeoutError, asyncio.CancelledError):
-            scheduler_task.cancel()
+    for stop_event, task in (
+        (scheduler_stop, scheduler_task),
+        (media_scheduler_stop, media_scheduler_task),
+    ):
+        if task is not None and stop_event is not None:
+            stop_event.set()
+            try:
+                await asyncio.wait_for(task, timeout=10)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                task.cancel()
 
 
 # Create FastAPI app
@@ -697,6 +717,7 @@ app.include_router(posts.router, prefix="/api/posts", tags=["Posts"])
 app.include_router(privacy.router, tags=["Privacy & GDPR"])
 app.include_router(distribution.router, tags=["Distribution"])
 app.include_router(engagement.router, tags=["Analytics & Engagement"])
+app.include_router(media.router, tags=["Media Generation"])
 app.include_router(stories.router, prefix="/api/stories", tags=["Stories"])
 app.include_router(generator.router, prefix="/api/generator", tags=["Generator"])
 app.include_router(research.router, prefix="/api/research", tags=["Research"])

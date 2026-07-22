@@ -28,6 +28,7 @@ from .deletion_audit_log import DeletionAuditLog
 from .client_keywords import ClientKeyword
 from .distribution import PlatformCredential, ScheduledPost, PostedContent
 from .analytics import PostMetric
+from .media import MediaJob, MediaAsset
 
 __all__ = [
     "User",
@@ -58,4 +59,6 @@ __all__ = [
     "ScheduledPost",
     "PostedContent",
     "PostMetric",
+    "MediaJob",
+    "MediaAsset",
 ]
