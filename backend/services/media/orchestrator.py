@@ -159,10 +159,9 @@ def _submit_job(db: Session, job: MediaJob) -> MediaJob:
     try:
         cost.enforce_budget(db, job.user_id, job.client_id, est)
     except cost.BudgetExceededError as e:
-        job.status = "failed"
-        job.error_message = str(e)
-        db.commit()
-        return job
+        # Budget rejection is non-transient — retrying can't make it pass, so mark
+        # it terminal (don't let the worker requeue it every tick).
+        return _mark_failed(db, job, str(e), terminal=True)
 
     provider = get_provider(kind, job.provider, credential=None)
     result = provider.start(json.loads(job.input_json or "{}"))
@@ -183,14 +182,46 @@ def advance(db: Session, job: MediaJob) -> MediaJob:
     return job
 
 
+def _mark_failed(db: Session, job: MediaJob, error: Optional[str], *, terminal: bool) -> MediaJob:
+    """Mark a job failed, then orphan-proof the pipeline once it's terminal.
+
+    `terminal=True` exhausts the retry budget immediately (non-transient errors
+    like budget rejection). Transient failures bump `retry_count`; either way,
+    once a job can no longer be retried its downstream stages are failed too so
+    the pipeline never strands descendants in `awaiting_dependency`.
+    """
+    job.status = "failed"
+    job.error_message = error
+    job.retry_count = MAX_RETRIES if terminal else job.retry_count + 1
+    db.commit()
+    if job.retry_count >= MAX_RETRIES:
+        _fail_descendants(db, job)
+    return job
+
+
+def _fail_descendants(db: Session, job: MediaJob) -> None:
+    """Terminally fail downstream stages still waiting on a failed job."""
+    child = (
+        db.query(MediaJob)
+        .filter(
+            MediaJob.parent_job_id == job.id,
+            MediaJob.status == "awaiting_dependency",
+        )
+        .first()
+    )
+    if child is None:
+        return
+    child.status = "failed"
+    child.error_message = f"Upstream stage {job.id} failed; pipeline cannot continue."
+    child.retry_count = MAX_RETRIES
+    db.commit()
+    _fail_descendants(db, child)
+
+
 def _apply_result(db: Session, job: MediaJob, result) -> MediaJob:
     """Fold a provider `MediaResult` into a job's state (+ chain on completion)."""
     if not result.ok:
-        job.status = "failed"
-        job.error_message = result.error
-        job.retry_count += 1
-        db.commit()
-        return job
+        return _mark_failed(db, job, result.error, terminal=False)
 
     if result.external_id:
         job.external_id = result.external_id
@@ -241,15 +272,25 @@ def _is_last_stage(db: Session, job: MediaJob) -> bool:
 # ── Webhook ingest ────────────────────────────────────────────────────────────
 
 
+def _dev_mode() -> bool:
+    """True only in an explicit dev/dry-run context (never in a real deployment)."""
+    from backend.services.media.providers import dry_run_enabled
+
+    debug = os.getenv("DEBUG_MODE", "false").strip().lower() in ("1", "true", "yes")
+    return debug or dry_run_enabled()
+
+
 def verify_webhook_signature(raw_body: bytes, signature: Optional[str]) -> bool:
     """HMAC-verify a provider callback against MEDIA_WEBHOOK_SECRET.
 
-    When no secret is configured (dev/dry-run) verification is skipped and any
-    callback is accepted; production MUST set the secret so callbacks are trusted.
+    Fails **closed**: with a secret set, the signature must match. With no secret
+    configured, callbacks are rejected in a real deployment (an unset secret is a
+    misconfiguration, not consent to trust anyone) and accepted only in explicit
+    DEBUG_MODE / MEDIA_DRY_RUN, where no real provider is wired.
     """
     secret = os.getenv("MEDIA_WEBHOOK_SECRET", "").strip()
     if not secret:
-        return True
+        return _dev_mode()
     if not signature:
         return False
     expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()

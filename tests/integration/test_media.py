@@ -185,6 +185,15 @@ def test_webhook_bad_signature_rejected(client, db_session, monkeypatch):
     assert r.status_code == 401, r.text
 
 
+def test_webhook_fails_closed_without_secret_in_prod(client, db_session, monkeypatch):
+    # No secret + not dev/dry-run == misconfiguration; reject rather than trust.
+    monkeypatch.delenv("MEDIA_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    monkeypatch.delenv("DEBUG_MODE", raising=False)
+    r = client.post("/api/media/webhooks/heygen", json={"external_id": "x"})
+    assert r.status_code == 401, r.text
+
+
 def test_webhook_no_secret_completes_job(client, db_session, monkeypatch):
     _dry_run(monkeypatch)
     monkeypatch.delenv("MEDIA_WEBHOOK_SECRET", raising=False)

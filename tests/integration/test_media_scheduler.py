@@ -137,6 +137,50 @@ def test_submit_job_budget_rejection_marks_failed(db_session, monkeypatch):
     orchestrator._submit_job(db_session, job)
     assert job.status == "failed"
     assert "cap" in (job.error_message or "").lower()
+    # Budget rejection is non-transient → retries exhausted immediately.
+    assert job.retry_count == orchestrator.MAX_RETRIES
+
+
+def test_budget_failed_job_not_requeued_by_worker(db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    monkeypatch.setenv("MEDIA_MAX_JOB_COST_CENTS", "1")
+    _user(db_session, "u-bt")
+    job = MediaJob(
+        id="j-bt",
+        user_id="u-bt",
+        kind="gen_clip",
+        provider="kling",
+        status="queued",
+        input_json="{}",
+    )
+    db_session.add(job)
+    db_session.commit()
+    orchestrator._submit_job(db_session, job)  # terminal budget failure
+
+    # The worker must NOT requeue a terminally budget-failed job every tick.
+    summary = orchestrator.process_due(db_session)
+    db_session.refresh(job)
+    assert job.status == "failed"
+    assert summary["submitted"] == 0
+
+
+def test_terminal_failure_cascades_to_descendants(db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _user(db_session, "u-casc2")
+    root = orchestrator.submit_pipeline(
+        db_session, "u-casc2", pipeline="cinematic", spec={"prompt": "x"}
+    )
+    # Force the in-flight root stage to fail terminally.
+    orchestrator._mark_failed(db_session, root, "boom", terminal=True)
+
+    stages = (
+        db_session.query(MediaJob)
+        .filter(MediaJob.pipeline == "cinematic", MediaJob.user_id == "u-casc2")
+        .all()
+    )
+    assert len(stages) == 3
+    # No stage is left stranded in awaiting_dependency.
+    assert all(s.status == "failed" for s in stages)
 
 
 def test_assemble_requires_dry_run(db_session, monkeypatch):
