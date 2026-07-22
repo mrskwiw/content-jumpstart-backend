@@ -25,7 +25,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from backend.models.media import MediaAsset, MediaJob
 from backend.services.media import cost
@@ -200,22 +200,36 @@ def _mark_failed(db: Session, job: MediaJob, error: Optional[str], *, terminal: 
 
 
 def _fail_descendants(db: Session, job: MediaJob) -> None:
-    """Terminally fail downstream stages still waiting on a failed job."""
-    child = (
-        db.query(MediaJob)
-        .filter(
-            MediaJob.parent_job_id == job.id,
-            MediaJob.status == "awaiting_dependency",
+    """Terminally fail the whole downstream subtree waiting on a failed job.
+
+    Walks breadth-first and marks every `awaiting_dependency` descendant in one
+    transaction (a single commit), so the subtree can't be left half-updated. The
+    `process_due` reconciliation sweep is the backstop if this is ever interrupted
+    (crash) or if an orphan predates this code.
+    """
+    frontier = [job.id]
+    marked = False
+    while frontier:
+        children = (
+            db.query(MediaJob)
+            .filter(
+                MediaJob.parent_job_id.in_(frontier),
+                MediaJob.status == "awaiting_dependency",
+            )
+            .all()
         )
-        .first()
-    )
-    if child is None:
-        return
-    child.status = "failed"
-    child.error_message = f"Upstream stage {job.id} failed; pipeline cannot continue."
-    child.retry_count = MAX_RETRIES
-    db.commit()
-    _fail_descendants(db, child)
+        if not children:
+            break
+        for child in children:
+            child.status = "failed"
+            child.error_message = (
+                f"Upstream stage {child.parent_job_id} failed; pipeline cannot continue."
+            )
+            child.retry_count = MAX_RETRIES
+        marked = True
+        frontier = [c.id for c in children]
+    if marked:
+        db.commit()
 
 
 def _apply_result(db: Session, job: MediaJob, result) -> MediaJob:
@@ -272,25 +286,22 @@ def _is_last_stage(db: Session, job: MediaJob) -> bool:
 # ── Webhook ingest ────────────────────────────────────────────────────────────
 
 
-def _dev_mode() -> bool:
-    """True only in an explicit dev/dry-run context (never in a real deployment)."""
-    from backend.services.media.providers import dry_run_enabled
-
-    debug = os.getenv("DEBUG_MODE", "false").strip().lower() in ("1", "true", "yes")
-    return debug or dry_run_enabled()
-
-
 def verify_webhook_signature(raw_body: bytes, signature: Optional[str]) -> bool:
     """HMAC-verify a provider callback against MEDIA_WEBHOOK_SECRET.
 
     Fails **closed**: with a secret set, the signature must match. With no secret
     configured, callbacks are rejected in a real deployment (an unset secret is a
-    misconfiguration, not consent to trust anyone) and accepted only in explicit
-    DEBUG_MODE / MEDIA_DRY_RUN, where no real provider is wired.
+    misconfiguration, not consent to trust anyone) and accepted only under
+    MEDIA_DRY_RUN — the media subsystem's own explicit "no real provider wired"
+    switch. Deliberately gated on MEDIA_DRY_RUN rather than the app-wide DEBUG_MODE
+    (whose config default is True) so a real deployment never silently trusts
+    unsigned callbacks.
     """
+    from backend.services.media.providers import dry_run_enabled
+
     secret = os.getenv("MEDIA_WEBHOOK_SECRET", "").strip()
     if not secret:
-        return _dev_mode()
+        return dry_run_enabled()
     if not signature:
         return False
     expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
@@ -387,6 +398,37 @@ def _active_query(db: Session, statuses):
     return q
 
 
+def _reconcile_orphans(db: Session, limit: int = 25) -> int:
+    """Fail stages waiting on a parent that already failed/canceled.
+
+    The backstop for `_fail_descendants`: idempotent, catches subtrees left
+    half-failed by an interrupted cascade as well as pre-existing orphans. Bounded
+    re-scan so a whole stranded subtree drains in one call.
+    """
+    parent = aliased(MediaJob)
+    reconciled = 0
+    for _ in range(limit + 1):
+        orphans: List[MediaJob] = (
+            db.query(MediaJob)
+            .join(parent, MediaJob.parent_job_id == parent.id)
+            .filter(
+                MediaJob.status == "awaiting_dependency",
+                parent.status.in_(("failed", "canceled")),
+            )
+            .limit(limit)
+            .all()
+        )
+        if not orphans:
+            break
+        for o in orphans:
+            o.status = "failed"
+            o.error_message = f"Upstream stage {o.parent_job_id} failed; pipeline cannot continue."
+            o.retry_count = MAX_RETRIES
+            reconciled += 1
+        db.commit()
+    return reconciled
+
+
 def process_due(db: Session, limit: int = 25) -> dict:
     """Advance queued/processing jobs and retry recent failures.
 
@@ -396,7 +438,13 @@ def process_due(db: Session, limit: int = 25) -> dict:
     poll returns "still processing") advances exactly one step. Bounded by the
     number of jobs so it always terminates.
     """
-    summary = {"submitted": 0, "completed": 0, "failed": 0, "processed": 0}
+    summary = {"submitted": 0, "completed": 0, "failed": 0, "processed": 0, "reconciled": 0}
+
+    # Self-healing sweep first: fail any stage stranded behind a parent that has
+    # already terminally failed/canceled. Covers a cascade interrupted mid-walk
+    # (crash) and orphans that predate the cascade logic — the pipeline reconciles
+    # itself instead of relying on one uninterrupted transaction.
+    summary["reconciled"] = _reconcile_orphans(db, limit)
 
     for _ in range(limit + 1):
         jobs: List[MediaJob] = (

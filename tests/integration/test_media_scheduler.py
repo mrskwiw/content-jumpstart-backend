@@ -183,6 +183,42 @@ def test_terminal_failure_cascades_to_descendants(db_session, monkeypatch):
     assert all(s.status == "failed" for s in stages)
 
 
+def test_worker_reconciles_preexisting_orphans(db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _user(db_session, "u-orphan")
+    # Simulate a subtree left half-failed (parent terminal, children stranded) —
+    # e.g. a cascade interrupted by a crash, or an orphan predating the cascade.
+    db_session.add(
+        MediaJob(id="p0", user_id="u-orphan", kind="tts", provider="stub", status="failed")
+    )
+    db_session.add(
+        MediaJob(
+            id="c1",
+            user_id="u-orphan",
+            kind="avatar_video",
+            provider="stub",
+            status="awaiting_dependency",
+            parent_job_id="p0",
+        )
+    )
+    db_session.add(
+        MediaJob(
+            id="c2",
+            user_id="u-orphan",
+            kind="assemble",
+            provider="stub",
+            status="awaiting_dependency",
+            parent_job_id="c1",
+        )
+    )
+    db_session.commit()
+
+    summary = orchestrator.process_due(db_session)
+    assert summary["reconciled"] == 2
+    for jid in ("c1", "c2"):
+        assert db_session.query(MediaJob).get(jid).status == "failed"
+
+
 def test_assemble_requires_dry_run(db_session, monkeypatch):
     monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
     _user(db_session, "u-asm")
