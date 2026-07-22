@@ -174,9 +174,13 @@ def _submit_job(db: Session, job: MediaJob) -> MediaJob:
     try:
         spec = _spec_with_fresh_parent_url(json.loads(job.input_json or "{}"))
     except StorageError as e:
-        # Couldn't sign the upstream asset — no provider call happened, no spend,
-        # so this is safe to retry later.
-        return _mark_failed(db, job, f"storage error signing parent asset: {e}", terminal=False)
+        # No provider call happened (no spend). A transient storage/signing blip
+        # must NOT consume the provider retry budget — leave the stage `queued` so
+        # the next worker tick retries for free once storage recovers, instead of
+        # burning MAX_RETRIES and stranding the pipeline.
+        job.error_message = f"waiting on storage to sign parent asset: {e}"
+        db.commit()
+        return job
     result = provider.start(spec)
     return _apply_result(db, job, result)
 

@@ -333,6 +333,40 @@ def test_storage_error_async_provider_reverts_to_processing(client, db_session, 
     assert job.retry_count == 0
 
 
+def test_parent_signing_failure_does_not_consume_retry_budget(client, db_session, monkeypatch):
+    """A transient storage-signing outage on a downstream stage must leave it queued
+    (retryable, no budget burned, provider never called), not fail toward terminal."""
+    _real_env(monkeypatch)
+    import requests
+
+    def post_signing_fails(url, **kw):
+        if "/storage/v1/object/sign/" in url:
+            return _Resp(status=500, text="sign down")
+        return _fake_post(url, **kw)
+
+    monkeypatch.setattr(requests, "post", post_signing_fails)
+    monkeypatch.setattr(requests, "get", _fake_get)
+    u = _make_user(db_session, "signfail@example.com", "user-signfail")
+    db_session.add(
+        MediaJob(
+            id="child1",
+            user_id=u.id,
+            kind="avatar_video",
+            provider="heygen",
+            status="queued",
+            input_json=json.dumps({"_parent_asset_key": "media/x/y/z.mp3"}),
+        )
+    )
+    db_session.commit()
+
+    job = db_session.get(MediaJob, "child1")
+    orchestrator._submit_job(db_session, job)
+    db_session.refresh(job)
+    assert job.status == "queued"  # blocked, retryable next tick
+    assert job.retry_count == 0  # provider never called → budget intact
+    assert job.external_id is None  # HeyGen never submitted
+
+
 def test_parent_asset_url_not_persisted(client, db_session, monkeypatch):
     """The expiring signed parent URL is minted at submit time, never stored in job
     state — only the durable key is persisted (so it can't go stale)."""
