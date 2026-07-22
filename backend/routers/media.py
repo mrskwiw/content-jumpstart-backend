@@ -14,6 +14,7 @@ import json
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,7 @@ from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user, require_superuser
 from backend.models.media import MediaAsset, MediaJob
 from backend.services.media import cost, orchestrator
+from backend.services.media.storage import StorageError, get_storage
 
 router = APIRouter(prefix="/api/media", tags=["Media Generation"])
 
@@ -176,6 +178,34 @@ def cancel_job(
     if job.status in ("done", "failed", "canceled"):
         raise HTTPException(status_code=409, detail=f"Job already {job.status}")
     return orchestrator.cancel_job(db, job)
+
+
+# ── Asset download ────────────────────────────────────────────────────────────
+
+
+@router.get("/assets/{asset_id}/download")
+def download_asset(
+    asset_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Redirect to a short-lived signed URL for a produced asset (owner only).
+
+    Assets live in object storage under a durable key; we never expose a permanent
+    public link — each download mints a fresh time-limited signed URL.
+    """
+    asset = (
+        db.query(MediaAsset)
+        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == current_user.id)
+        .first()
+    )
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        url = get_storage().signed_url(asset.url)
+    except StorageError as e:
+        raise HTTPException(status_code=502, detail=f"Storage unavailable: {e}")
+    return RedirectResponse(url)
 
 
 # ── Assemble ──────────────────────────────────────────────────────────────────

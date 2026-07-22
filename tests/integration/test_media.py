@@ -108,8 +108,17 @@ def test_generate_and_process_due_completes_pipeline(client, db_session, monkeyp
     last = next(j for j in jobs if j["stage_index"] == 1)
     detail = client.get(f"/api/media/jobs/{last['id']}", headers=_hdr(user)).json()
     assert detail["assets"]
-    assert detail["assets"][0]["kind"] == "final"
-    assert detail["assets"][0]["url"].startswith("https://stub.local/")
+    asset = detail["assets"][0]
+    assert asset["kind"] == "final"
+    # url is now a durable storage key; the download endpoint mints a signed URL.
+    assert asset["url"].startswith("media/")
+    dl = client.get(
+        f"/api/media/assets/{asset['id']}/download",
+        headers=_hdr(user),
+        follow_redirects=False,
+    )
+    assert dl.status_code in (302, 307)
+    assert "stub.local" in dl.headers["location"]
 
 
 def test_generate_over_budget_returns_402(client, db_session, monkeypatch):
@@ -127,11 +136,12 @@ def test_generate_over_budget_returns_402(client, db_session, monkeypatch):
 
 
 def test_fail_closed_without_dry_run(client, db_session, monkeypatch):
+    # cinematic's first stage (kling) has no real provider yet → fail-closed.
     monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
     user = _make_user(db_session, "media-real@example.com", "user-mediareal")
     r = client.post(
         "/api/media/generate",
-        json={"pipeline": "audio_only", "spec": {"script": "x"}, "confirm": True},
+        json={"pipeline": "cinematic", "spec": {"prompt": "x"}, "confirm": True},
         headers=_hdr(user),
     )
     assert r.status_code == 200, r.text

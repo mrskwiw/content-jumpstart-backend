@@ -42,7 +42,9 @@ class MediaResult:
 
     ok: bool
     external_id: Optional[str] = None  # provider job id (async handle)
-    asset_url: Optional[str] = None  # set when the render is ready
+    asset_url: Optional[str] = None  # provider-hosted (expiring) URL to re-host
+    content: Optional[bytes] = None  # raw bytes for synchronous providers (TTS)
+    content_mime: Optional[str] = None  # mime of `content`
     done: bool = False  # True when the job is complete
     cost_cents: int = 0  # actual spend reported by the provider (0 in dry-run)
     duration_s: Optional[int] = None  # produced media duration, when known
@@ -139,9 +141,177 @@ class NotImplementedProvider(BaseMediaProvider):
         return self._fail()
 
 
-# Real providers are wired here as they're built (P12.2+). A name absent from
-# this map (outside dry-run) falls through to NotImplementedProvider.
-_REAL_PROVIDERS: dict[str, type[BaseMediaProvider]] = {}
+_HTTP_TIMEOUT = 60
+
+
+class _MissingCredential(Exception):
+    """Raised when a real provider's API key isn't configured on the instance."""
+
+
+def _require_env(name: str) -> str:
+    val = os.getenv(name, "").strip()
+    if not val:
+        raise _MissingCredential(f"{name} is not set")
+    return val
+
+
+class ElevenLabsTTSProvider(BaseMediaProvider):
+    """ElevenLabs text-to-speech (P12.2). Synchronous: `start()` returns the audio
+    bytes directly (no external job), so the stage completes immediately and the
+    orchestrator persists the bytes to storage."""
+
+    name = "elevenlabs_tts"
+    BASE = "https://api.elevenlabs.io/v1"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("ELEVENLABS_API_KEY")
+            voice_id = spec.get("voice_id") or os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+            if not voice_id:
+                return MediaResult(
+                    ok=False, error="No ElevenLabs voice_id (spec or ELEVENLABS_VOICE_ID)"
+                )
+            text = spec.get("script") or spec.get("text") or ""
+            if not text:
+                return MediaResult(ok=False, error="TTS requires 'script'/'text' in the spec")
+            resp = requests.post(
+                f"{self.BASE}/text-to-speech/{voice_id}",
+                headers={"xi-api-key": api_key, "accept": "audio/mpeg"},
+                json={
+                    "text": text,
+                    "model_id": spec.get("model_id", "eleven_multilingual_v2"),
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"ElevenLabs {resp.status_code}: {resp.text[:300]}"
+                )
+            return MediaResult(
+                ok=True,
+                done=True,
+                content=resp.content,
+                content_mime="audio/mpeg",
+                mime="audio/mpeg",
+            )
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001 - surface any failure as a result
+            logger.warning("ElevenLabs TTS failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:  # pragma: no cover - synchronous
+        return MediaResult(ok=True, done=True, external_id=external_id)
+
+
+class HeyGenProvider(BaseMediaProvider):
+    """HeyGen avatar (talking-head) video (P12.2). Asynchronous: `start()` submits
+    a render and returns a `video_id`; `poll()`/`parse_webhook()` report completion
+    with a (short-lived) hosted URL that the orchestrator re-hosts to storage."""
+
+    name = "heygen"
+    BASE = "https://api.heygen.com"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("HEYGEN_API_KEY")
+            avatar_id = spec.get("avatar_id") or os.getenv("HEYGEN_AVATAR_ID", "").strip()
+            if not avatar_id:
+                return MediaResult(ok=False, error="No HeyGen avatar_id (spec or HEYGEN_AVATAR_ID)")
+            # Prefer the upstream stage's audio (talking-head from real TTS); fall
+            # back to HeyGen's native voice from the script text.
+            parent_audio = spec.get("_parent_asset_url")
+            if parent_audio:
+                voice = {"type": "audio", "audio_url": parent_audio}
+            else:
+                voice_id = spec.get("voice_id") or os.getenv("HEYGEN_VOICE_ID", "").strip()
+                voice = {"type": "text", "input_text": spec.get("script", ""), "voice_id": voice_id}
+            resp = requests.post(
+                f"{self.BASE}/v2/video/generate",
+                headers={"X-Api-Key": api_key, "Content-Type": "application/json"},
+                json={
+                    "video_inputs": [
+                        {"character": {"type": "avatar", "avatar_id": avatar_id}, "voice": voice}
+                    ],
+                    "dimension": {"width": 1280, "height": 720},
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(ok=False, error=f"HeyGen {resp.status_code}: {resp.text[:300]}")
+            video_id = ((resp.json() or {}).get("data") or {}).get("video_id", "")
+            if not video_id:
+                return MediaResult(ok=False, error="HeyGen returned no video_id")
+            return MediaResult(ok=True, external_id=video_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("HeyGen submit failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("HEYGEN_API_KEY")
+            resp = requests.get(
+                f"{self.BASE}/v1/video_status.get",
+                headers={"X-Api-Key": api_key},
+                params={"video_id": external_id},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"HeyGen status {resp.status_code}: {resp.text[:200]}"
+                )
+            data = (resp.json() or {}).get("data") or {}
+            return self._from_status(external_id, data)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("HeyGen poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def parse_webhook(self, payload: dict, headers: dict) -> MediaResult:
+        # HeyGen callback: {"event_type": "avatar_video.success", "event_data": {...}}
+        event = str(payload.get("event_type") or "")
+        data = payload.get("event_data") or payload
+        external_id = str(data.get("video_id") or payload.get("external_id") or "")
+        if event.endswith(".fail") or data.get("status") == "failed":
+            return MediaResult(
+                ok=False, external_id=external_id, error=str(data.get("msg") or "HeyGen failed")
+            )
+        return self._from_status(external_id, data)
+
+    @staticmethod
+    def _from_status(external_id: str, data: dict) -> MediaResult:
+        status = str(data.get("status") or "")
+        if status in ("completed", "success") or data.get("video_url"):
+            return MediaResult(
+                ok=True,
+                done=True,
+                external_id=external_id,
+                asset_url=data.get("video_url") or data.get("url"),
+                duration_s=int(data["duration"]) if data.get("duration") else None,
+                mime="video/mp4",
+            )
+        if status in ("failed", "error"):
+            return MediaResult(
+                ok=False, external_id=external_id, error=str(data.get("error") or "HeyGen failed")
+            )
+        return MediaResult(ok=True, external_id=external_id, done=False)  # still processing
+
+
+# Real providers are wired here as they're built. A name absent from this map
+# (outside dry-run) falls through to NotImplementedProvider (fail-closed).
+_REAL_PROVIDERS: dict[str, type[BaseMediaProvider]] = {
+    "elevenlabs_tts": ElevenLabsTTSProvider,
+    "heygen": HeyGenProvider,
+}
 
 
 def get_provider(kind: MediaKind, name: str, credential=None) -> BaseMediaProvider:

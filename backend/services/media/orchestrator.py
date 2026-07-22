@@ -28,9 +28,11 @@ from typing import List, Optional
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, aliased
 
+from backend.models.deliverable import Deliverable
 from backend.models.media import MediaAsset, MediaJob
 from backend.services.media import cost
 from backend.services.media.providers import MediaKind, get_provider
+from backend.services.media.storage import StorageError, StoredObject, get_storage
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +247,9 @@ def _apply_result(db: Session, job: MediaJob, result) -> MediaJob:
     if result.external_id:
         job.external_id = result.external_id
 
-    if result.done and result.asset_url:
+    # A stage is complete when the provider reports done AND handed us something to
+    # persist — raw bytes (synchronous TTS) or a hosted URL to re-host (HeyGen).
+    if result.done and (result.asset_url or result.content is not None):
         _finalize(db, job, result)
     else:
         job.status = "processing"
@@ -253,17 +257,45 @@ def _apply_result(db: Session, job: MediaJob, result) -> MediaJob:
     return job
 
 
+_EXT_BY_MIME = {"video/mp4": ".mp4", "audio/mpeg": ".mp3", "audio/wav": ".wav"}
+
+
+def _persist_result(job: MediaJob, result, asset_id: str) -> StoredObject:
+    """Re-host a provider result to durable storage; return the stored object."""
+    mime = result.content_mime or result.mime or "application/octet-stream"
+    ext = _EXT_BY_MIME.get(mime, ".bin")
+    key = f"media/{job.user_id}/{job.id}/{asset_id}{ext}"
+    storage = get_storage()
+    if result.content is not None:
+        return storage.put_bytes(result.content, key, mime)
+    return storage.put_from_url(result.asset_url, key, mime=result.mime)
+
+
 def _finalize(db: Session, job: MediaJob, result) -> None:
-    """Record the produced asset, mark the job done, and unblock the next stage."""
+    """Persist the produced asset to storage, mark the job done, and either unblock
+    the next stage or (on the terminal stage) create a Deliverable."""
+    is_last = _is_last_stage(db, job)
+    asset_id = _uuid()
+    try:
+        stored = _persist_result(job, result, asset_id)
+    except StorageError as e:
+        # Storage is transient infra — let the worker retry rather than lose the job.
+        _mark_failed(db, job, f"storage error: {e}", terminal=False)
+        return
+
+    hash_src = (
+        result.content if result.content is not None else (result.asset_url or "").encode("utf-8")
+    )
     asset = MediaAsset(
-        id=_uuid(),
+        id=asset_id,
         user_id=job.user_id,
         job_id=job.id,
-        kind="final" if _is_last_stage(db, job) else "clip",
-        url=result.asset_url,
+        kind="final" if is_last else "clip",
+        url=stored.key,  # durable storage key; sign on read via /assets/{id}/download
         duration_s=result.duration_s,
-        mime=result.mime,
-        content_hash=hashlib.sha256(result.asset_url.encode("utf-8")).hexdigest(),
+        mime=stored.mime or result.mime,
+        bytes=stored.size_bytes,
+        content_hash=hashlib.sha256(hash_src).hexdigest(),
     )
     db.add(asset)
     job.output_asset_id = asset.id
@@ -272,15 +304,55 @@ def _finalize(db: Session, job: MediaJob, result) -> None:
     job.error_message = None
     db.commit()
 
-    # Unblock the next stage in the chain, if any.
+    if is_last:
+        _create_deliverable(db, job, asset)
+    else:
+        _unblock_child(db, job, asset)
+
+
+def _unblock_child(db: Session, job: MediaJob, asset: MediaAsset) -> None:
+    """Queue the next stage, injecting the parent's asset so it can consume it
+    (e.g. HeyGen renders an avatar over the TTS audio from the prior stage)."""
     child = (
         db.query(MediaJob)
         .filter(MediaJob.parent_job_id == job.id, MediaJob.status == "awaiting_dependency")
         .first()
     )
-    if child is not None:
-        child.status = "queued"
-        db.commit()
+    if child is None:
+        return
+    try:
+        spec = json.loads(child.input_json or "{}") or {}
+    except (TypeError, ValueError):
+        spec = {}
+    spec["_parent_asset_key"] = asset.url
+    try:
+        spec["_parent_asset_url"] = get_storage().signed_url(asset.url)
+    except StorageError:
+        pass  # a stage that doesn't need the parent asset still proceeds
+    child.input_json = json.dumps(spec)
+    child.status = "queued"
+    db.commit()
+
+
+def _create_deliverable(db: Session, job: MediaJob, asset: MediaAsset) -> None:
+    """Catalog the finished pipeline as a Deliverable (served via the media asset
+    download endpoint). Requires a client_id — Deliverable.client_id is NOT NULL."""
+    if not job.client_id:
+        return
+    fmt = "video" if (asset.mime or "").startswith("video") else "audio"
+    db.add(
+        Deliverable(
+            id=_uuid(),
+            project_id=job.project_id,
+            client_id=job.client_id,
+            format=fmt,
+            path=asset.url,  # storage key; download via /api/media/assets/{id}/download
+            status="ready",
+            checksum=asset.content_hash,
+            file_size_bytes=asset.bytes,
+        )
+    )
+    db.commit()
 
 
 def _is_last_stage(db: Session, job: MediaJob) -> bool:
@@ -313,11 +385,28 @@ def verify_webhook_signature(raw_body: bytes, signature: Optional[str]) -> bool:
     return hmac.compare_digest(expected, signature.strip())
 
 
+def _extract_external_id(payload: dict) -> str:
+    """Pull the provider job id from a webhook body, top-level or nested.
+
+    Providers vary: some put it at the top (`external_id`/`id`), HeyGen nests
+    `video_id` under `event_data`. Check both so the job lookup doesn't miss."""
+    for v in (payload.get("external_id"), payload.get("id")):
+        if v:
+            return str(v)
+    for nested_key in ("event_data", "data"):
+        nested = payload.get(nested_key) or {}
+        if isinstance(nested, dict):
+            for k in ("video_id", "external_id", "id"):
+                if nested.get(k):
+                    return str(nested[k])
+    return ""
+
+
 def ingest_webhook(
     db: Session, provider_name: str, payload: dict, headers: dict
 ) -> Optional[MediaJob]:
     """Advance the job a provider callback refers to (looked up by external_id)."""
-    external_id = str(payload.get("external_id") or payload.get("id") or "")
+    external_id = _extract_external_id(payload)
     if not external_id:
         return None
     job = db.query(MediaJob).filter(MediaJob.external_id == external_id).first()

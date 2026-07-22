@@ -5361,6 +5361,53 @@
         }
       }
     },
+    "/api/media/assets/{asset_id}/download": {
+      "get": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Download Asset",
+        "description": "Redirect to a short-lived signed URL for a produced asset (owner only).\n\nAssets live in object storage under a durable key; we never expose a permanent\npublic link \u2014 each download mints a fresh time-limited signed URL.",
+        "operationId": "download_asset_api_media_assets__asset_id__download_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/media/assemble": {
       "post": {
         "tags": [
