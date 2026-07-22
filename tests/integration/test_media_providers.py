@@ -20,6 +20,7 @@ from backend.models import User
 from backend.models.client import Client
 from backend.models.deliverable import Deliverable
 from backend.models.media import MediaJob
+from backend.services.media import orchestrator
 from backend.services.media.storage import StubStorage, SupabaseStorage, get_storage
 from backend.utils.auth import create_access_token, get_password_hash
 
@@ -273,17 +274,19 @@ def test_heygen_webhook_completes_job(client, db_session, monkeypatch):
     assert job.status == "done"
 
 
-def test_storage_error_makes_stage_retryable(client, db_session, monkeypatch):
-    """If the storage upload fails, the stage goes back to failed (retryable), not lost."""
+def _failing_storage_post(url, **kw):
+    if "/storage/v1/object/" in url and "/sign/" not in url:
+        return _Resp(status=500, text="boom")
+    return _fake_post(url, **kw)
+
+
+def test_storage_error_sync_provider_is_terminal(client, db_session, monkeypatch):
+    """A storage failure AFTER a synchronous provider already ran (and billed) must
+    NOT re-run the provider — it fails terminally to avoid duplicate spend."""
     _real_env(monkeypatch)
     import requests
 
-    def failing_post(url, **kw):
-        if "/storage/v1/object/" in url and "/sign/" not in url:
-            return _Resp(status=500, text="boom")
-        return _fake_post(url, **kw)
-
-    monkeypatch.setattr(requests, "post", failing_post)
+    monkeypatch.setattr(requests, "post", _failing_storage_post)
     monkeypatch.setattr(requests, "get", _fake_get)
     u = _make_user(db_session, "sterr@example.com", "user-sterr")
     r = client.post(
@@ -293,5 +296,59 @@ def test_storage_error_makes_stage_retryable(client, db_session, monkeypatch):
     )
     root = r.json()["root_job"]
     assert root["status"] == "failed"
-    assert "storage" in (root["error_message"] or "").lower()
-    assert root["retry_count"] == 1  # transient → retryable, not terminal
+    assert "duplicate spend" in (root["error_message"] or "").lower()
+    assert root["retry_count"] == orchestrator.MAX_RETRIES  # terminal — never re-billed
+
+
+def test_storage_error_async_provider_reverts_to_processing(client, db_session, monkeypatch):
+    """A storage failure after an async provider (HeyGen) completes must drop back to
+    `processing` so the next poll retries ONLY storage — no re-submit, no double spend."""
+    _real_env(monkeypatch)
+    import requests
+
+    monkeypatch.setattr(requests, "post", _failing_storage_post)
+    monkeypatch.setattr(requests, "get", _fake_get)
+    monkeypatch.setattr(
+        "backend.services.media.storage.safe_stream_get", lambda url, **kw: _Stream()
+    )
+    u = _make_user(db_session, "async-st@example.com", "user-asyncst")
+    db_session.add(
+        MediaJob(
+            id="hg-st",
+            user_id=u.id,
+            kind="avatar_video",
+            provider="heygen",
+            status="processing",
+            external_id="hg_x",
+            input_json="{}",
+        )
+    )
+    db_session.commit()
+
+    job = db_session.get(MediaJob, "hg-st")
+    orchestrator.advance(db_session, job)  # poll(completed) → storage fails
+    db_session.refresh(job)
+    assert job.status == "processing"  # NOT failed — re-pollable, no re-submit
+    assert job.external_id == "hg_x"
+    assert job.retry_count == 0
+
+
+def test_parent_asset_url_not_persisted(client, db_session, monkeypatch):
+    """The expiring signed parent URL is minted at submit time, never stored in job
+    state — only the durable key is persisted (so it can't go stale)."""
+    _real_env(monkeypatch)
+    _patch_http(monkeypatch)
+    u = _make_user(db_session, "freshurl@example.com", "user-freshurl")
+    client.post(
+        "/api/media/generate",
+        json={"pipeline": "talking_head", "spec": {"script": "hi"}, "confirm": True},
+        headers=_hdr(u),
+    )
+    stage1 = (
+        db_session.query(MediaJob)
+        .filter(MediaJob.user_id == u.id, MediaJob.stage_index == 1)
+        .first()
+    )
+    spec1 = json.loads(stage1.input_json)
+    assert "_parent_asset_key" in spec1
+    assert "_parent_asset_url" not in spec1  # never persisted; signed fresh at submit

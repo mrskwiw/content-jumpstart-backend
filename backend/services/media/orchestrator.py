@@ -171,8 +171,26 @@ def _submit_job(db: Session, job: MediaJob) -> MediaJob:
         return _mark_failed(db, job, str(e), terminal=True)
 
     provider = get_provider(kind, job.provider, credential=None)
-    result = provider.start(json.loads(job.input_json or "{}"))
+    try:
+        spec = _spec_with_fresh_parent_url(json.loads(job.input_json or "{}"))
+    except StorageError as e:
+        # Couldn't sign the upstream asset — no provider call happened, no spend,
+        # so this is safe to retry later.
+        return _mark_failed(db, job, f"storage error signing parent asset: {e}", terminal=False)
+    result = provider.start(spec)
     return _apply_result(db, job, result)
+
+
+def _spec_with_fresh_parent_url(spec: dict) -> dict:
+    """Sign the parent asset key into a fresh, short-lived URL *at submit time*.
+
+    Only the durable `_parent_asset_key` is persisted in job state; the expiring
+    signed URL is minted here, immediately before the provider call, so a delayed
+    or retried submission never carries a stale (expired) URL."""
+    key = spec.get("_parent_asset_key")
+    if not key:
+        return spec
+    return {**spec, "_parent_asset_url": get_storage().signed_url(key)}
 
 
 # ── Advancement (poll / webhook) ──────────────────────────────────────────────
@@ -279,8 +297,25 @@ def _finalize(db: Session, job: MediaJob, result) -> None:
     try:
         stored = _persist_result(job, result, asset_id)
     except StorageError as e:
-        # Storage is transient infra — let the worker retry rather than lose the job.
-        _mark_failed(db, job, f"storage error: {e}", terminal=False)
+        # The provider already succeeded (and, for paid providers, already billed).
+        # Never re-run it just because persistence failed — that would double-spend.
+        if job.external_id:
+            # Async provider (HeyGen): the render is still retrievable, so drop back
+            # to `processing`. The next poll re-fetches it and retries ONLY storage —
+            # no re-submit, no extra spend.
+            job.status = "processing"
+            job.error_message = f"storage error (will retry persistence): {e}"
+            db.commit()
+        else:
+            # Synchronous provider (TTS): its output bytes are already consumed and
+            # can't be recovered without re-billing, so fail terminally for manual
+            # re-trigger rather than silently regenerating and paying again.
+            _mark_failed(
+                db,
+                job,
+                f"storage failed after provider succeeded; not retried to avoid duplicate spend: {e}",
+                terminal=True,
+            )
         return
 
     hash_src = (
@@ -324,11 +359,9 @@ def _unblock_child(db: Session, job: MediaJob, asset: MediaAsset) -> None:
         spec = json.loads(child.input_json or "{}") or {}
     except (TypeError, ValueError):
         spec = {}
+    # Persist only the durable key; the expiring signed URL is minted at submit
+    # time in `_submit_job` so it can never go stale in job state.
     spec["_parent_asset_key"] = asset.url
-    try:
-        spec["_parent_asset_url"] = get_storage().signed_url(asset.url)
-    except StorageError:
-        pass  # a stage that doesn't need the parent asset still proceeds
     child.input_json = json.dumps(spec)
     child.status = "queued"
     db.commit()
