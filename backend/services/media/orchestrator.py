@@ -152,6 +152,16 @@ def submit_pipeline(
     return root
 
 
+def _past_retry_horizon(job: MediaJob) -> bool:
+    """True if the job was created before the retry horizon (naive/aware safe)."""
+    created = job.created_at
+    if created is None:
+        return False
+    if created.tzinfo is None:  # SQLite returns naive UTC; Postgres returns aware
+        created = created.replace(tzinfo=timezone.utc)
+    return _now() - created > RETRY_HORIZON
+
+
 def _stage_seconds(job: MediaJob) -> Optional[float]:
     try:
         return (json.loads(job.input_json) or {}).get("seconds") if job.input_json else None
@@ -174,10 +184,20 @@ def _submit_job(db: Session, job: MediaJob) -> MediaJob:
     try:
         spec = _spec_with_fresh_parent_url(json.loads(job.input_json or "{}"))
     except StorageError as e:
-        # No provider call happened (no spend). A transient storage/signing blip
-        # must NOT consume the provider retry budget — leave the stage `queued` so
-        # the next worker tick retries for free once storage recovers, instead of
-        # burning MAX_RETRIES and stranding the pipeline.
+        # No provider call happened (no spend). Don't burn the provider retry budget
+        # on a transient storage/signing blip — keep the stage `queued` so the next
+        # tick retries for free once storage recovers. But bound it by the shared
+        # RETRY_HORIZON: if it's still blocked past that window, storage isn't
+        # blipping, it's down — fail terminally (visible + unblocks descendants via
+        # _fail_descendants) instead of looping forever. Same created_at+horizon
+        # terminality rule as the retry loop / reconcile sweep (see Decision #193).
+        if _past_retry_horizon(job):
+            return _mark_failed(
+                db,
+                job,
+                f"storage unavailable to sign parent asset past retry horizon: {e}",
+                terminal=True,
+            )
         job.error_message = f"waiting on storage to sign parent asset: {e}"
         db.commit()
         return job

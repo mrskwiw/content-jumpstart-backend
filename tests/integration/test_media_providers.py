@@ -14,6 +14,7 @@ OUTSIDE MEDIA_DRY_RUN so the real provider + storage code paths are exercised:
 import hashlib
 import hmac
 import json
+from datetime import datetime, timezone
 
 
 from backend.models import User
@@ -365,6 +366,40 @@ def test_parent_signing_failure_does_not_consume_retry_budget(client, db_session
     assert job.status == "queued"  # blocked, retryable next tick
     assert job.retry_count == 0  # provider never called → budget intact
     assert job.external_id is None  # HeyGen never submitted
+
+
+def test_parent_signing_failure_terminal_past_horizon(client, db_session, monkeypatch):
+    """A signing block older than the retry horizon means storage is down, not
+    blipping — it fails terminally (unblocks descendants) instead of looping forever."""
+    _real_env(monkeypatch)
+    import requests
+
+    def post_signing_fails(url, **kw):
+        if "/storage/v1/object/sign/" in url:
+            return _Resp(status=500, text="sign down")
+        return _fake_post(url, **kw)
+
+    monkeypatch.setattr(requests, "post", post_signing_fails)
+    monkeypatch.setattr(requests, "get", _fake_get)
+    u = _make_user(db_session, "signold@example.com", "user-signold")
+    db_session.add(
+        MediaJob(
+            id="oldchild",
+            user_id=u.id,
+            kind="avatar_video",
+            provider="heygen",
+            status="queued",
+            input_json=json.dumps({"_parent_asset_key": "media/x/y/z.mp3"}),
+            created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),  # long past the horizon
+        )
+    )
+    db_session.commit()
+
+    job = db_session.get(MediaJob, "oldchild")
+    orchestrator._submit_job(db_session, job)
+    db_session.refresh(job)
+    assert job.status == "failed"  # bounded: no infinite queued loop
+    assert job.retry_count == orchestrator.MAX_RETRIES
 
 
 def test_parent_asset_url_not_persisted(client, db_session, monkeypatch):
