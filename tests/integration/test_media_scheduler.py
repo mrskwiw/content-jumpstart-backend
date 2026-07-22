@@ -189,7 +189,14 @@ def test_worker_reconciles_preexisting_orphans(db_session, monkeypatch):
     # Simulate a subtree left half-failed (parent terminal, children stranded) —
     # e.g. a cascade interrupted by a crash, or an orphan predating the cascade.
     db_session.add(
-        MediaJob(id="p0", user_id="u-orphan", kind="tts", provider="stub", status="failed")
+        MediaJob(
+            id="p0",
+            user_id="u-orphan",
+            kind="tts",
+            provider="stub",
+            status="failed",
+            retry_count=orchestrator.MAX_RETRIES,  # terminally failed before the crash
+        )
     )
     db_session.add(
         MediaJob(
@@ -216,7 +223,45 @@ def test_worker_reconciles_preexisting_orphans(db_session, monkeypatch):
     summary = orchestrator.process_due(db_session)
     assert summary["reconciled"] == 2
     for jid in ("c1", "c2"):
-        assert db_session.query(MediaJob).get(jid).status == "failed"
+        assert db_session.get(MediaJob, jid).status == "failed"
+
+
+def test_reconcile_skips_transiently_failed_parent(db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _user(db_session, "u-trans")
+    # Parent failed but still under the retry cap → the worker will retry it and it
+    # may yet succeed, so its child must stay awaiting_dependency (not reconciled).
+    db_session.add(
+        MediaJob(
+            id="tp",
+            user_id="u-trans",
+            kind="tts",
+            provider="stub",
+            status="failed",
+            retry_count=1,
+        )
+    )
+    db_session.add(
+        MediaJob(
+            id="tc",
+            user_id="u-trans",
+            kind="avatar_video",
+            provider="stub",
+            status="awaiting_dependency",
+            parent_job_id="tp",
+        )
+    )
+    db_session.commit()
+
+    assert orchestrator._reconcile_orphans(db_session) == 0
+    assert db_session.get(MediaJob, "tc").status == "awaiting_dependency"
+
+    # Once the parent exhausts its retries, the child is reconciled to failed.
+    tp = db_session.get(MediaJob, "tp")
+    tp.retry_count = orchestrator.MAX_RETRIES
+    db_session.commit()
+    assert orchestrator._reconcile_orphans(db_session) == 1
+    assert db_session.get(MediaJob, "tc").status == "failed"
 
 
 def test_assemble_requires_dry_run(db_session, monkeypatch):

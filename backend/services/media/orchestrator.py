@@ -25,6 +25,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, aliased
 
 from backend.models.media import MediaAsset, MediaJob
@@ -408,12 +409,19 @@ def _reconcile_orphans(db: Session, limit: int = 25) -> int:
     parent = aliased(MediaJob)
     reconciled = 0
     for _ in range(limit + 1):
+        # Only reconcile behind a *terminal* parent: canceled, or failed with
+        # retries exhausted. A transiently-failed parent (retry_count < MAX_RETRIES)
+        # is still going to be retried by the worker and may yet succeed, so its
+        # descendants must stay in awaiting_dependency. (Matches _fail_descendants.)
         orphans: List[MediaJob] = (
             db.query(MediaJob)
             .join(parent, MediaJob.parent_job_id == parent.id)
             .filter(
                 MediaJob.status == "awaiting_dependency",
-                parent.status.in_(("failed", "canceled")),
+                or_(
+                    parent.status == "canceled",
+                    and_(parent.status == "failed", parent.retry_count >= MAX_RETRIES),
+                ),
             )
             .limit(limit)
             .all()
