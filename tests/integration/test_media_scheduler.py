@@ -9,6 +9,7 @@ guard.
 """
 
 import asyncio
+from datetime import datetime, timezone
 
 import pytest
 
@@ -262,6 +263,40 @@ def test_reconcile_skips_transiently_failed_parent(db_session, monkeypatch):
     db_session.commit()
     assert orchestrator._reconcile_orphans(db_session) == 1
     assert db_session.get(MediaJob, "tc").status == "failed"
+
+
+def test_reconcile_fails_orphan_behind_aged_out_parent(db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _user(db_session, "u-aged")
+    # A parent that failed transiently (retry_count < MAX_RETRIES) but aged past the
+    # retry horizon — the worker will NEVER retry it, so its child would otherwise
+    # be stuck in awaiting_dependency forever. Reconcile must fail it.
+    old = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    db_session.add(
+        MediaJob(
+            id="ap",
+            user_id="u-aged",
+            kind="tts",
+            provider="stub",
+            status="failed",
+            retry_count=1,
+            created_at=old,
+        )
+    )
+    db_session.add(
+        MediaJob(
+            id="ac",
+            user_id="u-aged",
+            kind="avatar_video",
+            provider="stub",
+            status="awaiting_dependency",
+            parent_job_id="ap",
+        )
+    )
+    db_session.commit()
+
+    assert orchestrator._reconcile_orphans(db_session) == 1
+    assert db_session.get(MediaJob, "ac").status == "failed"
 
 
 def test_assemble_requires_dry_run(db_session, monkeypatch):

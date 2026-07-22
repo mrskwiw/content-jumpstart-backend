@@ -35,6 +35,10 @@ from backend.services.media.providers import MediaKind, get_provider
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
+# A failed job is only retried within this window; past it, it is permanently
+# terminal (used by both the retry loop and the orphan-reconciliation sweep so the
+# two share one definition of "will this ever be retried?").
+RETRY_HORIZON = timedelta(hours=24)
 
 # Ordered provider chains per pipeline. (kind, provider_name) per stage. In
 # dry-run every provider resolves to the stub; the real name is persisted so the
@@ -407,12 +411,14 @@ def _reconcile_orphans(db: Session, limit: int = 25) -> int:
     re-scan so a whole stranded subtree drains in one call.
     """
     parent = aliased(MediaJob)
+    horizon = _now() - RETRY_HORIZON
     reconciled = 0
     for _ in range(limit + 1):
-        # Only reconcile behind a *terminal* parent: canceled, or failed with
-        # retries exhausted. A transiently-failed parent (retry_count < MAX_RETRIES)
-        # is still going to be retried by the worker and may yet succeed, so its
-        # descendants must stay in awaiting_dependency. (Matches _fail_descendants.)
+        # Only reconcile behind a *permanently terminal* parent: canceled, or a
+        # failed parent the worker will never retry — either retries exhausted OR
+        # aged out of the retry horizon. A parent still eligible for retry may yet
+        # succeed, so its descendants must stay in awaiting_dependency. This mirrors
+        # the retry loop's own eligibility test, so the two never disagree.
         orphans: List[MediaJob] = (
             db.query(MediaJob)
             .join(parent, MediaJob.parent_job_id == parent.id)
@@ -420,7 +426,13 @@ def _reconcile_orphans(db: Session, limit: int = 25) -> int:
                 MediaJob.status == "awaiting_dependency",
                 or_(
                     parent.status == "canceled",
-                    and_(parent.status == "failed", parent.retry_count >= MAX_RETRIES),
+                    and_(
+                        parent.status == "failed",
+                        or_(
+                            parent.retry_count >= MAX_RETRIES,
+                            parent.created_at < horizon,
+                        ),
+                    ),
                 ),
             )
             .limit(limit)
@@ -479,8 +491,8 @@ def process_due(db: Session, limit: int = 25) -> dict:
         if not changed:
             break  # nothing advanced (real async jobs still rendering) — stop
 
-    # Retry recent failures under the retry cap.
-    cutoff = _now() - timedelta(hours=24)
+    # Retry recent failures under the retry cap (within the retry horizon).
+    cutoff = _now() - RETRY_HORIZON
     failed: List[MediaJob] = (
         _active_query(db, ["failed"])
         .filter(MediaJob.retry_count < MAX_RETRIES, MediaJob.created_at >= cutoff)
