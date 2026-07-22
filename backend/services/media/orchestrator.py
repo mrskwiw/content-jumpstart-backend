@@ -326,10 +326,20 @@ def _finalize(db: Session, job: MediaJob, result) -> None:
         if job.external_id:
             # Async provider (HeyGen): the render is still retrievable, so drop back
             # to `processing`. The next poll re-fetches it and retries ONLY storage —
-            # no re-submit, no extra spend.
-            job.status = "processing"
-            job.error_message = f"storage error (will retry persistence): {e}"
-            db.commit()
+            # no re-submit, no extra spend. Bounded by RETRY_HORIZON (same rule as the
+            # signing path / Decision #195): a persistent outage terminates + unblocks
+            # descendants instead of re-polling forever.
+            if _past_retry_horizon(job):
+                _mark_failed(
+                    db,
+                    job,
+                    f"storage unavailable to persist asset past retry horizon: {e}",
+                    terminal=True,
+                )
+            else:
+                job.status = "processing"
+                job.error_message = f"storage error (will retry persistence): {e}"
+                db.commit()
         else:
             # Synchronous provider (TTS): its output bytes are already consumed and
             # can't be recovered without re-billing, so fail terminally for manual

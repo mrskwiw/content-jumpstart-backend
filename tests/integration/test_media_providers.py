@@ -334,6 +334,39 @@ def test_storage_error_async_provider_reverts_to_processing(client, db_session, 
     assert job.retry_count == 0
 
 
+def test_async_persistence_failure_terminal_past_horizon(client, db_session, monkeypatch):
+    """A post-provider persistence outage older than the horizon terminates instead
+    of re-polling forever (same bound as the signing path — consistent closure)."""
+    _real_env(monkeypatch)
+    import requests
+
+    monkeypatch.setattr(requests, "post", _failing_storage_post)
+    monkeypatch.setattr(requests, "get", _fake_get)
+    monkeypatch.setattr(
+        "backend.services.media.storage.safe_stream_get", lambda url, **kw: _Stream()
+    )
+    u = _make_user(db_session, "async-old@example.com", "user-asyncold")
+    db_session.add(
+        MediaJob(
+            id="hg-old",
+            user_id=u.id,
+            kind="avatar_video",
+            provider="heygen",
+            status="processing",
+            external_id="hg_x",
+            input_json="{}",
+            created_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    job = db_session.get(MediaJob, "hg-old")
+    orchestrator.advance(db_session, job)
+    db_session.refresh(job)
+    assert job.status == "failed"  # bounded — no infinite re-poll
+    assert job.retry_count == orchestrator.MAX_RETRIES
+
+
 def test_parent_signing_failure_does_not_consume_retry_budget(client, db_session, monkeypatch):
     """A transient storage-signing outage on a downstream stage must leave it queued
     (retryable, no budget burned, provider never called), not fail toward terminal."""
