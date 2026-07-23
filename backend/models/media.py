@@ -39,8 +39,12 @@ class MediaJob(Base):
 
     # Pipeline this stage belongs to (talking_head | cinematic | audio_only | single).
     pipeline = Column(String, nullable=True)
+    # Groups all stages of ONE pipeline invocation (a DAG run). Needed for fan-in
+    # pipelines (cinematic: N clips → stitch) where a linear parent chain isn't enough.
+    pipeline_run_id = Column(String, nullable=True, index=True)
     stage_index = Column(Integer, nullable=False, default=0)
     # Self-referential chain (plain String, not FK, to avoid create-order cycles).
+    # Linear pipelines link via this; fan-in stages declare `_depends_on` in input_json.
     parent_job_id = Column(String, nullable=True, index=True)
 
     kind = Column(String, nullable=False)  # MediaKind value

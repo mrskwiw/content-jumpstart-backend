@@ -55,6 +55,7 @@ class AssetOut(BaseModel):
 class JobOut(BaseModel):
     id: str
     pipeline: Optional[str] = None
+    pipeline_run_id: Optional[str] = None
     stage_index: int
     parent_job_id: Optional[str] = None
     kind: str
@@ -83,13 +84,18 @@ class AssembleRequest(BaseModel):
 
 @router.get("/pipelines")
 def list_pipelines():
-    """The pipelines this subsystem can run, with their provider chains."""
-    return {
-        "pipelines": {
-            name: [{"kind": kind.value, "provider": provider} for kind, provider in stages]
-            for name, stages in orchestrator.PIPELINES.items()
-        }
+    """The pipelines this subsystem can run, with their provider chains.
+
+    Cinematic is a fan-in DAG built per request; a representative 1-clip shape is
+    shown here for discovery.
+    """
+    pipelines = {
+        name: [{"kind": kind.value, "provider": provider} for kind, provider in stages]
+        for name, stages in orchestrator.PIPELINES.items()
     }
+    sample = orchestrator._build_cinematic({"scenes": ["scene"], "script": "voiceover"})
+    pipelines["cinematic"] = [{"kind": s.kind.value, "provider": s.provider} for s in sample]
+    return {"pipelines": pipelines}
 
 
 # ── Generate ──────────────────────────────────────────────────────────────────
@@ -137,6 +143,7 @@ def generate(
 def list_jobs(
     status: Optional[str] = None,
     pipeline: Optional[str] = None,
+    run_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -145,7 +152,10 @@ def list_jobs(
         q = q.filter(MediaJob.status == status)
     if pipeline:
         q = q.filter(MediaJob.pipeline == pipeline)
-    return q.order_by(MediaJob.created_at.desc()).limit(200).all()
+    if run_id:
+        q = q.filter(MediaJob.pipeline_run_id == run_id)
+    # Ascending by stage so a run reads in pipeline order.
+    return q.order_by(MediaJob.stage_index.asc(), MediaJob.created_at.asc()).limit(200).all()
 
 
 def _owned_job(db: Session, job_id: str, user_id: str) -> MediaJob:

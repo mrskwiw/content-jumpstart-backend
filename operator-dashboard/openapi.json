@@ -5130,7 +5130,7 @@
           "Media Generation"
         ],
         "summary": "List Pipelines",
-        "description": "The pipelines this subsystem can run, with their provider chains.",
+        "description": "The pipelines this subsystem can run, with their provider chains.\n\nCinematic is a fan-in DAG built per request; a representative 1-clip shape is\nshown here for discovery.",
         "operationId": "list_pipelines_api_media_pipelines_get",
         "responses": {
           "200": {
@@ -5234,6 +5234,22 @@
                 }
               ],
               "title": "Pipeline"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
             }
           }
         ],
@@ -13184,6 +13200,17 @@
             ],
             "title": "Pipeline"
           },
+          "pipeline_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Run Id"
+          },
           "stage_index": {
             "type": "integer",
             "title": "Stage Index"
@@ -13289,6 +13316,17 @@
               }
             ],
             "title": "Pipeline"
+          },
+          "pipeline_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Run Id"
           },
           "stage_index": {
             "type": "integer",

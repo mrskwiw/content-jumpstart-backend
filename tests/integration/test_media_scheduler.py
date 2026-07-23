@@ -166,21 +166,22 @@ def test_budget_failed_job_not_requeued_by_worker(db_session, monkeypatch):
 
 
 def test_terminal_failure_cascades_to_descendants(db_session, monkeypatch):
+    # Linear (parent-chained) cascade via _fail_descendants.
     monkeypatch.setenv("MEDIA_DRY_RUN", "true")
     _user(db_session, "u-casc2")
     root = orchestrator.submit_pipeline(
-        db_session, "u-casc2", pipeline="cinematic", spec={"prompt": "x"}
+        db_session, "u-casc2", pipeline="talking_head", spec={"script": "x"}
     )
-    # Force the in-flight root stage to fail terminally.
+    # Force the in-flight root stage (TTS) to fail terminally.
     orchestrator._mark_failed(db_session, root, "boom", terminal=True)
 
     stages = (
         db_session.query(MediaJob)
-        .filter(MediaJob.pipeline == "cinematic", MediaJob.user_id == "u-casc2")
+        .filter(MediaJob.pipeline == "talking_head", MediaJob.user_id == "u-casc2")
         .all()
     )
-    assert len(stages) == 3
-    # No stage is left stranded in awaiting_dependency.
+    assert len(stages) == 2
+    # The downstream HeyGen stage isn't left stranded in awaiting_dependency.
     assert all(s.status == "failed" for s in stages)
 
 

@@ -8,9 +8,13 @@ network exceptions, HeyGen still-processing / failed states, and webhook fail ev
 
 from backend.services.media.providers import (
     ElevenLabsTTSProvider,
+    FfmpegProvider,
     HeyGenProvider,
+    KlingProvider,
     MediaKind,
     NotImplementedProvider,
+    SyncProvider,
+    VeoProvider,
 )
 
 
@@ -168,6 +172,183 @@ def test_heygen_status_failed_and_success():
 
 
 def test_not_implemented_poll_and_webhook():
-    p = NotImplementedProvider(MediaKind.GEN_CLIP, "kling")
+    p = NotImplementedProvider(MediaKind.GEN_CLIP, "unknown_provider")
     assert not p.poll("x").ok
     assert not p.parse_webhook({}, {}).ok
+
+
+# ── Kling (P12.3, async b-roll) ───────────────────────────────────────────────
+
+
+def test_kling_missing_credential(monkeypatch):
+    monkeypatch.delenv("KLING_API_KEY", raising=False)
+    assert not KlingProvider(MediaKind.GEN_CLIP).start({"prompt": "x"}).ok
+    assert not KlingProvider(MediaKind.GEN_CLIP).poll("t").ok
+
+
+def test_kling_start_no_prompt(monkeypatch):
+    monkeypatch.setenv("KLING_API_KEY", "k")  # pragma: allowlist secret
+    r = KlingProvider(MediaKind.GEN_CLIP).start({})
+    assert not r.ok and "prompt" in r.error
+
+
+def test_kling_start_http_error_and_no_task(monkeypatch):
+    monkeypatch.setenv("KLING_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=500, text="boom"))
+    assert not KlingProvider(MediaKind.GEN_CLIP).start({"prompt": "x"}).ok
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"data": {}}))
+    r = KlingProvider(MediaKind.GEN_CLIP).start({"prompt": "x"})
+    assert not r.ok and "task_id" in r.error
+
+
+def test_kling_start_success(monkeypatch):
+    monkeypatch.setenv("KLING_API_KEY", "k")  # pragma: allowlist secret
+    _patch(
+        monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"data": {"task_id": "t1"}})
+    )
+    r = KlingProvider(MediaKind.GEN_CLIP).start({"prompt": "sunset"})
+    assert r.ok and r.external_id == "t1" and not r.done
+
+
+def test_kling_poll_states(monkeypatch):
+    monkeypatch.setenv("KLING_API_KEY", "k")  # pragma: allowlist secret
+    p = KlingProvider(MediaKind.GEN_CLIP)
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(status=200, json_body={"data": {"task_status": "submitted"}}),
+    )
+    assert p.poll("t").ok and not p.poll("t").done
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200, json_body={"data": {"task_status": "failed", "task_status_msg": "nope"}}
+        ),
+    )
+    assert not p.poll("t").ok
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200,
+            json_body={"data": {"task_status": "succeed", "task_result": {"videos": []}}},
+        ),
+    )
+    assert not p.poll("t").ok  # succeeded but no video url
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200,
+            json_body={
+                "data": {
+                    "task_status": "succeed",
+                    "task_result": {"videos": [{"url": "https://c/x.mp4"}]},
+                }
+            },
+        ),
+    )
+    done = p.poll("t")
+    assert done.ok and done.done and done.asset_url.endswith(".mp4")
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=500, text="err"))
+    assert not p.poll("t").ok
+
+
+# ── Sync.so (P12.3, optional lip-sync) ────────────────────────────────────────
+
+
+def test_sync_missing_credential_and_inputs(monkeypatch):
+    monkeypatch.delenv("SYNC_API_KEY", raising=False)
+    assert not SyncProvider(MediaKind.LIPSYNC).start({"_video_url": "v", "_audio_url": "a"}).ok
+    monkeypatch.setenv("SYNC_API_KEY", "s")  # pragma: allowlist secret
+    r = SyncProvider(MediaKind.LIPSYNC).start({"_video_url": "v"})  # no audio
+    assert not r.ok and "audio" in r.error.lower()
+
+
+def test_sync_start_and_poll(monkeypatch):
+    monkeypatch.setenv("SYNC_API_KEY", "s")  # pragma: allowlist secret
+    p = SyncProvider(MediaKind.LIPSYNC)
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"id": "j1"}))
+    started = p.start({"_video_url": "v", "_audio_url": "a"})
+    assert started.ok and started.external_id == "j1"
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=400, text="bad"))
+    assert not p.start({"_video_url": "v", "_audio_url": "a"}).ok
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200, json_body={"status": "COMPLETED", "outputUrl": "https://c/x.mp4"}
+        ),
+    )
+    assert p.poll("j1").done
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=200, json_body={"status": "FAILED"}))
+    assert not p.poll("j1").ok
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=200, json_body={"status": "PROCESSING"}))
+    assert p.poll("j1").ok and not p.poll("j1").done
+
+
+# ── Veo (premium, gated) ──────────────────────────────────────────────────────
+
+
+def test_veo_configured_but_unimplemented(monkeypatch):
+    monkeypatch.setenv("GOOGLE_VERTEX_PROJECT", "p")
+    monkeypatch.setenv("GOOGLE_VERTEX_ACCESS_TOKEN", "t")  # pragma: allowlist secret
+    r = VeoProvider(MediaKind.GEN_CLIP).start({"prompt": "x"})
+    assert not r.ok and "not implemented" in r.error.lower()
+
+
+# ── Ffmpeg (local assembly) ───────────────────────────────────────────────────
+
+
+def test_ffmpeg_provider_no_inputs():
+    r = FfmpegProvider(MediaKind.ASSEMBLE).start({"_ffmpeg_op": "concat"})
+    assert not r.ok and "no input" in r.error.lower()
+
+
+def test_ffmpeg_provider_concat_success(monkeypatch, tmp_path):
+    class _Stream:
+        content = b"CLIP"
+        headers = {"Content-Type": "video/mp4"}
+
+        def raise_for_status(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(
+        "backend.services.distribution.net_guard.safe_stream_get", lambda url, **kw: _Stream()
+    )
+    monkeypatch.setattr(
+        "backend.services.media.ffmpeg.run", lambda op, paths, audio_path=None: b"STITCHED"
+    )
+    r = FfmpegProvider(MediaKind.ASSEMBLE).start(
+        {"_ffmpeg_op": "concat", "_input_urls": ["u1", "u2"]}
+    )
+    assert r.ok and r.done and r.content == b"STITCHED"
+
+
+def test_ffmpeg_provider_surfaces_ffmpeg_error(monkeypatch):
+    from backend.services.media import ffmpeg as ffmpeg_mod
+
+    class _Stream:
+        content = b"CLIP"
+        headers = {"Content-Type": "video/mp4"}
+
+        def raise_for_status(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def boom(op, paths, audio_path=None):
+        raise ffmpeg_mod.FfmpegError("bad codec")
+
+    monkeypatch.setattr(
+        "backend.services.distribution.net_guard.safe_stream_get", lambda url, **kw: _Stream()
+    )
+    monkeypatch.setattr("backend.services.media.ffmpeg.run", boom)
+    r = FfmpegProvider(MediaKind.ASSEMBLE).start({"_ffmpeg_op": "concat", "_input_urls": ["u1"]})
+    assert not r.ok and "ffmpeg" in r.error.lower()

@@ -136,8 +136,10 @@ def test_generate_over_budget_returns_402(client, db_session, monkeypatch):
 
 
 def test_fail_closed_without_dry_run(client, db_session, monkeypatch):
-    # cinematic's first stage (kling) has no real provider yet → fail-closed.
+    # A real provider without credentials fails closed (no silent fallback). The
+    # cinematic clip stage (kling) fails at submit; the terminal stage stays waiting.
     monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    monkeypatch.delenv("KLING_API_KEY", raising=False)
     user = _make_user(db_session, "media-real@example.com", "user-mediareal")
     r = client.post(
         "/api/media/generate",
@@ -145,9 +147,10 @@ def test_fail_closed_without_dry_run(client, db_session, monkeypatch):
         headers=_hdr(user),
     )
     assert r.status_code == 200, r.text
-    root = r.json()["root_job"]
-    assert root["status"] == "failed"
-    assert "not implemented" in (root["error_message"] or "").lower()
+    jobs = client.get("/api/media/jobs?pipeline=cinematic", headers=_hdr(user)).json()
+    clip = next(j for j in jobs if j["kind"] == "gen_clip")
+    assert clip["status"] == "failed"
+    assert "KLING_API_KEY" in (clip["error_message"] or "")
 
 
 # ── Ownership, cancel ─────────────────────────────────────────────────────────

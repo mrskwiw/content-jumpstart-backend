@@ -306,11 +306,262 @@ class HeyGenProvider(BaseMediaProvider):
         return MediaResult(ok=True, external_id=external_id, done=False)  # still processing
 
 
+class KlingProvider(BaseMediaProvider):
+    """Kling generative b-roll clip (P12.3). Async: submit a text→video task, poll
+    for the finished clip URL (which the orchestrator re-hosts to storage)."""
+
+    name = "kling"
+    BASE = "https://api.klingai.com/v1"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("KLING_API_KEY")
+            prompt = spec.get("prompt") or spec.get("script") or ""
+            if not prompt:
+                return MediaResult(ok=False, error="Kling requires a 'prompt' in the spec")
+            resp = requests.post(
+                f"{self.BASE}/videos/text2video",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "prompt": prompt,
+                    "duration": str(int(spec.get("seconds", 5))),
+                    "model_name": spec.get("model", "kling-v1"),
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(ok=False, error=f"Kling {resp.status_code}: {resp.text[:300]}")
+            task_id = ((resp.json() or {}).get("data") or {}).get("task_id", "")
+            if not task_id:
+                return MediaResult(ok=False, error="Kling returned no task_id")
+            return MediaResult(ok=True, external_id=task_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Kling submit failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("KLING_API_KEY")
+            resp = requests.get(
+                f"{self.BASE}/videos/text2video/{external_id}",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"Kling status {resp.status_code}: {resp.text[:200]}"
+                )
+            data = (resp.json() or {}).get("data") or {}
+            status = str(data.get("task_status") or "")
+            if status == "succeed":
+                videos = (data.get("task_result") or {}).get("videos") or []
+                url = videos[0].get("url") if videos else None
+                if not url:
+                    return MediaResult(
+                        ok=False, external_id=external_id, error="Kling succeeded with no video url"
+                    )
+                return MediaResult(
+                    ok=True, done=True, external_id=external_id, asset_url=url, mime="video/mp4"
+                )
+            if status == "failed":
+                return MediaResult(
+                    ok=False,
+                    external_id=external_id,
+                    error=str(data.get("task_status_msg") or "Kling failed"),
+                )
+            return MediaResult(
+                ok=True, external_id=external_id, done=False
+            )  # submitted / processing
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Kling poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+
+class VeoProvider(BaseMediaProvider):
+    """Google Veo premium b-roll via Vertex AI (P12.3). Gated behind quality=premium
+    AND Vertex credentials; fail-closed otherwise (access is region/tier-limited)."""
+
+    name = "veo"
+
+    def start(self, spec: dict) -> MediaResult:
+        try:
+            _require_env("GOOGLE_VERTEX_PROJECT")
+            _require_env("GOOGLE_VERTEX_ACCESS_TOKEN")
+        except _MissingCredential as e:
+            return MediaResult(
+                ok=False, error=f"Veo not configured ({e}); use Kling or set quality!=premium"
+            )
+        # Real Vertex AI predict/operation wiring lands when account access is
+        # confirmed (spec §9 open question). Until then, fail closed rather than
+        # pretend — never silently fall back to a different (billed) provider.
+        return MediaResult(
+            ok=False,
+            error="Veo (Vertex AI) submission not implemented yet — access unconfirmed. Use Kling (default).",
+        )
+
+    def poll(
+        self, external_id: str
+    ) -> MediaResult:  # pragma: no cover - unreachable until start works
+        return MediaResult(ok=False, error="Veo not implemented")
+
+
+class SyncProvider(BaseMediaProvider):
+    """Sync.so lip-sync (P12.3, optional). Async: submit video+audio, poll for the
+    lip-synced result. Only used when the pipeline requests lip-sync."""
+
+    name = "sync"
+    BASE = "https://api.sync.so/v2"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("SYNC_API_KEY")
+            video_url = spec.get("_video_url")
+            audio_url = spec.get("_audio_url")
+            if not video_url or not audio_url:
+                return MediaResult(
+                    ok=False, error="Sync.so requires both a video and an audio input"
+                )
+            resp = requests.post(
+                f"{self.BASE}/generate",
+                headers={"x-api-key": api_key, "Content-Type": "application/json"},
+                json={
+                    "model": spec.get("model", "lipsync-1.9.0-beta"),
+                    "input": [
+                        {"type": "video", "url": video_url},
+                        {"type": "audio", "url": audio_url},
+                    ],
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(ok=False, error=f"Sync.so {resp.status_code}: {resp.text[:300]}")
+            job_id = (resp.json() or {}).get("id", "")
+            if not job_id:
+                return MediaResult(ok=False, error="Sync.so returned no job id")
+            return MediaResult(ok=True, external_id=job_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Sync.so submit failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("SYNC_API_KEY")
+            resp = requests.get(
+                f"{self.BASE}/generate/{external_id}",
+                headers={"x-api-key": api_key},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"Sync.so status {resp.status_code}: {resp.text[:200]}"
+                )
+            data = resp.json() or {}
+            status = str(data.get("status") or "")
+            if status == "COMPLETED":
+                return MediaResult(
+                    ok=True,
+                    done=True,
+                    external_id=external_id,
+                    asset_url=data.get("outputUrl"),
+                    mime="video/mp4",
+                )
+            if status in ("FAILED", "ERROR", "REJECTED"):
+                return MediaResult(
+                    ok=False,
+                    external_id=external_id,
+                    error=str(data.get("error") or "Sync.so failed"),
+                )
+            return MediaResult(ok=True, external_id=external_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Sync.so poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+
+class FfmpegProvider(BaseMediaProvider):
+    """Local ffmpeg assembly (P12.3). Synchronous: downloads the input assets the
+    orchestrator injected as fresh signed URLs, runs concat/mux, and returns the
+    output bytes for the orchestrator to persist. No external API."""
+
+    name = "ffmpeg"
+
+    def start(self, spec: dict) -> MediaResult:
+        import tempfile
+
+        from backend.services.distribution.net_guard import safe_stream_get
+        from backend.services.media import ffmpeg
+
+        op = spec.get("_ffmpeg_op", "concat")
+        if op == "mux":
+            input_urls = [spec["_video_url"]] if spec.get("_video_url") else []
+            audio_url = spec.get("_audio_url")
+        else:
+            input_urls = list(spec.get("_input_urls") or [])
+            audio_url = None
+        if not input_urls:
+            return MediaResult(ok=False, error=f"ffmpeg {op}: no input assets injected")
+
+        tmpdir = tempfile.mkdtemp(prefix="media_ffmpeg_")
+        try:
+            in_paths = [
+                self._download(safe_stream_get, u, os.path.join(tmpdir, f"in_{i}.mp4"))
+                for i, u in enumerate(input_urls)
+            ]
+            audio_path = (
+                self._download(safe_stream_get, audio_url, os.path.join(tmpdir, "audio.bin"))
+                if audio_url
+                else None
+            )
+            data = ffmpeg.run(op, in_paths, audio_path=audio_path)
+            return MediaResult(
+                ok=True, done=True, content=data, content_mime="video/mp4", mime="video/mp4"
+            )
+        except ffmpeg.FfmpegError as e:
+            return MediaResult(ok=False, error=f"ffmpeg {op} failed: {e}")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ffmpeg assemble failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    @staticmethod
+    def _download(getter, url: str, dest: str) -> str:
+        with getter(url, timeout=(5, 300)) as src:
+            src.raise_for_status()
+            with open(dest, "wb") as fh:
+                fh.write(src.content)
+        return dest
+
+    def poll(self, external_id: str) -> MediaResult:  # pragma: no cover - synchronous
+        return MediaResult(ok=True, done=True, external_id=external_id)
+
+
 # Real providers are wired here as they're built. A name absent from this map
 # (outside dry-run) falls through to NotImplementedProvider (fail-closed).
 _REAL_PROVIDERS: dict[str, type[BaseMediaProvider]] = {
     "elevenlabs_tts": ElevenLabsTTSProvider,
     "heygen": HeyGenProvider,
+    "kling": KlingProvider,
+    "veo": VeoProvider,
+    "sync": SyncProvider,
+    "ffmpeg": FfmpegProvider,
 }
 
 

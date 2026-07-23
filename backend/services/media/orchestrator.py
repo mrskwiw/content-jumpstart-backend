@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -45,15 +46,12 @@ RETRY_HORIZON = timedelta(hours=24)
 # Ordered provider chains per pipeline. (kind, provider_name) per stage. In
 # dry-run every provider resolves to the stub; the real name is persisted so the
 # chain reads truthfully and P12.2+ can swap in real integrations unchanged.
+# Linear pipelines only. Cinematic is a fan-in DAG built dynamically per request
+# (see `_build_cinematic`), so it isn't a static chain here.
 PIPELINES: dict[str, list[tuple[MediaKind, str]]] = {
     "talking_head": [
         (MediaKind.TTS, "elevenlabs_tts"),
         (MediaKind.AVATAR_VIDEO, "heygen"),
-    ],
-    "cinematic": [
-        (MediaKind.GEN_CLIP, "kling"),
-        (MediaKind.TTS, "elevenlabs_tts"),
-        (MediaKind.ASSEMBLE, "ffmpeg"),
     ],
     "audio_only": [
         (MediaKind.TTS, "elevenlabs_tts"),
@@ -63,6 +61,91 @@ PIPELINES: dict[str, list[tuple[MediaKind, str]]] = {
 # Statuses a job can be advanced from by the worker.
 _ACTIVE_STATUSES = ("queued", "processing")
 _TERMINAL_STATUSES = ("done", "failed", "canceled")
+
+
+@dataclass
+class _Stage:
+    """A node in a pipeline DAG: one provider call + which stages it depends on."""
+
+    kind: MediaKind
+    provider: str
+    deps: List[int]  # indices of upstream stages this one waits for (fan-in)
+    extra: dict  # extra spec fields (prompt, _ffmpeg_op, and _*_from_stage refs)
+
+
+def _build_cinematic(spec: dict) -> List[_Stage]:
+    """Build the cinematic DAG from a spec.
+
+    scenes → N Kling|Veo clips (parallel) → ffmpeg concat → (mux with an optional
+    ElevenLabs voiceover) → (optional Sync.so lip-sync). The clips and the VO are
+    roots; the concat fans them in. Veo is used only when quality=premium.
+    """
+    scenes = spec.get("scenes") or [spec.get("prompt") or ""]
+    clip_provider = "veo" if spec.get("quality") == "premium" else "kling"
+    seconds = spec.get("seconds", 5)
+
+    stages: List[_Stage] = []
+    clip_idx: List[int] = []
+    for scene in scenes:
+        stages.append(
+            _Stage(MediaKind.GEN_CLIP, clip_provider, [], {"prompt": scene, "seconds": seconds})
+        )
+        clip_idx.append(len(stages) - 1)
+
+    vo_idx: Optional[int] = None
+    vo_text = spec.get("script") or spec.get("voiceover")
+    if vo_text:
+        stages.append(_Stage(MediaKind.TTS, "elevenlabs_tts", [], {"script": vo_text}))
+        vo_idx = len(stages) - 1
+
+    # Stitch the clips.
+    stages.append(
+        _Stage(
+            MediaKind.ASSEMBLE,
+            "ffmpeg",
+            list(clip_idx),
+            {"_ffmpeg_op": "concat", "_clips_from_stages": list(clip_idx)},
+        )
+    )
+    final_idx = len(stages) - 1
+
+    # Marry the voiceover, if any.
+    if vo_idx is not None:
+        stages.append(
+            _Stage(
+                MediaKind.ASSEMBLE,
+                "ffmpeg",
+                [final_idx, vo_idx],
+                {"_ffmpeg_op": "mux", "_video_from_stage": final_idx, "_audio_from_stage": vo_idx},
+            )
+        )
+        final_idx = len(stages) - 1
+
+    # Optional lip-sync (on-camera faces).
+    if spec.get("lipsync") and vo_idx is not None:
+        stages.append(
+            _Stage(
+                MediaKind.LIPSYNC,
+                "sync",
+                [final_idx, vo_idx],
+                {"_video_from_stage": final_idx, "_audio_from_stage": vo_idx},
+            )
+        )
+
+    return stages
+
+
+def _pipeline_stages(pipeline: str, spec: dict) -> List[_Stage]:
+    """Resolve a pipeline name to its stage DAG (cinematic is dynamic; others linear)."""
+    if pipeline == "cinematic":
+        return _build_cinematic(spec)
+    linear = PIPELINES.get(pipeline)
+    if linear is None:
+        raise ValueError(f"Unknown pipeline '{pipeline}'")
+    return [
+        _Stage(kind, provider, [i - 1] if i else [], {})
+        for i, (kind, provider) in enumerate(linear)
+    ]
 
 
 def _now() -> datetime:
@@ -77,18 +160,19 @@ def _uuid() -> str:
 
 
 def estimate_pipeline(pipeline: str, spec: dict) -> dict:
-    """Projected per-stage + total cost (cents) for a pipeline, without spending."""
-    stages = PIPELINES.get(pipeline)
-    if stages is None:
-        raise ValueError(f"Unknown pipeline '{pipeline}'")
-    seconds = spec.get("seconds")
+    """Projected per-stage + total cost (cents) for a pipeline, without spending.
+
+    Handles the cinematic DAG's dynamic clip count (one estimate per scene)."""
+    stages = _pipeline_stages(pipeline, spec)
     breakdown = [
         {
-            "kind": kind.value,
-            "provider": provider,
-            "cost_cents": cost.estimate_cost(kind, provider, seconds=seconds),
+            "kind": s.kind.value,
+            "provider": s.provider,
+            "cost_cents": cost.estimate_cost(
+                s.kind, s.provider, seconds=s.extra.get("seconds") or spec.get("seconds")
+            ),
         }
-        for kind, provider in stages
+        for s in stages
     ]
     return {
         "pipeline": pipeline,
@@ -109,19 +193,25 @@ def submit_pipeline(
     client_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> MediaJob:
-    """Create every stage of a pipeline and submit the first one.
+    """Create every stage of a pipeline and submit its root(s).
 
     The whole pipeline's projected cost is budget-checked up front (fail-closed:
-    nothing is created if the pipeline is over-budget). Returns the root job.
+    nothing is created if it's over-budget). Linear pipelines chain via
+    `parent_job_id`; cinematic fans in via `_depends_on` (see `_submit_dag`).
+    Returns a representative job (the linear root, or the cinematic terminal stage).
     """
-    stages = PIPELINES.get(pipeline)
-    if stages is None:
+    if pipeline != "cinematic" and pipeline not in PIPELINES:
         raise ValueError(f"Unknown pipeline '{pipeline}'")
 
-    # Enforce the full pipeline's projected spend before creating any jobs.
     est = estimate_pipeline(pipeline, spec)
     cost.enforce_budget(db, user_id, client_id, est["total_cost_cents"])
 
+    if pipeline == "cinematic":
+        return _submit_dag(db, user_id, pipeline, spec, client_id, project_id)
+
+    # Linear path (talking_head / audio_only) — unchanged parent_job_id chain.
+    run_id = _uuid()
+    stages = PIPELINES[pipeline]
     jobs: List[MediaJob] = []
     parent_id: Optional[str] = None
     for idx, (kind, provider) in enumerate(stages):
@@ -131,6 +221,7 @@ def submit_pipeline(
             client_id=client_id,
             project_id=project_id,
             pipeline=pipeline,
+            pipeline_run_id=run_id,
             stage_index=idx,
             parent_job_id=parent_id,
             kind=kind.value,
@@ -150,6 +241,75 @@ def submit_pipeline(
     _submit_job(db, root)
     db.refresh(root)
     return root
+
+
+def _submit_dag(
+    db: Session,
+    user_id: str,
+    pipeline: str,
+    spec: dict,
+    client_id: Optional[str],
+    project_id: Optional[str],
+) -> MediaJob:
+    """Create a fan-in DAG (cinematic) and submit every root stage.
+
+    Each stage's dependencies are recorded as `_depends_on` (job ids) in its
+    input_json, plus role refs (`_clips_from`/`_video_from`/`_audio_from`) that the
+    promotion sweep resolves to the produced asset keys. Roots (no deps) start now;
+    the rest wait in `awaiting_dependency` for `_promote_fanin`.
+    """
+    stages = _build_cinematic(spec)
+    run_id = _uuid()
+    ids = [_uuid() for _ in stages]
+
+    jobs: List[MediaJob] = []
+    for idx, stage in enumerate(stages):
+        stage_spec = dict(spec)
+        stage_spec.update(
+            {
+                k: v
+                for k, v in stage.extra.items()
+                if not k.endswith("_from_stage") and k != "_clips_from_stages"
+            }
+        )
+        if stage.deps:
+            stage_spec["_depends_on"] = [ids[d] for d in stage.deps]
+        # Resolve stage-index role refs → job-id role refs.
+        if "_clips_from_stages" in stage.extra:
+            stage_spec["_clips_from"] = [ids[d] for d in stage.extra["_clips_from_stages"]]
+        if "_video_from_stage" in stage.extra:
+            stage_spec["_video_from"] = ids[stage.extra["_video_from_stage"]]
+        if "_audio_from_stage" in stage.extra:
+            stage_spec["_audio_from"] = ids[stage.extra["_audio_from_stage"]]
+        jobs.append(
+            MediaJob(
+                id=ids[idx],
+                user_id=user_id,
+                client_id=client_id,
+                project_id=project_id,
+                pipeline=pipeline,
+                pipeline_run_id=run_id,
+                stage_index=idx,
+                kind=stage.kind.value,
+                provider=stage.provider,
+                status="queued" if not stage.deps else "awaiting_dependency",
+                input_json=json.dumps(stage_spec),
+                cost_cents=0,
+                retry_count=0,
+            )
+        )
+    db.add_all(jobs)
+    db.commit()
+
+    # Submit every root (clips + voiceover run in parallel).
+    for job in jobs:
+        if job.status == "queued":
+            _submit_job(db, job)
+
+    # Return the terminal stage as the tracker for this run.
+    terminal = next((j for j in reversed(jobs)), jobs[-1])
+    db.refresh(terminal)
+    return terminal
 
 
 def _past_retry_horizon(job: MediaJob) -> bool:
@@ -205,16 +365,30 @@ def _submit_job(db: Session, job: MediaJob) -> MediaJob:
     return _apply_result(db, job, result)
 
 
-def _spec_with_fresh_parent_url(spec: dict) -> dict:
-    """Sign the parent asset key into a fresh, short-lived URL *at submit time*.
+# Persisted durable-key spec fields → the fresh signed-URL field a provider reads.
+_SIGNED_URL_FIELDS = {
+    "_parent_asset_key": "_parent_asset_url",  # HeyGen (talking-head) audio
+    "_video_key": "_video_url",  # ffmpeg mux / Sync.so video input
+    "_audio_key": "_audio_url",  # ffmpeg mux / Sync.so audio input
+}
 
-    Only the durable `_parent_asset_key` is persisted in job state; the expiring
-    signed URL is minted here, immediately before the provider call, so a delayed
-    or retried submission never carries a stale (expired) URL."""
-    key = spec.get("_parent_asset_key")
-    if not key:
+
+def _spec_with_fresh_parent_url(spec: dict) -> dict:
+    """Sign every persisted asset *key* into a fresh, short-lived URL *at submit
+    time*. Only durable keys live in job state; the expiring signed URLs are minted
+    here, immediately before the provider call, so a delayed/retried submission
+    never carries a stale URL (Decision #195). Covers single refs and the ffmpeg
+    clip list (`_input_keys` → `_input_urls`)."""
+    if not any(spec.get(k) for k in _SIGNED_URL_FIELDS) and not spec.get("_input_keys"):
         return spec
-    return {**spec, "_parent_asset_url": get_storage().signed_url(key)}
+    storage = get_storage()
+    out = dict(spec)
+    for key_field, url_field in _SIGNED_URL_FIELDS.items():
+        if spec.get(key_field):
+            out[url_field] = storage.signed_url(spec[key_field])
+    if spec.get("_input_keys"):
+        out["_input_urls"] = [storage.signed_url(k) for k in spec["_input_keys"] if k]
+    return out
 
 
 # ── Advancement (poll / webhook) ──────────────────────────────────────────────
@@ -423,8 +597,90 @@ def _create_deliverable(db: Session, job: MediaJob, asset: MediaAsset) -> None:
 
 
 def _is_last_stage(db: Session, job: MediaJob) -> bool:
-    """True when no downstream stage depends on this job."""
-    return db.query(MediaJob).filter(MediaJob.parent_job_id == job.id).first() is None
+    """True when no downstream stage depends on this job (linear child OR fan-in)."""
+    if db.query(MediaJob).filter(MediaJob.parent_job_id == job.id).first() is not None:
+        return False
+    if job.pipeline_run_id:
+        siblings = (
+            db.query(MediaJob)
+            .filter(MediaJob.pipeline_run_id == job.pipeline_run_id, MediaJob.id != job.id)
+            .all()
+        )
+        if any(job.id in _depends_on_of(s) for s in siblings):
+            return False
+    return True
+
+
+# ── Fan-in dependency resolution (cinematic DAG) ──────────────────────────────
+
+
+def _depends_on_of(job: MediaJob) -> List[str]:
+    """The job ids a fan-in stage waits on (empty for linear/parent-chained jobs)."""
+    try:
+        spec = json.loads(job.input_json or "{}") or {}
+    except (TypeError, ValueError):
+        return []
+    deps = spec.get("_depends_on")
+    return [str(d) for d in deps] if isinstance(deps, list) else []
+
+
+def _asset_key_of(db: Session, dep: Optional[MediaJob]) -> Optional[str]:
+    if dep is None or not dep.output_asset_id:
+        return None
+    asset = db.query(MediaAsset).filter(MediaAsset.id == dep.output_asset_id).first()
+    return asset.url if asset else None
+
+
+def _promote_fanin(db: Session, limit: int = 100) -> int:
+    """Advance fan-in stages whose dependencies have resolved.
+
+    For each `awaiting_dependency` job that declares `_depends_on`: if any dep is
+    terminally failed/canceled, fail this stage too (self-healing cascade — re-run
+    every tick); if all deps are `done`, resolve the role refs
+    (`_clips_from`/`_video_from`/`_audio_from`) to the produced asset keys and queue
+    it. Linear (parent-chained) jobs have no `_depends_on` and are skipped here.
+    """
+    waiting = (
+        db.query(MediaJob)
+        .filter(MediaJob.status == "awaiting_dependency", MediaJob.pipeline_run_id.isnot(None))
+        .limit(limit)
+        .all()
+    )
+    promoted = 0
+    for job in waiting:
+        deps = _depends_on_of(job)
+        if not deps:
+            continue  # linear job — handled by _unblock_child, not the sweep
+        dep_jobs = {d.id: d for d in db.query(MediaJob).filter(MediaJob.id.in_(deps)).all()}
+        if any(
+            dep_jobs.get(d) is None or dep_jobs[d].status in ("failed", "canceled") for d in deps
+        ):
+            _mark_failed(
+                db, job, "an upstream stage failed; pipeline cannot assemble", terminal=True
+            )
+            promoted += 1
+            continue
+        if all(dep_jobs[d].status == "done" for d in deps):
+            _resolve_refs_and_queue(db, job, dep_jobs)
+            promoted += 1
+    return promoted
+
+
+def _resolve_refs_and_queue(db: Session, job: MediaJob, dep_jobs: dict) -> None:
+    """Resolve a fan-in stage's role refs to produced asset keys, then queue it."""
+    try:
+        spec = json.loads(job.input_json or "{}") or {}
+    except (TypeError, ValueError):
+        spec = {}
+    if spec.get("_clips_from"):
+        spec["_input_keys"] = [_asset_key_of(db, dep_jobs.get(j)) for j in spec["_clips_from"]]
+    if spec.get("_video_from"):
+        spec["_video_key"] = _asset_key_of(db, dep_jobs.get(spec["_video_from"]))
+    if spec.get("_audio_from"):
+        spec["_audio_key"] = _asset_key_of(db, dep_jobs.get(spec["_audio_from"]))
+    job.input_json = json.dumps(spec)
+    job.status = "queued"
+    db.commit()
 
 
 # ── Webhook ingest ────────────────────────────────────────────────────────────
@@ -614,24 +870,37 @@ def process_due(db: Session, limit: int = 25) -> dict:
     poll returns "still processing") advances exactly one step. Bounded by the
     number of jobs so it always terminates.
     """
-    summary = {"submitted": 0, "completed": 0, "failed": 0, "processed": 0, "reconciled": 0}
+    summary = {
+        "submitted": 0,
+        "completed": 0,
+        "failed": 0,
+        "processed": 0,
+        "reconciled": 0,
+        "promoted": 0,
+    }
 
-    # Self-healing sweep first: fail any stage stranded behind a parent that has
-    # already terminally failed/canceled. Covers a cascade interrupted mid-walk
+    # Self-healing sweep first: fail any linear stage stranded behind a parent that
+    # has already terminally failed/canceled. Covers a cascade interrupted mid-walk
     # (crash) and orphans that predate the cascade logic — the pipeline reconciles
     # itself instead of relying on one uninterrupted transaction.
     summary["reconciled"] = _reconcile_orphans(db, limit)
 
     for _ in range(limit + 1):
+        # Promote fan-in stages whose deps have resolved (cinematic), then advance
+        # the newly-queued jobs in the same pass so a dry-run DAG can complete in one
+        # tick. A pass that promotes something counts as progress.
+        promoted = _promote_fanin(db, max(limit, 100))
+        summary["promoted"] += promoted
+
         jobs: List[MediaJob] = (
             _active_query(db, list(_ACTIVE_STATUSES))
             .order_by(MediaJob.created_at.asc())
             .limit(limit)
             .all()
         )
-        if not jobs:
+        if not jobs and promoted == 0:
             break
-        changed = False
+        changed = promoted > 0
         for job in jobs:
             before = job.status
             advance(db, job)

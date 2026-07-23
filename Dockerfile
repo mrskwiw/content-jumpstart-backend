@@ -53,9 +53,11 @@ RUN pip install --no-cache-dir --user -r requirements.txt && \
 # ============================================================
 FROM python:3.11-slim
 
-# Install runtime dependencies
+# Install runtime dependencies. ffmpeg is required by the Phase 12 cinematic
+# pipeline (backend/services/media/ffmpeg.py) for clip concat + audio mux.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
