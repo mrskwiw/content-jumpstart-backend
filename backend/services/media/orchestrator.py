@@ -80,8 +80,16 @@ def _build_cinematic(spec: dict) -> List[_Stage]:
     ElevenLabs voiceover) → (optional Sync.so lip-sync). The clips and the VO are
     roots; the concat fans them in. Veo is used only when quality=premium.
     """
+    # Premium routes clips to Veo, which isn't callable yet (Vertex AI access
+    # unconfirmed — spec §9). Reject up front rather than accept the request, create
+    # jobs, and dead-end every clip. Flip this on once VeoProvider can complete.
+    if spec.get("quality") == "premium":
+        raise ValueError(
+            "Premium (Veo) clips are not available yet — Vertex AI access is unconfirmed. "
+            "Use the default quality (Kling)."
+        )
     scenes = spec.get("scenes") or [spec.get("prompt") or ""]
-    clip_provider = "veo" if spec.get("quality") == "premium" else "kling"
+    clip_provider = "kling"
     seconds = spec.get("seconds", 5)
 
     stages: List[_Stage] = []
@@ -744,12 +752,35 @@ def ingest_webhook(
 
 
 def cancel_job(db: Session, job: MediaJob) -> MediaJob:
-    """Cancel a job (and its not-yet-started descendants)."""
+    """Cancel the whole pipeline **run** the job belongs to.
+
+    Canceling one stage of a fan-in DAG (cinematic) must stop its sibling clips/VO
+    too — they have no `parent_job_id` chain, and leaving them running keeps billing
+    a run the user asked to stop. So cancellation is run-scoped: every non-terminal
+    job sharing `pipeline_run_id` is canceled (which also blocks downstream stages
+    from ever submitting). Already-submitted async jobs may finish at the provider,
+    but no further (billable) stage runs. Falls back to a linear parent-cascade for
+    any legacy job without a run id.
+    """
+    if job.pipeline_run_id:
+        run_jobs = (
+            db.query(MediaJob)
+            .filter(
+                MediaJob.pipeline_run_id == job.pipeline_run_id,
+                MediaJob.status.notin_(_TERMINAL_STATUSES),
+            )
+            .all()
+        )
+        for j in run_jobs:
+            j.status = "canceled"
+        db.commit()
+        db.refresh(job)
+        return job
+
     if job.status in _TERMINAL_STATUSES:
         return job
     job.status = "canceled"
     db.commit()
-    # Cancel any downstream stages still waiting on this one.
     child = db.query(MediaJob).filter(MediaJob.parent_job_id == job.id).first()
     if child is not None and child.status not in _TERMINAL_STATUSES:
         cancel_job(db, child)

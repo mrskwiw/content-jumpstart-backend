@@ -226,3 +226,49 @@ def test_veo_premium_gated_without_vertex(monkeypatch):
     monkeypatch.delenv("GOOGLE_VERTEX_PROJECT", raising=False)
     r = VeoProvider(MediaKind.GEN_CLIP).start({"prompt": "x"})
     assert not r.ok and "veo" in r.error.lower()
+
+
+def test_cinematic_premium_rejected_up_front(client, db_session, monkeypatch):
+    # Veo isn't callable yet, so quality=premium is rejected before jobs are created
+    # (rather than accepted then dead-ended on every clip).
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "prem@example.com", "user-prem")
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "pipeline": "cinematic",
+            "spec": {"scenes": ["a"], "quality": "premium"},
+            "confirm": False,
+        },
+        headers=_hdr(u),
+    )
+    assert r.status_code == 400
+    assert "premium" in r.json()["detail"].lower() or "veo" in r.json()["detail"].lower()
+
+
+# ── Run-scoped cancellation ───────────────────────────────────────────────────
+
+
+def test_cinematic_cancel_is_run_scoped(client, db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "cxl@example.com", "user-cxl")
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "pipeline": "cinematic",
+            "spec": {"scenes": ["a", "b"], "script": "hi"},
+            "confirm": True,
+        },
+        headers=_hdr(u),
+    )
+    terminal = r.json()["root_job"]
+    run_id = terminal["pipeline_run_id"]
+
+    # Cancel via the returned terminal handle → the WHOLE run stops (clips + VO).
+    c = client.post(f"/api/media/jobs/{terminal['id']}/cancel", headers=_hdr(u))
+    assert c.status_code == 200, c.text
+
+    jobs = client.get(f"/api/media/jobs?run_id={run_id}", headers=_hdr(u)).json()
+    assert jobs and all(j["status"] == "canceled" for j in jobs), [
+        (j["kind"], j["status"]) for j in jobs
+    ]
