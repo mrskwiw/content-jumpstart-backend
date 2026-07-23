@@ -56,7 +56,22 @@ PIPELINES: dict[str, list[tuple[MediaKind, str]]] = {
     "audio_only": [
         (MediaKind.TTS, "elevenlabs_tts"),
     ],
+    # Standalone audio utilities (P12.4) — single-op pipelines whose names double as
+    # the `kind=` the API accepts. Each operates on a source (source_asset_id or
+    # source_url) rather than generating from a script.
+    "audio_clean": [
+        (MediaKind.AUDIO_CLEAN, "elevenlabs_isolator"),
+    ],
+    "audio_master": [
+        (MediaKind.AUDIO_MASTER, "auphonic"),
+    ],
+    "dub": [
+        (MediaKind.DUB, "elevenlabs_dub"),
+    ],
 }
+
+# Pipelines whose single op consumes an existing source asset (not a script).
+STANDALONE_AUDIO = ("audio_clean", "audio_master", "dub")
 
 # Statuses a job can be advanced from by the worker.
 _ACTIVE_STATUSES = ("queued", "processing")
@@ -152,6 +167,32 @@ def _build_cinematic(spec: dict) -> List[_Stage]:
     return stages
 
 
+def _resolve_source(db: Session, user_id: str, pipeline: str, spec: dict) -> dict:
+    """Resolve a standalone audio op's input to a durable, owned source key.
+
+    A `source_asset_id` must reference a MediaAsset owned by the caller; it becomes
+    `_source_key` (signed fresh at submit like every other asset ref). An external
+    `source_url` is passed through as-is. Standalone audio ops require one or the
+    other; other pipelines ignore this."""
+    if pipeline not in STANDALONE_AUDIO:
+        return spec
+    asset_id = spec.get("source_asset_id")
+    if asset_id:
+        asset = (
+            db.query(MediaAsset)
+            .filter(MediaAsset.id == asset_id, MediaAsset.user_id == user_id)
+            .first()
+        )
+        if asset is None:
+            raise ValueError("source_asset_id not found or not owned by you")
+        out = {k: v for k, v in spec.items() if k != "source_asset_id"}
+        out["_source_key"] = asset.url
+        return out
+    if not spec.get("source_url"):
+        raise ValueError(f"'{pipeline}' requires a source_asset_id or source_url")
+    return spec
+
+
 def _pipeline_stages(pipeline: str, spec: dict) -> List[_Stage]:
     """Resolve a pipeline name to its stage DAG (cinematic is dynamic; others linear)."""
     if pipeline == "cinematic":
@@ -222,6 +263,7 @@ def submit_pipeline(
     if pipeline != "cinematic" and pipeline not in PIPELINES:
         raise ValueError(f"Unknown pipeline '{pipeline}'")
 
+    spec = _resolve_source(db, user_id, pipeline, spec)
     est = estimate_pipeline(pipeline, spec)
     cost.enforce_budget(db, user_id, client_id, est["total_cost_cents"])
 
@@ -389,6 +431,7 @@ _SIGNED_URL_FIELDS = {
     "_parent_asset_key": "_parent_asset_url",  # HeyGen (talking-head) audio
     "_video_key": "_video_url",  # ffmpeg mux / Sync.so video input
     "_audio_key": "_audio_url",  # ffmpeg mux / Sync.so audio input
+    "_source_key": "_source_url",  # standalone audio op input (isolate/master/dub)
 }
 
 

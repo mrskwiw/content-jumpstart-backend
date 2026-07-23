@@ -27,10 +27,11 @@ logger = logging.getLogger(__name__)
 class MediaKind(str, Enum):
     """The unit of work a single provider call performs."""
 
-    AUDIO_CLEAN = "audio_clean"  # ElevenLabs Voice Isolator
-    TTS = "tts"  # ElevenLabs TTS / voiceover
-    DUB = "dub"  # ElevenLabs Dubbing (translate + preserve voice)
-    LIPSYNC = "lipsync"  # Sync.so
+    AUDIO_CLEAN = "audio_clean"  # A1  ElevenLabs Voice Isolator
+    AUDIO_MASTER = "audio_master"  # A2/D2  Auphonic loudness master
+    TTS = "tts"  # B1  ElevenLabs TTS / voiceover
+    DUB = "dub"  # B3  ElevenLabs Dubbing (translate + preserve voice)
+    LIPSYNC = "lipsync"  # C1  Sync.so
     AVATAR_VIDEO = "avatar_video"  # HeyGen talking-head
     GEN_CLIP = "gen_clip"  # Kling / Veo b-roll clip
     ASSEMBLE = "assemble"  # ffmpeg concat / mux (local)
@@ -553,10 +554,233 @@ class FfmpegProvider(BaseMediaProvider):
         return MediaResult(ok=True, done=True, external_id=external_id)
 
 
+def _source_url(spec: dict) -> Optional[str]:
+    """The audio/video source a standalone op operates on: a fresh signed URL from
+    the orchestrator (`_source_url`) or an external `source_url` in the spec."""
+    return spec.get("_source_url") or spec.get("source_url")
+
+
+class ElevenLabsIsolatorProvider(BaseMediaProvider):
+    """A1 — ElevenLabs Voice Isolator (P12.4). Synchronous: downloads the source,
+    uploads it, and returns the cleaned audio bytes."""
+
+    name = "elevenlabs_isolator"
+    BASE = "https://api.elevenlabs.io/v1"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        from backend.services.distribution.net_guard import safe_stream_get
+
+        try:
+            api_key = _require_env("ELEVENLABS_API_KEY")
+            src = _source_url(spec)
+            if not src:
+                return MediaResult(
+                    ok=False, error="audio isolation needs a source (source_asset_id or source_url)"
+                )
+            with safe_stream_get(src, timeout=(5, 300)) as r:
+                r.raise_for_status()
+                audio = r.content
+            resp = requests.post(
+                f"{self.BASE}/audio-isolation",
+                headers={"xi-api-key": api_key},
+                files={"audio": ("input", audio)},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"ElevenLabs isolate {resp.status_code}: {resp.text[:300]}"
+                )
+            return MediaResult(
+                ok=True,
+                done=True,
+                content=resp.content,
+                content_mime="audio/mpeg",
+                mime="audio/mpeg",
+            )
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ElevenLabs isolate failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:  # pragma: no cover - synchronous
+        return MediaResult(ok=True, done=True, external_id=external_id)
+
+
+class AuphonicProvider(BaseMediaProvider):
+    """A2/D2 — Auphonic loudness master (P12.4). Async REST job: create + start a
+    production over the source URL, poll until Done, then re-host the output."""
+
+    name = "auphonic"
+    BASE = "https://auphonic.com/api"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("AUPHONIC_API_KEY")
+            src = _source_url(spec)
+            if not src:
+                return MediaResult(
+                    ok=False, error="mastering needs a source (source_asset_id or source_url)"
+                )
+            resp = requests.post(
+                f"{self.BASE}/simple/productions.json",
+                headers={"Authorization": f"Bearer {api_key}"},
+                data={
+                    "input_file": src,
+                    "title": spec.get("title", "master"),
+                    "loudness_target": spec.get("lufs", os.getenv("AUDIO_LUFS_DEFAULT", "-14")),
+                    "action": "start",
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"Auphonic {resp.status_code}: {resp.text[:300]}"
+                )
+            uuid = ((resp.json() or {}).get("data") or {}).get("uuid", "")
+            if not uuid:
+                return MediaResult(ok=False, error="Auphonic returned no production uuid")
+            return MediaResult(ok=True, external_id=uuid, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Auphonic submit failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("AUPHONIC_API_KEY")
+            resp = requests.get(
+                f"{self.BASE}/production/{external_id}.json",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"Auphonic status {resp.status_code}: {resp.text[:200]}"
+                )
+            data = (resp.json() or {}).get("data") or {}
+            status_string = str(data.get("status_string") or "")
+            if status_string == "Done":
+                files = data.get("output_files") or []
+                url = files[0].get("download_url") if files else None
+                if not url:
+                    return MediaResult(
+                        ok=False, external_id=external_id, error="Auphonic done with no output file"
+                    )
+                return MediaResult(
+                    ok=True, done=True, external_id=external_id, asset_url=url, mime="audio/mpeg"
+                )
+            if status_string in ("Error", "Incomplete", "Fail", "Warning"):
+                return MediaResult(
+                    ok=False, external_id=external_id, error=f"Auphonic {status_string}"
+                )
+            return MediaResult(ok=True, external_id=external_id, done=False)  # processing
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Auphonic poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+
+class ElevenLabsDubProvider(BaseMediaProvider):
+    """B3 — ElevenLabs Dubbing (P12.4). Async: submit source + target language, poll,
+    then fetch the dubbed audio bytes. The target language is encoded into the
+    external id so `poll()` (which only gets the id) can fetch the right track."""
+
+    name = "elevenlabs_dub"
+    BASE = "https://api.elevenlabs.io/v1"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("ELEVENLABS_API_KEY")
+            src = _source_url(spec)
+            target_lang = spec.get("target_lang") or spec.get("target_language")
+            if not src:
+                return MediaResult(
+                    ok=False, error="dubbing needs a source (source_asset_id or source_url)"
+                )
+            if not target_lang:
+                return MediaResult(ok=False, error="dubbing requires 'target_lang' in the spec")
+            resp = requests.post(
+                f"{self.BASE}/dubbing",
+                headers={"xi-api-key": api_key},
+                data={"source_url": src, "target_lang": target_lang, "mode": "automatic"},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"ElevenLabs dub {resp.status_code}: {resp.text[:300]}"
+                )
+            dubbing_id = (resp.json() or {}).get("dubbing_id", "")
+            if not dubbing_id:
+                return MediaResult(ok=False, error="ElevenLabs dub returned no dubbing_id")
+            return MediaResult(ok=True, external_id=f"{dubbing_id}|{target_lang}", done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ElevenLabs dub failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("ELEVENLABS_API_KEY")
+            dubbing_id, _, lang = external_id.partition("|")
+            status_resp = requests.get(
+                f"{self.BASE}/dubbing/{dubbing_id}",
+                headers={"xi-api-key": api_key},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if status_resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"ElevenLabs dub status {status_resp.status_code}"
+                )
+            status = str((status_resp.json() or {}).get("status") or "")
+            if status == "dubbed":
+                audio = requests.get(
+                    f"{self.BASE}/dubbing/{dubbing_id}/audio/{lang}",
+                    headers={"xi-api-key": api_key},
+                    timeout=_HTTP_TIMEOUT,
+                )
+                if audio.status_code >= 400:
+                    return MediaResult(ok=False, error=f"ElevenLabs dub audio {audio.status_code}")
+                return MediaResult(
+                    ok=True,
+                    done=True,
+                    external_id=external_id,
+                    content=audio.content,
+                    content_mime="audio/mpeg",
+                    mime="audio/mpeg",
+                )
+            if status == "failed":
+                return MediaResult(
+                    ok=False, external_id=external_id, error="ElevenLabs dubbing failed"
+                )
+            return MediaResult(ok=True, external_id=external_id, done=False)  # dubbing in progress
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ElevenLabs dub poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+
 # Real providers are wired here as they're built. A name absent from this map
 # (outside dry-run) falls through to NotImplementedProvider (fail-closed).
 _REAL_PROVIDERS: dict[str, type[BaseMediaProvider]] = {
     "elevenlabs_tts": ElevenLabsTTSProvider,
+    "elevenlabs_isolator": ElevenLabsIsolatorProvider,
+    "elevenlabs_dub": ElevenLabsDubProvider,
+    "auphonic": AuphonicProvider,
     "heygen": HeyGenProvider,
     "kling": KlingProvider,
     "veo": VeoProvider,
@@ -583,6 +807,7 @@ def get_provider(kind: MediaKind, name: str, credential=None) -> BaseMediaProvid
 
 _DEFAULT_SECONDS: dict[MediaKind, float] = {
     MediaKind.AUDIO_CLEAN: 60.0,
+    MediaKind.AUDIO_MASTER: 60.0,
     MediaKind.TTS: 30.0,
     MediaKind.DUB: 30.0,
     MediaKind.LIPSYNC: 30.0,

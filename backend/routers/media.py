@@ -31,9 +31,15 @@ router = APIRouter(prefix="/api/media", tags=["Media Generation"])
 
 
 class GenerateRequest(BaseModel):
-    pipeline: str = Field(..., description="talking_head | cinematic | audio_only")
+    pipeline: Optional[str] = Field(
+        None,
+        description="talking_head | cinematic | audio_only (or use `kind` for a standalone op)",
+    )
+    # Standalone audio op alias: audio_clean | audio_master | dub. Maps to the
+    # single-op pipeline of the same name; spec carries source_asset_id / source_url.
+    kind: Optional[str] = None
     spec: dict = Field(
-        default_factory=dict, description="Provider inputs (script, prompt, seconds…)"
+        default_factory=dict, description="Provider inputs (script, prompt, source_asset_id…)"
     )
     project_id: Optional[str] = None
     client_id: Optional[str] = None
@@ -112,8 +118,12 @@ def generate(
     Returns the cost estimate first; the caller must resend with `confirm=true`
     to actually spend. Over-budget submissions fail closed with HTTP 402.
     """
+    pipeline = body.pipeline or body.kind
+    if not pipeline:
+        raise HTTPException(status_code=400, detail="Provide a 'pipeline' or a standalone 'kind'")
+
     try:
-        est = orchestrator.estimate_pipeline(body.pipeline, body.spec)
+        est = orchestrator.estimate_pipeline(pipeline, body.spec)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -124,7 +134,7 @@ def generate(
         root = orchestrator.submit_pipeline(
             db,
             current_user.id,
-            pipeline=body.pipeline,
+            pipeline=pipeline,
             spec=body.spec,
             client_id=body.client_id,
             project_id=body.project_id,

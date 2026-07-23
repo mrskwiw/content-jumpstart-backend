@@ -41,6 +41,7 @@ _RATE_CENTS_PER_SEC: dict[str, float] = {
     "elevenlabs_isolator": 0.2,
     "elevenlabs_tts": 1.0,
     "elevenlabs_dub": 0.8,
+    "auphonic": 0.3,  # credit-tiered; cheap per file
     "cleanvoice": 0.3,
     "sync": 0.5,
     "heygen": 3.0,  # cheap per finished minute (avatar)

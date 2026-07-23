@@ -13036,14 +13036,32 @@
       "GenerateRequest": {
         "properties": {
           "pipeline": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Pipeline",
-            "description": "talking_head | cinematic | audio_only"
+            "description": "talking_head | cinematic | audio_only (or use `kind` for a standalone op)"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
           },
           "spec": {
             "type": "object",
             "title": "Spec",
-            "description": "Provider inputs (script, prompt, seconds\u2026)"
+            "description": "Provider inputs (script, prompt, source_asset_id\u2026)"
           },
           "project_id": {
             "anyOf": [
@@ -13075,9 +13093,6 @@
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "pipeline"
-        ],
         "title": "GenerateRequest"
       },
       "GrantCreditsRequest": {

@@ -7,6 +7,9 @@ network exceptions, HeyGen still-processing / failed states, and webhook fail ev
 """
 
 from backend.services.media.providers import (
+    AuphonicProvider,
+    ElevenLabsDubProvider,
+    ElevenLabsIsolatorProvider,
     ElevenLabsTTSProvider,
     FfmpegProvider,
     HeyGenProvider,
@@ -352,3 +355,149 @@ def test_ffmpeg_provider_surfaces_ffmpeg_error(monkeypatch):
     monkeypatch.setattr("backend.services.media.ffmpeg.run", boom)
     r = FfmpegProvider(MediaKind.ASSEMBLE).start({"_ffmpeg_op": "concat", "_input_urls": ["u1"]})
     assert not r.ok and "ffmpeg" in r.error.lower()
+
+
+# ── P12.4 audio ops (isolator / auphonic / dub) ───────────────────────────────
+
+
+def _audio_stream(monkeypatch, content=b"AUDIO"):
+    class _S:
+        def __init__(self):
+            self.content = content
+            self.headers = {"Content-Type": "audio/mpeg"}
+
+        def raise_for_status(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(
+        "backend.services.distribution.net_guard.safe_stream_get", lambda url, **kw: _S()
+    )
+
+
+def test_isolator_missing_credential_and_source(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert not ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"source_url": "u"}).ok
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({})
+    assert not r.ok and "source" in r.error.lower()
+
+
+def test_isolator_http_error(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _audio_stream(monkeypatch)
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=422, text="bad"))
+    r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"source_url": "u"})
+    assert not r.ok and "422" in r.error
+
+
+def test_auphonic_missing_credential_and_source(monkeypatch):
+    monkeypatch.delenv("AUPHONIC_API_KEY", raising=False)
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"}).ok
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).poll("x").ok
+    monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
+    r = AuphonicProvider(MediaKind.AUDIO_MASTER).start({})
+    assert not r.ok and "source" in r.error.lower()
+
+
+def test_auphonic_start_error_and_no_uuid(monkeypatch):
+    monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=500, text="down"))
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"}).ok
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"data": {}}))
+    r = AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"})
+    assert not r.ok and "uuid" in r.error
+
+
+def test_auphonic_poll_states(monkeypatch):
+    monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
+    p = AuphonicProvider(MediaKind.AUDIO_MASTER)
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200, json_body={"data": {"status_string": "Audio Processing"}}
+        ),
+    )
+    assert p.poll("x").ok and not p.poll("x").done
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(status=200, json_body={"data": {"status_string": "Error"}}),
+    )
+    assert not p.poll("x").ok
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200, json_body={"data": {"status_string": "Done", "output_files": []}}
+        ),
+    )
+    assert not p.poll("x").ok  # done but no file
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            status=200,
+            json_body={
+                "data": {
+                    "status_string": "Done",
+                    "output_files": [{"download_url": "https://a/o.mp3"}],
+                }
+            },
+        ),
+    )
+    done = p.poll("x")
+    assert done.ok and done.done and done.asset_url.endswith(".mp3")
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=500, text="e"))
+    assert not p.poll("x").ok
+
+
+def test_dub_missing_cred_source_lang(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert (
+        not ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"}).ok
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    assert not ElevenLabsDubProvider(MediaKind.DUB).start({"target_lang": "es"}).ok  # no source
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u"})  # no lang
+    assert not r.ok and "target_lang" in r.error
+
+
+def test_dub_start_error_and_no_id(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=400, text="bad"))
+    assert (
+        not ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"}).ok
+    )
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={}))
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"})
+    assert not r.ok and "dubbing_id" in r.error
+
+
+def test_dub_start_success_encodes_lang(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"dubbing_id": "d1"}))
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"})
+    assert r.ok and r.external_id == "d1|es"
+
+
+def test_dub_poll_states(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    p = ElevenLabsDubProvider(MediaKind.DUB)
+
+    def get_dubbed(url, **kw):
+        if "/audio/" in url:
+            return _Resp(status=200, content=b"DUBBED")
+        return _Resp(status=200, json_body={"status": "dubbed"})
+
+    _patch(monkeypatch, get=get_dubbed)
+    done = p.poll("d1|es")
+    assert done.ok and done.done and done.content == b"DUBBED"
+
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=200, json_body={"status": "dubbing"}))
+    assert p.poll("d1|es").ok and not p.poll("d1|es").done
+
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=200, json_body={"status": "failed"}))
+    assert not p.poll("d1|es").ok
