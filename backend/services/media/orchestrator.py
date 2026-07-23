@@ -201,7 +201,9 @@ def resolve_source(db: Session, user_id: str, pipeline: str, spec: dict) -> dict
         raise ValueError("source_asset_id not found or not owned by you")
     out = {k: v for k, v in spec.items() if k != "source_asset_id"}
     out["_source_key"] = asset.url
-    out["seconds"] = float(asset.duration_s or spec.get("seconds") or _AUDIO_UNKNOWN_SECONDS)
+    # Duration comes from the asset only — never a caller-supplied `seconds` (which
+    # could under-price). Unknown → conservative high default (non-overridable).
+    out["seconds"] = float(asset.duration_s or _AUDIO_UNKNOWN_SECONDS)
     return out
 
 

@@ -122,11 +122,17 @@ def generate(
     if not pipeline:
         raise HTTPException(status_code=400, detail="Provide a 'pipeline' or a standalone 'kind'")
 
+    # Strip reserved internal orchestration fields from untrusted input. `_`-prefixed
+    # keys (`_source_key`, `_source_url`, `_depends_on`, …) are set by the orchestrator
+    # itself; letting a caller inject them would bypass ownership checks and the SSRF
+    # guard (e.g. a hand-set `_source_url`). Callers only supply real inputs.
+    inbound = {k: v for k, v in (body.spec or {}).items() if not k.startswith("_")}
+
     # Resolve the source first (validates ownership + derives real duration) so the
     # estimate a caller confirms against reflects the actual source length, not a
     # fixed default. Idempotent — submit re-runs it harmlessly.
     try:
-        spec = orchestrator.resolve_source(db, current_user.id, pipeline, body.spec)
+        spec = orchestrator.resolve_source(db, current_user.id, pipeline, inbound)
         est = orchestrator.estimate_pipeline(pipeline, spec)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

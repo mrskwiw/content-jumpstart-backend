@@ -200,6 +200,45 @@ def test_unknown_duration_priced_high(client, db_session, monkeypatch):
     assert r.status_code == 402
 
 
+def test_caller_seconds_cannot_underprice(client, db_session, monkeypatch):
+    # A caller can't smuggle a tiny `seconds` to under-price an unknown-length source.
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    monkeypatch.setenv("MEDIA_MAX_JOB_COST_CENTS", "100")
+    u = _make_user(db_session, "cheat@example.com", "user-cheat")
+    _add_source(db_session, u.id, "nd", duration_s=None)
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "kind": "audio_master",
+            "spec": {"source_asset_id": "nd", "seconds": 1},
+            "confirm": True,
+        },
+        headers=_hdr(u),
+    )
+    assert r.status_code == 402  # `seconds` ignored → high default → over cap
+
+
+def test_reserved_internal_fields_stripped(client, db_session, monkeypatch):
+    """A caller can't inject `_source_url`/`_source_key` to bypass ownership + SSRF."""
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "inj@example.com", "user-inj")
+    # Inject a hand-set _source_url (would re-open SSRF) but no owned source_asset_id.
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "kind": "audio_clean",
+            "spec": {
+                "_source_url": "https://internal.evil/secret",
+                "_source_key": "media/other/x.mp3",
+            },
+            "confirm": True,
+        },
+        headers=_hdr(u),
+    )
+    # The injected fields are stripped → falls back to "needs source_asset_id" → 400.
+    assert r.status_code == 400 and "source_asset_id" in r.json()["detail"]
+
+
 # ── Real (mocked) provider paths ──────────────────────────────────────────────
 
 
