@@ -96,7 +96,12 @@ def _build_cinematic(spec: dict) -> List[_Stage]:
     clip_idx: List[int] = []
     for scene in scenes:
         stages.append(
-            _Stage(MediaKind.GEN_CLIP, clip_provider, [], {"prompt": scene, "seconds": seconds})
+            _Stage(
+                MediaKind.GEN_CLIP,
+                clip_provider,
+                [],
+                {"prompt": scene, "seconds": seconds},
+            )
         )
         clip_idx.append(len(stages) - 1)
 
@@ -124,7 +129,11 @@ def _build_cinematic(spec: dict) -> List[_Stage]:
                 MediaKind.ASSEMBLE,
                 "ffmpeg",
                 [final_idx, vo_idx],
-                {"_ffmpeg_op": "mux", "_video_from_stage": final_idx, "_audio_from_stage": vo_idx},
+                {
+                    "_ffmpeg_op": "mux",
+                    "_video_from_stage": final_idx,
+                    "_audio_from_stage": vo_idx,
+                },
             )
         )
         final_idx = len(stages) - 1
@@ -177,7 +186,9 @@ def estimate_pipeline(pipeline: str, spec: dict) -> dict:
             "kind": s.kind.value,
             "provider": s.provider,
             "cost_cents": cost.estimate_cost(
-                s.kind, s.provider, seconds=s.extra.get("seconds") or spec.get("seconds")
+                s.kind,
+                s.provider,
+                seconds=s.extra.get("seconds") or spec.get("seconds"),
             ),
         }
         for s in stages
@@ -650,7 +661,10 @@ def _promote_fanin(db: Session, limit: int = 100) -> int:
     """
     waiting = (
         db.query(MediaJob)
-        .filter(MediaJob.status == "awaiting_dependency", MediaJob.pipeline_run_id.isnot(None))
+        .filter(
+            MediaJob.status == "awaiting_dependency",
+            MediaJob.pipeline_run_id.isnot(None),
+        )
         .limit(limit)
         .all()
     )
@@ -664,7 +678,10 @@ def _promote_fanin(db: Session, limit: int = 100) -> int:
             dep_jobs.get(d) is None or dep_jobs[d].status in ("failed", "canceled") for d in deps
         ):
             _mark_failed(
-                db, job, "an upstream stage failed; pipeline cannot assemble", terminal=True
+                db,
+                job,
+                "an upstream stage failed; pipeline cannot assemble",
+                terminal=True,
             )
             promoted += 1
             continue
@@ -762,33 +779,56 @@ def cancel_job(db: Session, job: MediaJob) -> MediaJob:
     """
     if job.status in _TERMINAL_STATUSES:
         return job
-    job.status = "canceled"
+    # Collect the stage + its whole downstream cone first, then cancel in ONE commit
+    # so an interruption can't leave a half-canceled cascade. (The promote sweep would
+    # self-heal a partial cancel anyway — a canceled dep fails its dependents — but a
+    # single transaction avoids the transient inconsistency.)
+    for j in _collect_downstream(db, job):
+        j.status = "canceled"
     db.commit()
-    _cancel_dependents(db, job)
+    db.refresh(job)
     return job
 
 
-def _cancel_dependents(db: Session, job: MediaJob) -> None:
-    """Cancel stages that depend on `job` (linear children + fan-in dependents)."""
-    for child in (
-        db.query(MediaJob)
-        .filter(MediaJob.parent_job_id == job.id, MediaJob.status.notin_(_TERMINAL_STATUSES))
-        .all()
-    ):
-        cancel_job(db, child)
-    if job.pipeline_run_id:
-        siblings = (
-            db.query(MediaJob)
-            .filter(
-                MediaJob.pipeline_run_id == job.pipeline_run_id,
-                MediaJob.id != job.id,
-                MediaJob.status.notin_(_TERMINAL_STATUSES),
+def _collect_downstream(db: Session, job: MediaJob) -> List[MediaJob]:
+    """The stage plus every non-terminal stage transitively downstream of it.
+
+    Downstream = linear children (`parent_job_id`) and fan-in dependents (whose
+    `_depends_on` includes an upstream id). Does not include upstream deps or
+    unrelated sibling roots."""
+    if not job.pipeline_run_id:
+        chain = [job]
+        cur = job
+        while True:
+            child = (
+                db.query(MediaJob)
+                .filter(
+                    MediaJob.parent_job_id == cur.id,
+                    MediaJob.status.notin_(_TERMINAL_STATUSES),
+                )
+                .first()
             )
-            .all()
-        )
-        for s in siblings:
-            if job.id in _depends_on_of(s):
-                cancel_job(db, s)
+            if child is None:
+                break
+            chain.append(child)
+            cur = child
+        return chain
+
+    run_jobs = db.query(MediaJob).filter(MediaJob.pipeline_run_id == job.pipeline_run_id).all()
+    by_id = {j.id: j for j in run_jobs}
+    downstream: set = set()
+    frontier = [job.id]
+    while frontier:
+        nxt = []
+        for j in run_jobs:
+            if j.id == job.id or j.id in downstream or j.status in _TERMINAL_STATUSES:
+                continue
+            deps = _depends_on_of(j) or ([j.parent_job_id] if j.parent_job_id else [])
+            if any(f in deps for f in frontier):
+                downstream.add(j.id)
+                nxt.append(j.id)
+        frontier = nxt
+    return [job] + [by_id[i] for i in downstream]
 
 
 def cancel_run(db: Session, run_id: str, user_id: str) -> int:
