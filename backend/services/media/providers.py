@@ -555,9 +555,11 @@ class FfmpegProvider(BaseMediaProvider):
 
 
 def _source_url(spec: dict) -> Optional[str]:
-    """The audio/video source a standalone op operates on: a fresh signed URL from
-    the orchestrator (`_source_url`) or an external `source_url` in the spec."""
-    return spec.get("_source_url") or spec.get("source_url")
+    """The source a standalone op operates on. ONLY the orchestrator-injected signed
+    URL (`_source_url`) — never a caller-supplied `source_url`, so a raw external URL
+    can never reach a vendor fetcher (SSRF). The orchestrator resolves an owned
+    source_asset_id to this."""
+    return spec.get("_source_url")
 
 
 class ElevenLabsIsolatorProvider(BaseMediaProvider):

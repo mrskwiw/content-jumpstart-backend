@@ -199,7 +199,10 @@ def resolve_source(db: Session, user_id: str, pipeline: str, spec: dict) -> dict
     )
     if asset is None:
         raise ValueError("source_asset_id not found or not owned by you")
-    out = {k: v for k, v in spec.items() if k != "source_asset_id"}
+    # Drop both source_asset_id AND any plain source_url — the only source a provider
+    # ever sees is `_source_url`, signed from this owned asset's key at submit. This
+    # leaves no caller-controlled URL in the spec for a fetcher to pick up.
+    out = {k: v for k, v in spec.items() if k not in ("source_asset_id", "source_url")}
     out["_source_key"] = asset.url
     # Duration comes from the asset only — never a caller-supplied `seconds` (which
     # could under-price). Unknown → conservative high default (non-overridable).

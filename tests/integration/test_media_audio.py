@@ -134,6 +134,26 @@ def test_standalone_audio_requires_owned_source(client, db_session, monkeypatch)
     assert r2.status_code == 400 and "source_asset_id" in r2.json()["detail"]
 
 
+def test_malicious_source_url_ignored_with_asset(client, db_session, monkeypatch):
+    """A plain source_url passed alongside a valid source_asset_id is dropped — it
+    never reaches a provider (the owned asset's signed URL is the only source)."""
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "mix@example.com", "user-mix")
+    _add_source(db_session, u.id, "good")
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "kind": "audio_master",
+            "spec": {"source_asset_id": "good", "source_url": "https://internal.evil/secret"},
+            "confirm": True,
+        },
+        headers=_hdr(u),
+    )
+    assert r.status_code == 200, r.text
+    job = db_session.get(MediaJob, r.json()["root_job"]["id"])
+    assert "internal.evil" not in (job.input_json or "")
+
+
 def test_source_asset_ownership(client, db_session, monkeypatch):
     monkeypatch.setenv("MEDIA_DRY_RUN", "true")
     u = _make_user(db_session, "owner@example.com", "user-owner")

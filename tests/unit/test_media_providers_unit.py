@@ -382,7 +382,7 @@ def _audio_stream(monkeypatch, content=b"AUDIO"):
 
 def test_isolator_missing_credential_and_source(monkeypatch):
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
-    assert not ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"source_url": "u"}).ok
+    assert not ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"_source_url": "u"}).ok
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({})
     assert not r.ok and "source" in r.error.lower()
@@ -392,13 +392,13 @@ def test_isolator_http_error(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     _audio_stream(monkeypatch)
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=422, text="bad"))
-    r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"source_url": "u"})
+    r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"_source_url": "u"})
     assert not r.ok and "422" in r.error
 
 
 def test_auphonic_missing_credential_and_source(monkeypatch):
     monkeypatch.delenv("AUPHONIC_API_KEY", raising=False)
-    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"}).ok
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"_source_url": "u"}).ok
     assert not AuphonicProvider(MediaKind.AUDIO_MASTER).poll("x").ok
     monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
     r = AuphonicProvider(MediaKind.AUDIO_MASTER).start({})
@@ -408,9 +408,9 @@ def test_auphonic_missing_credential_and_source(monkeypatch):
 def test_auphonic_start_error_and_no_uuid(monkeypatch):
     monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=500, text="down"))
-    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"}).ok
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"_source_url": "u"}).ok
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"data": {}}))
-    r = AuphonicProvider(MediaKind.AUDIO_MASTER).start({"source_url": "u"})
+    r = AuphonicProvider(MediaKind.AUDIO_MASTER).start({"_source_url": "u"})
     assert not r.ok and "uuid" in r.error
 
 
@@ -457,11 +457,11 @@ def test_auphonic_poll_states(monkeypatch):
 def test_dub_missing_cred_source_lang(monkeypatch):
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     assert (
-        not ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"}).ok
+        not ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u", "target_lang": "es"}).ok
     )
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     assert not ElevenLabsDubProvider(MediaKind.DUB).start({"target_lang": "es"}).ok  # no source
-    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u"})  # no lang
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u"})  # no lang
     assert not r.ok and "target_lang" in r.error
 
 
@@ -469,17 +469,17 @@ def test_dub_start_error_and_no_id(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=400, text="bad"))
     assert (
-        not ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"}).ok
+        not ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u", "target_lang": "es"}).ok
     )
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={}))
-    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"})
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u", "target_lang": "es"})
     assert not r.ok and "dubbing_id" in r.error
 
 
 def test_dub_start_success_encodes_lang(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={"dubbing_id": "d1"}))
-    r = ElevenLabsDubProvider(MediaKind.DUB).start({"source_url": "u", "target_lang": "es"})
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u", "target_lang": "es"})
     assert r.ok and r.external_id == "d1|es"
 
 
