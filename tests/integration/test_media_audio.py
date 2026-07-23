@@ -2,8 +2,9 @@
 Integration tests for Phase 12 P12.4 — standalone audio utilities.
 
 Voice Isolator (A1, sync), Auphonic master (A2, async), Dubbing (B3, async),
-exposed via /api/media/generate with `kind=`. Source resolution + ownership, and
-the real (mocked) provider paths. No network.
+exposed via /api/media/generate with `kind=`. Standalone ops require an OWNED
+source asset (source_asset_id) — never a raw external URL (SSRF + duration safety).
+Budget is derived from the source's real duration. No network.
 """
 
 from backend.models import User
@@ -11,7 +12,6 @@ from backend.models.media import MediaAsset, MediaJob
 from backend.utils.auth import create_access_token, get_password_hash
 
 PW = "Zx9!qWmp7Kt#"  # pragma: allowlist secret
-SRC = "https://example.com/in.mp3"
 
 
 def _make_user(db, email, uid, is_superuser=False):
@@ -30,6 +30,33 @@ def _make_user(db, email, uid, is_superuser=False):
 
 def _hdr(user):
     return {"Authorization": f"Bearer {create_access_token(data={'sub': user.id})}"}
+
+
+def _add_source(db, user_id, asset_id, duration_s=60):
+    """Create an owned source MediaAsset (+ its producing job) to process."""
+    jid = f"job-{asset_id}"
+    db.add(
+        MediaJob(
+            id=jid,
+            user_id=user_id,
+            kind="tts",
+            provider="stub",
+            status="done",
+            pipeline_run_id=f"run-{asset_id}",
+        )
+    )
+    db.add(
+        MediaAsset(
+            id=asset_id,
+            user_id=user_id,
+            job_id=jid,
+            kind="final",
+            url=f"media/{user_id}/{jid}/{asset_id}.mp3",
+            mime="audio/mpeg",
+            duration_s=duration_s,
+        )
+    )
+    db.commit()
 
 
 class _Resp:
@@ -66,11 +93,13 @@ def test_standalone_audio_ops_dry_run(client, db_session, monkeypatch):
     u = _make_user(db_session, "aud@example.com", "user-aud")
     admin = _make_user(db_session, "aud-adm@example.com", "user-audadm", is_superuser=True)
 
-    cases = [("audio_clean", {}), ("audio_master", {}), ("dub", {"target_lang": "es"})]
-    for kind, extra in cases:
+    for i, (kind, extra) in enumerate(
+        [("audio_clean", {}), ("audio_master", {}), ("dub", {"target_lang": "es"})]
+    ):
+        _add_source(db_session, u.id, f"src{i}")
         r = client.post(
             "/api/media/generate",
-            json={"kind": kind, "spec": {"source_url": SRC, **extra}, "confirm": True},
+            json={"kind": kind, "spec": {"source_asset_id": f"src{i}", **extra}, "confirm": True},
             headers=_hdr(u),
         )
         assert r.status_code == 200, (kind, r.text)
@@ -82,16 +111,46 @@ def test_standalone_audio_ops_dry_run(client, db_session, monkeypatch):
         assert detail["assets"][0]["mime"].startswith("audio")
 
 
-def test_standalone_audio_requires_source(client, db_session, monkeypatch):
+def test_standalone_audio_requires_owned_source(client, db_session, monkeypatch):
     monkeypatch.setenv("MEDIA_DRY_RUN", "true")
     u = _make_user(db_session, "nosrc@example.com", "user-nosrc")
+    # No source at all → 400.
     r = client.post(
         "/api/media/generate",
         json={"kind": "audio_clean", "spec": {}, "confirm": True},
         headers=_hdr(u),
     )
-    assert r.status_code == 400
-    assert "source" in r.json()["detail"].lower()
+    assert r.status_code == 400 and "source_asset_id" in r.json()["detail"]
+    # A raw external URL is rejected (SSRF / duration safety).
+    r2 = client.post(
+        "/api/media/generate",
+        json={
+            "kind": "audio_clean",
+            "spec": {"source_url": "https://evil.example/x.mp3"},
+            "confirm": True,
+        },
+        headers=_hdr(u),
+    )
+    assert r2.status_code == 400 and "source_asset_id" in r2.json()["detail"]
+
+
+def test_source_asset_ownership(client, db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "owner@example.com", "user-owner")
+    other = _make_user(db_session, "other@example.com", "user-other")
+    _add_source(db_session, u.id, "owned")
+    ok = client.post(
+        "/api/media/generate",
+        json={"kind": "audio_master", "spec": {"source_asset_id": "owned"}, "confirm": True},
+        headers=_hdr(u),
+    )
+    assert ok.status_code == 200, ok.text
+    denied = client.post(
+        "/api/media/generate",
+        json={"kind": "audio_master", "spec": {"source_asset_id": "owned"}, "confirm": True},
+        headers=_hdr(other),
+    )
+    assert denied.status_code == 400 and "not found or not owned" in denied.json()["detail"].lower()
 
 
 def test_generate_requires_pipeline_or_kind(client, db_session):
@@ -100,38 +159,45 @@ def test_generate_requires_pipeline_or_kind(client, db_session):
     assert r.status_code == 400
 
 
-# ── Source asset ownership ────────────────────────────────────────────────────
+# ── Budget uses REAL source duration (no under-pricing bypass) ────────────────
 
 
-def test_standalone_audio_source_asset_ownership(client, db_session, monkeypatch):
+def test_budget_uses_real_source_duration(client, db_session, monkeypatch):
     monkeypatch.setenv("MEDIA_DRY_RUN", "true")
-    u = _make_user(db_session, "srcowner@example.com", "user-srcowner")
-    other = _make_user(db_session, "srcother@example.com", "user-srcother")
-    db_session.add(
-        MediaJob(
-            id="j0", user_id=u.id, kind="tts", provider="stub", status="done", pipeline_run_id="r0"
-        )
-    )
-    db_session.add(
-        MediaAsset(id="a0", user_id=u.id, job_id="j0", kind="final", url="media/u/j0/a0.mp3")
-    )
-    db_session.commit()
+    monkeypatch.setenv("MEDIA_MAX_JOB_COST_CENTS", "100")
+    u = _make_user(db_session, "dur@example.com", "user-dur")
 
-    # Owner can master their own asset.
+    # A 2-hour master (auphonic 0.3¢/s × 7200 = 2160¢) blows the 100¢ cap → 402.
+    _add_source(db_session, u.id, "long", duration_s=7200)
+    over = client.post(
+        "/api/media/generate",
+        json={"kind": "audio_master", "spec": {"source_asset_id": "long"}, "confirm": True},
+        headers=_hdr(u),
+    )
+    assert over.status_code == 402
+
+    # A 60s master (18¢) fits.
+    _add_source(db_session, u.id, "short", duration_s=60)
     ok = client.post(
         "/api/media/generate",
-        json={"kind": "audio_master", "spec": {"source_asset_id": "a0"}, "confirm": True},
+        json={"kind": "audio_master", "spec": {"source_asset_id": "short"}, "confirm": True},
         headers=_hdr(u),
     )
     assert ok.status_code == 200, ok.text
-    # Another user cannot reference it.
-    denied = client.post(
+
+
+def test_unknown_duration_priced_high(client, db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    monkeypatch.setenv("MEDIA_MAX_JOB_COST_CENTS", "100")
+    u = _make_user(db_session, "unk@example.com", "user-unk")
+    # duration unknown → fail-safe high default → over the cap (not under-priced).
+    _add_source(db_session, u.id, "nodur", duration_s=None)
+    r = client.post(
         "/api/media/generate",
-        json={"kind": "audio_master", "spec": {"source_asset_id": "a0"}, "confirm": True},
-        headers=_hdr(other),
+        json={"kind": "audio_master", "spec": {"source_asset_id": "nodur"}, "confirm": True},
+        headers=_hdr(u),
     )
-    assert denied.status_code == 400
-    assert "not found or not owned" in denied.json()["detail"].lower()
+    assert r.status_code == 402
 
 
 # ── Real (mocked) provider paths ──────────────────────────────────────────────
@@ -145,6 +211,14 @@ def _real_env(monkeypatch):
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "svc")  # pragma: allowlist secret
 
 
+def _storage_post(url):
+    if "/storage/v1/object/sign/" in url:
+        return _Resp(status=200, json_body={"signedURL": "/object/sign/media/x?token=t"})
+    if "/storage/v1/object/" in url:
+        return _Resp(status=200, json_body={"Key": "ok"})
+    return None
+
+
 def test_isolator_real_mocked(client, db_session, monkeypatch):
     _real_env(monkeypatch)
     import requests
@@ -152,27 +226,22 @@ def test_isolator_real_mocked(client, db_session, monkeypatch):
     def fake_post(url, **kw):
         if "audio-isolation" in url:
             return _Resp(status=200, content=b"CLEANED")
-        if "/storage/v1/object/sign/" in url:
-            return _Resp(status=200, json_body={"signedURL": "/object/sign/media/x?token=t"})
-        if "/storage/v1/object/" in url:
-            return _Resp(status=200, json_body={"Key": "ok"})
-        return _Resp(status=404, text=f"unmatched {url}")
+        return _storage_post(url) or _Resp(status=404, text=url)
 
     monkeypatch.setattr(requests, "post", fake_post)
-    # The isolator downloads the source via net_guard, then uploads it.
     monkeypatch.setattr(
         "backend.services.distribution.net_guard.safe_stream_get", lambda url, **kw: _Stream()
     )
     u = _make_user(db_session, "iso@example.com", "user-iso")
+    _add_source(db_session, u.id, "isosrc")
     r = client.post(
         "/api/media/generate",
-        json={"kind": "audio_clean", "spec": {"source_url": SRC}, "confirm": True},
+        json={"kind": "audio_clean", "spec": {"source_asset_id": "isosrc"}, "confirm": True},
         headers=_hdr(u),
     )
     assert r.status_code == 200, r.text
-    root = r.json()["root_job"]
-    assert root["status"] == "done"  # isolator is synchronous
-    detail = client.get(f"/api/media/jobs/{root['id']}", headers=_hdr(u)).json()
+    assert r.json()["root_job"]["status"] == "done"  # synchronous
+    detail = client.get(f"/api/media/jobs/{r.json()['root_job']['id']}", headers=_hdr(u)).json()
     assert detail["assets"][0]["mime"] == "audio/mpeg"
 
 
@@ -183,11 +252,7 @@ def test_auphonic_real_mocked(client, db_session, monkeypatch):
     def fake_post(url, **kw):
         if "auphonic.com/api/simple/productions" in url:
             return _Resp(status=200, json_body={"data": {"uuid": "prod1"}})
-        if "/storage/v1/object/sign/" in url:
-            return _Resp(status=200, json_body={"signedURL": "/object/sign/media/x?token=t"})
-        if "/storage/v1/object/" in url:
-            return _Resp(status=200, json_body={"Key": "ok"})
-        return _Resp(status=404, text=f"unmatched {url}")
+        return _storage_post(url) or _Resp(status=404, text=url)
 
     def fake_get(url, **kw):
         if "auphonic.com/api/production/" in url:
@@ -209,16 +274,16 @@ def test_auphonic_real_mocked(client, db_session, monkeypatch):
     )
     u = _make_user(db_session, "auph@example.com", "user-auph")
     admin = _make_user(db_session, "auph-adm@example.com", "user-auphadm", is_superuser=True)
+    _add_source(db_session, u.id, "auphsrc")
     r = client.post(
         "/api/media/generate",
-        json={"kind": "audio_master", "spec": {"source_url": SRC}, "confirm": True},
+        json={"kind": "audio_master", "spec": {"source_asset_id": "auphsrc"}, "confirm": True},
         headers=_hdr(u),
     )
     assert r.status_code == 200, r.text
-    root = r.json()["root_job"]
-    assert root["status"] == "processing"  # async
+    assert r.json()["root_job"]["status"] == "processing"  # async
     client.post("/api/media/process-due", headers=_hdr(admin))
-    detail = client.get(f"/api/media/jobs/{root['id']}", headers=_hdr(u)).json()
+    detail = client.get(f"/api/media/jobs/{r.json()['root_job']['id']}", headers=_hdr(u)).json()
     assert detail["status"] == "done"
     assert detail["assets"][0]["mime"] == "audio/mpeg"
 
@@ -230,14 +295,10 @@ def test_dub_real_mocked(client, db_session, monkeypatch):
     def fake_post(url, **kw):
         if url.endswith("/dubbing"):
             return _Resp(status=200, json_body={"dubbing_id": "dub1"})
-        if "/storage/v1/object/sign/" in url:
-            return _Resp(status=200, json_body={"signedURL": "/object/sign/media/x?token=t"})
-        if "/storage/v1/object/" in url:
-            return _Resp(status=200, json_body={"Key": "ok"})
-        return _Resp(status=404, text=f"unmatched {url}")
+        return _storage_post(url) or _Resp(status=404, text=url)
 
     def fake_get(url, **kw):
-        if "/audio/" in url:  # dubbed audio bytes — check before the status url
+        if "/audio/" in url:
             return _Resp(status=200, content=b"DUBBED")
         if "/dubbing/" in url:
             return _Resp(status=200, json_body={"status": "dubbed"})
@@ -247,15 +308,19 @@ def test_dub_real_mocked(client, db_session, monkeypatch):
     monkeypatch.setattr(requests, "get", fake_get)
     u = _make_user(db_session, "dub@example.com", "user-dub")
     admin = _make_user(db_session, "dub-adm@example.com", "user-dubadm", is_superuser=True)
+    _add_source(db_session, u.id, "dubsrc")
     r = client.post(
         "/api/media/generate",
-        json={"kind": "dub", "spec": {"source_url": SRC, "target_lang": "es"}, "confirm": True},
+        json={
+            "kind": "dub",
+            "spec": {"source_asset_id": "dubsrc", "target_lang": "es"},
+            "confirm": True,
+        },
         headers=_hdr(u),
     )
     assert r.status_code == 200, r.text
-    root = r.json()["root_job"]
-    assert root["status"] == "processing"  # async
+    assert r.json()["root_job"]["status"] == "processing"  # async
     client.post("/api/media/process-due", headers=_hdr(admin))
-    detail = client.get(f"/api/media/jobs/{root['id']}", headers=_hdr(u)).json()
+    detail = client.get(f"/api/media/jobs/{r.json()['root_job']['id']}", headers=_hdr(u)).json()
     assert detail["status"] == "done"
     assert detail["assets"][0]["mime"] == "audio/mpeg"

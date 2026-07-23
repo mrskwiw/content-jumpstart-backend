@@ -167,30 +167,42 @@ def _build_cinematic(spec: dict) -> List[_Stage]:
     return stages
 
 
-def _resolve_source(db: Session, user_id: str, pipeline: str, spec: dict) -> dict:
-    """Resolve a standalone audio op's input to a durable, owned source key.
+# Fail-safe: an audio source whose length we don't know is budgeted as if it were
+# long, so an unknown/huge input can't be under-priced past the spend gate.
+_AUDIO_UNKNOWN_SECONDS = 3600.0
 
-    A `source_asset_id` must reference a MediaAsset owned by the caller; it becomes
-    `_source_key` (signed fresh at submit like every other asset ref). An external
-    `source_url` is passed through as-is. Standalone audio ops require one or the
-    other; other pipelines ignore this."""
-    if pipeline not in STANDALONE_AUDIO:
+
+def resolve_source(db: Session, user_id: str, pipeline: str, spec: dict) -> dict:
+    """Resolve a standalone audio op's input to a durable, **owned** source.
+
+    Requires a `source_asset_id` pointing at a MediaAsset the caller owns — never a
+    raw external `source_url`. Two reasons: (1) the vendor fetchers (Auphonic,
+    ElevenLabs dubbing) pull the source URL server-side, so forwarding an arbitrary
+    caller URL would let them fetch attacker-chosen/internal endpoints outside our
+    SSRF guard — an owned asset resolves only to our own signed storage URL; and
+    (2) budgeting needs a real duration. The asset id becomes `_source_key` (signed
+    fresh at submit), and `seconds` is set from the asset's duration (fail-safe high
+    default when unknown, overridable by an explicit `seconds`). Idempotent. External
+    file ingestion (upload → backend rehost → probe) is a P12.5 follow-up."""
+    if pipeline not in STANDALONE_AUDIO or spec.get("_source_key"):
         return spec
     asset_id = spec.get("source_asset_id")
-    if asset_id:
-        asset = (
-            db.query(MediaAsset)
-            .filter(MediaAsset.id == asset_id, MediaAsset.user_id == user_id)
-            .first()
+    if not asset_id:
+        raise ValueError(
+            f"'{pipeline}' requires a source_asset_id (an owned media asset). Raw external "
+            f"source URLs aren't accepted — upload/rehost first (P12.5)."
         )
-        if asset is None:
-            raise ValueError("source_asset_id not found or not owned by you")
-        out = {k: v for k, v in spec.items() if k != "source_asset_id"}
-        out["_source_key"] = asset.url
-        return out
-    if not spec.get("source_url"):
-        raise ValueError(f"'{pipeline}' requires a source_asset_id or source_url")
-    return spec
+    asset = (
+        db.query(MediaAsset)
+        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == user_id)
+        .first()
+    )
+    if asset is None:
+        raise ValueError("source_asset_id not found or not owned by you")
+    out = {k: v for k, v in spec.items() if k != "source_asset_id"}
+    out["_source_key"] = asset.url
+    out["seconds"] = float(asset.duration_s or spec.get("seconds") or _AUDIO_UNKNOWN_SECONDS)
+    return out
 
 
 def _pipeline_stages(pipeline: str, spec: dict) -> List[_Stage]:
@@ -263,7 +275,7 @@ def submit_pipeline(
     if pipeline != "cinematic" and pipeline not in PIPELINES:
         raise ValueError(f"Unknown pipeline '{pipeline}'")
 
-    spec = _resolve_source(db, user_id, pipeline, spec)
+    spec = resolve_source(db, user_id, pipeline, spec)
     est = estimate_pipeline(pipeline, spec)
     cost.enforce_budget(db, user_id, client_id, est["total_cost_cents"])
 

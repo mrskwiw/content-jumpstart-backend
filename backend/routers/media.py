@@ -122,8 +122,12 @@ def generate(
     if not pipeline:
         raise HTTPException(status_code=400, detail="Provide a 'pipeline' or a standalone 'kind'")
 
+    # Resolve the source first (validates ownership + derives real duration) so the
+    # estimate a caller confirms against reflects the actual source length, not a
+    # fixed default. Idempotent — submit re-runs it harmlessly.
     try:
-        est = orchestrator.estimate_pipeline(pipeline, body.spec)
+        spec = orchestrator.resolve_source(db, current_user.id, pipeline, body.spec)
+        est = orchestrator.estimate_pipeline(pipeline, spec)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -135,7 +139,7 @@ def generate(
             db,
             current_user.id,
             pipeline=pipeline,
-            spec=body.spec,
+            spec=spec,
             client_id=body.client_id,
             project_id=body.project_id,
         )
