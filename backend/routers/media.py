@@ -184,10 +184,31 @@ def cancel_job(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    """Cancel one stage + its downstream dependents. To stop a whole cinematic run
+    (its parallel clip/VO roots), use POST /runs/{run_id}/cancel."""
     job = _owned_job(db, job_id, current_user.id)
     if job.status in ("done", "failed", "canceled"):
         raise HTTPException(status_code=409, detail=f"Job already {job.status}")
     return orchestrator.cancel_job(db, job)
+
+
+@router.post("/runs/{run_id}/cancel")
+def cancel_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Cancel every non-terminal stage of a pipeline run (the explicit stop-the-run
+    action). Owner-scoped; 404 if the run has no jobs owned by the caller."""
+    owns = (
+        db.query(MediaJob)
+        .filter(MediaJob.pipeline_run_id == run_id, MediaJob.user_id == current_user.id)
+        .first()
+    )
+    if not owns:
+        raise HTTPException(status_code=404, detail="Run not found")
+    canceled = orchestrator.cancel_run(db, run_id, current_user.id)
+    return {"run_id": run_id, "canceled": canceled}
 
 
 # ── Asset download ────────────────────────────────────────────────────────────

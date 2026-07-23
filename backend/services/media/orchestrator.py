@@ -752,39 +752,62 @@ def ingest_webhook(
 
 
 def cancel_job(db: Session, job: MediaJob) -> MediaJob:
-    """Cancel the whole pipeline **run** the job belongs to.
+    """Cancel one stage and everything **downstream** of it.
 
-    Canceling one stage of a fan-in DAG (cinematic) must stop its sibling clips/VO
-    too — they have no `parent_job_id` chain, and leaving them running keeps billing
-    a run the user asked to stop. So cancellation is run-scoped: every non-terminal
-    job sharing `pipeline_run_id` is canceled (which also blocks downstream stages
-    from ever submitting). Already-submitted async jobs may finish at the provider,
-    but no further (billable) stage runs. Falls back to a linear parent-cascade for
-    any legacy job without a run id.
+    Scoped to the stage: cancels this job plus its dependents that can no longer
+    complete without it — linear children (`parent_job_id`) and fan-in dependents
+    (a stage whose `_depends_on` includes this job). It deliberately does NOT touch
+    upstream deps or unrelated sibling roots; to stop an entire cinematic run
+    (all clips + VO), use `cancel_run()` / the run-level endpoint.
     """
-    if job.pipeline_run_id:
-        run_jobs = (
-            db.query(MediaJob)
-            .filter(
-                MediaJob.pipeline_run_id == job.pipeline_run_id,
-                MediaJob.status.notin_(_TERMINAL_STATUSES),
-            )
-            .all()
-        )
-        for j in run_jobs:
-            j.status = "canceled"
-        db.commit()
-        db.refresh(job)
-        return job
-
     if job.status in _TERMINAL_STATUSES:
         return job
     job.status = "canceled"
     db.commit()
-    child = db.query(MediaJob).filter(MediaJob.parent_job_id == job.id).first()
-    if child is not None and child.status not in _TERMINAL_STATUSES:
-        cancel_job(db, child)
+    _cancel_dependents(db, job)
     return job
+
+
+def _cancel_dependents(db: Session, job: MediaJob) -> None:
+    """Cancel stages that depend on `job` (linear children + fan-in dependents)."""
+    for child in (
+        db.query(MediaJob)
+        .filter(MediaJob.parent_job_id == job.id, MediaJob.status.notin_(_TERMINAL_STATUSES))
+        .all()
+    ):
+        cancel_job(db, child)
+    if job.pipeline_run_id:
+        siblings = (
+            db.query(MediaJob)
+            .filter(
+                MediaJob.pipeline_run_id == job.pipeline_run_id,
+                MediaJob.id != job.id,
+                MediaJob.status.notin_(_TERMINAL_STATUSES),
+            )
+            .all()
+        )
+        for s in siblings:
+            if job.id in _depends_on_of(s):
+                cancel_job(db, s)
+
+
+def cancel_run(db: Session, run_id: str, user_id: str) -> int:
+    """Cancel every non-terminal stage of a pipeline run (owner-scoped). Returns the
+    number of stages canceled. This is the explicit "stop the whole run" action —
+    the only way to halt a cinematic run's parallel clip/VO roots."""
+    jobs = (
+        db.query(MediaJob)
+        .filter(
+            MediaJob.pipeline_run_id == run_id,
+            MediaJob.user_id == user_id,
+            MediaJob.status.notin_(_TERMINAL_STATUSES),
+        )
+        .all()
+    )
+    for j in jobs:
+        j.status = "canceled"
+    db.commit()
+    return len(jobs)
 
 
 def assemble(

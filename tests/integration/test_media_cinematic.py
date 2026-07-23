@@ -249,7 +249,7 @@ def test_cinematic_premium_rejected_up_front(client, db_session, monkeypatch):
 # ── Run-scoped cancellation ───────────────────────────────────────────────────
 
 
-def test_cinematic_cancel_is_run_scoped(client, db_session, monkeypatch):
+def test_cinematic_run_cancel_stops_whole_run(client, db_session, monkeypatch):
     monkeypatch.setenv("MEDIA_DRY_RUN", "true")
     u = _make_user(db_session, "cxl@example.com", "user-cxl")
     r = client.post(
@@ -261,14 +261,63 @@ def test_cinematic_cancel_is_run_scoped(client, db_session, monkeypatch):
         },
         headers=_hdr(u),
     )
-    terminal = r.json()["root_job"]
-    run_id = terminal["pipeline_run_id"]
+    run_id = r.json()["root_job"]["pipeline_run_id"]
 
-    # Cancel via the returned terminal handle → the WHOLE run stops (clips + VO).
-    c = client.post(f"/api/media/jobs/{terminal['id']}/cancel", headers=_hdr(u))
+    # The explicit run-cancel stops every stage (clips + VO + assembly).
+    c = client.post(f"/api/media/runs/{run_id}/cancel", headers=_hdr(u))
     assert c.status_code == 200, c.text
+    assert c.json()["canceled"] >= 1
 
     jobs = client.get(f"/api/media/jobs?run_id={run_id}", headers=_hdr(u)).json()
     assert jobs and all(j["status"] == "canceled" for j in jobs), [
         (j["kind"], j["status"]) for j in jobs
     ]
+
+
+def test_run_cancel_not_found_for_other_user(client, db_session, monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    u = _make_user(db_session, "owner@example.com", "user-owner")
+    other = _make_user(db_session, "other@example.com", "user-other")
+    r = client.post(
+        "/api/media/generate",
+        json={"pipeline": "cinematic", "spec": {"scenes": ["a"], "script": "hi"}, "confirm": True},
+        headers=_hdr(u),
+    )
+    run_id = r.json()["root_job"]["pipeline_run_id"]
+    assert client.post(f"/api/media/runs/{run_id}/cancel", headers=_hdr(other)).status_code == 404
+
+
+def test_stage_cancel_scoped_to_downstream(client, db_session, monkeypatch):
+    """Canceling one clip cancels only it + the assembly that needs it, NOT the
+    sibling clip or the VO (use run-cancel to stop the whole run)."""
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _make_user(db_session, "stagecxl@example.com", "user-stagecxl")
+    terminal = orchestrator.submit_pipeline(
+        db_session,
+        "user-stagecxl",
+        pipeline="cinematic",
+        spec={"scenes": ["a", "b"], "script": "hi"},
+    )
+    run_id = terminal.pipeline_run_id
+    clips = (
+        db_session.query(MediaJob)
+        .filter(MediaJob.pipeline_run_id == run_id, MediaJob.kind == "gen_clip")
+        .all()
+    )
+    orchestrator.cancel_job(db_session, clips[0])
+
+    # The other clip and the VO are untouched.
+    assert db_session.get(MediaJob, clips[1].id).status != "canceled"
+    vo = (
+        db_session.query(MediaJob)
+        .filter(MediaJob.pipeline_run_id == run_id, MediaJob.kind == "tts")
+        .first()
+    )
+    assert vo.status != "canceled"
+    # The assemblers depend on the canceled clip → canceled downstream.
+    assemblers = (
+        db_session.query(MediaJob)
+        .filter(MediaJob.pipeline_run_id == run_id, MediaJob.kind == "assemble")
+        .all()
+    )
+    assert all(a.status == "canceled" for a in assemblers)

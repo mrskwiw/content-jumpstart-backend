@@ -5336,6 +5336,7 @@
           "Media Generation"
         ],
         "summary": "Cancel Job",
+        "description": "Cancel one stage + its downstream dependents. To stop a whole cinematic run\n(its parallel clip/VO roots), use POST /runs/{run_id}/cancel.",
         "operationId": "cancel_job_api_media_jobs__job_id__cancel_post",
         "security": [
           {
@@ -5361,6 +5362,53 @@
                 "schema": {
                   "$ref": "#/components/schemas/JobOut"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/media/runs/{run_id}/cancel": {
+      "post": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Cancel Run",
+        "description": "Cancel every non-terminal stage of a pipeline run (the explicit stop-the-run\naction). Owner-scoped; 404 if the run has no jobs owned by the caller.",
+        "operationId": "cancel_run_api_media_runs__run_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
