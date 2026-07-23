@@ -796,25 +796,18 @@ def _collect_downstream(db: Session, job: MediaJob) -> List[MediaJob]:
     Downstream = linear children (`parent_job_id`) and fan-in dependents (whose
     `_depends_on` includes an upstream id). Does not include upstream deps or
     unrelated sibling roots."""
+    # Every job created by submit_pipeline/_submit_dag has a pipeline_run_id, and the
+    # run-scoped BFS below covers linear chains too (via the parent_job_id fallback in
+    # `_deps`). A job with no run id is an ad-hoc/standalone stage with no DAG to walk.
     if not job.pipeline_run_id:
-        chain = [job]
-        cur = job
-        while True:
-            child = (
-                db.query(MediaJob)
-                .filter(
-                    MediaJob.parent_job_id == cur.id,
-                    MediaJob.status.notin_(_TERMINAL_STATUSES),
-                )
-                .first()
-            )
-            if child is None:
-                break
-            chain.append(child)
-            cur = child
-        return chain
+        return [job]
 
-    run_jobs = db.query(MediaJob).filter(MediaJob.pipeline_run_id == job.pipeline_run_id).all()
+    q = db.query(MediaJob).filter(MediaJob.pipeline_run_id == job.pipeline_run_id)
+    # Lock the run's rows so a concurrent worker tick (which uses FOR UPDATE SKIP
+    # LOCKED) can't promote/submit a stage between this snapshot and the commit.
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        q = q.with_for_update()
+    run_jobs = q.all()
     by_id = {j.id: j for j in run_jobs}
     downstream: set = set()
     frontier = [job.id]
@@ -835,15 +828,15 @@ def cancel_run(db: Session, run_id: str, user_id: str) -> int:
     """Cancel every non-terminal stage of a pipeline run (owner-scoped). Returns the
     number of stages canceled. This is the explicit "stop the whole run" action —
     the only way to halt a cinematic run's parallel clip/VO roots."""
-    jobs = (
-        db.query(MediaJob)
-        .filter(
-            MediaJob.pipeline_run_id == run_id,
-            MediaJob.user_id == user_id,
-            MediaJob.status.notin_(_TERMINAL_STATUSES),
-        )
-        .all()
+    q = db.query(MediaJob).filter(
+        MediaJob.pipeline_run_id == run_id,
+        MediaJob.user_id == user_id,
+        MediaJob.status.notin_(_TERMINAL_STATUSES),
     )
+    # Lock the rows so a concurrent worker tick can't advance a stage mid-cancel.
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        q = q.with_for_update()
+    jobs = q.all()
     for j in jobs:
         j.status = "canceled"
     db.commit()

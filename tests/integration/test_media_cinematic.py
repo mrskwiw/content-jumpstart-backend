@@ -321,3 +321,16 @@ def test_stage_cancel_scoped_to_downstream(client, db_session, monkeypatch):
         .all()
     )
     assert all(a.status == "canceled" for a in assemblers)
+
+
+def test_cancel_standalone_job_without_run(db_session, monkeypatch):
+    # A job with no pipeline_run_id has no DAG to walk — cancel only itself.
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    _make_user(db_session, "solo@example.com", "user-solo")
+    db_session.add(
+        MediaJob(id="solo", user_id="user-solo", kind="tts", provider="stub", status="queued")
+    )
+    db_session.commit()
+    job = db_session.get(MediaJob, "solo")
+    orchestrator.cancel_job(db_session, job)
+    assert db_session.get(MediaJob, "solo").status == "canceled"
