@@ -130,6 +130,9 @@ def schedule_post(
 ) -> ScheduledPost:
     if platform not in SUPPORTED_PLATFORMS:
         raise ValueError(f"Unsupported platform: {platform}")
+    # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
+    # at schedule time, not silently as a delayed worker failure.
+    _owned_media_asset(db, user_id, media_url)
     sp = ScheduledPost(
         id=_uuid(),
         user_id=user_id,
@@ -155,29 +158,37 @@ def schedule_post(
 _MEDIA_REF_PREFIX = "media-asset://"
 
 
-def _resolve_media_ref(db: Session, sp: ScheduledPost) -> Optional[str]:
-    """Resolve a `media-asset://<id>` media_url to a fresh signed storage URL.
+def _owned_media_asset(db: Session, user_id: str, media_url: Optional[str]):
+    """Look up the owned MediaAsset a `media-asset://<id>` media_url refers to.
 
-    A plain media_url passes through unchanged. A media-asset reference is resolved
-    at publish time so the URL is never stale, and only if the asset belongs to the
-    post's owner (a caller can't schedule against someone else's asset). Raises
-    ValueError if the asset is missing/unowned or storage can't sign."""
-    media_url = sp.media_url
+    Returns None for a plain (non-reference) media_url. Raises ValueError if the
+    reference points at an asset that is missing or not owned by `user_id`."""
     if not media_url or not media_url.startswith(_MEDIA_REF_PREFIX):
-        return media_url
+        return None
     from backend.models.media import MediaAsset
-    from backend.services.media.storage import StorageError, get_storage
 
     asset_id = media_url[len(_MEDIA_REF_PREFIX) :]
     asset = (
         db.query(MediaAsset)
-        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == sp.user_id)
+        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == user_id)
         .first()
     )
     if asset is None:
-        raise ValueError(f"Media asset {asset_id} not found or not owned by the post's user")
+        raise ValueError(f"Media asset {asset_id} not found or not owned by you")
+    return asset
+
+
+def _resolve_media_ref(db: Session, sp: ScheduledPost) -> Optional[str]:
+    """Resolve a `media-asset://<id>` media_url to a FRESH signed storage URL at
+    publish time (never stale). A plain media_url passes through unchanged; an
+    absolute asset URL is passed through, a storage key is signed."""
+    asset = _owned_media_asset(db, sp.user_id, sp.media_url)
+    if asset is None:
+        return sp.media_url
+    from backend.services.media.storage import StorageError, signed_url_for
+
     try:
-        return get_storage().signed_url(asset.url)
+        return signed_url_for(asset.url)
     except StorageError as e:
         raise ValueError(f"Storage unavailable to sign media asset: {e}")
 

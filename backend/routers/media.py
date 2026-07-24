@@ -22,7 +22,7 @@ from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user, require_superuser
 from backend.models.media import MediaAsset, MediaJob
 from backend.services.media import cost, orchestrator
-from backend.services.media.storage import StorageError, get_storage
+from backend.services.media.storage import StorageError, signed_url_for
 
 router = APIRouter(prefix="/api/media", tags=["Media Generation"])
 
@@ -253,7 +253,7 @@ def download_asset(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     try:
-        url = get_storage().signed_url(asset.url)
+        url = signed_url_for(asset.url)
     except StorageError as e:
         raise HTTPException(status_code=502, detail=f"Storage unavailable: {e}")
     return RedirectResponse(url)
@@ -275,7 +275,7 @@ def asset_signed_url(
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     try:
-        return {"url": get_storage().signed_url(asset.url)}
+        return {"url": signed_url_for(asset.url)}
     except StorageError as e:
         raise HTTPException(status_code=502, detail=f"Storage unavailable: {e}")
 

@@ -319,3 +319,58 @@ def test_publish_resolves_media_asset_ref(db_session, monkeypatch):
     sp.media_url = "media-asset://nope"
     with pytest.raises(ValueError):
         dorch._resolve_media_ref(db_session, sp)
+    # An asset that stored a full URL (dry-run assemble / legacy) is passed through,
+    # not double-signed as a key.
+    db_session.add(
+        MediaAsset(
+            id="ma2",
+            user_id=u.id,
+            job_id="mj",
+            kind="final",
+            url="https://stub.local/media/assembled_x.mp4",
+        )
+    )
+    db_session.commit()
+    sp.media_url = "media-asset://ma2"
+    assert dorch._resolve_media_ref(db_session, sp) == "https://stub.local/media/assembled_x.mp4"
+
+
+def test_schedule_validates_media_ref_up_front(client, db_session, monkeypatch):
+    """A media-asset ref is validated at SCHEDULE time (fast 400), not deferred to
+    a worker failure — so the UI can't report success on a bad asset id."""
+    from backend.models.media import MediaAsset, MediaJob
+
+    _dry_run(monkeypatch)
+    u = _make_user(db_session, "sched@example.com", "user-sched")
+    bad = client.post(
+        "/api/distribution/schedule",
+        json={
+            "platform": "stub",
+            "content": "x",
+            "scheduled_for": "2020-01-01T00:00:00Z",
+            "media_url": "media-asset://nope",
+        },
+        headers=_hdr(u),
+    )
+    assert bad.status_code == 400, bad.text
+
+    db_session.add(
+        MediaJob(
+            id="mj2", user_id=u.id, kind="tts", provider="stub", status="done", pipeline_run_id="r2"
+        )
+    )
+    db_session.add(
+        MediaAsset(id="okasset", user_id=u.id, job_id="mj2", kind="final", url="media/u/mj2/ok.mp4")
+    )
+    db_session.commit()
+    ok = client.post(
+        "/api/distribution/schedule",
+        json={
+            "platform": "stub",
+            "content": "x",
+            "scheduled_for": "2020-01-01T00:00:00Z",
+            "media_url": "media-asset://okasset",
+        },
+        headers=_hdr(u),
+    )
+    assert ok.status_code == 201, ok.text

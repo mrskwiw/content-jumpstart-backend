@@ -128,6 +128,16 @@ class SupabaseStorage(MediaStorage):
         return f"{self.base}/storage/v1{signed}" if signed.startswith("/") else signed
 
 
+def signed_url_for(url_or_key: str, *, expires_s: int = 3600) -> str:
+    """Mint a signed URL for a durable storage key, or pass an already-absolute URL
+    through unchanged. Most assets persist a storage key, but some (dry-run
+    `assemble()`, legacy rows) persist a full `http(s)://` URL — signing that as a
+    key would produce a malformed link."""
+    if url_or_key.startswith(("http://", "https://")):
+        return url_or_key
+    return get_storage().signed_url(url_or_key, expires_s=expires_s)
+
+
 def get_storage() -> MediaStorage:
     """Resolve the storage backend: StubStorage in dry-run (or when unconfigured),
     else the configured durable backend (Supabase today; R2 is a future swap)."""
