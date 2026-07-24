@@ -34,6 +34,10 @@ const Connections = lazyWithRetry(() => import('@/pages/Distribution/Connections
 const PublishingQueue = lazyWithRetry(() => import('@/pages/Distribution/Queue'));
 const Engagement = lazyWithRetry(() => import('@/pages/Engagement'));
 
+// Media generation (Phase 12)
+const MediaGenerate = lazyWithRetry(() => import('@/pages/Media/Generate'));
+const MediaJobs = lazyWithRetry(() => import('@/pages/Media/Jobs'));
+
 // NEW: Priority 3 pages
 const Team = lazyWithRetry(() => import('@/pages/Team'));
 const Notifications = lazyWithRetry(() => import('@/pages/Notifications'));
@@ -114,6 +118,8 @@ export const router = createBrowserRouter([
       { path: 'deliverables', element: withSuspense(Deliverables) },
       { path: 'analytics', element: withSuspense(Analytics) },
       { path: 'engagement', element: withSuspense(Engagement) },
+      { path: 'media/generate', element: withSuspense(MediaGenerate) },
+      { path: 'media/jobs', element: withSuspense(MediaJobs) },
       { path: 'distribution/queue', element: withSuspense(PublishingQueue) },
       { path: 'settings/connections', element: withSuspense(Connections) },
       { path: 'calendar', element: withSuspense(Calendar) },

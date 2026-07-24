@@ -5472,6 +5472,53 @@
         }
       }
     },
+    "/api/media/assets/{asset_id}/url": {
+      "get": {
+        "tags": [
+          "Media Generation",
+          "Media Generation"
+        ],
+        "summary": "Asset Signed Url",
+        "description": "Return a fresh signed URL as JSON (owner only). For SPA/browser use, where an\n`<a href>` to the 302 /download endpoint can't carry the auth header.",
+        "operationId": "asset_signed_url_api_media_assets__asset_id__url_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/media/assemble": {
       "post": {
         "tags": [

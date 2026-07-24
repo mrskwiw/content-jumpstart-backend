@@ -1,4 +1,4 @@
-import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins, Globe, Share2, Send, TrendingUp } from 'lucide-react';
+import { LogOut, PanelsTopLeft, FileStack, ClipboardList, Settings, Rocket, Users, Library, FileSearch, BarChart3, Coins, Globe, Share2, Send, TrendingUp, Clapperboard, Film } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,6 +18,8 @@ const navItems = [
 ];
 
 const distributionItems = [
+  { to: '/dashboard/media/generate', label: 'Generate Media', icon: Clapperboard },
+  { to: '/dashboard/media/jobs', label: 'Media Jobs', icon: Film },
   { to: '/dashboard/settings/connections', label: 'Connections', icon: Share2 },
   { to: '/dashboard/distribution/queue', label: 'Publishing Queue', icon: Send },
   { to: '/dashboard/engagement', label: 'Engagement', icon: TrendingUp },

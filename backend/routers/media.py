@@ -259,6 +259,27 @@ def download_asset(
     return RedirectResponse(url)
 
 
+@router.get("/assets/{asset_id}/url")
+def asset_signed_url(
+    asset_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return a fresh signed URL as JSON (owner only). For SPA/browser use, where an
+    `<a href>` to the 302 /download endpoint can't carry the auth header."""
+    asset = (
+        db.query(MediaAsset)
+        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == current_user.id)
+        .first()
+    )
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        return {"url": get_storage().signed_url(asset.url)}
+    except StorageError as e:
+        raise HTTPException(status_code=502, detail=f"Storage unavailable: {e}")
+
+
 # ── Assemble ──────────────────────────────────────────────────────────────────
 
 

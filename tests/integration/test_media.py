@@ -119,6 +119,10 @@ def test_generate_and_process_due_completes_pipeline(client, db_session, monkeyp
     )
     assert dl.status_code in (302, 307)
     assert "stub.local" in dl.headers["location"]
+    # JSON variant for the SPA (a link can't carry the auth header).
+    signed = client.get(f"/api/media/assets/{asset['id']}/url", headers=_hdr(user))
+    assert signed.status_code == 200
+    assert "stub.local" in signed.json()["url"]
 
 
 def test_generate_over_budget_returns_402(client, db_session, monkeypatch):
