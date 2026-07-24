@@ -940,7 +940,9 @@ def assemble(
         user_id=user_id,
         job_id=assets[0].job_id,
         kind="final",
-        url=f"https://stub.local/media/assembled_{digest[:16]}.mp4",
+        # Store a durable storage KEY like every other asset (never a full URL) so
+        # signing/serving stays uniform and can't trust an arbitrary host.
+        url=f"media/{user_id}/assembled/{digest[:16]}.mp4",
         duration_s=sum(a.duration_s or 0 for a in assets) or None,
         mime="video/mp4",
         content_hash=digest,

@@ -128,14 +128,17 @@ class SupabaseStorage(MediaStorage):
         return f"{self.base}/storage/v1{signed}" if signed.startswith("/") else signed
 
 
-def signed_url_for(url_or_key: str, *, expires_s: int = 3600) -> str:
-    """Mint a signed URL for a durable storage key, or pass an already-absolute URL
-    through unchanged. Most assets persist a storage key, but some (dry-run
-    `assemble()`, legacy rows) persist a full `http(s)://` URL — signing that as a
-    key would produce a malformed link."""
-    if url_or_key.startswith(("http://", "https://")):
-        return url_or_key
-    return get_storage().signed_url(url_or_key, expires_s=expires_s)
+def signed_url_for(key: str, *, expires_s: int = 3600) -> str:
+    """Mint a short-lived signed URL for a durable storage **key**.
+
+    Rejects an already-absolute `http(s)://` value rather than returning it verbatim:
+    every asset in the pipeline persists a storage key, so an absolute value is a
+    data-integrity problem (mis-migrated/legacy row), and trusting it would let an
+    arbitrary host flow into the owner download endpoints and the publisher fetch
+    path (open redirect / SSRF). Fail loudly instead."""
+    if key.startswith(("http://", "https://")):
+        raise StorageError(f"refusing to serve a non-storage asset URL: {key[:80]}")
+    return get_storage().signed_url(key, expires_s=expires_s)
 
 
 def get_storage() -> MediaStorage:

@@ -319,20 +319,21 @@ def test_publish_resolves_media_asset_ref(db_session, monkeypatch):
     sp.media_url = "media-asset://nope"
     with pytest.raises(ValueError):
         dorch._resolve_media_ref(db_session, sp)
-    # An asset that stored a full URL (dry-run assemble / legacy) is passed through,
-    # not double-signed as a key.
+    # An asset that stored a full URL (a mis-migrated/legacy row) is REFUSED, not
+    # trusted verbatim — every real asset stores a storage key.
     db_session.add(
         MediaAsset(
             id="ma2",
             user_id=u.id,
             job_id="mj",
             kind="final",
-            url="https://stub.local/media/assembled_x.mp4",
+            url="https://evil.example/attacker.mp4",
         )
     )
     db_session.commit()
     sp.media_url = "media-asset://ma2"
-    assert dorch._resolve_media_ref(db_session, sp) == "https://stub.local/media/assembled_x.mp4"
+    with pytest.raises(ValueError):
+        dorch._resolve_media_ref(db_session, sp)
 
 
 def test_schedule_validates_media_ref_up_front(client, db_session, monkeypatch):
