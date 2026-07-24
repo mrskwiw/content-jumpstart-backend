@@ -82,6 +82,86 @@ def test_scheduler_loop_runs_until_stopped(monkeypatch):
     assert calls["n"] >= 1
 
 
+def test_scheduler_loop_survives_tick_exception_and_interval_timeout(monkeypatch):
+    """A raised tick is logged, not fatal; the interval wait times out and re-ticks."""
+    stop = asyncio.Event()
+    calls = {"n": 0}
+
+    def flaky_tick():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("bad tick")  # caught + logged, loop must continue
+        stop.set()  # second tick ends the loop
+
+    monkeypatch.setattr(scheduler, "_tick", flaky_tick)
+    # Tiny interval so `wait_for(stop.wait())` times out immediately between ticks
+    # (the TimeoutError → pass path) without a real 10s sleep.
+    monkeypatch.setattr(scheduler, "_interval_seconds", lambda: 0.01)
+    asyncio.run(scheduler.scheduler_loop(stop))
+    assert calls["n"] >= 2
+
+
+class _PgResult:
+    def __init__(self, val):
+        self._val = val
+
+    def scalar(self):
+        return self._val
+
+
+class _PgDB:
+    """Minimal stand-in for a PostgreSQL session exercising the advisory-lock path."""
+
+    def __init__(self, lock_granted):
+        self._lock_granted = lock_granted
+        self.statements = []
+
+        class _Dialect:
+            name = "postgresql"
+
+        class _Bind:
+            dialect = _Dialect()
+
+        self.bind = _Bind()
+
+    def execute(self, statement, params=None):
+        self.statements.append(str(statement))
+        # Only the try-advisory-lock call's scalar() is read; unlock is fire-and-forget.
+        return _PgResult(self._lock_granted)
+
+    def close(self):
+        pass
+
+
+def test_tick_postgres_lock_acquired_processes_and_unlocks(monkeypatch):
+    db = _PgDB(lock_granted=True)
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: db)
+    calls = {"n": 0}
+
+    def spy(d, **kw):
+        calls["n"] += 1
+        return {"processed": 2}
+
+    monkeypatch.setattr(orchestrator, "process_due", spy)
+    scheduler._tick()
+    assert calls["n"] == 1
+    # Both the lock and the (finally) unlock statements were issued.
+    assert len(db.statements) == 2
+
+
+def test_tick_postgres_lock_contended_returns_early(monkeypatch):
+    db = _PgDB(lock_granted=False)
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: db)
+    calls = {"n": 0}
+
+    monkeypatch.setattr(
+        orchestrator, "process_due", lambda d, **kw: calls.__setitem__("n", calls["n"] + 1)
+    )
+    scheduler._tick()
+    assert calls["n"] == 0  # another worker holds the lock → this tick does nothing
+    assert len(db.statements) == 1  # only the try-lock; no process_due, no unlock
+
+
 # ── Orchestrator edge paths ───────────────────────────────────────────────────
 
 

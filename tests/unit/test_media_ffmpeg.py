@@ -87,3 +87,47 @@ def test_binary_env(monkeypatch):
     assert ffmpeg.ffmpeg_bin() == "ffmpeg"
     monkeypatch.setenv("FFMPEG_PATH", "/usr/local/bin/ffmpeg")
     assert ffmpeg.ffmpeg_bin() == "/usr/local/bin/ffmpeg"
+
+
+def test_subprocess_oserror_raises(monkeypatch):
+    """The binary is missing / not executable → OSError surfaces as FfmpegError."""
+
+    def boom(cmd, **kw):
+        raise OSError("ffmpeg: command not found")
+
+    monkeypatch.setattr(ffmpeg.subprocess, "run", boom)
+    with pytest.raises(ffmpeg.FfmpegError, match="failed to run"):
+        ffmpeg.run("concat", ["/tmp/a.mp4"])
+
+
+def test_subprocess_timeout_raises(monkeypatch):
+    """A stuck render trips the timeout → FfmpegError, not a hang."""
+
+    def boom(cmd, **kw):
+        raise ffmpeg.subprocess.TimeoutExpired(cmd, ffmpeg._TIMEOUT_S)
+
+    monkeypatch.setattr(ffmpeg.subprocess, "run", boom)
+    with pytest.raises(ffmpeg.FfmpegError, match="failed to run"):
+        ffmpeg.run("concat", ["/tmp/a.mp4"])
+
+
+def test_missing_output_file_raises(monkeypatch):
+    """ffmpeg exits 0 but wrote nothing (no out.mp4) → 'produced no output'."""
+
+    def run_no_write(cmd, **kw):
+        class _Proc:
+            returncode = 0
+            stderr = b""
+
+        return _Proc()
+
+    monkeypatch.setattr(ffmpeg.subprocess, "run", run_no_write)
+    with pytest.raises(ffmpeg.FfmpegError, match="no output"):
+        ffmpeg.run("concat", ["/tmp/a.mp4"])
+
+
+def test_empty_output_file_raises(monkeypatch):
+    """ffmpeg wrote a zero-byte file → 'empty file'."""
+    monkeypatch.setattr(ffmpeg.subprocess, "run", _writer(b""))
+    with pytest.raises(ffmpeg.FfmpegError, match="empty file"):
+        ffmpeg.run("concat", ["/tmp/a.mp4"])

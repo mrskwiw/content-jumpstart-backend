@@ -18,6 +18,7 @@ from backend.services.media.providers import (
     NotImplementedProvider,
     SyncProvider,
     VeoProvider,
+    get_provider,
 )
 
 
@@ -501,3 +502,129 @@ def test_dub_poll_states(monkeypatch):
 
     _patch(monkeypatch, get=lambda url, **kw: _Resp(status=200, json_body={"status": "failed"}))
     assert not p.poll("d1|es").ok
+
+
+# ── get_provider resolution / fail-closed ─────────────────────────────────────
+
+
+def test_get_provider_unknown_name_fails_closed(monkeypatch):
+    """Outside dry-run, an unwired provider name yields a fail-closed stub."""
+    monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    p = get_provider(MediaKind.GEN_CLIP, "totally_unknown")
+    assert isinstance(p, NotImplementedProvider)
+    assert not p.start({}).ok  # NotImplementedProvider.start
+
+
+def test_get_provider_dry_run_and_stub_name_use_stub(monkeypatch):
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")
+    assert get_provider(MediaKind.TTS, "elevenlabs_tts").name == "stub"
+    monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    assert get_provider(MediaKind.TTS, "stub").name == "stub"
+
+
+# ── Network-exception (generic) branches for the real providers ───────────────
+#
+# Each real provider wraps its HTTP call in `except Exception` so a transport
+# failure surfaces as a failed MediaResult (the orchestrator then retries). The
+# missing-cred / non-2xx branches are covered above; these hit the catch-all.
+
+
+def _raise(*a, **kw):
+    raise RuntimeError("connection reset")
+
+
+def test_heygen_start_missing_credential(monkeypatch):
+    monkeypatch.delenv("HEYGEN_API_KEY", raising=False)
+    r = HeyGenProvider(MediaKind.AVATAR_VIDEO).start({"script": "hi"})
+    assert not r.ok and "HEYGEN_API_KEY" in r.error
+
+
+def test_heygen_start_network_exception(monkeypatch):
+    monkeypatch.setenv("HEYGEN_API_KEY", "k")  # pragma: allowlist secret
+    monkeypatch.setenv("HEYGEN_AVATAR_ID", "a")
+    _patch(monkeypatch, post=_raise)
+    r = HeyGenProvider(MediaKind.AVATAR_VIDEO).start({"voice_id": "v", "script": "hi"})
+    assert not r.ok and "connection reset" in r.error
+
+
+def test_kling_start_and_poll_network_exception(monkeypatch):
+    monkeypatch.setenv("KLING_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=_raise, get=_raise)
+    assert not KlingProvider(MediaKind.GEN_CLIP).start({"prompt": "x"}).ok
+    assert not KlingProvider(MediaKind.GEN_CLIP).poll("t").ok
+
+
+def test_sync_start_no_job_id_and_network(monkeypatch):
+    monkeypatch.setenv("SYNC_API_KEY", "s")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=200, json_body={}))
+    r = SyncProvider(MediaKind.LIPSYNC).start({"_video_url": "v", "_audio_url": "a"})
+    assert not r.ok and "job id" in r.error.lower()
+    _patch(monkeypatch, post=_raise)
+    assert not SyncProvider(MediaKind.LIPSYNC).start({"_video_url": "v", "_audio_url": "a"}).ok
+
+
+def test_sync_poll_http_error_missing_cred_and_network(monkeypatch):
+    monkeypatch.setenv("SYNC_API_KEY", "s")  # pragma: allowlist secret
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=503, text="down"))
+    assert not SyncProvider(MediaKind.LIPSYNC).poll("j1").ok  # http-error branch
+    _patch(monkeypatch, get=_raise)
+    assert not SyncProvider(MediaKind.LIPSYNC).poll("j1").ok  # network branch
+    monkeypatch.delenv("SYNC_API_KEY", raising=False)
+    assert not SyncProvider(MediaKind.LIPSYNC).poll("j1").ok  # missing-cred branch
+
+
+def test_ffmpeg_provider_generic_exception(monkeypatch):
+    """A non-FfmpegError (e.g. a download blowing up) is caught and surfaced."""
+    monkeypatch.setattr("backend.services.distribution.net_guard.safe_stream_get", _raise)
+    r = FfmpegProvider(MediaKind.ASSEMBLE).start({"_ffmpeg_op": "concat", "_input_urls": ["u1"]})
+    assert not r.ok and "connection reset" in r.error
+
+
+def test_isolator_network_exception(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _audio_stream(monkeypatch)
+    _patch(monkeypatch, post=_raise)
+    r = ElevenLabsIsolatorProvider(MediaKind.AUDIO_CLEAN).start({"_source_url": "u"})
+    assert not r.ok and "connection reset" in r.error
+
+
+def test_auphonic_start_and_poll_network_exception(monkeypatch):
+    monkeypatch.setenv("AUPHONIC_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=_raise, get=_raise)
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).start({"_source_url": "u"}).ok
+    assert not AuphonicProvider(MediaKind.AUDIO_MASTER).poll("x").ok
+
+
+def test_dub_start_network_exception(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=_raise)
+    r = ElevenLabsDubProvider(MediaKind.DUB).start({"_source_url": "u", "target_lang": "es"})
+    assert not r.ok and "connection reset" in r.error
+
+
+def test_dub_poll_status_http_error(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(status=500, text="err"))
+    r = ElevenLabsDubProvider(MediaKind.DUB).poll("d1|es")
+    assert not r.ok and "500" in r.error
+
+
+def test_dub_poll_audio_http_error(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+
+    def get(url, **kw):
+        if "/audio/" in url:
+            return _Resp(status=502, text="bad gateway")
+        return _Resp(status=200, json_body={"status": "dubbed"})
+
+    _patch(monkeypatch, get=get)
+    r = ElevenLabsDubProvider(MediaKind.DUB).poll("d1|es")
+    assert not r.ok and "502" in r.error
+
+
+def test_dub_poll_missing_cred_and_network(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert not ElevenLabsDubProvider(MediaKind.DUB).poll("d1|es").ok  # missing-cred
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, get=_raise)
+    assert not ElevenLabsDubProvider(MediaKind.DUB).poll("d1|es").ok  # network
