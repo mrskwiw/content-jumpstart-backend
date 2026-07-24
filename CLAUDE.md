@@ -182,12 +182,20 @@ SQLite session store at `data/agent_sessions.db`. In-chat commands: `help`, `pen
 **`project/.env.example` is the canonical, exhaustive list of every env var the app
 reads** (grouped by subsystem: core, DB, auth, research, Stripe, distribution,
 analytics, media, tuning). **Keep it in sync — MANDATORY:** whenever you add,
-rename, or remove an env var in code (`os.getenv`, `backend/config.py` Settings
-fields, `_require_env`, OAuth `*_env`), update `.env.example` **in the same commit**.
-To re-audit the full set:
+rename, or remove an env var in code, update `.env.example` **in the same commit**.
+Env vars enter from **four** sources — a `getenv`-only grep is NOT sufficient:
+1. direct `os.getenv` / `os.environ` sites, 2. `BaseSettings` fields in
+`backend/config.py` **and** `src/config/settings.py`, 3. `_require_env(...)` (media
+providers), 4. OAuth `client_id_env`/`client_secret_env` (`distribution/oauth.py`).
+To re-audit the full set (union of all four):
 ```bash
-grep -rhoE 'getenv\(\s*["'\'']([A-Z0-9_]+)' backend src scripts | grep -oE '[A-Z0-9_]+$' | sort -u
+{ grep -rhoE '(getenv|environ(\.get)?)\(\s*["'\'']([A-Z0-9_]+)' backend src scripts | grep -oE '[A-Z0-9_]+$';
+  grep -hoE '^\s+[A-Z][A-Z0-9_]{2,}\s*:' backend/config.py src/config/settings.py | grep -oE '[A-Z0-9_]+';
+  grep -rhoE '(_require_env|client_(id|secret)_env=)\s*[:=]?\s*"[A-Z0-9_]+"' backend | grep -oE '[A-Z0-9_]+"' | tr -d '"'; } | sort -u
 ```
+`src/config/settings.py` also holds generation-pipeline tuning knobs (temperatures,
+word counts, post/template counts, cache flags) — env-overridable but rarely set;
+the deployment-relevant ones are in `.env.example`, the rest default in that file.
 
 Highlights (see `.env.example` for all + defaults):
 ```
