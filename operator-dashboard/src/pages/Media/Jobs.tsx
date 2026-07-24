@@ -44,16 +44,17 @@ export default function MediaJobs() {
   });
 
   const sendToQueue = useMutation({
-    mutationFn: async (assetId: string) => {
-      const url = await mediaApi.assetUrl(assetId);
-      return distributionApi.schedule({
+    // Hand off a DURABLE reference (media-asset://<id>); the publisher signs a fresh
+    // URL at publish time, so a scheduled post never carries an expired link.
+    mutationFn: (assetId: string) =>
+      distributionApi.schedule({
         platform: 'stub',
         content: 'Media from generation pipeline',
         scheduled_for: new Date().toISOString(),
-        media_url: url,
-      });
-    },
-    onSuccess: () => toast.success('Added to the publishing queue (as a draft to the stub target)'),
+        media_url: `media-asset://${assetId}`,
+      }),
+    onSuccess: () =>
+      toast.success('Added to the publishing queue (draft on the stub target — set the platform there)'),
     onError: () => toast.error('Could not add to the queue'),
   });
 

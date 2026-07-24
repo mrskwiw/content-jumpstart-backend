@@ -271,3 +271,51 @@ def test_process_due_requires_superuser(client, db_session):
     u = _make_user(db_session, "media-noadm@example.com", "user-medianoadm")
     r = client.post("/api/media/process-due", headers=_hdr(u))
     assert r.status_code == 403
+
+
+# ── P12.5: durable media handoff to the publishing queue ──────────────────────
+
+
+def test_publish_resolves_media_asset_ref(db_session, monkeypatch):
+    """A `media-asset://<id>` media_url is signed FRESH at publish time (never stale),
+    only for an asset the post's owner holds."""
+    import pytest
+
+    from datetime import datetime, timezone
+
+    from backend.models.distribution import ScheduledPost
+    from backend.models.media import MediaAsset, MediaJob
+    from backend.services.distribution import orchestrator as dorch
+
+    monkeypatch.setenv("MEDIA_DRY_RUN", "true")  # storage → StubStorage
+    u = _make_user(db_session, "qh@example.com", "user-qh")
+    db_session.add(
+        MediaJob(
+            id="mj", user_id=u.id, kind="tts", provider="stub", status="done", pipeline_run_id="r"
+        )
+    )
+    db_session.add(
+        MediaAsset(id="ma", user_id=u.id, job_id="mj", kind="final", url="media/u/mj/ma.mp4")
+    )
+    sp = ScheduledPost(
+        id="sp1",
+        user_id=u.id,
+        platform="stub",
+        content="hi",
+        media_url="media-asset://ma",
+        scheduled_for=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        status="pending",
+        retry_count=0,
+    )
+    db_session.add(sp)
+    db_session.commit()
+
+    # Resolved to a fresh signed URL (stub storage).
+    assert dorch._resolve_media_ref(db_session, sp).startswith("https://stub.local/")
+    # A plain URL passes through unchanged.
+    sp.media_url = "https://example.com/x.mp4"
+    assert dorch._resolve_media_ref(db_session, sp) == "https://example.com/x.mp4"
+    # An unowned/missing asset raises (→ the publish path marks the post failed).
+    sp.media_url = "media-asset://nope"
+    with pytest.raises(ValueError):
+        dorch._resolve_media_ref(db_session, sp)

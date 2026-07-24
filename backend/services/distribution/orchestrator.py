@@ -152,6 +152,36 @@ def schedule_post(
 # ── Publishing ────────────────────────────────────────────────────────────────
 
 
+_MEDIA_REF_PREFIX = "media-asset://"
+
+
+def _resolve_media_ref(db: Session, sp: ScheduledPost) -> Optional[str]:
+    """Resolve a `media-asset://<id>` media_url to a fresh signed storage URL.
+
+    A plain media_url passes through unchanged. A media-asset reference is resolved
+    at publish time so the URL is never stale, and only if the asset belongs to the
+    post's owner (a caller can't schedule against someone else's asset). Raises
+    ValueError if the asset is missing/unowned or storage can't sign."""
+    media_url = sp.media_url
+    if not media_url or not media_url.startswith(_MEDIA_REF_PREFIX):
+        return media_url
+    from backend.models.media import MediaAsset
+    from backend.services.media.storage import StorageError, get_storage
+
+    asset_id = media_url[len(_MEDIA_REF_PREFIX) :]
+    asset = (
+        db.query(MediaAsset)
+        .filter(MediaAsset.id == asset_id, MediaAsset.user_id == sp.user_id)
+        .first()
+    )
+    if asset is None:
+        raise ValueError(f"Media asset {asset_id} not found or not owned by the post's user")
+    try:
+        return get_storage().signed_url(asset.url)
+    except StorageError as e:
+        raise ValueError(f"Storage unavailable to sign media asset: {e}")
+
+
 def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     """Publish one scheduled post and record the outcome."""
     sp.status = "posting"
@@ -171,7 +201,20 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     token = ensure_fresh_token(db, cred) if cred else ""
     account_ref = cred.account_ref if cred else None
     publisher = get_publisher(sp.platform, token, account_ref)
-    result = publisher.publish(sp.content, sp.media_url)
+
+    # Resolve a durable media reference to a FRESH signed URL at publish time — a
+    # scheduled post may fire hours after it was queued, long after any URL captured
+    # at schedule time would have expired.
+    try:
+        media_url = _resolve_media_ref(db, sp)
+    except ValueError as e:
+        sp.status = "failed"
+        sp.error_message = str(e)
+        sp.retry_count += 1
+        db.commit()
+        return sp
+
+    result = publisher.publish(sp.content, media_url)
 
     if result.success:
         sp.status = "posted"
