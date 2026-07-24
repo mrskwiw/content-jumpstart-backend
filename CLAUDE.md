@@ -177,16 +177,29 @@ Adding a new endpoint: schema → router → service → `src/api/[domain].ts` �
 58 tools in `agent/tools.py`. Entry: `python agent_cli_enhanced.py chat`.
 SQLite session store at `data/agent_sessions.db`. In-chat commands: `help`, `pending`, `scheduled`, `reset`, `new`, `exit`.
 
-## Configuration
+## Environment variables
 
+**`project/.env.example` is the canonical, exhaustive list of every env var the app
+reads** (grouped by subsystem: core, DB, auth, research, Stripe, distribution,
+analytics, media, tuning). **Keep it in sync — MANDATORY:** whenever you add,
+rename, or remove an env var in code (`os.getenv`, `backend/config.py` Settings
+fields, `_require_env`, OAuth `*_env`), update `.env.example` **in the same commit**.
+To re-audit the full set:
+```bash
+grep -rhoE 'getenv\(\s*["'\'']([A-Z0-9_]+)' backend src scripts | grep -oE '[A-Z0-9_]+$' | sort -u
 ```
-ANTHROPIC_API_KEY          required
-ANTHROPIC_MODEL            default: claude-3-5-sonnet-latest
-MAX_CONCURRENT_API_CALLS   default: 5
-PARALLEL_GENERATION        True
-DEBUG_MODE / LOG_LEVEL
-DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD   optional — Google Trends fallback
+
+Highlights (see `.env.example` for all + defaults):
 ```
+ANTHROPIC_API_KEY          required          SECRET_KEY                 required (JWT)
+ANTHROPIC_MODEL            default: sonnet   SETTINGS_ENCRYPTION_KEY    required outside DEBUG_MODE
+MAX_CONCURRENT_API_CALLS   default: 10       DATABASE_URL               postgres in prod (no SQLite)
+PARALLEL_GENERATION        True              MEDIA_DRY_RUN/*_DRY_RUN     stub providers (no spend)
+DEBUG_MODE / LOG_LEVEL                       DATAFORSEO_LOGIN/PASSWORD   optional — Google Trends fallback
+```
+Media/distribution provider keys (ELEVENLABS/HEYGEN/KLING/SYNC/AUPHONIC, SUPABASE_*,
+per-platform OAuth) are per-instance and fail-closed when unset. Frontend build-time
+vars (`VITE_*`) live in `operator-dashboard/.env`, not here.
 
 ## Import conventions
 
