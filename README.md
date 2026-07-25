@@ -18,6 +18,9 @@ This README provides a quick-start overview only.
 # 1. Create a .env file (env files are NOT committed — see CLAUDE.md § Environment
 #    variables for the full annotated list of every key + defaults). Set at least:
 #    - SECRET_KEY (generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
+#    - SETTINGS_ENCRYPTION_KEY — REQUIRED here: docker-compose defaults DEBUG_MODE=false,
+#      and the app refuses to boot without it. Generate:
+#        python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 #    - POSTGRES_PASSWORD
 #    - ANTHROPIC_API_KEY
 #    - CORS_ORIGINS
