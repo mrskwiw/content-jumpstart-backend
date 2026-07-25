@@ -15,10 +15,8 @@ This README provides a quick-start overview only.
 **Complete system (backend + agents + database) in Docker:**
 
 ```bash
-# 1. Copy environment template
-cp .env.docker.example .env
-
-# 2. Edit .env and set:
+# 1. Create a .env file (env files are NOT committed — see CLAUDE.md § Environment
+#    variables for the full annotated list of every key + defaults). Set at least:
 #    - SECRET_KEY (generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
 #    - POSTGRES_PASSWORD
 #    - ANTHROPIC_API_KEY
@@ -45,8 +43,9 @@ python -m venv venv
 venv\Scripts\activate  # Windows
 source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env and set ANTHROPIC_API_KEY
+# Create a .env with your keys — env files aren't committed (see CLAUDE.md
+# § Environment variables for the full list). At minimum set ANTHROPIC_API_KEY
+# and SECRET_KEY; DATABASE_URL is optional locally (defaults to a SQLite file).
 
 # Generate content (recommended)
 python run_jumpstart.py tests/fixtures/sample_brief.txt

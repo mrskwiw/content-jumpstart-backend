@@ -66,7 +66,8 @@ New customer instances automatically get the current schema via `provision_custo
 ```bash
 # Setup
 python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env   # add ANTHROPIC_API_KEY
+# Create .env (env files are NOT committed — see "Environment variables" below for
+# the full key list). At minimum set ANTHROPIC_API_KEY + SECRET_KEY.
 
 # Run
 uvicorn backend.main:app --reload --port 8000   # API + Swagger at :8000/docs
@@ -181,8 +182,12 @@ SQLite session store at `data/agent_sessions.db`. In-chat commands: `help`, `pen
 
 **`project/.env.example` is the canonical, exhaustive list of every env var the app
 reads** (grouped by subsystem: core, DB, auth, research, Stripe, distribution,
-analytics, media, tuning). **Keep it in sync — MANDATORY:** whenever you add,
-rename, or remove an env var in code, update `.env.example` **in the same commit**.
+analytics, media, tuning). **Note: env files are NOT committed — `.env*` (including
+every `*.example` template) is gitignored, so `.env.example` lives on disk as the
+local reference but is not in the repo.** A fresh clone won't have it; build a `.env`
+from the audit below (or from a teammate's copy). **Keep it in sync — MANDATORY:**
+whenever you add, rename, or remove an env var in code, update your local
+`.env.example` in the same change so it stays the accurate manifest.
 Env vars enter from **four** sources — a `getenv`-only grep is NOT sufficient:
 1. direct `os.getenv` / `os.environ` sites, 2. `BaseSettings` fields in
 `backend/config.py` **and** `src/config/settings.py`, 3. `_require_env(...)` (media
