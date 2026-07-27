@@ -126,9 +126,7 @@ class TestIncompleteToolStates:
     def test_empty_tool_ids(self, research_service, mock_db):
         """No tool ids → empty result, no queries needed."""
         assert (
-            research_service._get_incomplete_tool_states_for_client(
-                mock_db, "client-test", []
-            )
+            research_service._get_incomplete_tool_states_for_client(mock_db, "client-test", [])
             == {}
         )
 

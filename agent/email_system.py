@@ -54,7 +54,7 @@ class EmailMessage(BaseModel):
     subject: str
     body_text: str
     body_html: Optional[str] = None
-    from_email: str = "content@jumpstart.com"
+    from_email: str = "noreply@content-jumpstart.com"
     reply_to: Optional[str] = None
     attachments: List[str] = Field(default_factory=list)  # File paths
     priority: EmailPriority = EmailPriority.NORMAL

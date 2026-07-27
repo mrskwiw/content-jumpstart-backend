@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # SendGrid
     SENDGRID_API_KEY: str = ""
-    SENDGRID_FROM_EMAIL: str = "no-reply@yourplatform.com"
+    SENDGRID_FROM_EMAIL: str = "noreply@content-jumpstart.com"
     SENDGRID_FROM_NAME: str = "Content Jumpstart"
 
     # File Storage
@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     # Admin
-    ADMIN_EMAIL: str = "admin@yourplatform.com"
-    SUPPORT_EMAIL: str = "support@yourplatform.com"
+    ADMIN_EMAIL: str = "admin@content-jumpstart.com"
+    SUPPORT_EMAIL: str = "support@content-jumpstart.com"
 
     @field_validator("ALLOWED_ORIGINS")
     @classmethod
