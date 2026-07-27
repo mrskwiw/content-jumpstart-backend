@@ -71,6 +71,24 @@ class Post(BaseModel):
             if not self.has_cta:
                 self.has_cta = self._detect_cta(self.content)
 
+    def recompute_length(self) -> None:
+        """Recompute word/character counts from the current content.
+
+        ``word_count``/``character_count`` are stored fields set once in
+        ``model_post_init``. Call this whenever ``content`` is mutated after
+        construction (e.g. hashtags appended post-QA) so length metadata stays
+        accurate. Intentionally does NOT touch ``has_cta`` — that is detected on
+        the pre-hashtag body and must be preserved.
+
+        Both counts measure the ACTUAL full content — the field's meaning across the
+        codebase (analytics, exports, DB filters, quality scoring). Length/CTA
+        *regeneration* diagnostics that must ignore appended hashtags do so at their
+        own layer (``PostRegenerator.should_regenerate`` evaluates the prose body).
+        See BUGS.md Decision #198.
+        """
+        self.word_count = len(self.content.split())
+        self.character_count = len(self.content)
+
     @staticmethod
     def _detect_cta(content: str) -> bool:
         """Detect if post has a CTA.

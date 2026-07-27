@@ -4,6 +4,7 @@ Based on 2025 industry research and engagement data.
 See: project/docs/platform_length_specifications_2025.md
 """
 
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 from ..models.client_brief import Platform
@@ -179,6 +180,96 @@ Guidelines:
 - Signature adds personality
 """,
 }
+
+
+# ---------------------------------------------------------------------------
+# Hashtag policy (HASHTAG-02 — generation-step hashtag research, LinkedIn + X slice)
+#
+# Per-platform rules for how many hashtags to emit, the tier mix, and where they
+# go. Only platforms with a real discovery benefit are enabled; the rest emit
+# NONE. See docs/explore-hashtag-research.md (§2) for the best-practice basis.
+#
+# Tiers:
+#   broad    — high-volume industry term (reach, high competition)
+#   niche    — specific, lower-volume, higher-intent
+#   branded  — the client's own brand/campaign tag
+#   trending — time-sensitive conversation/challenge tag
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HashtagPolicy:
+    """How a single platform should use hashtags.
+
+    Attributes:
+        enabled: When False, no hashtags are ever emitted for this platform.
+        min_tags: Minimum tags to emit when enabled (0 allows an empty set).
+        max_tags: Hard cap — never exceed this many tags.
+        tier_mix: Desired count per tier, in priority fill order. The sum is the
+            aspirational target; the effective cap is always ``max_tags``.
+        placement: Where tags belong ("end", "inline", "caption", "first_comment").
+        counts_toward_char_limit: True where tag characters eat the post's length
+            budget (X's 280) — the generator must account for them.
+        guidance: One-line instruction injected into the research/generation prompt.
+    """
+
+    enabled: bool
+    min_tags: int
+    max_tags: int
+    tier_mix: Dict[str, int] = field(default_factory=dict)
+    placement: str = "end"
+    counts_toward_char_limit: bool = False
+    guidance: str = ""
+
+
+# Only LinkedIn + X are wired in this slice. Instagram/TikTok/YouTube are
+# deferred (they need media captions — Phase 12) and are intentionally absent so
+# get_hashtag_policy() returns the disabled default for them until implemented.
+PLATFORM_HASHTAG_POLICY: Dict[Platform, HashtagPolicy] = {
+    Platform.LINKEDIN: HashtagPolicy(
+        enabled=True,
+        min_tags=2,
+        max_tags=3,
+        tier_mix={"broad": 1, "niche": 1, "branded": 1},
+        placement="end",
+        counts_toward_char_limit=False,
+        guidance=(
+            "Use 2-3 professional hashtags at the very end: ideally one broad "
+            "industry tag, one specific niche tag, and one brand/campaign tag. "
+            "Never exceed 3 — more reads as spam on LinkedIn."
+        ),
+    ),
+    Platform.TWITTER: HashtagPolicy(
+        enabled=True,
+        min_tags=1,
+        max_tags=2,
+        tier_mix={"niche": 1, "trending": 1},
+        placement="end",
+        counts_toward_char_limit=True,
+        guidance=(
+            "Use 1-2 hashtags that join a specific conversation or topic — not "
+            "generic reach tags. They count toward the 280-character limit. "
+            "Three or more reads as spam on X."
+        ),
+    ),
+    # Facebook, Blog, Email, Generic → disabled (no hashtags). Handled by the
+    # disabled default in get_hashtag_policy().
+}
+
+# Tiers a policy may reference, in canonical fill priority.
+HASHTAG_TIERS: tuple[str, ...] = ("broad", "niche", "branded", "trending")
+
+_DISABLED_HASHTAG_POLICY = HashtagPolicy(enabled=False, min_tags=0, max_tags=0)
+
+
+def get_hashtag_policy(platform: Platform) -> HashtagPolicy:
+    """Return the hashtag policy for a platform.
+
+    Platforms without an explicit entry are disabled (emit no hashtags) — this
+    is the safe default for Facebook/Blog/Email/Generic and any not-yet-wired
+    platform.
+    """
+    return PLATFORM_HASHTAG_POLICY.get(platform, _DISABLED_HASHTAG_POLICY)
 
 
 def get_platform_target_length(platform: Platform) -> str:

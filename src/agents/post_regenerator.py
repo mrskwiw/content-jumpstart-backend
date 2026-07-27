@@ -17,6 +17,7 @@ from ..utils.anthropic_client import AnthropicClient
 from ..utils.logger import logger
 from ..utils.voice_metrics import VoiceMetrics
 from ..validators.cta_validator import CTAValidator
+from .hashtag_researcher import strip_all_hashtags
 
 # Template name keywords whose posts are designed to end with engagement questions.
 # These are exempt from the post_ends_with_question regeneration trigger.
@@ -87,9 +88,16 @@ class PostRegenerator:
         """
         reasons = []
 
+        # Evaluate the PROSE body. Appended hashtags are metadata, not prose —
+        # counting them would skew length/CTA/readability diagnostics and
+        # regenerate every hashtagged post (BUGS.md Decision #198). Uses the
+        # Unicode-aware sanitizer so digit-led/non-Latin tags are stripped too.
+        prose = strip_all_hashtags(post.content) if post.content else ""
+        prose_word_count = len(prose.split())
+
         # Check readability score
         if post.content:
-            readability = self.voice_metrics.calculate_readability(post.content)
+            readability = self.voice_metrics.calculate_readability(prose)
 
             if readability < self.profile.min_readability:
                 reasons.append(
@@ -108,21 +116,21 @@ class PostRegenerator:
                     )
                 )
 
-        # Check length constraints
-        if post.word_count < self.profile.min_words:
+        # Check length constraints (prose only — appended hashtags don't count)
+        if prose_word_count < self.profile.min_words:
             reasons.append(
                 RegenerationReason(
                     "too_short",
                     f"Post too short (min: {self.profile.min_words} words)",
-                    post.word_count,
+                    prose_word_count,
                 )
             )
-        elif post.word_count > self.profile.max_words:
+        elif prose_word_count > self.profile.max_words:
             reasons.append(
                 RegenerationReason(
                     "too_long",
                     f"Post too long (max: {self.profile.max_words} words)",
-                    post.word_count,
+                    prose_word_count,
                 )
             )
 
@@ -130,9 +138,10 @@ class PostRegenerator:
         if self.profile.require_cta and not post.has_cta:
             reasons.append(RegenerationReason("missing_cta", "Post lacks clear call-to-action"))
 
-        # Check CTA placement and form
-        if post.content:
-            lines = [ln.strip() for ln in post.content.strip().split("\n") if ln.strip()]
+        # Check CTA placement and form (on the prose body, so an appended hashtag
+        # line is not mistaken for the final line / a misplaced CTA).
+        if prose:
+            lines = [ln.strip() for ln in prose.strip().split("\n") if ln.strip()]
             if lines:
                 last_line = lines[-1]
                 body = "\n".join(lines[:-1]).lower()

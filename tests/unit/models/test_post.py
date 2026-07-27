@@ -451,3 +451,27 @@ class TestPost:
 
         assert post.word_count == 1000
         assert post.character_count == len(long_content)
+
+
+class TestRecomputeLength:
+    """recompute_length() after content is mutated (e.g. hashtags appended post-QA)."""
+
+    def _post(self, content: str) -> Post:
+        return Post(content=content, template_id=1, template_name="T", client_name="C")
+
+    def test_counts_reflect_actual_full_content(self):
+        """word_count/character_count measure the ACTUAL content, incl. any tags
+        (the field's meaning across the codebase — Decision #198). Regeneration
+        diagnostics that must ignore tags do so in PostRegenerator, not here."""
+        post = self._post("A concise body sentence here.")
+        post.content = post.content + "\n\n#Alpha #Beta"
+        post.recompute_length()
+        assert post.word_count == len(post.content.split())  # includes the tags
+        assert post.character_count == len(post.content)
+
+    def test_char_count_reflects_full_mutated_content(self):
+        post = self._post("Short.")
+        post.content = "Short. #Tag"
+        post.recompute_length()
+        assert post.character_count == len("Short. #Tag")
+        assert post.word_count == 2

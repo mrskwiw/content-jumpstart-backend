@@ -15,8 +15,16 @@ from ..config.hook_frameworks import build_hook_guidance
 from ..config.constants import AI_TELL_PHRASES, MAX_POST_WORD_COUNT, MIN_POST_WORD_COUNT
 from ..config.platform_specs import (
     PLATFORM_LENGTH_SPECS,
+    get_hashtag_policy,
     get_platform_prompt_guidance,
     get_platform_target_length,
+)
+from .hashtag_researcher import (
+    HashtagResearcher,
+    apply_hashtag_set,
+    count_hashtags,
+    enforce_policy,
+    keyword_fallback_candidates,
 )
 from ..config.prompts import SystemPrompts
 from ..models.client_brief import ClientBrief, Platform
@@ -101,6 +109,7 @@ class ContentGeneratorAgent:
         self.keyword_strategy = keyword_strategy
         self.db = db
         self.backend_session = backend_session  # For research context integration
+        self._hashtag_researcher: Optional[HashtagResearcher] = None  # lazy (HASHTAG-02)
 
         # Load content-creator skill for enhanced guidance
         self.content_skill: Optional[Skill] = None
@@ -906,13 +915,7 @@ class ContentGeneratorAgent:
 
         # Platform-specific template structure overrides (mirrors async path)
         if platform == Platform.TWITTER:
-            _kw = getattr(client_brief, "keywords", None) or []
-            _hashtag_rule = (
-                f"End with one or more hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
-                if _kw
-                else "End with one or more relevant hashtags"
-            )
-            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 250 characters (1-2 hashtags are appended automatically afterward). Target: 70-100 characters.
 
 Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
 
@@ -920,9 +923,8 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- {_hashtag_rule} — hashtags serve as the CTA for microblog format; hashtags like #ContentStrategy or #BookACall count as both discovery and call-to-action (count toward the 280-char limit)
-- REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
-- Count characters before outputting — rewrite from scratch if over 280"""
+- Do NOT add hashtags yourself — 1-2 researched hashtags are appended automatically after generation
+- Count characters before outputting — rewrite from scratch if over 250"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected). Maximum: 100 words.
 
@@ -981,6 +983,13 @@ Rules:
             # Check if post needs review — pass generation platform explicitly so
             # the correct word-count limits apply even if post.target_platform is None
             self._check_quality_flags(post, template, client_brief, generation_platform=platform)
+
+            # Append hashtags for LinkedIn/X AFTER QA (approach B). The sync path
+            # has no async client for live research, so it uses deterministic
+            # keyword-derived tags; the async path does full LLM research.
+            post.content = self._apply_hashtags_sync(post.content, platform, client_brief, template)
+            post.recompute_length()  # content changed after init — refresh length metadata
+            self._check_hashtag_flags(post, platform)
 
             # Mark story as used for this template+project if story context was injected
             _used_story_id = context.get("_story_id_for_template")
@@ -1108,13 +1117,7 @@ Your blog post should include:
 This is a blog post, not a social media post — depth and thoroughness matter. Cover the topic comprehensively."""
             template_structure_to_use = blog_template_structure
         elif platform == Platform.TWITTER:
-            _kw = getattr(client_brief, "keywords", None) or []
-            _hashtag_rule = (
-                f"End with one or more hashtags drawn from the client's keywords: {', '.join(_kw[:5])}"
-                if _kw
-                else "End with one or more relevant hashtags"
-            )
-            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 280 characters. Target: 70-100 characters.
+            template_structure_to_use = f"""Write a single microblog post. HARD LIMIT: 250 characters (1-2 hashtags are appended automatically afterward). Target: 70-100 characters.
 
 Template theme (use as inspiration only — do NOT follow its multi-part structure): {template.name}
 
@@ -1122,9 +1125,8 @@ Rules:
 - One punchy sentence; two very short sentences only if unavoidable
 - No paragraph breaks or line breaks
 - Distil the template's core idea into one ultra-concise statement or hook
-- {_hashtag_rule} — hashtags serve as the CTA for microblog format; hashtags like #ContentStrategy or #BookACall count as both discovery and call-to-action (count toward the 280-char limit)
-- REQUIRED: at least one hashtag (#) must appear — posts without a hashtag will be rejected
-- Count characters before outputting — rewrite from scratch if over 280"""
+- Do NOT add hashtags yourself — 1-2 researched hashtags are appended automatically after generation
+- Count characters before outputting — rewrite from scratch if over 250"""
         elif platform == Platform.FACEBOOK:
             template_structure_to_use = f"""Write a Facebook post. Target: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected). Maximum: 100 words.
 
@@ -1178,6 +1180,22 @@ Rules:
 
             # Check if post needs review — pass generation platform explicitly
             self._check_quality_flags(post, template, client_brief, generation_platform=platform)
+
+            # Append researched hashtags for LinkedIn/X AFTER QA (approach B), so a
+            # trailing tag line never hides the CTA from last-line detection. Then
+            # validate the final hashtag count.
+            post.content = await self._apply_hashtags_async(
+                post.content,
+                platform,
+                client_brief,
+                template,
+                angle=context.get("variant_guidance", ""),
+            )
+            post.recompute_length()  # content changed after init — refresh length metadata
+            # NOTE: hashtag min/max validation runs ONCE on the settled post in
+            # _generate_single_post_with_retry_async — NOT per attempt. Hashtag
+            # count is attempt-independent (it comes from research/keywords), so
+            # flagging it here would drive futile prose regenerations.
 
             # Log completion
             log_post_generated(post_number, template.name, post.word_count)
@@ -1260,8 +1278,11 @@ Rules:
                 }
             )
 
-            # If post has no quality flags, it's adequate - return immediately
+            # If post has no quality flags, it's adequate - return immediately.
+            # Validate hashtag min/max on the settled post (surfaces underfilled/
+            # overfilled sets for review without churning the prose retry loop).
             if not post.needs_review:
+                self._check_hashtag_flags(post, platform)
                 logger.info(
                     f"Post {post_number} passed quality check on attempt {attempt + 1}/{max_attempts} "
                     f"(quality score: {quality_score:.2%})"
@@ -1279,9 +1300,10 @@ Rules:
                 else "Max attempts reached."
             )
 
-        # No adequate result - return best attempt
+        # No adequate result - return best attempt (also hashtag-validated once).
         best = max(attempts, key=lambda x: x["quality_score"])
         best_post: Post = best["post"]
+        self._check_hashtag_flags(best_post, platform)
         logger.warning(
             f"Post {post_number} did not meet quality standards after {max_attempts} attempts. "
             f"Returning best attempt (#{best['attempt_number']}, quality score: {best['quality_score']:.2%}, "
@@ -1928,7 +1950,9 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
             elif platform == Platform.TWITTER:
                 lines.append("- Front-load value in first sentence")
                 lines.append("- Use strong verbs, remove filler words")
-                lines.append("- Hashtags: 1-2 max, placed at end")
+                lines.append(
+                    "- Do NOT add hashtags — they are researched and appended automatically"
+                )
             elif platform == Platform.FACEBOOK:
                 lines.append("- Visual-first approach (assume image accompanies)")
                 lines.append("- Emotional or curiosity-driven hooks")
@@ -2115,6 +2139,93 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
 
         return content.strip()
 
+    # ----------------------------------------------------------------- #
+    # Hashtag research + placement (HASHTAG-02, LinkedIn + X slice)
+    # ----------------------------------------------------------------- #
+
+    def _get_hashtag_researcher(self) -> HashtagResearcher:
+        """Lazily build the researcher, sharing the agent's Anthropic client."""
+        if self._hashtag_researcher is None:
+            from ..utils.response_cache import ResponseCache
+
+            self._hashtag_researcher = HashtagResearcher(self.client, cache=ResponseCache())
+        return self._hashtag_researcher
+
+    @staticmethod
+    def _hashtag_inputs(client_brief: ClientBrief) -> tuple:
+        """Extract (keywords, brand, industry, client_id) for research."""
+        keywords = getattr(client_brief, "keywords", None) or []
+        brand = getattr(client_brief, "company_name", None)
+        industry = getattr(client_brief, "industry", None)
+        client_id = str(
+            getattr(client_brief, "client_id", None)
+            or getattr(client_brief, "company_name", "")
+            or "unknown"
+        )
+        return keywords, brand, industry, client_id
+
+    def _skip_hashtags(self, content: str) -> bool:
+        """Never decorate security/error placeholder content with hashtags."""
+        return content.lstrip().startswith("[")
+
+    async def _apply_hashtags_async(
+        self,
+        content: str,
+        platform: Platform,
+        client_brief: ClientBrief,
+        template: Template,
+        angle: str,
+    ) -> str:
+        """Async path: live LLM research, then deterministic placement (approach B).
+
+        ``angle`` is the post's actual per-post angle (distinct within a template);
+        it keys the research cache and steers the prompt, so posts on different
+        angles get different tags. Falls back to the template name when empty.
+        """
+        policy = get_hashtag_policy(platform)
+        if not policy.enabled or self._skip_hashtags(content):
+            return content
+        keywords, brand, industry, client_id = self._hashtag_inputs(client_brief)
+        template_name = getattr(template, "name", "") or ""
+        post_angle = angle or template_name
+        try:
+            hset = await self._get_hashtag_researcher().research(
+                client_id=client_id,
+                platform=platform,
+                angle=post_angle,
+                template_name=template_name,
+                client_keywords=keywords,
+                industry=industry,
+                brand_name=brand,
+            )
+        except Exception as e:  # research is best-effort — fall back to keywords
+            logger.warning(f"Hashtag research failed ({e}); using keyword fallback")
+            hset = enforce_policy(
+                keyword_fallback_candidates(keywords, brand), policy, platform.value
+            )
+        if not hset.tags:  # research produced nothing → deterministic fallback
+            hset = enforce_policy(
+                keyword_fallback_candidates(keywords, brand), policy, platform.value
+            )
+        max_chars = PLATFORM_LENGTH_SPECS.get(platform, {}).get("max_chars")
+        return apply_hashtag_set(content, hset, policy, max_chars=max_chars)
+
+    def _apply_hashtags_sync(
+        self,
+        content: str,
+        platform: Platform,
+        client_brief: ClientBrief,
+        template: Template,
+    ) -> str:
+        """Sync path: deterministic keyword-derived tags (no async client here)."""
+        policy = get_hashtag_policy(platform)
+        if not policy.enabled or self._skip_hashtags(content):
+            return content
+        keywords, brand, _industry, _cid = self._hashtag_inputs(client_brief)
+        hset = enforce_policy(keyword_fallback_candidates(keywords, brand), policy, platform.value)
+        max_chars = PLATFORM_LENGTH_SPECS.get(platform, {}).get("max_chars")
+        return apply_hashtag_set(content, hset, policy, max_chars=max_chars)
+
     @staticmethod
     def _generate_twitter_share_copy(content: str) -> str:
         """
@@ -2158,6 +2269,29 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
             tweet = tweet[:276] + "..."
 
         return tweet
+
+    @staticmethod
+    def _check_hashtag_flags(post: Post, platform: Platform) -> None:
+        """Validate a post's FINAL hashtag set (run after placement).
+
+        Placement already caps the appended set; the overflow check also catches
+        extras a model embedded mid-post (which trailing-strip won't remove).
+        """
+        policy = get_hashtag_policy(platform)
+        if not policy.enabled:
+            return
+        count = count_hashtags(post.content)
+        # Enforce BOTH bounds. enforce_policy won't fabricate tags to reach the
+        # minimum (under-emitting beats inventing), so an underfilled post must at
+        # least be surfaced for review rather than shipped silently.
+        if count < policy.min_tags:
+            post.flag_for_review(
+                f"Too few hashtags: {count} (min {policy.min_tags} for {platform.value})"
+            )
+        if count > policy.max_tags:
+            post.flag_for_review(
+                f"Too many hashtags: {count} (max {policy.max_tags} for {platform.value})"
+            )
 
     def _check_quality_flags(
         self,
@@ -2206,10 +2340,10 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
             post.flag_for_review(f"Post too long: {post.word_count} words (max: {max_words})")
             return
 
-        # Twitter/microblog posts use hashtags instead of CTAs
+        # Twitter/microblog posts use hashtags instead of CTAs. Hashtag presence
+        # is validated post-placement via _check_hashtag_flags (tags are appended
+        # after this QA pass — see the generation paths).
         if platform == Platform.TWITTER:
-            if "#" not in post.content:
-                post.flag_for_review("No hashtag detected in microblog post")
             return
 
         # Check if CTA is present when expected
