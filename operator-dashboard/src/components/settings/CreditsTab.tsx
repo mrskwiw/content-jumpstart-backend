@@ -100,6 +100,9 @@ export function CreditsTab({ isSuperAdmin }: Props) {
   const [showGrantCreditsModal, setShowGrantCreditsModal] = useState(false);
   const [grantCreditsForm, setGrantCreditsForm] = useState({ user_id: '', credits: 1000, reason: '' });
   const [grantCreditsError, setGrantCreditsError] = useState<string | null>(null);
+  // Refund-policy acknowledgement gates checkout (enforceability of "no refunds
+  // once generation begins" — see /refund).
+  const [refundAck, setRefundAck] = useState(false);
 
   const { data: creditBalance } = useQuery({ queryKey: ['credits', 'balance'], queryFn: () => creditsApi.getBalance() });
   const { data: creditPackages = [] } = useQuery({ queryKey: ['credits', 'packages'], queryFn: () => creditsApi.getPackages() });
@@ -169,6 +172,27 @@ export function CreditsTab({ isSuperAdmin }: Props) {
         {/* Credit Packages */}
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6">
           <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Purchase Credits</h3>
+
+          {/* Refund notice + required acknowledgement (gates checkout) */}
+          <div className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-3">
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              Credits are non-refundable once content generation or research begins. Please
+              review our{' '}
+              <a href="/refund" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Refund Policy</a>{' '}
+              and{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium underline hover:no-underline">Terms of Service</a>.
+            </p>
+            <label className="mt-2 flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={refundAck}
+                onChange={e => setRefundAck(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500"
+              />
+              <span>I understand credits are non-refundable once generation begins, and I agree to the Refund Policy and Terms of Service.</span>
+            </label>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {creditPackages.map(pkg => (
               <div key={pkg.id} className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 p-4 hover:border-primary-400 dark:hover:border-primary-600 transition-colors">
@@ -183,7 +207,7 @@ export function CreditsTab({ isSuperAdmin }: Props) {
                   <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{pkg.credits.toLocaleString()} credits</p>
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">${pkg.price_usd.toFixed(2)} (${pkg.rate_per_credit.toFixed(3)}/credit)</p>
                 </div>
-                <button onClick={async () => { try { const origin = window.location.origin; const result = await stripeApi.createCheckoutSession({ package_id: pkg.id, success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/dashboard/settings?tab=credits` }); window.location.href = result.checkout_url; } catch { alert('Failed to start checkout. Please try again.'); } }} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600">
+                <button disabled={!refundAck} title={!refundAck ? 'Please acknowledge the Refund Policy above to continue' : undefined} onClick={async () => { if (!refundAck) return; try { const origin = window.location.origin; const result = await stripeApi.createCheckoutSession({ package_id: pkg.id, success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/dashboard/settings?tab=credits` }); window.location.href = result.checkout_url; } catch { alert('Failed to start checkout. Please try again.'); } }} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed">
                   <CreditCard className="h-4 w-4" />Purchase
                 </button>
               </div>

@@ -16,8 +16,8 @@ export default function PrivacyPolicy() {
           <ul className="list-disc ml-6 space-y-1 mt-2">
             <li>
               Visit our website at{' '}
-              <a href="https://content-backend-flmx.onrender.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
-                https://content-backend-flmx.onrender.com
+              <a href="https://content-jumpstart.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                https://content-jumpstart.com
               </a>{' '}
               or any website of ours that links to this Privacy Notice
             </li>
@@ -46,8 +46,8 @@ export default function PrivacyPolicy() {
             <p><strong>What are your rights?</strong> Depending on where you are located geographically, the applicable privacy law may mean you have certain rights regarding your personal information.</p>
             <p>
               <strong>How do you exercise your rights?</strong> The easiest way to exercise your rights is by visiting{' '}
-              <a href="https://content-backend-flmx.onrender.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
-                https://content-backend-flmx.onrender.com/dashboard/settings
+              <a href="https://content-jumpstart.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                https://content-jumpstart.com/dashboard/settings
               </a>{' '}
               or by contacting us.
             </p>
@@ -314,8 +314,8 @@ export default function PrivacyPolicy() {
             </ul>
             <h3 className="text-base font-semibold mt-4 mb-2">How to Exercise Your Rights</h3>
             <p>To exercise these rights, you can contact us by visiting{' '}
-              <a href="https://content-backend-flmx.onrender.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
-                https://content-backend-flmx.onrender.com/dashboard/settings
+              <a href="https://content-jumpstart.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                https://content-jumpstart.com/dashboard/settings
               </a>{' '}
               or by emailing us at{' '}
               <a href="mailto:mrskwiw@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">mrskwiw@gmail.com</a>,
@@ -364,8 +364,8 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-4">15. HOW CAN YOU REVIEW, UPDATE, OR DELETE THE DATA WE COLLECT FROM YOU?</h2>
           <div className="space-y-3 text-sm leading-relaxed">
             <p>Based on the applicable laws of your country or state of residence in the US, you may have the right to request access to the personal information we collect from you, details about how we have processed it, correct inaccuracies, or delete your personal information. You may also have the right to withdraw your consent to our processing of your personal information. To request to review, update, or delete your personal information, please visit:{' '}
-              <a href="https://content-backend-flmx.onrender.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
-                https://content-backend-flmx.onrender.com/dashboard/settings
+              <a href="https://content-jumpstart.com/dashboard/settings" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-all">
+                https://content-jumpstart.com/dashboard/settings
               </a>.
             </p>
           </div>

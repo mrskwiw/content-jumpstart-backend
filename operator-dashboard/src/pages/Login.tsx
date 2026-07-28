@@ -151,6 +151,14 @@ export default function Login() {
           </Button>
         </form>
       </div>
+
+      <footer className="mt-6 text-center text-xs text-neutral-500 dark:text-neutral-400">
+        <a href="/terms" className="hover:underline">Terms</a>
+        {' · '}
+        <a href="/privacy" className="hover:underline">Privacy</a>
+        {' · '}
+        <a href="/refund" className="hover:underline">Refund Policy</a>
+      </footer>
     </div>
   );
 }
