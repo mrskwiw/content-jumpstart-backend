@@ -59,6 +59,54 @@ async def test_checkout_records_consent_and_proceeds():
 
 
 @pytest.mark.asyncio
+async def test_checkout_fails_closed_when_consent_cannot_be_recorded():
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = MagicMock()  # package exists
+    user = MagicMock(id="u1", email="u@x.com")
+    stripe_calls = {"n": 0}
+
+    def _stripe(**kw):
+        stripe_calls["n"] += 1
+        return {"checkout_url": "x", "session_id": "y"}
+
+    with patch(
+        "backend.services.audit_service.log_action", side_effect=RuntimeError("db down")
+    ), patch("backend.services.audit_service.get_client_ip", return_value="1.2.3.4"), patch(
+        "backend.routers.stripe_checkout.stripe_service.create_checkout_session",
+        side_effect=_stripe,
+    ):
+        with pytest.raises(HTTPException) as ei:
+            await _endpoint(MagicMock(), _body(True), db, user)
+
+    assert ei.value.status_code == 503
+    assert stripe_calls["n"] == 0  # fail-closed: no Stripe session created without a consent record
+
+
+def test_log_action_is_fire_and_forget_by_default():
+    from backend.services import audit_service
+
+    db = MagicMock()
+    db.commit.side_effect = RuntimeError("boom")
+    # Default: must NOT raise.
+    audit_service.log_action(db, action="x", action_type="system", resource_type="payment")
+
+
+def test_log_action_raise_on_error_reraises():
+    from backend.services import audit_service
+
+    db = MagicMock()
+    db.commit.side_effect = RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        audit_service.log_action(
+            db,
+            action="x",
+            action_type="system",
+            resource_type="payment",
+            raise_on_error=True,
+        )
+
+
+@pytest.mark.asyncio
 async def test_default_request_is_not_consented():
     # accepted_terms defaults False, so a request that omits it is rejected.
     body = CheckoutSessionRequest(

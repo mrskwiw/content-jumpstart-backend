@@ -37,11 +37,17 @@ def log_action(
     ip_address: Optional[str] = None,
     status: str = "success",
     metadata: Optional[Dict[str, Any]] = None,
+    raise_on_error: bool = False,
 ) -> None:
     """Write a single AuditLog entry.
 
-    This is fire-and-forget: errors are caught and logged but never raised so
-    audit failures never break the underlying operation.
+    By default this is fire-and-forget: errors are caught and logged but never
+    raised, so audit failures never break the underlying operation.
+
+    Set ``raise_on_error=True`` when the audit entry is itself load-bearing and
+    the operation must be **fail-closed** (e.g. recording checkout consent — if we
+    cannot persist that the buyer accepted the Terms, the purchase must not
+    proceed). In that mode a write failure rolls back and re-raises.
 
     Args:
         db: SQLAlchemy session. A new commit is issued for the audit entry.
@@ -77,8 +83,11 @@ def log_action(
         db.add(entry)
         db.commit()
     except Exception:
-        logger.exception("audit_service.log_action: failed to write entry — suppressing")
         try:
             db.rollback()
         except Exception:
             pass
+        if raise_on_error:
+            logger.error("audit_service.log_action: failed to write required entry — re-raising")
+            raise
+        logger.exception("audit_service.log_action: failed to write entry — suppressing")

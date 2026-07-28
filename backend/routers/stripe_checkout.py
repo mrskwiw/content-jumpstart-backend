@@ -66,23 +66,33 @@ async def create_checkout_session(
         raise HTTPException(status_code=404, detail="Credit package not found")
 
     # Persist the accepted-terms consent (immutable audit trail) BEFORE creating
-    # the session, so acceptance is provable independent of the client.
-    audit_service.log_action(
-        db,
-        user_id=current_user.id,
-        user_email=getattr(current_user, "email", None),
-        action="Accepted Terms & Refund Policy at checkout",
-        action_type="system",
-        resource_type="payment",
-        resource_id=body.package_id,
-        details=f"Consent version: {body.consent_version or 'unspecified'}",
-        ip_address=audit_service.get_client_ip(request),
-        metadata={
-            "accepted_terms": True,
-            "consent_version": body.consent_version,
-            "package_id": body.package_id,
-        },
-    )
+    # the session, so acceptance is provable independent of the client. This is
+    # FAIL-CLOSED (raise_on_error): if we cannot record consent, the purchase does
+    # not proceed — otherwise the audit trail could silently disappear.
+    try:
+        audit_service.log_action(
+            db,
+            user_id=current_user.id,
+            user_email=getattr(current_user, "email", None),
+            action="Accepted Terms & Refund Policy at checkout",
+            action_type="system",
+            resource_type="payment",
+            resource_id=body.package_id,
+            details=f"Consent version: {body.consent_version or 'unspecified'}",
+            ip_address=audit_service.get_client_ip(request),
+            metadata={
+                "accepted_terms": True,
+                "consent_version": body.consent_version,
+                "package_id": body.package_id,
+            },
+            raise_on_error=True,
+        )
+    except Exception as e:
+        logger.error(f"Failed to record checkout consent: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Could not record your consent; purchase not started. Please try again.",
+        )
 
     try:
         result = stripe_service.create_checkout_session(
