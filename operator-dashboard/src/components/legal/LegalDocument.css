@@ -1,0 +1,105 @@
+/*
+ * Scoped restyle for embedded legal policy HTML (Termly exports).
+ *
+ * The cleaned HTML keeps its semantic tags (h1-h3, div/span paragraphs, ul/li,
+ * a, strong, table) plus Termly's original <br>-based paragraph spacing. We only
+ * reskin colours/typography here so the docs match our theme (incl. class-based
+ * dark mode) without re-marking-up each doc by hand.
+ */
+
+.legal-content {
+  color: #404040; /* neutral-700 */
+  font-size: 0.875rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.dark .legal-content {
+  color: #d4d4d4; /* neutral-300 */
+}
+
+/* Termly wraps blocks in align="center"; force left for readability.
+   Presentational [align] hints lose to any author rule. */
+.legal-content [align] {
+  text-align: left;
+}
+
+.legal-content h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.5rem;
+  color: #171717; /* neutral-900 */
+}
+.legal-content h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 2rem 0 0.75rem;
+  color: #171717;
+}
+.legal-content h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+  color: #262626; /* neutral-800 */
+}
+.dark .legal-content h1,
+.dark .legal-content h2 {
+  color: #f5f5f5; /* neutral-100 */
+}
+.dark .legal-content h3 {
+  color: #e5e5e5; /* neutral-200 */
+}
+
+.legal-content ul,
+.legal-content ol {
+  margin: 0 0 1rem 1.5rem;
+  padding: 0;
+}
+.legal-content li {
+  margin: 0.35rem 0;
+  list-style: disc;
+}
+.legal-content ol > li {
+  list-style: decimal;
+}
+
+.legal-content a {
+  color: #2563eb; /* blue-600 */
+  text-decoration: none;
+}
+.legal-content a:hover {
+  text-decoration: underline;
+}
+.dark .legal-content a {
+  color: #60a5fa; /* blue-400 */
+}
+
+.legal-content strong {
+  font-weight: 600;
+  color: inherit;
+}
+
+.legal-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+  display: block;
+  overflow-x: auto; /* wide tables scroll instead of breaking layout */
+}
+.legal-content th,
+.legal-content td {
+  border: 1px solid #e5e5e5; /* neutral-200 */
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+.dark .legal-content th,
+.dark .legal-content td {
+  border-color: #404040; /* neutral-700 */
+}
+
+/* Termly emits absolute inline anchors; keep them from adding stray gaps. */
+.legal-content a[name] {
+  display: inline;
+}

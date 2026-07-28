@@ -141,6 +141,10 @@ export default function RefundPolicy() {
           <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
             Privacy Policy
           </a>
+          {' · '}
+          <a href="/cookies" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Cookie Policy
+          </a>
         </div>
       </div>
     </div>

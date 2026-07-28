@@ -166,6 +166,8 @@ export default function Login() {
         {' · '}
         <a href="/privacy" className="hover:underline">Privacy</a>
         {' · '}
+        <a href="/cookies" className="hover:underline">Cookies</a>
+        {' · '}
         <a href="/refund" className="hover:underline">Refund Policy</a>
       </footer>
     </div>

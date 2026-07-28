@@ -60,6 +60,7 @@ const PaymentSuccess = lazyWithRetry(() => import('@/pages/PaymentSuccess'));
 // Legal pages
 const PrivacyPolicy = lazyWithRetry(() => import('@/pages/PrivacyPolicy'));
 const TermsOfService = lazyWithRetry(() => import('@/pages/TermsOfService'));
+const CookiePolicy = lazyWithRetry(() => import('@/pages/CookiePolicy'));
 const RefundPolicy = lazyWithRetry(() => import('@/pages/RefundPolicy'));
 
 // Loading fallback component
@@ -165,6 +166,15 @@ export const router = createBrowserRouter([
   {
     path: '/terms',
     element: withSuspense(TermsOfService),
+  },
+  {
+    path: '/cookies',
+    element: withSuspense(CookiePolicy),
+  },
+  {
+    // Back-compat alias.
+    path: '/cookie-policy',
+    element: <Navigate to="/cookies" replace />,
   },
   {
     path: '/refund',
