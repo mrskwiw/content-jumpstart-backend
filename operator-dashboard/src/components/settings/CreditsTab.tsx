@@ -10,6 +10,10 @@ import {
   ArrowUpRight, ArrowDownRight, Gift, X,
 } from 'lucide-react';
 
+// Version of the Terms/Refund copy the buyer is accepting at checkout. Bump when
+// the legal pages' "Last updated" date changes so consent records stay meaningful.
+const LEGAL_CONSENT_VERSION = '2026-07-27';
+
 function GrantCreditsModal({
   isOpen, onClose, users, form, onFormChange, onSubmit, isSubmitting, error,
 }: {
@@ -207,7 +211,7 @@ export function CreditsTab({ isSuperAdmin }: Props) {
                   <p className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{pkg.credits.toLocaleString()} credits</p>
                   <p className="text-sm text-neutral-600 dark:text-neutral-400">${pkg.price_usd.toFixed(2)} (${pkg.rate_per_credit.toFixed(3)}/credit)</p>
                 </div>
-                <button disabled={!refundAck} title={!refundAck ? 'Please acknowledge the Refund Policy above to continue' : undefined} onClick={async () => { if (!refundAck) return; try { const origin = window.location.origin; const result = await stripeApi.createCheckoutSession({ package_id: pkg.id, success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/dashboard/settings?tab=credits` }); window.location.href = result.checkout_url; } catch { alert('Failed to start checkout. Please try again.'); } }} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button disabled={!refundAck} title={!refundAck ? 'Please acknowledge the Refund Policy above to continue' : undefined} onClick={async () => { if (!refundAck) return; try { const origin = window.location.origin; const result = await stripeApi.createCheckoutSession({ package_id: pkg.id, success_url: `${origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${origin}/dashboard/settings?tab=credits`, accepted_terms: refundAck, consent_version: LEGAL_CONSENT_VERSION }); window.location.href = result.checkout_url; } catch { alert('Failed to start checkout. Please try again.'); } }} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed">
                   <CreditCard className="h-4 w-4" />Purchase
                 </button>
               </div>

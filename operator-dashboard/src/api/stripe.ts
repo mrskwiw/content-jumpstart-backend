@@ -5,6 +5,8 @@ export interface CheckoutSessionRequest {
   success_url: string;
   cancel_url: string;
   project_id?: string;
+  accepted_terms: boolean;
+  consent_version?: string;
 }
 
 export interface CheckoutSessionResponse {

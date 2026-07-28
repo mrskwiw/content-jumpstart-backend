@@ -10,6 +10,10 @@ class CheckoutSessionRequest(BaseModel):
     success_url: str
     cancel_url: str
     project_id: Optional[str] = None
+    # Refund/Terms consent — enforced server-side (a client-only checkbox is
+    # bypassable). Must be True; the accepted version is persisted for audit.
+    accepted_terms: bool = False
+    consent_version: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
 

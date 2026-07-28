@@ -44,6 +44,15 @@ async def create_checkout_session(
 ):
     """Create a Stripe Checkout Session for a credit package."""
     from backend.models.credit import CreditPackage
+    from backend.services import audit_service
+
+    # Refund/Terms consent is enforced HERE (not just via the client checkbox,
+    # which is trivially bypassable) so no purchase can proceed without it.
+    if not body.accepted_terms:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the Terms of Service and Refund Policy to purchase.",
+        )
 
     package = (
         db.query(CreditPackage)
@@ -55,6 +64,25 @@ async def create_checkout_session(
     )
     if not package:
         raise HTTPException(status_code=404, detail="Credit package not found")
+
+    # Persist the accepted-terms consent (immutable audit trail) BEFORE creating
+    # the session, so acceptance is provable independent of the client.
+    audit_service.log_action(
+        db,
+        user_id=current_user.id,
+        user_email=getattr(current_user, "email", None),
+        action="Accepted Terms & Refund Policy at checkout",
+        action_type="system",
+        resource_type="payment",
+        resource_id=body.package_id,
+        details=f"Consent version: {body.consent_version or 'unspecified'}",
+        ip_address=audit_service.get_client_ip(request),
+        metadata={
+            "accepted_terms": True,
+            "consent_version": body.consent_version,
+            "package_id": body.package_id,
+        },
+    )
 
     try:
         result = stripe_service.create_checkout_session(

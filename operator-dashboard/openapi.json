@@ -10544,6 +10544,22 @@
               }
             ],
             "title": "Project Id"
+          },
+          "accepted_terms": {
+            "type": "boolean",
+            "title": "Accepted Terms",
+            "default": false
+          },
+          "consent_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Version"
           }
         },
         "additionalProperties": false,
