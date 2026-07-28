@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours — covers a full work session
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Self-service password-reset link lifetime (GAP-AUTH-01). Short by design;
+    # the token is single-use (its "pv" claim invalidates once the password changes).
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Super Admin Configuration
     # Comma-separated list of email addresses for super admins (original system administrators)

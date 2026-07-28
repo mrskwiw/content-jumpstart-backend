@@ -113,6 +113,15 @@ export default function Login() {
                       )}
                     </button>
                   </div>
+                  <div className="mt-1 text-right">
+                    <button
+                      type="button"
+                      className="text-xs text-neutral-500 dark:text-neutral-400 hover:underline"
+                      onClick={() => navigate(ROUTES.FORGOT_PASSWORD)}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (

@@ -1,5 +1,7 @@
 export const ROUTES = {
   LOGIN: '/login',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
   PORTFOLIO_NOTICE: '/portfolio-notice',
   DASHBOARD: '/dashboard',
   WIZARD: '/dashboard/wizard',

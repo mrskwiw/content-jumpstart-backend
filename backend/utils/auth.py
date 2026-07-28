@@ -123,6 +123,30 @@ def create_mfa_setup_token(data: dict) -> str:
     return jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
 
 
+def create_password_reset_token(data: dict) -> str:
+    """
+    Create a short-lived, single-use JWT for self-service password reset
+    (GAP-AUTH-01).
+
+    The token type is "password_reset" — get_current_user rejects it, so it
+    grants no API access; only /auth/reset-password accepts it.
+
+    Callers MUST include a "pv" claim = password_fingerprint(current hash). That
+    makes the token single-use without any server-side store: the reset endpoint
+    verifies "pv" still matches the user's current hash, and completing a reset
+    changes the hash — so the same link (or any link minted before the change)
+    can never be replayed. Expiry defaults to
+    settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "password_reset"})
+
+    secret_manager = get_secret_manager()
+    primary_secret = secret_manager.get_primary_secret() or settings.SECRET_KEY
+    return jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
+
+
 def create_refresh_token(data: dict) -> str:
     """
     Create JWT refresh token using primary secret from SecretManager.

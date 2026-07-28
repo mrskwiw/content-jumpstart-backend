@@ -75,6 +75,24 @@ export const authApi = {
     return data;
   },
 
+  forgotPassword: async (email: string): Promise<{ status: string; message: string }> => {
+    // Always resolves with a generic message — the backend never reveals whether
+    // the email maps to an account (no user enumeration).
+    const { data } = await apiClient.post('/api/auth/forgot-password', { email });
+    return data;
+  },
+
+  resetPassword: async (
+    token: string,
+    newPassword: string
+  ): Promise<{ status: string; message: string }> => {
+    const { data } = await apiClient.post('/api/auth/reset-password', {
+      token,
+      new_password: newPassword,
+    });
+    return data;
+  },
+
   logout: async (): Promise<void> => {
     // Call logout endpoint if backend has one
     // await apiClient.post('/api/auth/logout');

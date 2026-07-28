@@ -117,6 +117,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Request a self-service password-reset link (GAP-AUTH-01).
+         *
+         *     Always returns the same generic response so an attacker cannot use this
+         *     endpoint to discover which emails have accounts (no user enumeration). When
+         *     the email maps to an *active* account, a single-use reset link is emailed in
+         *     the background; otherwise nothing is sent. The email send is a background
+         *     task so response time is constant regardless of account existence.
+         *
+         *     Rate limit: 5/hour per IP.
+         */
+        post: operations["forgot_password_api_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Complete a self-service password reset using an emailed token (GAP-AUTH-01).
+         *
+         *     Validates the single-use "password_reset" token, enforces the strong
+         *     password policy, sets the new password, and stamps ``password_changed_at``
+         *     so all pre-reset sessions are revoked. The token's ``pv`` claim must still
+         *     match the user's current password hash — this guarantees a link is usable
+         *     exactly once and cannot be replayed after the password changes.
+         *
+         *     Rate limit: 20/hour per IP.
+         */
+        post: operations["reset_password_api_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/refresh": {
         parameters: {
             query?: never;
@@ -4846,6 +4902,13 @@ export interface components {
             cancel_url: string;
             /** Project Id */
             project_id?: string | null;
+            /**
+             * Accepted Terms
+             * @default false
+             */
+            accepted_terms: boolean;
+            /** Consent Version */
+            consent_version?: string | null;
         };
         /** CheckoutSessionResponse */
         CheckoutSessionResponse: {
@@ -5628,6 +5691,21 @@ export interface components {
              * @description Source location in file (e.g., 'line 42')
              */
             source?: string | null;
+        };
+        /**
+         * ForgotPasswordRequest
+         * @description Schema for requesting a self-service password-reset link (GAP-AUTH-01).
+         *
+         *     Only the email is accepted. The endpoint always returns a generic success
+         *     response regardless of whether the email maps to an account, so this schema
+         *     intentionally reveals nothing.
+         */
+        ForgotPasswordRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /**
          * FullMetricsResponse
@@ -6919,6 +6997,20 @@ export interface components {
             credits: number;
         };
         /**
+         * ResetPasswordRequest
+         * @description Schema for completing a self-service password reset (GAP-AUTH-01).
+         *
+         *     ``token`` is the single-use "password_reset" JWT delivered by email;
+         *     ``new_password`` must satisfy the same strength rules as every other
+         *     password-setting path.
+         */
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
          * RunCostBreakdown
          * @description Detailed cost breakdown for a single run
          */
@@ -7855,6 +7947,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forgot_password_api_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
             };
         };
         responses: {

@@ -2,12 +2,16 @@
 Authentication router - login, refresh token, user creation.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import os
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from backend.schemas.auth import (
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
+    ResetPasswordRequest,
     TokenResponse,
     UserCreate,
 )
@@ -20,6 +24,7 @@ from backend.models import User
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
     create_access_token,
+    create_password_reset_token,
     create_refresh_token,
     decode_token,
     get_password_hash,
@@ -29,8 +34,30 @@ from backend.utils.auth import (
 )
 from backend.utils.http_rate_limiter import strict_limiter, standard_limiter
 from backend.config import settings
+from backend.utils.logger import logger
 
 router = APIRouter()
+
+
+def _send_password_reset_email(recipient_name: str, recipient_email: str, reset_link: str) -> None:
+    """Deliver a password-reset email as a background task.
+
+    Runs off the request path so /forgot-password responds in constant time
+    regardless of whether an account exists (avoids a timing side-channel) and
+    isn't blocked by SMTP latency. Failures are logged, never surfaced — the
+    caller has already returned a generic response.
+    """
+    try:
+        from agent.email_system import EmailSystem
+
+        EmailSystem().send_password_reset(
+            client_name=recipient_name,
+            client_email=recipient_email,
+            reset_link=reset_link,
+            expiry_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+        )
+    except Exception:  # pragma: no cover - defensive; email is best-effort
+        logger.exception("Failed to send password-reset email")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -145,6 +172,131 @@ async def change_password(
 
     logger.info(f"Password changed for user {current_user.email} (id={current_user.id})")
     return {"status": "success", "message": "Password updated successfully"}
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+@strict_limiter.limit("5/hour")  # TR-004: throttle reset-link requests / abuse
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Request a self-service password-reset link (GAP-AUTH-01).
+
+    Always returns the same generic response so an attacker cannot use this
+    endpoint to discover which emails have accounts (no user enumeration). When
+    the email maps to an *active* account, a single-use reset link is emailed in
+    the background; otherwise nothing is sent. The email send is a background
+    task so response time is constant regardless of account existence.
+
+    Rate limit: 5/hour per IP.
+    """
+    generic_response = {
+        "status": "success",
+        "message": ("If an account exists for that email, a password reset link has been sent."),
+    }
+
+    user = crud.get_user_by_email(db, body.email)
+    if user and user.is_active:
+        # Bind the token to the current password fingerprint so it is single-use:
+        # completing the reset changes the hash, invalidating this (and any older) link.
+        reset_token = create_password_reset_token(
+            {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
+        )
+        base = os.getenv("APP_BASE_URL", "https://content-jumpstart.com").rstrip("/")
+        reset_link = f"{base}/reset-password?token={reset_token}"
+        background_tasks.add_task(
+            _send_password_reset_email,
+            user.full_name or user.email,
+            user.email,
+            reset_link,
+        )
+        logger.info(f"Password-reset link issued for user {user.email} (id={user.id})")
+    else:
+        # Log for monitoring, but reveal nothing to the caller.
+        logger.info(f"Password-reset requested for unknown/inactive email: {body.email}")
+
+    return generic_response
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+@standard_limiter.limit("20/hour")  # TR-004: limit brute force against the token
+async def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Complete a self-service password reset using an emailed token (GAP-AUTH-01).
+
+    Validates the single-use "password_reset" token, enforces the strong
+    password policy, sets the new password, and stamps ``password_changed_at``
+    so all pre-reset sessions are revoked. The token's ``pv`` claim must still
+    match the user's current password hash — this guarantees a link is usable
+    exactly once and cannot be replayed after the password changes.
+
+    Rate limit: 20/hour per IP.
+    """
+    invalid_link = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired reset link. Please request a new one.",
+    )
+
+    payload = decode_token(body.token)
+    if not payload or payload.get("type") != "password_reset":
+        raise invalid_link
+
+    user_id = payload.get("sub")
+    user = crud.get_user(db, user_id) if user_id else None
+    if not user or not user.is_active:
+        raise invalid_link
+
+    # Single-use / already-consumed guard: the token's password fingerprint must
+    # still match the current hash. A None "pv" (malformed/legacy token) fails
+    # this check too — fail closed.
+    if payload.get("pv") != password_fingerprint(user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This reset link has already been used or is no longer valid. "
+                "Please request a new one."
+            ),
+        )
+
+    # Reject a no-op so the "new" password is genuinely new.
+    if verify_password(body.new_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from your current password",
+        )
+
+    # Enforce the full strong-password policy (TR-013), mirroring change-password.
+    is_valid, password_errors = password_policy.validate_password(body.new_password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "WEAK_PASSWORD",
+                "message": "Password does not meet security requirements",
+                "requirements": password_errors,
+            },
+        )
+
+    from datetime import datetime, timezone
+
+    user.hashed_password = get_password_hash(body.new_password)
+    # Revoke pre-reset sessions (incl. legacy tokens without a "pv" claim).
+    user.password_changed_at = datetime.now(timezone.utc)
+    db.add(user)
+    db.commit()
+
+    logger.info(f"Password reset completed for user {user.email} (id={user.id})")
+    return {
+        "status": "success",
+        "message": "Password updated successfully. You can now sign in.",
+    }
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse)

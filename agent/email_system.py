@@ -23,6 +23,7 @@ class EmailType(str, Enum):
     INVOICE_REMINDER = "invoice_reminder"
     REVISION_CONFIRMATION = "revision_confirmation"
     SATISFACTION_SURVEY = "satisfaction_survey"
+    PASSWORD_RESET = "password_reset"  # pragma: allowlist secret  # enum value, not a credential
     WELCOME = "welcome"
     GENERAL = "general"
 
@@ -204,6 +205,29 @@ The Content Jumpstart Team
                 """.strip(),
                 variables=["client_name", "survey_link"],
             ),
+            EmailType.PASSWORD_RESET: EmailTemplate(
+                template_id="password_reset",
+                email_type=EmailType.PASSWORD_RESET,
+                subject="Reset your Content Jumpstart password 🔐",
+                body_text="""
+Hi {client_name},
+
+We received a request to reset the password for your Content Jumpstart account.
+
+Click the link below to choose a new password:
+
+{reset_link}
+
+This link expires in {expiry_minutes} minutes and can only be used once.
+
+If you didn't request this, you can safely ignore this email — your password
+won't change until you visit the link above and set a new one.
+
+Best regards,
+The Content Jumpstart Team
+                """.strip(),
+                variables=["client_name", "reset_link", "expiry_minutes"],
+            ),
             EmailType.REVISION_CONFIRMATION: EmailTemplate(
                 template_id="revision_confirmation",
                 email_type=EmailType.REVISION_CONFIRMATION,
@@ -384,6 +408,32 @@ The Content Jumpstart Team
         message = self.create_email_from_template(
             email_type=EmailType.FEEDBACK_REQUEST, to_email=client_email, variables=variables
         )
+
+        return self.send_email(message)
+
+    def send_password_reset(
+        self,
+        client_name: str,
+        client_email: str,
+        reset_link: str,
+        expiry_minutes: int = 30,
+    ) -> tuple[bool, Optional[str]]:
+        """Send a self-service password-reset email (GAP-AUTH-01).
+
+        ``reset_link`` is the fully-formed ``{APP_BASE_URL}/reset-password?token=…``
+        URL built by the caller; ``expiry_minutes`` is surfaced in the copy so it
+        stays in sync with the token's actual lifetime.
+        """
+        variables = {
+            "client_name": client_name,
+            "reset_link": reset_link,
+            "expiry_minutes": str(expiry_minutes),
+        }
+
+        message = self.create_email_from_template(
+            email_type=EmailType.PASSWORD_RESET, to_email=client_email, variables=variables
+        )
+        message.priority = EmailPriority.HIGH
 
         return self.send_email(message)
 

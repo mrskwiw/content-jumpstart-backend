@@ -147,6 +147,86 @@
         ]
       }
     },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Forgot Password",
+        "description": "Request a self-service password-reset link (GAP-AUTH-01).\n\nAlways returns the same generic response so an attacker cannot use this\nendpoint to discover which emails have accounts (no user enumeration). When\nthe email maps to an *active* account, a single-use reset link is emailed in\nthe background; otherwise nothing is sent. The email send is a background\ntask so response time is constant regardless of account existence.\n\nRate limit: 5/hour per IP.",
+        "operationId": "forgot_password_api_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Reset Password",
+        "description": "Complete a self-service password reset using an emailed token (GAP-AUTH-01).\n\nValidates the single-use \"password_reset\" token, enforces the strong\npassword policy, sets the new password, and stamps ``password_changed_at``\nso all pre-reset sessions are revoked. The token's ``pv`` claim must still\nmatch the user's current password hash \u2014 this guarantees a link is usable\nexactly once and cannot be replayed after the password changes.\n\nRate limit: 20/hour per IP.",
+        "operationId": "reset_password_api_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "tags": [
@@ -12989,6 +13069,22 @@
         "title": "FieldExtraction",
         "description": "Represents a single extracted field from a client brief.\n\nAttributes:\n    value: The extracted value (can be string, list, etc.)\n    confidence: Confidence level of the extraction (high/medium/low)\n    source: Optional line number or location in the source file"
       },
+      "ForgotPasswordRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordRequest",
+        "description": "Schema for requesting a self-service password-reset link (GAP-AUTH-01).\n\nOnly the email is accepted. The endpoint always returns a generic success\nresponse regardless of whether the email maps to an account, so this schema\nintentionally reveals nothing."
+      },
       "FullMetricsResponse": {
         "properties": {
           "summary": {
@@ -16460,6 +16556,26 @@
         ],
         "title": "ResearchToolCost",
         "description": "Research tool cost breakdown."
+      },
+      "ResetPasswordRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "new_password": {
+            "type": "string",
+            "title": "New Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "ResetPasswordRequest",
+        "description": "Schema for completing a self-service password reset (GAP-AUTH-01).\n\n``token`` is the single-use \"password_reset\" JWT delivered by email;\n``new_password`` must satisfy the same strength rules as every other\npassword-setting path."
       },
       "RunCostBreakdown": {
         "properties": {

@@ -315,3 +315,59 @@ class PasswordResetRequest(BaseModel):
             )
 
         return v
+
+
+class ForgotPasswordRequest(BaseModel):
+    """
+    Schema for requesting a self-service password-reset link (GAP-AUTH-01).
+
+    Only the email is accepted. The endpoint always returns a generic success
+    response regardless of whether the email maps to an account, so this schema
+    intentionally reveals nothing.
+    """
+
+    email: EmailStr
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        """Normalize email to lowercase (matches registration/login handling)."""
+        return v.lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    """
+    Schema for completing a self-service password reset (GAP-AUTH-01).
+
+    ``token`` is the single-use "password_reset" JWT delivered by email;
+    ``new_password`` must satisfy the same strength rules as every other
+    password-setting path.
+    """
+
+    token: str
+    new_password: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate new password strength (mirrors ChangePasswordRequest)."""
+        if not v or len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if len(v) > 200:
+            raise ValueError("Password too long (max 200 characters)")
+
+        has_upper = any(c.isupper() for c in v)
+        has_lower = any(c.islower() for c in v)
+        has_digit = any(c.isdigit() for c in v)
+
+        if not (has_upper and has_lower and has_digit):
+            raise ValueError(
+                "Password must contain at least one uppercase letter, "
+                "one lowercase letter, and one digit"
+            )
+
+        return v
