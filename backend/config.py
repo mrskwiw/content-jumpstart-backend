@@ -170,6 +170,13 @@ class Settings(BaseSettings):
         "memory://"  # Use "redis://localhost:6379/1" for production clustering
     )
 
+    # Research spend guardrail (GAP-PAY-02) — SOFT alert (does not block) when a
+    # user's ACTUAL research API $-spend (ResearchResult.actual_cost_usd, cache
+    # hits excluded) exceeds these per-window caps. The credit balance already
+    # bounds total spend; this surfaces real API-cost velocity (runaway/abuse).
+    RESEARCH_DAILY_SPEND_CAP_USD: float = 2000.0
+    RESEARCH_MONTHLY_SPEND_CAP_USD: float = 10000.0
+
     # Content Generation
     PARALLEL_GENERATION: bool = True
     MAX_CONCURRENT_API_CALLS: int = 10

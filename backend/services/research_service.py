@@ -783,6 +783,15 @@ class ResearchService:
             except Exception as e:
                 logger.warning(f"Failed to sync research token usage (non-critical): {e}")
 
+            # GAP-PAY-02: soft spend-cap monitor. Runs AFTER token sync so the
+            # current run's actual_cost_usd is included. Never blocks / never raises.
+            try:
+                from backend.services import research_spend_monitor
+
+                research_spend_monitor.check_and_alert(db, research_result.user_id)
+            except Exception as e:
+                logger.warning(f"Spend monitor failed (non-critical): {e}")
+
             # Story Mining Integration: Save mined stories to database
             if tool_name == "story_mining" and result.success:
                 try:
