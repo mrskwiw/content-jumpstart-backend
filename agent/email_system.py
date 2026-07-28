@@ -368,9 +368,17 @@ The Content Jumpstart Team
         self,
         client_name: str,
         client_email: str,
-        feedback_link: str = "https://jumpstart.com/feedback",
+        feedback_link: Optional[str] = None,
     ) -> tuple[bool, Optional[str]]:
-        """Send feedback request email"""
+        """Send feedback request email.
+
+        ``feedback_link`` defaults to ``{APP_BASE_URL}/feedback`` so outbound links
+        follow the configured domain (content-jumpstart.com) instead of a
+        hardcoded host (DOMAIN-01 D-01d).
+        """
+        if not feedback_link:
+            base = os.getenv("APP_BASE_URL", "https://content-jumpstart.com").rstrip("/")
+            feedback_link = f"{base}/feedback"
         variables = {"client_name": client_name, "feedback_link": feedback_link}
 
         message = self.create_email_from_template(

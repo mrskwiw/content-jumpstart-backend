@@ -52,6 +52,12 @@ repos:
         files: ^backend/(schemas|models|routers)/.*\.py$
         pass_filenames: false
 
+      - id: no-deleted-render-host
+        name: No references to the deleted Render backend host
+        entry: bash scripts/check-no-dead-host.sh
+        language: system
+        pass_filenames: false
+
   # Python code quality
   - repo: https://github.com/psf/black
     rev: 25.12.0

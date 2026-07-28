@@ -5,8 +5,9 @@
 echo "🔍 Verifying Netlify/Render Deployment..."
 echo ""
 
-# Configuration
-BACKEND_URL="https://content-backend-flmx.onrender.com"
+# Configuration — override BACKEND_URL via env for a specific instance.
+# (The previous Render backend service was deleted — DOMAIN-01.)
+BACKEND_URL="${BACKEND_URL:-https://content-jumpstart.com}"
 NETLIFY_URL="YOUR_NETLIFY_URL_HERE"  # Replace with actual Netlify URL
 
 # Colors for output
@@ -49,7 +50,7 @@ echo ""
 echo "3️⃣ Testing auth endpoint reachability..."
 AUTH_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BACKEND_URL/api/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"email":"test@example.com","password":"test"}')
+    -d '{"email":"test@example.com","password":"test"}')  # pragma: allowlist secret
 HTTP_CODE=$(echo "$AUTH_RESPONSE" | tail -n1)
 AUTH_BODY=$(echo "$AUTH_RESPONSE" | sed '$d')
 
