@@ -349,9 +349,9 @@ The Content Jumpstart Team
         variables = {
             "client_name": client_name,
             "deliverable_file": Path(deliverable_files[0]).name if deliverable_files else "",
-            "voice_guide_file": Path(deliverable_files[1]).name
-            if len(deliverable_files) > 1
-            else "",
+            "voice_guide_file": (
+                Path(deliverable_files[1]).name if len(deliverable_files) > 1 else ""
+            ),
             "qa_report_file": Path(deliverable_files[2]).name if len(deliverable_files) > 2 else "",
         }
 
