@@ -372,8 +372,20 @@ The Content Jumpstart Team
                     )
         return out
 
+    # Transient failures worth one retry. Safe to retry because every send carries
+    # an Idempotency-Key (message_id) — Resend dedups, so a retry after a timeout
+    # or 5xx cannot double-send even if the first attempt actually queued.
+    _RESEND_MAX_ATTEMPTS = 2
+
     def _send_via_resend(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
-        """Send via the Resend HTTP API (https://resend.com/docs)."""
+        """Send via the Resend HTTP API (https://resend.com/docs).
+
+        Recovery path: transient failures (connection error, timeout, 5xx) are
+        retried once; a stable Idempotency-Key makes that safe (no double-send).
+        Client errors (4xx) are not retried — a retry can't fix a bad request.
+        A definitive failure returns ``(False, detail)`` and is logged at WARNING
+        so an outage is visible rather than silently swallowed.
+        """
         if not self.resend_api_key:
             return False, "RESEND_API_KEY not configured"
 
@@ -391,18 +403,36 @@ The Content Jumpstart Team
         if attachments:
             payload["attachments"] = attachments
 
-        try:
-            import requests
+        import requests
 
-            resp = requests.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {self.resend_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=15,
-            )
+        headers = {
+            "Authorization": f"Bearer {self.resend_api_key}",
+            "Content-Type": "application/json",
+            # Stable per-message key → retries dedup instead of double-sending.
+            "Idempotency-Key": message.message_id,
+        }
+
+        last_detail = "unknown error"
+        for attempt in range(1, self._RESEND_MAX_ATTEMPTS + 1):
+            try:
+                resp = requests.post(
+                    "https://api.resend.com/emails",
+                    headers=headers,
+                    json=payload,
+                    timeout=15,
+                )
+            except requests.exceptions.RequestException as e:
+                # Network error / timeout — transient, retry (idempotent).
+                last_detail = str(e)
+                logger.warning(
+                    "Resend send attempt %d/%d errored (to=%s): %s",
+                    attempt,
+                    self._RESEND_MAX_ATTEMPTS,
+                    message.to_email,
+                    e,
+                )
+                continue
+
             if resp.status_code // 100 == 2:
                 message.status = "sent"
                 message.sent_at = datetime.now()
@@ -413,15 +443,29 @@ The Content Jumpstart Team
                     pass
                 return True, f"Sent via Resend (id={email_id})"
 
-            message.status = "failed"
-            detail = f"Resend API error {resp.status_code}: {resp.text[:200]}"
-            logger.warning("Email send failed (to=%s): %s", message.to_email, detail)
-            return False, detail
+            last_detail = f"Resend API error {resp.status_code}: {resp.text[:200]}"
+            if resp.status_code < 500:
+                # Client error (bad payload / auth) — retrying won't help.
+                message.status = "failed"
+                logger.warning("Email send failed (to=%s): %s", message.to_email, last_detail)
+                return False, last_detail
+            # 5xx — transient server error, retry (idempotent).
+            logger.warning(
+                "Resend send attempt %d/%d failed (to=%s): %s",
+                attempt,
+                self._RESEND_MAX_ATTEMPTS,
+                message.to_email,
+                last_detail,
+            )
 
-        except Exception as e:
-            message.status = "failed"
-            logger.warning("Email send errored (to=%s): %s", message.to_email, e)
-            return False, str(e)
+        message.status = "failed"
+        logger.warning(
+            "Email send failed after %d attempts (to=%s): %s",
+            self._RESEND_MAX_ATTEMPTS,
+            message.to_email,
+            last_detail,
+        )
+        return False, last_detail
 
     def _send_via_smtp(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
         """Send via SMTP (self-hosted / Gmail fallback)."""

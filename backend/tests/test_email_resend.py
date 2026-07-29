@@ -141,6 +141,59 @@ def test_resend_no_key_returns_error(clean_env):
     assert not ok and "RESEND_API_KEY" in detail
 
 
+def test_resend_sets_idempotency_key(clean_env):
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    msg = _msg()
+    with patch("requests.post", return_value=_ok_response()) as post:
+        es.send_email(msg)
+    assert post.call_args.kwargs["headers"]["Idempotency-Key"] == msg.message_id
+
+
+def test_resend_retries_on_5xx_then_succeeds(clean_env):
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err500 = MagicMock(status_code=500, text="server error")
+    with patch("requests.post", side_effect=[err500, _ok_response("e_ok")]) as post:
+        ok, detail = es.send_email(_msg())
+    assert ok and "e_ok" in detail
+    assert post.call_count == 2  # retried once, then succeeded
+
+
+def test_resend_gives_up_after_max_attempts_on_5xx(clean_env):
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err500 = MagicMock(status_code=500, text="server error")
+    with patch("requests.post", side_effect=[err500, err500]) as post:
+        ok, detail = es.send_email(_msg())
+    assert not ok and "500" in detail
+    assert post.call_count == 2  # bounded retry, not infinite
+
+
+def test_resend_retries_on_connection_error(clean_env):
+    import requests
+
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    with patch(
+        "requests.post",
+        side_effect=[requests.exceptions.ConnectionError("boom"), _ok_response("e_ok")],
+    ) as post:
+        ok, detail = es.send_email(_msg())
+    assert ok and "e_ok" in detail
+    assert post.call_count == 2
+
+
+def test_resend_does_not_retry_on_4xx(clean_env):
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err422 = MagicMock(status_code=422, text="validation failed")
+    with patch("requests.post", side_effect=[err422, err422]) as post:
+        ok, detail = es.send_email(_msg())
+    assert not ok and "422" in detail
+    assert post.call_count == 1  # client error — no retry
+
+
 def test_from_override_and_name(clean_env):
     clean_env.setenv("RESEND_API_KEY", "re_x")
     clean_env.setenv("EMAIL_FROM", "hello@example.com")
