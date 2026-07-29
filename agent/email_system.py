@@ -77,8 +77,23 @@ class EmailSystem:
     ):
         self.smtp_host = smtp_host or os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = smtp_port
-        self.smtp_user = smtp_user or os.getenv("SMTP_USER")
+        # Accept SMTP_USER or SMTP_USERNAME — the .env template historically
+        # documented SMTP_USERNAME while the code read SMTP_USER, which silently
+        # left email in log-only mode. Honour both.
+        self.smtp_user = smtp_user or os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME")
         self.smtp_password = smtp_password or os.getenv("SMTP_PASSWORD")
+
+        # Resend (preferred transactional provider). When RESEND_API_KEY is set,
+        # send_email() routes through the Resend HTTP API; otherwise it falls back
+        # to SMTP, then to dev-mode logging — so an unset key is a no-op.
+        self.resend_api_key = os.getenv("RESEND_API_KEY")
+        # Explicit override: auto | resend | smtp | log. "auto" picks the best
+        # available transport (resend > smtp > log).
+        self.email_provider = os.getenv("EMAIL_PROVIDER", "auto").lower()
+        self.from_name = os.getenv("EMAIL_FROM_NAME", "Content Jumpstart")
+        # Optional global sender override (else per-message from_email is used).
+        self.from_override = os.getenv("EMAIL_FROM")
+
         self.templates = self._load_templates()
         self.message_id_counter = 0
 
@@ -290,16 +305,105 @@ The Content Jumpstart Team
             email_type=email_type,
         )
 
-    def send_email(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
-        """Send an email message"""
-        if not self.smtp_user or not self.smtp_password:
-            # Development mode - log instead of sending
-            return self._log_email(message)
+    def _resolve_provider(self) -> str:
+        """Pick the outbound transport: resend > smtp > log (unless overridden)."""
+        if self.email_provider != "auto":
+            return self.email_provider
+        if self.resend_api_key:
+            return "resend"
+        if self.smtp_user and self.smtp_password:
+            return "smtp"
+        return "log"
 
+    def _from_header(self, message: EmailMessage) -> str:
+        """Build the `Name <addr>` From header (global override wins)."""
+        addr = self.from_override or message.from_email
+        return f"{self.from_name} <{addr}>"
+
+    def send_email(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
+        """Send an email message via the resolved transport.
+
+        Never raises — returns ``(ok, detail)`` so callers (often fire-and-forget
+        background tasks) don't have to guard.
+        """
+        provider = self._resolve_provider()
+        if provider == "resend":
+            return self._send_via_resend(message)
+        if provider == "smtp":
+            return self._send_via_smtp(message)
+        return self._log_email(message)
+
+    def _build_resend_attachments(self, paths: List[str]) -> List[dict]:
+        """Base64-encode existing files into Resend's attachment format."""
+        import base64
+
+        out: List[dict] = []
+        for attachment_path in paths:
+            fp = Path(attachment_path)
+            if fp.exists():
+                with open(fp, "rb") as f:
+                    out.append(
+                        {
+                            "filename": fp.name,
+                            "content": base64.b64encode(f.read()).decode("ascii"),
+                        }
+                    )
+        return out
+
+    def _send_via_resend(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
+        """Send via the Resend HTTP API (https://resend.com/docs)."""
+        if not self.resend_api_key:
+            return False, "RESEND_API_KEY not configured"
+
+        payload: dict = {
+            "from": self._from_header(message),
+            "to": [message.to_email],
+            "subject": message.subject,
+            "text": message.body_text,
+        }
+        if message.body_html:
+            payload["html"] = message.body_html
+        if message.reply_to:
+            payload["reply_to"] = message.reply_to
+        attachments = self._build_resend_attachments(message.attachments)
+        if attachments:
+            payload["attachments"] = attachments
+
+        try:
+            import requests
+
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {self.resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=15,
+            )
+            if resp.status_code // 100 == 2:
+                message.status = "sent"
+                message.sent_at = datetime.now()
+                email_id = None
+                try:
+                    email_id = resp.json().get("id")
+                except Exception:
+                    pass
+                return True, f"Sent via Resend (id={email_id})"
+
+            message.status = "failed"
+            return False, f"Resend API error {resp.status_code}: {resp.text[:200]}"
+
+        except Exception as e:
+            message.status = "failed"
+            return False, str(e)
+
+    def _send_via_smtp(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
+        """Send via SMTP (self-hosted / Gmail fallback)."""
         try:
             # Create MIME message
             msg = MIMEMultipart()
-            msg["From"] = message.from_email
+            msg["From"] = self._from_header(message)
             msg["To"] = message.to_email
             msg["Subject"] = message.subject
 
