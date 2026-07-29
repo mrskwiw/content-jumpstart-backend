@@ -194,6 +194,29 @@ def test_resend_does_not_retry_on_4xx(clean_env):
     assert post.call_count == 1  # client error — no retry
 
 
+def test_resend_retries_on_429(clean_env):
+    # 429 is a transient rate-limit, not a hard client error — it must retry.
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err429 = MagicMock(status_code=429, text="rate limited")
+    err429.headers = {}  # no Retry-After → no sleep
+    with patch("requests.post", side_effect=[err429, _ok_response("e_ok")]) as post:
+        ok, detail = es.send_email(_msg())
+    assert ok and "e_ok" in detail
+    assert post.call_count == 2
+
+
+def test_resend_429_honours_retry_after_capped(clean_env):
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err429 = MagicMock(status_code=429, text="rate limited")
+    err429.headers = {"Retry-After": "10"}  # above the 3s cap
+    with patch("requests.post", side_effect=[err429, _ok_response()]), patch("time.sleep") as sleep:
+        ok, _ = es.send_email(_msg())
+    assert ok
+    sleep.assert_called_once_with(3.0)  # capped at _RESEND_MAX_BACKOFF_S
+
+
 def test_from_override_and_name(clean_env):
     clean_env.setenv("RESEND_API_KEY", "re_x")
     clean_env.setenv("EMAIL_FROM", "hello@example.com")

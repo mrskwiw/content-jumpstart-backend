@@ -5,6 +5,7 @@ Email integration system for sending notifications, reminders, and deliverables
 import logging
 import os
 import smtplib
+import time
 from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -373,9 +374,21 @@ The Content Jumpstart Team
         return out
 
     # Transient failures worth one retry. Safe to retry because every send carries
-    # an Idempotency-Key (message_id) — Resend dedups, so a retry after a timeout
-    # or 5xx cannot double-send even if the first attempt actually queued.
+    # an Idempotency-Key (message_id) — Resend dedups, so a retry after a timeout,
+    # 5xx, or 429 cannot double-send even if the first attempt actually queued.
     _RESEND_MAX_ATTEMPTS = 2
+    # Cap for honouring a 429 Retry-After header (seconds) so one bounded retry
+    # can't block the caller for long.
+    _RESEND_MAX_BACKOFF_S = 3.0
+
+    @staticmethod
+    def _resend_backoff_seconds(resp) -> float:
+        """Seconds to wait before retry, from a Retry-After header (capped)."""
+        try:
+            retry_after = resp.headers.get("Retry-After")
+            return min(float(retry_after), EmailSystem._RESEND_MAX_BACKOFF_S)
+        except (AttributeError, TypeError, ValueError):
+            return 0.0
 
     def _send_via_resend(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
         """Send via the Resend HTTP API (https://resend.com/docs).
@@ -444,12 +457,13 @@ The Content Jumpstart Team
                 return True, f"Sent via Resend (id={email_id})"
 
             last_detail = f"Resend API error {resp.status_code}: {resp.text[:200]}"
-            if resp.status_code < 500:
+            # 429 (rate limit) is transient like 5xx; other 4xx won't fix on retry.
+            if resp.status_code != 429 and resp.status_code < 500:
                 # Client error (bad payload / auth) — retrying won't help.
                 message.status = "failed"
                 logger.warning("Email send failed (to=%s): %s", message.to_email, last_detail)
                 return False, last_detail
-            # 5xx — transient server error, retry (idempotent).
+            # 429 / 5xx — transient, retry (idempotent). Honour Retry-After on 429.
             logger.warning(
                 "Resend send attempt %d/%d failed (to=%s): %s",
                 attempt,
@@ -457,6 +471,10 @@ The Content Jumpstart Team
                 message.to_email,
                 last_detail,
             )
+            if attempt < self._RESEND_MAX_ATTEMPTS:
+                delay = self._resend_backoff_seconds(resp)
+                if delay > 0:
+                    time.sleep(delay)
 
         message.status = "failed"
         logger.warning(
