@@ -381,14 +381,30 @@ The Content Jumpstart Team
     # can't block the caller for long.
     _RESEND_MAX_BACKOFF_S = 3.0
 
-    @staticmethod
-    def _resend_backoff_seconds(resp) -> float:
-        """Seconds to wait before retry, from a Retry-After header (capped)."""
+    @classmethod
+    def _resend_retry_wait(cls, resp) -> Optional[float]:
+        """Seconds to wait before a 429 retry, or ``None`` to give up.
+
+        ``None`` means the provider asked to wait longer than we're willing to
+        block (> _RESEND_MAX_BACKOFF_S), or gave an HTTP-date / un-parseable
+        value we can't honour within that cap. In that case we fail fast rather
+        than burn the single retry on a too-soon attempt that would just re-hit
+        the limit — app-level re-request covers sustained rate limiting.
+        ``0.0`` means retry immediately (no guidance).
+        """
         try:
             retry_after = resp.headers.get("Retry-After")
-            return min(float(retry_after), EmailSystem._RESEND_MAX_BACKOFF_S)
-        except (AttributeError, TypeError, ValueError):
+        except AttributeError:
             return 0.0
+        if retry_after is None:
+            return 0.0
+        try:
+            secs = float(retry_after)
+        except (TypeError, ValueError):
+            return None  # HTTP-date form or unparseable — don't guess
+        if secs > cls._RESEND_MAX_BACKOFF_S:
+            return None
+        return max(secs, 0.0)
 
     def _send_via_resend(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
         """Send via the Resend HTTP API (https://resend.com/docs).
@@ -471,10 +487,21 @@ The Content Jumpstart Team
                 message.to_email,
                 last_detail,
             )
-            if attempt < self._RESEND_MAX_ATTEMPTS:
-                delay = self._resend_backoff_seconds(resp)
-                if delay > 0:
-                    time.sleep(delay)
+            if attempt < self._RESEND_MAX_ATTEMPTS and resp.status_code == 429:
+                wait = self._resend_retry_wait(resp)
+                if wait is None:
+                    # Provider asked to wait longer than we'll block — fail fast
+                    # instead of a doomed early retry; app re-request covers it.
+                    message.status = "failed"
+                    logger.warning(
+                        "Email send failed (to=%s): Retry-After exceeds cap, not retrying: %s",
+                        message.to_email,
+                        last_detail,
+                    )
+                    return False, last_detail
+                if wait > 0:
+                    time.sleep(wait)
+            # 5xx retries immediately.
 
         message.status = "failed"
         logger.warning(

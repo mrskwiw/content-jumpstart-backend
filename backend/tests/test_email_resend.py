@@ -206,15 +206,47 @@ def test_resend_retries_on_429(clean_env):
     assert post.call_count == 2
 
 
-def test_resend_429_honours_retry_after_capped(clean_env):
+def test_resend_429_within_cap_sleeps_then_retries(clean_env):
     clean_env.setenv("RESEND_API_KEY", "re_x")
     es = EmailSystem()
     err429 = MagicMock(status_code=429, text="rate limited")
-    err429.headers = {"Retry-After": "10"}  # above the 3s cap
-    with patch("requests.post", side_effect=[err429, _ok_response()]), patch("time.sleep") as sleep:
+    err429.headers = {"Retry-After": "2"}  # within the 3s cap
+    with (
+        patch("requests.post", side_effect=[err429, _ok_response()]) as post,
+        patch("time.sleep") as sleep,
+    ):
         ok, _ = es.send_email(_msg())
     assert ok
-    sleep.assert_called_once_with(3.0)  # capped at _RESEND_MAX_BACKOFF_S
+    assert post.call_count == 2
+    sleep.assert_called_once_with(2.0)
+
+
+def test_resend_429_bails_when_retry_after_exceeds_cap(clean_env):
+    # Provider asks to wait longer than we'll block — fail fast, don't retry too soon.
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err429 = MagicMock(status_code=429, text="rate limited")
+    err429.headers = {"Retry-After": "60"}
+    with (
+        patch("requests.post", side_effect=[err429, _ok_response()]) as post,
+        patch("time.sleep") as sleep,
+    ):
+        ok, detail = es.send_email(_msg())
+    assert not ok and "429" in detail
+    assert post.call_count == 1  # bailed instead of a doomed early retry
+    sleep.assert_not_called()
+
+
+def test_resend_429_bails_on_http_date_retry_after(clean_env):
+    # HTTP-date form isn't parsed as seconds — bail rather than guess.
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    err429 = MagicMock(status_code=429, text="rate limited")
+    err429.headers = {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+    with patch("requests.post", side_effect=[err429, _ok_response()]) as post:
+        ok, detail = es.send_email(_msg())
+    assert not ok and "429" in detail
+    assert post.call_count == 1
 
 
 def test_from_override_and_name(clean_env):
