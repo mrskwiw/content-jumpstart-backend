@@ -1,7 +1,8 @@
 // Refund Policy — DRAFT pending legal review.
 // Generated as review-ready starting copy (legal-advisor). For a payment platform,
-// have this reviewed / regenerated via Termly or counsel before Stripe live activation.
-// Governing-law and entity-address placeholders are marked [[...]] — fill before publishing.
+// have this reviewed by counsel before Stripe live activation.
+// Entity/address + governing law taken from the Termly Terms (Missouri; Basement
+// Squirrel Games). Covers both billing models: prepaid credits AND subscription.
 
 export default function RefundPolicy() {
   return (
@@ -31,7 +32,8 @@ export default function RefundPolicy() {
               1. How billing works
             </h2>
             <p>
-              The Services are sold on a prepaid <strong>credit</strong> basis. Credits are
+              The Services are sold on a prepaid <strong>credit</strong> basis and, for some
+              plans, as a recurring <strong>subscription</strong> (see Section 2). Credits are
               purchased through our payment processor, Stripe, and are consumed when you run
               paid operations such as AI content generation and research tools. The credit cost
               of each operation is shown before you confirm it.
@@ -40,7 +42,28 @@ export default function RefundPolicy() {
 
           <section className="mt-6">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
-              2. No refunds once generation begins
+              2. Subscriptions
+            </h2>
+            <p>
+              Subscription plans are billed in advance on a recurring basis (for example,
+              monthly) through Stripe and renew automatically until canceled. You can cancel at
+              any time from your account; cancellation takes effect at the end of the current
+              paid period, and you retain access until then.
+            </p>
+            <p className="mt-2">
+              <strong>
+                Subscription fees already charged for the current billing period are
+                non-refundable, and we do not provide partial or prorated refunds
+              </strong>{' '}
+              for the unused portion of a period, except where required by applicable law. Any
+              credits granted as part of a subscription remain subject to Section 3 (&ldquo;No
+              refunds once generation begins&rdquo;).
+            </p>
+          </section>
+
+          <section className="mt-6">
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
+              3. No refunds once generation begins
             </h2>
             <p>
               Our Services deliver AI-generated output that is computed on demand and incurs
@@ -62,7 +85,7 @@ export default function RefundPolicy() {
 
           <section className="mt-6">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
-              3. When we do issue refunds
+              4. When we do issue refunds
             </h2>
             <p>We will refund, or restore the affected credits, in these limited circumstances:</p>
             <ul className="list-disc ml-6 space-y-1 mt-2">
@@ -86,7 +109,7 @@ export default function RefundPolicy() {
 
           <section className="mt-6">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
-              4. How to request a refund
+              5. How to request a refund
             </h2>
             <p>
               Email{' '}
@@ -105,7 +128,7 @@ export default function RefundPolicy() {
 
           <section className="mt-6">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
-              5. Chargebacks
+              6. Chargebacks
             </h2>
             <p>
               If you believe a charge is incorrect, please contact us first so we can resolve it.
@@ -116,12 +139,12 @@ export default function RefundPolicy() {
 
           <section className="mt-6">
             <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-3">
-              6. Contact
+              7. Contact
             </h2>
             <p>
               Basement Squirrel Games
               <br />
-              [[Business mailing address]]
+              134 Tuscany Ln, Wentzville, MO 63385
               <br />
               <a
                 href="mailto:support@content-jumpstart.com"
