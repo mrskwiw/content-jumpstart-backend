@@ -68,6 +68,13 @@ def test_explicit_provider_override_wins(clean_env):
     assert EmailSystem()._resolve_provider() == "log"
 
 
+def test_unknown_provider_falls_back_to_auto(clean_env):
+    # A typo must not silently disable sending — auto-selection still picks resend.
+    clean_env.setenv("EMAIL_PROVIDER", "resnd")
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    assert EmailSystem()._resolve_provider() == "resend"
+
+
 def test_smtp_username_alias_is_honoured(clean_env):
     # Historical bug: template documented SMTP_USERNAME while code read SMTP_USER.
     clean_env.setenv("SMTP_USERNAME", "alias@example.com")

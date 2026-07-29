@@ -2,6 +2,7 @@
 Email integration system for sending notifications, reminders, and deliverables
 """
 
+import logging
 import os
 import smtplib
 from datetime import datetime
@@ -13,6 +14,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+# Valid EMAIL_PROVIDER values. An unrecognised value must NOT silently disable
+# sending — it falls back to auto-selection (see _resolve_provider).
+_ALLOWED_PROVIDERS = {"auto", "resend", "smtp", "log"}
 
 
 class EmailType(str, Enum):
@@ -306,9 +313,24 @@ The Content Jumpstart Team
         )
 
     def _resolve_provider(self) -> str:
-        """Pick the outbound transport: resend > smtp > log (unless overridden)."""
-        if self.email_provider != "auto":
-            return self.email_provider
+        """Pick the outbound transport: resend > smtp > log.
+
+        An explicit EMAIL_PROVIDER wins, but an *unrecognised* value (typo /
+        config drift) falls back to auto-selection with a warning rather than
+        silently dropping every send into log-only mode.
+
+        Transport is deterministic: the chosen transport is the only one tried.
+        We intentionally do NOT auto-fall-back (e.g. Resend→SMTP) on a send
+        failure — a provider error that actually queued the message would cause
+        a double-send, and mixing transports per-request is non-deterministic.
+        Failures are logged loudly instead (see _send_via_resend).
+        """
+        provider = self.email_provider
+        if provider not in _ALLOWED_PROVIDERS:
+            logger.warning("Unknown EMAIL_PROVIDER=%r; falling back to auto-selection.", provider)
+            provider = "auto"
+        if provider != "auto":
+            return provider
         if self.resend_api_key:
             return "resend"
         if self.smtp_user and self.smtp_password:
@@ -392,10 +414,13 @@ The Content Jumpstart Team
                 return True, f"Sent via Resend (id={email_id})"
 
             message.status = "failed"
-            return False, f"Resend API error {resp.status_code}: {resp.text[:200]}"
+            detail = f"Resend API error {resp.status_code}: {resp.text[:200]}"
+            logger.warning("Email send failed (to=%s): %s", message.to_email, detail)
+            return False, detail
 
         except Exception as e:
             message.status = "failed"
+            logger.warning("Email send errored (to=%s): %s", message.to_email, e)
             return False, str(e)
 
     def _send_via_smtp(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
