@@ -123,18 +123,22 @@ def deduct_credits(
     if amount <= 0:
         raise ValueError("Deduction amount must be positive")
 
-    # Suspension gate (S-01.4d): block spends on a past-due/suspended account.
-    # This is the universal spend chokepoint, so every user-initiated spend is
-    # covered here; reads/refunds/admin adjustments are intentionally NOT gated.
-    from backend.services.account_state import require_spendable
-
-    require_spendable(db)
-
     # Get user with row-level lock — serializes all credit ops for this user, so
     # consume_fefo runs safely without its own lot lock (Decision #201).
     user = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not user:
         raise ValueError(f"User not found: {user_id}")
+
+    # Suspension gate (S-01.4d): checked HERE — under the user lock, in this
+    # transaction, right before mutating credits (the universal spend chokepoint;
+    # reads/refunds/admin are intentionally NOT gated). We deliberately do NOT
+    # lock the singleton instance_config row — that would serialize every spend
+    # instance-wide — so the residual race (one in-flight op at the exact instant
+    # of suspension) is accepted as negligible. Missing config fails OPEN (default
+    # active) for backward-compat. Both are Decision #203.
+    from backend.services.account_state import require_spendable
+
+    require_spendable(db)
 
     _ensure_lots_backfilled(db, user)
 
