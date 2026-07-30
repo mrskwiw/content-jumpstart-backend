@@ -289,7 +289,7 @@ class TestExportWithPlatformFormatting:
         db_session.refresh(project)
         return project
 
-    @pytest.mark.parametrize("format", ["txt", "md", "docx"])
+    @pytest.mark.parametrize("format", ["txt", "md", "docx", "csv"])
     def test_export_different_formats(self, client, auth_headers, project_with_posts, format):
         """Test exporting in different file formats"""
         response = client.post(
@@ -313,6 +313,25 @@ class TestExportWithPlatformFormatting:
             assert "markdown" in content_type or "text" in content_type or "json" in content_type
         elif format == "txt":
             assert "text" in content_type or "json" in content_type
+
+    @pytest.mark.parametrize("flag", ["include_audit_log", "include_research"])
+    def test_csv_export_rejects_appendix_flags(
+        self, client, auth_headers, project_with_posts, flag
+    ):
+        """CSV can't carry the audit/research appendix — the API must reject the
+        combination with a 400 rather than a misleading 200 that omits the data."""
+        response = client.post(
+            "/api/generator/export",
+            headers=auth_headers,
+            json={
+                "project_id": project_with_posts.id,
+                "format": "csv",
+                flag: True,
+            },
+        )
+
+        assert response.status_code == 400
+        assert "csv" in response.json()["detail"].lower()
 
     def test_export_with_target_platform_optimization(
         self, client, auth_headers, project_with_posts
@@ -514,7 +533,7 @@ class TestEndToEndPlatformWorkflow:
         )
         assert export_response.status_code == 200
 
-        print(f"✅ Complete LinkedIn workflow test passed")
+        print("✅ Complete LinkedIn workflow test passed")
 
 
 if __name__ == "__main__":

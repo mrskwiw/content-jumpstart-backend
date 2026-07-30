@@ -128,6 +128,14 @@ async def generate_export_file(
             db,
         )
     elif format == "csv":
+        # CSV is a flat post table; it cannot represent the audit/research appendix.
+        # Fail loudly instead of silently dropping requested sections (the router
+        # rejects this earlier with a 400; this guards any other caller).
+        if include_audit_log or include_research:
+            raise ValueError(
+                "CSV export does not support include_audit_log/include_research; "
+                "use txt, md, or docx for exports with those sections."
+            )
         return await _generate_csv(posts, full_path)
     else:
         return await _generate_txt(

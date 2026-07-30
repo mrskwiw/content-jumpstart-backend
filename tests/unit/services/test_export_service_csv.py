@@ -10,6 +10,8 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from backend.services.export_service import generate_export_file
 
 
@@ -107,6 +109,23 @@ def test_csv_empty_posts_yields_header_only():
         assert size > 0  # header line still written
     finally:
         out_path.unlink(missing_ok=True)
+
+
+def test_csv_with_appendix_flags_raises_not_silently_dropped():
+    # CSV can't carry audit/research sections; requesting them must fail loudly
+    # rather than return a post-only file (silent contract break).
+    for kwargs in ({"include_audit_log": True}, {"include_research": True}):
+        with pytest.raises(ValueError, match="does not support"):
+            _run(
+                generate_export_file(
+                    posts=[_make_post()],
+                    client=_make_client(),
+                    project=_make_project(),
+                    format="csv",
+                    relative_path="Acme Co/out.csv",
+                    **kwargs,
+                )
+            )
 
 
 def test_csv_none_content_renders_empty_cell():

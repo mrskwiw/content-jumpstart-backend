@@ -973,6 +973,19 @@ async def export_package(
     Supports format selection and optional audit log inclusion.
     """
     try:
+        # CSV is a flat post table and cannot carry the audit-log or research
+        # appendix that TXT/MD/DOCX do. Reject the combination explicitly rather
+        # than returning a 200 with those sections silently omitted (a contract
+        # break flagged in adversarial review).
+        if input.format == "csv" and (input.include_audit_log or input.include_research):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "CSV export does not support include_audit_log or include_research. "
+                    "Use txt, md, or docx to include those sections."
+                ),
+            )
+
         # Verify project exists
         project = crud.get_project(db, input.project_id)
         if not project:
