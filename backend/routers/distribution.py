@@ -246,12 +246,12 @@ def oauth_callback(
     """Provider redirect target. Verifies the signed state, exchanges the code for
     tokens, stores the (encrypted) credential, then bounces back to the UI."""
     path = "/dashboard/settings/connections"
-    # ERROR redirects use the env base only — DB-free so a redirect never depends on a
-    # DB read (an OAuth error must always be able to bounce the user back cleanly). The
-    # SUCCESS redirect resolves the canonical custom domain below, after the DB is
-    # already confirmed working by save_credential.
-    env_base = os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
-    done = f"{env_base}{path}" if env_base else path
+    # Canonical instance UI base (instance_config custom domain when set) resolved
+    # DEFENSIVELY — _bounce_base never raises, so the config read gives the right
+    # domain when the DB is healthy yet an OAuth-error redirect still succeeds if the
+    # read fails (env fallback). Satisfies both robustness and canonical-domain.
+    base = _bounce_base(db)
+    done = f"{base}{path}" if base else path
 
     if error:
         return RedirectResponse(f"{done}?error={error}")
@@ -285,12 +285,22 @@ def oauth_callback(
         token_expires_at=token.get("expires_at"),
         display_name=f"{platform} account",
     )
-    # Success: bounce to the instance's canonical UI (custom domain from
-    # instance_config, env fallback). The DB was just used successfully above, so
-    # resolving here adds no new failure mode to the error paths.
-    success_base = resolved_oauth_redirect_base(db)
-    success_done = f"{success_base}{path}" if success_base else path
-    return RedirectResponse(f"{success_done}?connected={platform}")
+    return RedirectResponse(f"{done}?connected={platform}")
+
+
+def _bounce_base(db: Session) -> str:
+    """Canonical UI base for post-OAuth redirects, resolved defensively.
+
+    Returns the instance's custom domain (``instance_config``) when available, else
+    the env base. NEVER raises — a config-read failure must not break an OAuth-error
+    redirect, so any error falls back to the env value. This resolves the tension
+    between "use the canonical domain" and "don't add a failing DB read to the error
+    path" (BUGS.md Decision #209): canonical when the DB is healthy, robust always.
+    """
+    try:
+        return resolved_oauth_redirect_base(db)
+    except Exception:  # noqa: BLE001 - a redirect must never fail on a config read
+        return os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
 
 
 def requests_quote(value: str) -> str:

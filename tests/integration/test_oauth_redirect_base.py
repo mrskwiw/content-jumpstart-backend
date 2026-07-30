@@ -104,10 +104,9 @@ def test_exchange_code_prefers_pinned_over_changed_config(db_session, monkeypatc
     assert captured["redirect_uri"] == "https://pinned.example.com/cb"
 
 
-def test_callback_error_path_uses_env_base_not_instance_config(client, db_session, monkeypatch):
-    # The [high] fix: the ERROR redirect must stay DB-free/robust — it uses the env
-    # base, NOT the instance_config custom domain (which would add a DB read to the
-    # error path).
+def test_callback_error_uses_canonical_base_when_db_ok(client, db_session, monkeypatch):
+    # With a healthy DB, even the error redirect lands on the canonical custom domain
+    # (instance_config) — the defensive _bounce_base resolves it.
     monkeypatch.setenv(_ENV, "https://env.example.com")
     set_instance_config(db_session, "oauth_redirect_base", "https://custom.example.com")
     r = client.get(
@@ -115,4 +114,18 @@ def test_callback_error_path_uses_env_base_not_instance_config(client, db_sessio
         follow_redirects=False,
     )
     assert r.status_code in (302, 307)
-    assert r.headers["location"].startswith("https://env.example.com/dashboard")
+    assert r.headers["location"].startswith("https://custom.example.com/dashboard")
+
+
+def test_bounce_base_falls_back_to_env_when_resolve_raises(db_session, monkeypatch):
+    # Decision #209: a config-read failure must NEVER break the redirect — it falls
+    # back to the env base instead of raising.
+    from backend.routers import distribution
+
+    monkeypatch.setenv(_ENV, "https://env.example.com")
+
+    def _boom(_db):
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(distribution, "resolved_oauth_redirect_base", _boom)
+    assert distribution._bounce_base(db_session) == "https://env.example.com"
