@@ -566,6 +566,9 @@ class TestBuildImprovementPrompt:
         assert "generic AI voice" in prompt
         assert "point of view" in prompt
         assert "clich" in prompt.lower()  # clichés/buzzwords instruction present
+        # ...and must NOT induce fabrication — specifics come from the brief only.
+        assert "do NOT invent" in prompt
+        assert "client's brief" in prompt
 
     def test_prompt_for_too_short(self, quality_profile):
         """Test prompt building for too short"""

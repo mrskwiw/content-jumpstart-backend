@@ -413,15 +413,16 @@ class PostRegenerator:
                 guidance_parts.append(
                     "- Kill the generic AI voice — TOP PRIORITY. Rewrite toward a specific, "
                     "opinionated point of view: "
-                    "(1) Replace the opening line with a concrete hook — a specific number, a "
-                    "first-hand moment, or a surprising claim — never 'In today's world' or "
-                    "'In the ever-evolving landscape of...'. "
+                    "(1) Replace the opening line with a concrete hook drawn from the client's own "
+                    "story or offer — never 'In today's world' or 'In the ever-evolving landscape of...'. "
                     "(2) Cut corporate clichés/buzzwords (leverage, synergy, cutting-edge, unlock, "
                     "supercharge, game-changer, robust, seamless, elevate, at the end of the day). "
                     "(3) Delete AI-tell filler ('it is important to note', 'in conclusion', "
                     "'in summary', 'when it comes to', 'navigating the'). "
-                    "(4) Replace vague claims with one concrete example, real number, or first-hand "
-                    "observation a reader could not get from a template. "
+                    "(4) Add specificity ONLY from the client's brief and the original post's real "
+                    "details — do NOT invent statistics, numbers, studies, customers, or events. If no "
+                    "concrete data is available, be specific through vivid, precise language and a clear "
+                    "stance, never fabricated facts. "
                     "(5) Take a side — say what you actually believe, not what everyone already agrees with."
                 )
 
