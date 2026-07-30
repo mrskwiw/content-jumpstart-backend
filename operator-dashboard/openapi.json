@@ -18278,6 +18278,11 @@
               }
             ],
             "title": "Updatedat"
+          },
+          "mustChangePassword": {
+            "type": "boolean",
+            "title": "Mustchangepassword",
+            "default": false
           }
         },
         "type": "object",

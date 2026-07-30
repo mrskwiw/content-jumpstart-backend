@@ -7723,6 +7723,11 @@ export interface components {
             createdAt: string;
             /** Updatedat */
             updatedAt?: string | null;
+            /**
+             * Mustchangepassword
+             * @default false
+             */
+            mustChangePassword: boolean;
         };
         /**
          * UserStatsResponse

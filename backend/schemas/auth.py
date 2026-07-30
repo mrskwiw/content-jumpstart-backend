@@ -141,6 +141,9 @@ class UserResponse(BaseModel):
     is_superuser: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # S-01.4f: True when the operator must set their own password (control-plane
+    # seeded admin on first login). The frontend forces a reset while this is set.
+    must_change_password: bool = False
 
     model_config = ConfigDict(
         from_attributes=True,

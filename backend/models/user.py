@@ -46,6 +46,11 @@ class User(Base, SoftDeleteMixin):
     # legacy tokens carrying no "pv" claim are rejected once this is set.
     password_changed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # S-01.4f: the control plane seeds a claimed instance's admin with this True,
+    # so the operator is forced to set their own password on first login. Cleared
+    # on any password change/reset.
+    must_change_password = Column(Boolean, default=False, nullable=False)
+
     # Relationships
     settings = relationship("Setting", back_populates="user", cascade="all, delete-orphan")
 

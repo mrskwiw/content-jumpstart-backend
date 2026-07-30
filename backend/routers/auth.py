@@ -113,6 +113,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             is_superuser=user.is_superuser,
             created_at=user.created_at,
             updated_at=user.updated_at,
+            must_change_password=bool(user.must_change_password),
         ),
     )
 
@@ -165,6 +166,7 @@ async def change_password(
     # Stamp the change so pre-change sessions (incl. legacy tokens without a "pv"
     # claim) are revoked in get_current_user / refresh.
     current_user.password_changed_at = datetime.now(timezone.utc)
+    current_user.must_change_password = False  # S-01.4f: forced reset satisfied
     db.add(current_user)
     db.commit()
 
@@ -289,6 +291,7 @@ async def reset_password(
     user.hashed_password = get_password_hash(body.new_password)
     # Revoke pre-reset sessions (incl. legacy tokens without a "pv" claim).
     user.password_changed_at = datetime.now(timezone.utc)
+    user.must_change_password = False  # S-01.4f: forced reset satisfied
     db.add(user)
     db.commit()
 
@@ -473,5 +476,6 @@ async def register_user(request: Request, user_data: UserCreate, db: Session = D
             is_superuser=user.is_superuser,
             created_at=user.created_at,
             updated_at=user.updated_at,
+            must_change_password=bool(user.must_change_password),
         ),
     )
