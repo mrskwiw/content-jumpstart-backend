@@ -59,6 +59,19 @@ class QualityProfile(BaseModel):
     )
     require_cta: bool = Field(True, description="Whether posts must have clear call-to-action")
 
+    # Generic-AI voice check (BRAND-CORE-02). Opt-in per profile so enabling it is
+    # an explicit, visible behavior change (it drives extra regenerations toward a
+    # point of view). Off by default, so profiles that don't set it are unchanged.
+    check_genericity: bool = Field(
+        False, description="Regenerate posts that read as generic AI (Brand Core voice check)"
+    )
+    max_genericity: float = Field(
+        0.4,
+        ge=0.0,
+        le=1.0,
+        description="Genericity score above which a post reads generic (only if check_genericity)",
+    )
+
     # Regeneration behavior
     max_attempts: int = Field(2, ge=1, le=5, description="Maximum regeneration attempts per post")
     enabled: bool = Field(True, description="Whether auto-regeneration is enabled for this profile")
@@ -161,6 +174,7 @@ DEFAULT_PROFILES = {
         max_words=300,
         min_engagement_score=2,
         require_cta=True,
+        check_genericity=True,
         max_attempts=2,
         enabled=True,
     ),
@@ -173,6 +187,7 @@ DEFAULT_PROFILES = {
         max_words=280,
         min_engagement_score=2,
         require_cta=True,
+        check_genericity=True,
         max_attempts=2,
         enabled=True,
     ),
@@ -185,6 +200,7 @@ DEFAULT_PROFILES = {
         max_words=350,
         min_engagement_score=1,
         require_cta=False,
+        check_genericity=True,
         max_attempts=2,
         enabled=True,
     ),

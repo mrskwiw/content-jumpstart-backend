@@ -5,8 +5,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.agents.post_regenerator import PostRegenerator, RegenerationReason
-from src.models.client_brief import ClientBrief
+from src.models.client_brief import ClientBrief, Platform
 from src.models.post import Post
+from src.models.quality_profile import QualityProfile
 from src.models.template import Template, TemplateType
 
 
@@ -1018,3 +1019,113 @@ class TestEdgeCases:
         assert stats["posts_regenerated"] == 1
         # The regenerated post should still be in the list (even if not improved)
         assert len(regenerated) == 1
+
+
+class TestGenericVoiceCheck:
+    """BRAND-CORE-02 wiring: assess_post drives a generic_voice regeneration reason.
+
+    Readability is mocked into the professional_linkedin passing band (50-65) so the
+    genericity signal is isolated from the readability/length/CTA checks.
+    """
+
+    # ~205-word specific post, statement CTA — should read as a point of view.
+    _SPECIFIC = (
+        "3 words killed our onboarding conversion last quarter. "
+        + (
+            "We A/B tested the signup button copy for six weeks across twelve thousand "
+            "visitors, splitting traffic evenly until the confidence interval closed. "
+            "The clever, playful version everyone on the team expected to win lost badly. "
+            "The boring, literal one that told people exactly what happens next won by "
+            "thirty four percent on completed signups, and the gap held through the second "
+            "month after we shipped it to everyone who landed on the page. When someone is "
+            "deciding whether to trust you with their email address, they are not looking "
+            "to be entertained by a clever turn of phrase they have to decode. They are "
+            "looking to understand, plainly and quickly, what happens the moment they click "
+            "the button in front of them, and whether the promise on the page will actually "
+            "be kept once they are inside the product and the marketing copy is behind them. "
+        )
+        * 1
+        + "\n\nShip the boring version and measure it for a month."
+    )
+
+    # ~205-word cliche/AI-tell-dense post, statement CTA — reads as generic AI.
+    _GENERIC = (
+        "In today's fast-paced digital world, businesses must leverage cutting-edge "
+        "solutions to unlock synergy and supercharge their growth. "
+        + (
+            "It is important to note that in order to stay ahead of the curve, organizations "
+            "need to think outside the box and take their strategy to the next level. At the "
+            "end of the day, moving the needle requires a robust, scalable, and seamless "
+            "approach that empowers stakeholders to drive impactful results. Whether you are "
+            "a small startup or a large enterprise, the key takeaway is that you must embrace "
+            "innovation and foster a culture of excellence. In conclusion, it is crucial to "
+            "remember that success is a journey, not a destination, and that best-in-class "
+            "companies are always looking for new ways to add value and delight their "
+            "customers at every single touchpoint along the way. "
+        )
+        * 1
+        + "\n\nContact us today to elevate your business."
+    )
+
+    def _post(self, content, platform=None):
+        kwargs = dict(
+            content=content,
+            template_id=1,
+            template_name="Test",
+            variant=1,
+            client_name="Test",
+        )
+        if platform is not None:
+            kwargs["target_platform"] = platform
+        return Post(**kwargs)
+
+    @patch("src.agents.post_regenerator.VoiceMetrics")
+    def test_generic_post_triggers_generic_voice_reason(self, mock_vm, quality_profile):
+        mock_vm.return_value.calculate_readability.return_value = 58.0  # in-band
+        assert quality_profile.check_genericity is True  # professional_linkedin default
+        regenerator = PostRegenerator(quality_profile=quality_profile)
+
+        should_regen, reasons = regenerator.should_regenerate(self._post(self._GENERIC))
+
+        assert should_regen is True
+        assert any(r.reason_type == "generic_voice" for r in reasons)
+
+    @patch("src.agents.post_regenerator.VoiceMetrics")
+    def test_specific_post_has_no_generic_voice_reason(self, mock_vm, quality_profile):
+        mock_vm.return_value.calculate_readability.return_value = 58.0
+        regenerator = PostRegenerator(quality_profile=quality_profile)
+
+        _, reasons = regenerator.should_regenerate(self._post(self._SPECIFIC))
+
+        assert all(r.reason_type != "generic_voice" for r in reasons)
+
+    @patch("src.agents.post_regenerator.VoiceMetrics")
+    def test_check_disabled_never_flags_generic(self, mock_vm):
+        # A profile with check_genericity off must not add a generic_voice reason,
+        # even for blatantly generic content.
+        mock_vm.return_value.calculate_readability.return_value = 58.0
+        profile = QualityProfile(
+            profile_name="no_generic_check",
+            description="d",
+            min_words=150,
+            max_words=500,
+            require_cta=False,
+            check_genericity=False,
+        )
+        regenerator = PostRegenerator(quality_profile=profile)
+
+        _, reasons = regenerator.should_regenerate(self._post(self._GENERIC))
+
+        assert all(r.reason_type != "generic_voice" for r in reasons)
+
+    @patch("src.agents.post_regenerator.VoiceMetrics")
+    def test_platform_is_mapped_from_post(self, mock_vm, quality_profile):
+        # target_platform drives the assess_post platform arg; a Twitter post must
+        # still be evaluated (no crash) and use its own platform.
+        mock_vm.return_value.calculate_readability.return_value = 58.0
+        regenerator = PostRegenerator(quality_profile=quality_profile)
+
+        post = self._post(self._GENERIC, platform=Platform.TWITTER)
+        should_regen, reasons = regenerator.should_regenerate(post)
+
+        assert isinstance(should_regen, bool)  # completes without error

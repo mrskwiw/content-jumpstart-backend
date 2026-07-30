@@ -659,8 +659,8 @@ class TestQualityProfileToDictRoundTrip:
         assert restored.max_attempts == original.max_attempts
         assert restored.enabled == original.enabled
 
-    def test_to_dict_contains_all_nine_fields(self):
-        """Test that to_dict always returns exactly the expected nine keys."""
+    def test_to_dict_contains_all_expected_fields(self):
+        """Test that to_dict always returns exactly the expected keys."""
         profile = QualityProfile(profile_name="p", description="d")
         result = profile.to_dict()
         expected_keys = {
@@ -672,6 +672,8 @@ class TestQualityProfileToDictRoundTrip:
             "max_words",
             "min_engagement_score",
             "require_cta",
+            "check_genericity",
+            "max_genericity",
             "max_attempts",
             "enabled",
         }

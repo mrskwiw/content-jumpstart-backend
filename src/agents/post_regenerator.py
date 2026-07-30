@@ -15,6 +15,7 @@ from ..models.quality_profile import QualityProfile, get_default_profile
 from ..models.template import Template, TemplateType
 from ..utils.anthropic_client import AnthropicClient
 from ..utils.logger import logger
+from ..analysis.content_intelligence import assess_post
 from ..utils.voice_metrics import VoiceMetrics
 from ..validators.cta_validator import CTAValidator
 from .hashtag_researcher import strip_all_hashtags
@@ -193,6 +194,24 @@ class PostRegenerator:
                             "Post ends with a question — the final line must be a statement CTA",
                         )
                     )
+
+        # Generic-AI voice check (BRAND-CORE-02) — opt-in per profile. Regenerate
+        # posts that read as generic AI so they're pushed toward a point of view.
+        # Evaluates the same prose body (hashtags already stripped); only the
+        # genericity signal is used here — length/CTA/engagement are covered above,
+        # so folding in the predictor's low-score branch would double-count them.
+        if self.profile.check_genericity and prose:
+            platform = post.target_platform.value if post.target_platform else "linkedin"
+            assessment = assess_post(
+                prose, platform=platform, generic_threshold=self.profile.max_genericity
+            )
+            if assessment.is_generic:
+                detail = "Reads as generic AI — rewrite toward a specific point of view"
+                if assessment.flags:
+                    detail += f" ({', '.join(assessment.flags)})"
+                reasons.append(
+                    RegenerationReason("generic_voice", detail, assessment.genericity_score)
+                )
 
         # Check headline engagement (if available from review reason)
         if post.needs_review and post.review_reason:
