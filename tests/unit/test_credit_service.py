@@ -268,7 +268,7 @@ class TestEstimateCost:
 
     def test_cost_usd_calculated(self):
         result = estimate_cost(num_posts=10)
-        assert result["estimated_cost_usd"]["standard_package"] == 400.0  # 200 * $2
+        assert result["estimated_cost_usd"]["standard_package"] == 100.0  # 200 * $0.50 (BILLING-01)
 
     def test_zero_posts(self):
         result = estimate_cost(num_posts=0)

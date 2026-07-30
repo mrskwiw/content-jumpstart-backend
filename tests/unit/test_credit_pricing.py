@@ -1,12 +1,8 @@
 """Unit tests for backend.pricing.credit_pricing."""
 
-import pytest
-
 from backend.pricing.credit_pricing import (
     CONTENT_COSTS,
     RESEARCH_TOOL_COSTS,
-    STANDARD_PACKAGE_RATE,
-    ADDITIONAL_CREDIT_RATE,
     get_research_tool_cost,
     get_content_cost,
     calculate_project_cost,
@@ -31,6 +27,9 @@ class TestGetResearchToolCost:
 class TestGetContentCost:
     def test_blog_post_cost(self):
         assert get_content_cost("blog_post") == 20
+
+    def test_social_post_cost(self):
+        assert get_content_cost("social_post") == 5  # BILLING-01 flagship action
 
     def test_unknown_type_returns_zero(self):
         assert get_content_cost("nonexistent") == 0
@@ -62,11 +61,11 @@ class TestCalculateProjectCost:
 
     def test_cost_usd_standard_rate(self):
         result = calculate_project_cost(num_blog_posts=10)
-        assert result["estimated_cost"]["standard_rate"] == 400.0  # 200 * $2
+        assert result["estimated_cost"]["standard_rate"] == 100.0  # 200 * $0.50 (BILLING-01)
 
     def test_cost_usd_additional_rate(self):
         result = calculate_project_cost(num_blog_posts=10)
-        assert result["estimated_cost"]["additional_rate"] == 500.0  # 200 * $2.50
+        assert result["estimated_cost"]["additional_rate"] == 200.0  # 200 * $1.00 (BILLING-01)
 
     def test_zero_posts_zero_cost(self):
         result = calculate_project_cost()

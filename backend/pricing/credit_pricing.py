@@ -4,8 +4,9 @@ Credit pricing configuration.
 Defines credit costs for all content types and research tools.
 Costs are based on human labor replacement value and complexity.
 
-Pricing Philosophy:
-- Blog posts: 20 credits ($40 ÷ $2/credit = 20 credits)
+Pricing Philosophy (credit COUNTS are labor-replacement value; $/credit is set by
+BILLING-01 — subscription $0.50/credit, top-up $1/credit):
+- Social posts: 5 credits (flagship short-form); blog posts: 20 credits
 - Research tools: 150-300 credits based on labor savings
   - 150 credits: Replaces 3-4 hours of work (dollar300)
   - 200 credits: Replaces 4-8 hours of work (dollar400)
@@ -13,9 +14,10 @@ Pricing Philosophy:
   - 300 credits: Replaces 8-12 hours of work (dollar600)
 """
 
-# Content generation costs
+# Content generation costs (charged on GENERATION; publishing is free — BILLING-01)
 CONTENT_COSTS = {
-    "blog_post": 20,  # Long-form blog content (500-1500 words) - $40/post ÷ $2/credit
+    "blog_post": 20,  # Long-form blog content (500-1500 words)
+    "social_post": 5,  # Flagship short-form social post (~¼ of a blog)
 }
 
 # Research tool costs (150-300 credits based on labor replacement)
@@ -40,11 +42,10 @@ RESEARCH_TOOL_COSTS = {
     "icp_workshop": 300,  # Ideal Customer Profile workshop (8-12 hours)
 }
 
-# Package pricing ($2/credit for standard packages)
-STANDARD_PACKAGE_RATE = 2.0  # $2 per credit
-
-# Additional credit pricing ($2.50/credit for top-ups)
-ADDITIONAL_CREDIT_RATE = 2.5  # $2.50 per credit
+# Credit → dollar rates (BILLING-01, locked 2026-07-30). Subscription credits are
+# 2 per $1 ($0.50/credit); purchased top-ups are $1/credit and never expire.
+STANDARD_PACKAGE_RATE = 0.50  # $0.50 per credit (2 credits/$) — subscription rate
+ADDITIONAL_CREDIT_RATE = 1.0  # $1.00 per credit — non-expiring top-up rate
 
 # Minimum credits required for research tools
 MIN_RESEARCH_TOOL_CREDITS = 50

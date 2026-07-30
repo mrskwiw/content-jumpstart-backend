@@ -508,7 +508,11 @@ def estimate_cost(
     Note:
         Research tool costs are defined in backend/pricing/credit_pricing.py
     """
-    from backend.pricing.credit_pricing import RESEARCH_TOOL_COSTS
+    from backend.pricing.credit_pricing import (
+        ADDITIONAL_CREDIT_RATE,
+        RESEARCH_TOOL_COSTS,
+        STANDARD_PACKAGE_RATE,
+    )
 
     # Blog posts: 20 credits each
     post_credits = num_posts * 20
@@ -535,7 +539,7 @@ def estimate_cost(
         "research_tools": {"tools": tool_breakdown, "total_credits": tool_credits},
         "total_credits": total_credits,
         "estimated_cost_usd": {
-            "standard_package": total_credits * 2.0,  # $2/credit in packages
-            "additional_credits": total_credits * 2.5,  # $2.50/credit for top-ups
+            "standard_package": total_credits * STANDARD_PACKAGE_RATE,  # $0.50/credit
+            "additional_credits": total_credits * ADDITIONAL_CREDIT_RATE,  # $1/credit
         },
     }
