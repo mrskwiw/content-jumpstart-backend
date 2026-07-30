@@ -58,7 +58,7 @@ def _publishable_content(sp: ScheduledPost) -> str:
     )
 
 
-def _gate_compliance(platform: str, content: str, *, has_media: bool = False) -> None:
+def _gate_compliance(platform: str, content: str) -> None:
     """Reject content the platform API would hard-reject, at schedule time.
 
     Uses the API-rejection-only compliance check (char ceiling + hashtag over-cap;
@@ -67,12 +67,12 @@ def _gate_compliance(platform: str, content: str, *, has_media: bool = False) ->
     a silent worker failure at publish time. Platforms without a compliance spec
     (instagram/tiktok/youtube/stub) are skipped — there is nothing to check.
 
-    A media-only post (image/video with an empty caption) is valid — the media is
-    the post — so when ``has_media`` is set and the caption is blank there is nothing
-    to gate. A non-empty caption is still validated against the platform's limits.
+    Empty content is always rejected: every publisher in this codebase sends a
+    text-only request (LinkedIn is a UGC text post; the rest are stub/not-implemented),
+    so there is no media-only path a blank caption could be valid for. A per-platform
+    media-only exemption belongs with the media-capable publisher that introduces it
+    (BUGS.md Decision #205).
     """
-    if has_media and not content.strip():
-        return  # media-only post — the attachment is the content
     try:
         plat = Platform(platform)
     except ValueError:
@@ -182,7 +182,7 @@ def schedule_post(
     # Reject content the platform API would hard-reject (e.g. an X post over 280
     # chars) up front, so it fails fast (400) at schedule time rather than as a
     # silent worker failure at publish time.
-    _gate_compliance(platform, content, has_media=bool(media_url))
+    _gate_compliance(platform, content)
     # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)
@@ -258,7 +258,7 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     # went through schedule_post's gate. A post the platform API would reject is
     # failed here instead of making a doomed API call.
     try:
-        _gate_compliance(sp.platform, content_to_publish, has_media=bool(sp.media_url))
+        _gate_compliance(sp.platform, content_to_publish)
     except ValueError as e:
         sp.status = "failed"
         sp.error_message = str(e)
