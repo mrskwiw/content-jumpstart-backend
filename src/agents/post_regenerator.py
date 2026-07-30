@@ -405,6 +405,26 @@ class PostRegenerator:
                     f"or contrarian statement."
                 )
 
+            elif reason.reason_type == "generic_voice":
+                # Counters exactly the signals the genericity detector flags
+                # (generic openers, clichés, AI-tell filler, templated bullets).
+                # Without this, a post flagged generic regenerates with no direction
+                # and can burn every retry unchanged.
+                guidance_parts.append(
+                    "- Kill the generic AI voice — TOP PRIORITY. Rewrite toward a specific, "
+                    "opinionated point of view: "
+                    "(1) Replace the opening line with a concrete hook — a specific number, a "
+                    "first-hand moment, or a surprising claim — never 'In today's world' or "
+                    "'In the ever-evolving landscape of...'. "
+                    "(2) Cut corporate clichés/buzzwords (leverage, synergy, cutting-edge, unlock, "
+                    "supercharge, game-changer, robust, seamless, elevate, at the end of the day). "
+                    "(3) Delete AI-tell filler ('it is important to note', 'in conclusion', "
+                    "'in summary', 'when it comes to', 'navigating the'). "
+                    "(4) Replace vague claims with one concrete example, real number, or first-hand "
+                    "observation a reader could not get from a template. "
+                    "(5) Take a side — say what you actually believe, not what everyone already agrees with."
+                )
+
         return "\n".join(guidance_parts)
 
     def _clean_content(self, content: str) -> str:

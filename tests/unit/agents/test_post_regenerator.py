@@ -539,6 +539,34 @@ class TestBuildImprovementPrompt:
         assert "Add sophistication" in prompt
         assert "90.0" in prompt
 
+    def test_prompt_for_generic_voice(self, quality_profile):
+        """generic_voice must produce actionable de-genericizing guidance, else the
+        retry loop regenerates blind and can burn attempts unchanged."""
+        regenerator = PostRegenerator(quality_profile=quality_profile)
+        post = Post(
+            content="Test",
+            template_id=1,
+            template_name="Test",
+            variant=1,
+            client_name="Test",
+        )
+        reasons = [
+            RegenerationReason("generic_voice", "Reads as generic AI (generic_opener)", 0.55)
+        ]
+        brief = ClientBrief(
+            company_name="Test",
+            business_description="Test",
+            ideal_customer="Test",
+            main_problem_solved="Test",
+        )
+
+        prompt = regenerator._build_improvement_prompt(post, reasons, brief)
+
+        # The guidance must actually tell the model how to fix genericity.
+        assert "generic AI voice" in prompt
+        assert "point of view" in prompt
+        assert "clich" in prompt.lower()  # clichés/buzzwords instruction present
+
     def test_prompt_for_too_short(self, quality_profile):
         """Test prompt building for too short"""
         regenerator = PostRegenerator(quality_profile=quality_profile)
