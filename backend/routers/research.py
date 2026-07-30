@@ -887,7 +887,8 @@ async def run_research(
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
                     detail=f"Insufficient credits. Required: {credit_cost} credits for {tool.label}. "
-                    f"Your balance: {current_user.credit_balance} credits. Please purchase more credits.",
+                    f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
+                    "Please purchase more credits.",
                 )
 
             # Execute research tool via service with sanitized params

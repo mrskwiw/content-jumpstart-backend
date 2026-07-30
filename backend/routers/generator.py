@@ -785,7 +785,8 @@ async def generate_all(
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Insufficient credits. Required: {credit_cost} credits for {num_posts} posts. "
-            f"Your balance: {current_user.credit_balance} credits. Please purchase more credits.",
+            f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
+            "Please purchase more credits.",
         )
 
     # Queue background task (returns immediately)
@@ -867,7 +868,8 @@ async def regenerate(
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Insufficient credits. Required: {credit_cost} credits for {num_posts_to_regenerate} posts. "
-            f"Your balance: {current_user.credit_balance} credits. Please purchase more credits.",
+            f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
+            "Please purchase more credits.",
         )
 
     # Update run status to running

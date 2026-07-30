@@ -13,7 +13,10 @@ from backend.middleware.auth_dependency import get_current_user
 from backend.middleware.authorization import verify_client_ownership
 from backend.models import User, Client
 from backend.schemas.client import ClientUpdate, ClientResponse
-from backend.schemas.client_research_schemas import ClientResearchRequest, ClientResearchResponse
+from backend.schemas.client_research_schemas import (
+    ClientResearchRequest,
+    ClientResearchResponse,
+)
 from backend.services import crud, credit_service
 from backend.services.credit_service import InsufficientCreditsError
 from backend.utils.http_rate_limiter import standard_limiter
@@ -65,7 +68,7 @@ async def research_client_brief(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=(
                 f"Insufficient credits. Required: {CREDIT_COST} credits. "
-                f"Your balance: {current_user.credit_balance} credits. "
+                f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
                 "Please purchase more credits."
             ),
         )
@@ -229,7 +232,11 @@ async def download_brief(
     Document generation runs in a thread pool to avoid blocking the event loop.
     """
     from src.agents.brief_parser import BriefParserAgent
-    from src.utils.brief_document_generator import generate_docx, generate_markdown, generate_pdf
+    from src.utils.brief_document_generator import (
+        generate_docx,
+        generate_markdown,
+        generate_pdf,
+    )
 
     # Reconstruct ClientBrief from the dict returned by /brief
     # Strip nulls so _convert_to_client_brief uses its defaults

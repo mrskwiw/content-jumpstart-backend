@@ -290,12 +290,16 @@ register(
 
 
 def _get_credits(db: Session, user: User, inp: Dict[str, Any]) -> ToolResult:
+    # Live lot sum, not the cached column — excludes expired credits (S-01.4b-ii review).
+    from backend.services import credit_service
+
+    balance = credit_service.live_balance(db, user.id)
     data = {
-        "credit_balance": user.credit_balance,
+        "credit_balance": balance,
         "total_credits_purchased": user.total_credits_purchased,
         "total_credits_used": user.total_credits_used,
     }
-    return ToolResult(ok=True, data=data, summary=f"{user.credit_balance} credits remaining")
+    return ToolResult(ok=True, data=data, summary=f"{balance} credits remaining")
 
 
 register(

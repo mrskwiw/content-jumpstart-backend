@@ -27,7 +27,7 @@ from backend.schemas.auth import (
     UserStatsResponse,
 )
 from backend.schemas.credit_schemas import GrantCreditsRequest, GrantCreditsResponse
-from backend.services import crud
+from backend.services import credit_service, crud
 from backend.utils.auth import get_password_hash
 from backend.utils.logger import logger
 
@@ -162,7 +162,8 @@ async def deactivate_user(
     if user_id == admin.id:
         logger.warning(f"Admin {admin.email} attempted to deactivate their own account")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate your own account"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account",
         )
 
     user = crud.get_user(db, user_id)
@@ -581,22 +582,29 @@ async def grant_credits(
             detail=f"User not found: {request.user_id}",
         )
 
-    # Update user credit balance
-    old_balance = user.credit_balance
-    user.credit_balance += request.credits
-    db.commit()
+    # Grant via the lot-aware service (a direct `credit_balance +=` would create
+    # no lot and be silently overwritten by the next _sync — S-01.4b-ii review).
+    old_balance = credit_service.live_balance(db, user.id)
+    credit_service.admin_adjust_credits(
+        db,
+        user.id,
+        request.credits,
+        description=request.reason or "Admin credit grant",
+        admin_user_id=super_admin.id,
+    )
     db.refresh(user)
+    new_balance = credit_service.live_balance(db, user.id)
 
     logger.info(
         f"Granted {request.credits} credits to {user.email} "
-        f"(balance: {old_balance} → {user.credit_balance}). "
+        f"(balance: {old_balance} → {new_balance}). "
         f"Granted by: {super_admin.email}"
     )
 
     return GrantCreditsResponse(
         user_email=user.email,
         credits_granted=request.credits,
-        new_balance=user.credit_balance,
+        new_balance=new_balance,
         reason=request.reason,
         granted_by=super_admin.email,
     )
