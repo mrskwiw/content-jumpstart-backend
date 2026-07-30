@@ -10,14 +10,15 @@ preserving any query params already on the URL.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # http(s) URLs in free text. Stops at whitespace and quote/angle delimiters.
 _URL_RE = re.compile(r"https?://[^\s<>\"']+")
-# Sentence punctuation that commonly trails a URL — peeled off before tagging so it
-# stays in the prose. Parens/brackets are intentionally NOT peeled (they can be part
-# of a real URL, e.g. a Wikipedia article path).
+# Sentence punctuation that always trails, never part of a URL.
 _TRAILING_PUNCT = ".,;:!?\"'"
+# Closing brackets are peeled only when UNBALANCED within the match, so "(https://x
+# .com)" drops the ")" but ".../Foo_(bar)" keeps it.
+_CLOSERS = {")": "(", "]": "["}
 
 
 def build_tracked_url(
@@ -68,10 +69,24 @@ def tag_urls_in_text(text: str, *, source: str, campaign: str, medium: str = "so
     def _tag(match: re.Match[str]) -> str:
         url = match.group(0)
         trailing = ""
-        while url and url[-1] in _TRAILING_PUNCT:
-            trailing = url[-1] + trailing
-            url = url[:-1]
-        if not url or "utm_source=" in url.lower():
+        # Peel trailing sentence punctuation and any UNBALANCED closing bracket, so a
+        # URL wrapped in "(...)" or "[...]" or ending a sentence yields a clean link.
+        while url:
+            ch = url[-1]
+            if ch in _TRAILING_PUNCT:
+                trailing = ch + trailing
+                url = url[:-1]
+            elif ch in _CLOSERS and url.count(_CLOSERS[ch]) < url.count(ch):
+                trailing = ch + trailing
+                url = url[:-1]
+            else:
+                break
+        if not url:
+            return trailing
+        # Idempotent: skip only when utm_source is a real query PARAMETER (not merely
+        # the substring "utm_source=" sitting in the path), preserving any UTMs the
+        # author set deliberately.
+        if any(k.lower() == "utm_source" for k, _ in parse_qsl(urlparse(url).query)):
             return url + trailing
         return build_tracked_url(url, source=source, campaign=campaign, medium=medium) + trailing
 

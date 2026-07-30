@@ -110,3 +110,27 @@ def test_tag_passes_medium_through():
     out = tag_urls_in_text("x https://acme.com", source="chatgpt", campaign="geo", medium="llm")
     q = parse_qs(urlparse(out.split()[1]).query)
     assert q["utm_medium"] == ["llm"]
+
+
+def test_tag_peels_wrapping_parenthesis():
+    # A URL wrapped in parens must not swallow the closing ")".
+    out = tag_urls_in_text("(see https://acme.com/p)", source="li", campaign="c")
+    assert out.startswith("(see ") and out.endswith(")")
+    url = out[len("(see ") : -1]  # strip "(see " and trailing ")"
+    q = parse_qs(urlparse(url).query)
+    assert q["utm_source"] == ["li"]
+    assert ")" not in url  # the paren stayed in the prose
+
+
+def test_tag_keeps_balanced_parens_in_url():
+    # A real URL containing balanced parens keeps them.
+    out = tag_urls_in_text("ref https://en.wikipedia.org/wiki/Foo_(bar)", source="x", campaign="c")
+    assert "/wiki/Foo_(bar)" in out
+    assert "utm_source=x" in out
+
+
+def test_tag_not_suppressed_by_utm_source_in_path():
+    # "utm_source=" appearing in the PATH must not suppress tagging (real-param check).
+    out = tag_urls_in_text("go https://acme.com/utm_source=guide", source="li", campaign="c")
+    q = parse_qs(urlparse(out.split()[1]).query)
+    assert q["utm_source"] == ["li"]  # actually tagged
