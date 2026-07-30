@@ -193,6 +193,51 @@ def delete_setting(db: Session, user_id: int, key: str, category: str = "integra
     return False
 
 
+# ── Instance-global config (S-01.4a) ──────────────────────────────────────────
+# The `settings` table is per-user, so instance-global values (plan tier, account
+# state, CORS origins, canonical domain) live under the owner (primary superuser)
+# in a reserved `instance` category. The control plane writes these at runtime
+# (S-01.4), so plan/domain changes take effect WITHOUT a redeploy — the whole
+# point of moving them out of startup env.
+INSTANCE_CATEGORY = "instance"
+
+
+def _owner_user_id(db: Session) -> str:
+    """Return the instance owner's id (earliest superuser) that holds instance config."""
+    from ..models.user import User
+
+    owner = db.query(User).filter(User.is_superuser.is_(True)).order_by(User.created_at).first()
+    if owner is None:
+        raise RuntimeError("no owner (superuser) exists to hold instance config")
+    return owner.id
+
+
+def get_instance_config(db: Session, key: str, default: Optional[str] = None) -> Optional[str]:
+    """Read an instance-global config value (``category='instance'``).
+
+    Owner-agnostic on read (a siloed instance has one owner), so a caller never
+    needs to know which user holds it. Returns ``default`` when unset.
+    """
+    setting = (
+        db.query(Setting).filter(Setting.category == INSTANCE_CATEGORY, Setting.key == key).first()
+    )
+    if setting is None or setting.value is None:
+        return default
+    return setting.value
+
+
+def set_instance_config(db: Session, key: str, value: Optional[str]) -> Setting:
+    """Upsert an instance-global config value (stored under the owner, unencrypted)."""
+    owner_id = _owner_user_id(db)
+    return set_setting(db, owner_id, key, value, category=INSTANCE_CATEGORY, encrypt=False)
+
+
+def get_all_instance_config(db: Session) -> dict:
+    """All instance-global config as a ``{key: value}`` dict (bulk read / caching)."""
+    rows = db.query(Setting).filter(Setting.category == INSTANCE_CATEGORY).all()
+    return {r.key: r.value for r in rows if r.value is not None}
+
+
 def get_web_search_config(db: Session, user_id: int) -> dict:
     """
     Get web search configuration for a user.
