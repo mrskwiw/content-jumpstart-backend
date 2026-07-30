@@ -8,6 +8,12 @@ logic is unit-tested in isolation before it touches the live money path.
 Consumption order: soonest ``expires_at`` first, nulls (never-expire top-ups)
 last, ties broken by ``created_at`` — so rolling-over allowance is spent before it
 lapses and permanent credits are preserved. Expired lots are never spent.
+
+**Transaction-agnostic:** these helpers ``flush`` but never ``commit``/``rollback``
+— the *caller* owns the transaction. This is required so the integration
+(S-01.4b-ii) can compose a credit op atomically with surrounding work (mirroring
+the existing ``purchase_credits(commit=False)`` webhook pattern, Bug #177) instead
+of a low-level helper silently committing or wiping unrelated pending changes.
 """
 
 from __future__ import annotations
@@ -52,8 +58,7 @@ def grant(
         expires_at=expires_at,
     )
     db.add(lot)
-    db.commit()
-    db.refresh(lot)
+    db.flush()  # persist within the caller's transaction; caller commits
     return lot
 
 
@@ -85,18 +90,19 @@ def consume_fefo(db: Session, user_id: str, amount: int, now: datetime | None = 
     """Draw ``amount`` credits from live lots, soonest-expiring first.
 
     Raises :class:`InsufficientCreditsError` (without mutating) if live lots
-    can't cover it.
+    can't cover it. Sufficiency is checked BEFORE any mutation, so a raise leaves
+    lots untouched — the caller owns rollback of its own transaction.
     """
     if amount <= 0:
         raise ValueError("consume amount must be positive")
     at = _now(now)
     lots = [lot for lot in _fefo_lots(db, user_id) if _is_live(lot, at)]
 
-    if sum(lot.remaining for lot in lots) < amount:
-        db.rollback()  # release the FOR UPDATE lock; no partial spend
-        raise InsufficientCreditsError(
-            f"insufficient credits: need {amount}, have {sum(lot.remaining for lot in lots)}"
-        )
+    available = sum(lot.remaining for lot in lots)
+    if available < amount:
+        # No mutation has occurred; do not commit/rollback here — the caller owns
+        # the transaction (and the FOR UPDATE lock is released when it does).
+        raise InsufficientCreditsError(f"insufficient credits: need {amount}, have {available}")
 
     outstanding = amount
     for lot in lots:
@@ -105,7 +111,7 @@ def consume_fefo(db: Session, user_id: str, amount: int, now: datetime | None = 
         take = min(lot.remaining, outstanding)
         lot.remaining -= take
         outstanding -= take
-    db.commit()
+    db.flush()  # surface within the caller's transaction; caller commits
 
 
 def expire_lots(db: Session, now: datetime | None = None) -> int:
@@ -130,5 +136,5 @@ def expire_lots(db: Session, now: datetime | None = None) -> int:
         lot.remaining = 0
         swept += 1
     if swept:
-        db.commit()
+        db.flush()  # caller owns commit
     return swept
