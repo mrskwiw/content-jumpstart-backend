@@ -29,7 +29,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import case
+from sqlalchemy import case, update
 from sqlalchemy.orm import Session
 
 from ..models.credit_lot import CreditLot
@@ -130,21 +130,27 @@ def expire_lots(db: Session, now: datetime | None = None) -> int:
 
     Returns the number of lots swept. (FEFO already refuses to spend expired
     lots; this makes the persisted state match by reclaiming stranded remainders.)
+
+    Uses a single **atomic UPDATE** rather than an ORM read-modify-write: the
+    sweep is the one credit actor that runs OUTSIDE the caller's User-row lock
+    (it's a cross-user background job), so a Python RMW here could race a
+    concurrent spend and last-writer-wins over it (Decision #201). An atomic
+    ``UPDATE ... WHERE expires_at <= now AND remaining > 0`` cannot: it never
+    loads stale state, and its WHERE only matches **expired** lots while a spend
+    only mutates **live** lots — disjoint sets, so they never fight over a row
+    except a just-expiring boundary lot (benign: at worst a few credits linger
+    one extra sweep cycle; no charge is lost).
     """
     at = _now(now)
-    swept = 0
-    lapsed = (
-        db.query(CreditLot)
-        .filter(
+    result = db.execute(
+        update(CreditLot)
+        .where(
             CreditLot.expires_at.isnot(None),
             CreditLot.expires_at <= at,
             CreditLot.remaining > 0,
         )
-        .all()
+        .values(remaining=0)
+        .execution_options(synchronize_session="fetch")
     )
-    for lot in lapsed:
-        lot.remaining = 0
-        swept += 1
-    if swept:
-        db.flush()  # caller owns commit
-    return swept
+    db.flush()  # caller owns commit
+    return int(result.rowcount or 0)

@@ -116,6 +116,21 @@ def test_expire_lots_noop_when_nothing_lapsed(db):
     assert expire_lots(db, now=NOW) == 0
 
 
+def test_spend_and_sweep_operate_on_disjoint_lots(db):
+    # Decision #201: consume touches only LIVE lots, sweep only EXPIRED-with-
+    # remaining — disjoint sets, so interleaving them can't corrupt balances.
+    grant(db, USER, 100, "allowance", expires_at=NOW - timedelta(days=1))  # expired
+    grant(db, USER, 200, "topup", expires_at=None)  # live
+    consume_fefo(db, USER, 150, now=NOW)  # spends only from the live top-up
+    swept = expire_lots(db, now=NOW)  # zeroes only the expired allowance
+    assert swept == 1
+    # live top-up: 200 - 150 = 50; expired allowance: reclaimed to 0
+    assert available_balance(db, USER, now=NOW) == 50
+    live = db.query(CreditLot).filter(CreditLot.source == "topup").first()
+    dead = db.query(CreditLot).filter(CreditLot.source == "allowance").first()
+    assert live.remaining == 50 and dead.remaining == 0
+
+
 def _days(lot: CreditLot, now: datetime):
     """Helper: how many days out a lot expires (None if never), for assertions."""
     if lot.expires_at is None:
