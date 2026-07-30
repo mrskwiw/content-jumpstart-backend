@@ -69,6 +69,11 @@ def check_compliance(text: str, platform: Platform, *, api_only: bool = False) -
     hard: list[str] = []
     warnings: list[str] = []
 
+    # Empty / whitespace-only content is never publishable — platforms reject it,
+    # and in api_only mode the word-floor demotion would otherwise let it pass.
+    if not text.strip():
+        hard.append(f"empty content — nothing to publish on {platform.value}")
+
     specs = PLATFORM_LENGTH_SPECS.get(platform)
     if specs:
         # Character ceiling. In api_only mode use the TRUE API limit (only a few

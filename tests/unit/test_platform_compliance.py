@@ -75,6 +75,14 @@ def test_api_only_still_hard_fails_char_ceiling():
     assert any("API limit of 280" in v for v in api.hard)
 
 
+def test_empty_content_is_never_publishable():
+    for text in ("", "   ", "\n\t "):
+        for api_only in (False, True):
+            r = check_compliance(text, Platform.TWITTER, api_only=api_only)
+            assert r.publishable is False
+            assert any("empty content" in v for v in r.hard)
+
+
 def test_api_only_does_not_char_gate_linkedin():
     # LinkedIn's spec max_chars (1800) is a QUALITY ceiling, not the API limit
     # (~3000). api_only must not block a long LinkedIn post on chars — only Twitter

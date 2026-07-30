@@ -140,3 +140,34 @@ def test_queue_and_publish_scoped_to_owner(client, db_session):
     assert client.get("/api/distribution/queue", headers=_hdr(b)).json() == []
     # …nor publish A's post.
     assert client.post(f"/api/distribution/publish/{sp['id']}", headers=_hdr(b)).status_code == 404
+
+
+def test_publish_gate_rejects_oversized_content_bypassing_schedule(db_session):
+    """The compliance gate lives in _publish (the single choke point), so content
+    that reaches publishing WITHOUT going through schedule_post's gate — e.g. a row
+    built directly, or a mutated post — is still caught before the platform API call.
+    """
+    from datetime import datetime, timezone
+
+    from backend.models.distribution import ScheduledPost
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "dist-gate@example.com", "user-distgate")
+    sp = ScheduledPost(
+        id="sp-oversized-gate",
+        user_id=u.id,
+        platform="twitter",
+        content="x " * 200,  # 400 chars, over X's 280 API limit
+        scheduled_for=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        status="pending",
+        retry_count=0,
+    )
+    db_session.add(sp)
+    db_session.commit()
+
+    result = orchestrator._publish(db_session, sp)
+
+    assert result.status == "failed"
+    assert "280" in (result.error_message or "")
+    # Never posted — the gate short-circuited before any publish attempt.
+    assert result.posted_at is None

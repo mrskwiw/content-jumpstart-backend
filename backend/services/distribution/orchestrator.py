@@ -219,6 +219,19 @@ def _resolve_media_ref(db: Session, sp: ScheduledPost) -> Optional[str]:
 
 def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     """Publish one scheduled post and record the outcome."""
+    # Compliance gate FIRST (cheap, no side effects) — this is the single choke point
+    # every publish path flows through (worker process_due + publish_now), so it
+    # catches content that never went through schedule_post's gate. A post the
+    # platform API would reject is failed here instead of making a doomed API call.
+    try:
+        _gate_compliance(sp.platform, sp.content)
+    except ValueError as e:
+        sp.status = "failed"
+        sp.error_message = str(e)
+        sp.retry_count += 1
+        db.commit()
+        return sp
+
     sp.status = "posting"
     db.commit()
 

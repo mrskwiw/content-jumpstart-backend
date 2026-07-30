@@ -39,3 +39,9 @@ def test_unknown_platform_is_skipped():
 
 def test_valid_tweet_is_allowed():
     _gate_compliance("twitter", "A specific, punchy take on shipping boring copy that converts.")
+
+
+def test_empty_content_is_rejected():
+    for text in ("", "   ", "\n\t"):
+        with pytest.raises(ValueError, match="empty"):
+            _gate_compliance("twitter", text)
