@@ -24,10 +24,24 @@ def _suffix_len(total: int) -> int:
 
 
 def _pack_words(sentence: str, budget: int) -> list[str]:
-    """Hard-split an over-long sentence into word chunks that fit ``budget``."""
+    """Hard-split an over-long sentence into chunks that fit ``budget``.
+
+    Packs word-by-word, but a single token longer than ``budget`` (a long URL, an
+    unbroken string) can't fit any line, so it is split at the character level —
+    otherwise it would be emitted whole and blow past the limit.
+    """
+    budget = max(budget, 1)
     chunks: list[str] = []
     piece = ""
     for word in sentence.split():
+        while len(word) > budget:
+            if piece:
+                chunks.append(piece)
+                piece = ""
+            chunks.append(word[:budget])
+            word = word[budget:]
+        if not word:
+            continue
         if piece and len(piece) + 1 + len(word) > budget:
             chunks.append(piece)
             piece = word

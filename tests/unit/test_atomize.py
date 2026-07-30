@@ -67,3 +67,18 @@ def test_every_post_within_limit_across_widths():
     for max_chars in (30, 60, 120, 280):
         thread = to_thread(text, max_chars=max_chars)
         assert all(len(post) <= max_chars for post in thread), max_chars
+
+
+def test_single_long_token_is_hard_split_within_limit():
+    # An unbroken token longer than the budget (e.g. a long URL) must be char-split,
+    # never emitted whole past the limit.
+    text = "https://acme.com/" + ("a" * 400)  # one ~417-char token, no spaces
+    for max_chars in (50, 100, 280):
+        thread = to_thread(text, max_chars=max_chars)
+        assert all(len(post) <= max_chars for post in thread), max_chars
+
+
+def test_long_token_mixed_with_prose_within_limit():
+    text = "Read this. " + ("z" * 500) + " Then act on it now."
+    thread = to_thread(text, max_chars=90)
+    assert all(len(post) <= 90 for post in thread)
