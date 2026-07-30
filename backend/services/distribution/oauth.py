@@ -30,6 +30,8 @@ from typing import Dict, List, Optional
 import requests
 from sqlalchemy.orm import Session
 
+from backend.services.runtime_config import resolved_oauth_redirect_base
+
 logger = logging.getLogger(__name__)
 
 # Refresh a token this long before it actually expires, to avoid a race where a
@@ -165,17 +167,27 @@ def configured_platforms() -> List[str]:
     return [p for p, prov in PROVIDERS.items() if prov.is_configured]
 
 
-def redirect_uri_for(platform: str) -> str:
+def redirect_uri_for(platform: str, db: Session | None = None) -> str:
     """Public callback URL for a platform.
 
-    Derived from OAUTH_REDIRECT_BASE_URL so a deploy only needs the base set, e.g.
+    Derived from the OAuth redirect base so a deploy only needs the base set, e.g.
     https://app.customer.com -> https://app.customer.com/api/distribution/oauth/<platform>/callback
     Per-platform override supported via <PLATFORM>_REDIRECT_URI for odd cases.
+
+    When ``db`` is supplied, the base is resolved via ``instance_config`` (the control
+    plane's custom-domain promotion, S-01.4e) with an env fallback; without ``db`` it
+    is exactly the env value (unchanged behavior). Both OAuth legs (authorize +
+    token-exchange) MUST pass the same ``db`` so the redirect_uri matches — the
+    provider rejects a mismatch.
     """
     override = os.getenv(f"{platform.upper()}_REDIRECT_URI")
     if override:
         return override
-    base = os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
+    base = (
+        resolved_oauth_redirect_base(db)
+        if db is not None
+        else os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
+    )
     if not base:
         raise OAuthError(
             "OAUTH_REDIRECT_BASE_URL is not set — required to build OAuth callback URLs."
@@ -197,7 +209,9 @@ def make_pkce_pair() -> Dict[str, str]:
 # ── Flow legs ───────────────────────────────────────────────────────────────────
 
 
-def build_authorize_url(platform: str, state: str, *, code_challenge: Optional[str] = None) -> str:
+def build_authorize_url(
+    platform: str, state: str, *, code_challenge: Optional[str] = None, db: Session | None = None
+) -> str:
     """Build the URL to redirect a user to for granting access."""
     provider = get_provider(platform)
     if not provider.is_configured:
@@ -208,7 +222,7 @@ def build_authorize_url(platform: str, state: str, *, code_challenge: Optional[s
     params = {
         "response_type": "code",
         "client_id": provider.client_id,
-        "redirect_uri": redirect_uri_for(platform),
+        "redirect_uri": redirect_uri_for(platform, db),
         "scope": " ".join(provider.scopes),
         "state": state,
         **provider.extra_authorize_params,
@@ -269,13 +283,19 @@ def _normalize_token(payload: Dict) -> Dict:
     return out
 
 
-def exchange_code(platform: str, code: str, *, code_verifier: Optional[str] = None) -> Dict:
-    """Exchange an authorization code for tokens. Returns the normalized token dict."""
+def exchange_code(
+    platform: str, code: str, *, code_verifier: Optional[str] = None, db: Session | None = None
+) -> Dict:
+    """Exchange an authorization code for tokens. Returns the normalized token dict.
+
+    ``db`` MUST match what ``build_authorize_url`` used so the redirect_uri is
+    identical across both legs (OAuth requires it; a mismatch is rejected).
+    """
     provider = get_provider(platform)
     data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": redirect_uri_for(platform),
+        "redirect_uri": redirect_uri_for(platform, db),
     }
     if provider.use_pkce:
         if not code_verifier:

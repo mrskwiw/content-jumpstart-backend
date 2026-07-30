@@ -193,6 +193,7 @@ def oauth_start(
     platform: str,
     client_id: Optional[str] = None,
     current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Return the provider authorize URL to redirect the user to. The signed
     `state` binds this consent to the current user (+ PKCE verifier if required)."""
@@ -213,7 +214,7 @@ def oauth_start(
         code_challenge = pkce["challenge"]
     state = create_access_token(state_data, expires_delta=_OAUTH_STATE_TTL)
     try:
-        url = oauth.build_authorize_url(platform, state, code_challenge=code_challenge)
+        url = oauth.build_authorize_url(platform, state, code_challenge=code_challenge, db=db)
     except oauth.OAuthError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"authorize_url": url}
@@ -243,7 +244,7 @@ def oauth_callback(
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
     try:
-        token = oauth.exchange_code(platform, code, code_verifier=payload.get("cv"))
+        token = oauth.exchange_code(platform, code, code_verifier=payload.get("cv"), db=db)
     except oauth.OAuthError as e:
         return RedirectResponse(f"{done}?error={requests_quote(str(e))}")
 
