@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from ..analysis.predict import predict_engagement
+from ..analysis.content_intelligence import assess_post
 from ..config.template_rules import ClientType
 from ..models.post import Post
 from ..models.qa_report import QAReport
@@ -199,10 +199,12 @@ class QAAgent:
     def _predict_engagement_summary(self, posts: "List[Post]") -> Optional[dict]:
         """Advisory pre-publish engagement estimate across the batch.
 
-        Runs the PREDICT-01 heuristic per post and summarises it (average, minimum,
-        count below the weak floor). Purely informational — surfaced in the QA report
-        so operators see predicted performance, never gates pass/fail. Returns None
-        for an empty batch.
+        Uses the canonical ``assess_post`` facade — the SAME signal the regenerator
+        acts on — so a post's QA-report score matches its regenerate/no-regenerate
+        score exactly (assess_post strips appended hashtags before scoring, which
+        content_generator adds before QA runs). Summarises average, minimum, and the
+        count below the weak floor. Purely informational — surfaced in the report,
+        never gates pass/fail. Returns None for an empty batch.
         """
         if not posts:
             return None
@@ -212,7 +214,7 @@ class QAAgent:
             if not post.content:
                 continue
             platform = post.target_platform.value if post.target_platform else "linkedin"
-            scores.append(predict_engagement(post.content, platform=platform).score)
+            scores.append(assess_post(post.content, platform=platform).predicted_score)
 
         if not scores:
             return None

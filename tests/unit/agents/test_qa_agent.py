@@ -732,6 +732,32 @@ class TestEngagementPrediction:
         assert 0 <= summary["weak_count"] <= 3
         assert summary["min_score"] <= summary["average_score"]
 
+    def test_score_matches_canonical_assess_post_with_hashtags(self):
+        # The QA score must equal the regenerator's canonical assess_post score for
+        # the same post — including trailing hashtags (which assess_post strips and
+        # content_generator appends). Guards against a divergent pre-publish signal.
+        from src.analysis.content_intelligence import assess_post
+
+        content = (
+            "3 words killed our onboarding conversion.\n\nWe A/B tested the signup copy "
+            "for six weeks across 12,000 visitors and the boring literal version won by "
+            "34% on completed signups.\n\nShip the boring version and measure it."
+            "\n\n#growth #saas #onboarding"
+        )
+        post = Post(
+            content=content,
+            template_id=1,
+            template_name="T",
+            client_name="C",
+            target_platform="linkedin",
+        )
+        summary = QAAgent()._predict_engagement_summary([post])
+        expected = assess_post(content, platform="linkedin").predicted_score
+
+        assert summary is not None
+        assert summary["average_score"] == round(expected, 1)
+        assert summary["min_score"] == expected
+
     def test_validate_posts_populates_prediction_and_renders(self):
         # Real validators (no mocks) so to_markdown has every field it renders.
         agent = QAAgent()
