@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from backend.services.tracking import build_tracked_url
+from backend.services.tracking import build_tracked_url, tag_urls_in_text
 
 
 def _qs(url):
@@ -68,3 +68,45 @@ def test_path_and_scheme_preserved():
     url = build_tracked_url("https://acme.com/a/b/c", source="s", campaign="c")
     parsed = urlparse(url)
     assert parsed.scheme == "https" and parsed.netloc == "acme.com" and parsed.path == "/a/b/c"
+
+
+# --- tag_urls_in_text -------------------------------------------------------
+
+
+def test_tag_single_url_in_text():
+    out = tag_urls_in_text("Read more at https://acme.com/post", source="linkedin", campaign="c")
+    assert "https://acme.com/post?utm_source=linkedin" in out
+    assert out.startswith("Read more at ")
+
+
+def test_tag_text_without_urls_unchanged():
+    text = "No links here, just prose."
+    assert tag_urls_in_text(text, source="x", campaign="c") == text
+
+
+def test_tag_preserves_trailing_period():
+    out = tag_urls_in_text("Visit https://acme.com now.", source="x", campaign="c")
+    # The period stays in the prose, not swallowed into the URL.
+    assert out.endswith(" now.")
+    assert "acme.com now" not in out  # 'now' not part of the URL
+    q = parse_qs(urlparse(out.split()[1].rstrip(".")).query)
+    assert q["utm_source"] == ["x"]
+
+
+def test_tag_is_idempotent():
+    once = tag_urls_in_text("go https://acme.com/p", source="li", campaign="jan")
+    twice = tag_urls_in_text(once, source="li", campaign="jan")
+    assert once == twice  # already-tagged URL not re-tagged
+    assert once.count("utm_source=") == 1
+
+
+def test_tag_multiple_urls():
+    out = tag_urls_in_text("A https://a.com and B https://b.com end", source="fb", campaign="c")
+    assert out.count("utm_source=fb") == 2
+    assert out.startswith("A ") and out.endswith(" end")
+
+
+def test_tag_passes_medium_through():
+    out = tag_urls_in_text("x https://acme.com", source="chatgpt", campaign="geo", medium="llm")
+    q = parse_qs(urlparse(out.split()[1]).query)
+    assert q["utm_medium"] == ["llm"]
