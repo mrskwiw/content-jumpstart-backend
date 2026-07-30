@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -28,11 +29,33 @@ from backend.services.distribution.oauth import ensure_fresh_token
 from backend.services.distribution.publishers import dry_run_enabled, get_publisher
 from backend.services.platform_compliance import check_compliance
 from backend.services.settings_service import encrypt_value
+from backend.services.tracking import tag_urls_in_text
 from src.models.client_brief import Platform
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
+
+
+def _utm_tagging_enabled() -> bool:
+    """Whether published links get UTM attribution params (opt-in, default off).
+
+    Off by default so enabling it is an explicit per-instance choice — it rewrites
+    the URLs in a user's post, which should never happen silently.
+    """
+    return os.getenv("DISTRIBUTION_UTM_TAGGING", "").strip().lower() in ("1", "true", "yes")
+
+
+def _publishable_content(sp: ScheduledPost) -> str:
+    """The exact text that will be sent to the platform (UTM-tagged when enabled)."""
+    if not _utm_tagging_enabled():
+        return sp.content
+    return tag_urls_in_text(
+        sp.content,
+        source=sp.platform,
+        campaign=(sp.project_id or sp.id),
+        medium="social",
+    )
 
 
 def _gate_compliance(platform: str, content: str, *, has_media: bool = False) -> None:
@@ -225,12 +248,17 @@ def _resolve_media_ref(db: Session, sp: ScheduledPost) -> Optional[str]:
 
 def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     """Publish one scheduled post and record the outcome."""
-    # Compliance gate FIRST (cheap, no side effects) — this is the single choke point
-    # every publish path flows through (worker process_due + publish_now), so it
-    # catches content that never went through schedule_post's gate. A post the
-    # platform API would reject is failed here instead of making a doomed API call.
+    # Resolve the exact payload first (UTM tagging adds characters), then gate THAT —
+    # a tweet near 280 chars could tip over once links are tagged, so the gate must
+    # see what is actually sent, not the authored text.
+    content_to_publish = _publishable_content(sp)
+
+    # Compliance gate — this is the single choke point every publish path flows
+    # through (worker process_due + publish_now), so it catches content that never
+    # went through schedule_post's gate. A post the platform API would reject is
+    # failed here instead of making a doomed API call.
     try:
-        _gate_compliance(sp.platform, sp.content, has_media=bool(sp.media_url))
+        _gate_compliance(sp.platform, content_to_publish, has_media=bool(sp.media_url))
     except ValueError as e:
         sp.status = "failed"
         sp.error_message = str(e)
@@ -268,7 +296,7 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
         db.commit()
         return sp
 
-    result = publisher.publish(sp.content, media_url)
+    result = publisher.publish(content_to_publish, media_url)
 
     if result.success:
         sp.status = "posted"
@@ -284,7 +312,7 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
                 platform=sp.platform,
                 platform_post_id=result.platform_post_id or "",
                 platform_url=result.platform_url,
-                content_hash=hashlib.sha256(sp.content.encode("utf-8")).hexdigest(),
+                content_hash=hashlib.sha256(content_to_publish.encode("utf-8")).hexdigest(),
                 posted_at=_now(),
             )
         )

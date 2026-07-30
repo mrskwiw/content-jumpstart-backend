@@ -171,3 +171,46 @@ def test_publish_gate_rejects_oversized_content_bypassing_schedule(db_session):
     assert "280" in (result.error_message or "")
     # Never posted — the gate short-circuited before any publish attempt.
     assert result.posted_at is None
+
+
+def test_publish_sends_utm_tagged_content_when_enabled(db_session, monkeypatch):
+    """With UTM tagging enabled, _publish sends the tagged content to the publisher
+    (links attributed) and records that as the posted content."""
+    from datetime import datetime, timezone
+
+    from backend.models.distribution import ScheduledPost
+    from backend.services.distribution import orchestrator
+    from backend.services.distribution.publishers import PublishResult
+
+    monkeypatch.setenv("DISTRIBUTION_UTM_TAGGING", "true")
+
+    captured = {}
+
+    class _Spy:
+        def publish(self, content, media_url=None):
+            captured["content"] = content
+            return PublishResult(success=True, platform_post_id="p1", platform_url="https://x/1")
+
+    monkeypatch.setattr(orchestrator, "get_publisher", lambda *a, **k: _Spy())
+
+    u = _make_user(db_session, "dist-utm@example.com", "user-distutm")
+    sp = ScheduledPost(
+        id="sp-utm",
+        user_id=u.id,
+        project_id=None,
+        platform="stub",
+        content="Read https://acme.com/post today",
+        scheduled_for=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        status="pending",
+        retry_count=0,
+    )
+    db_session.add(sp)
+    db_session.commit()
+
+    result = orchestrator._publish(db_session, sp)
+
+    assert result.status == "posted"
+    assert "utm_source=stub" in captured["content"]
+    assert "utm_campaign=sp-utm" in captured["content"]  # fell back to sp.id
+    # The authored row is unchanged — only the sent payload is tagged.
+    assert sp.content == "Read https://acme.com/post today"
