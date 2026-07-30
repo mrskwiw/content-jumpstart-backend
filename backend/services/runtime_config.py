@@ -8,11 +8,15 @@ These are **pure resolvers with an env fallback**: when ``instance_config`` is
 empty (every current instance, and any pre-claim pool slot) they return exactly
 what the env-based code returns today, so existing behavior is unchanged.
 
-NOTE: wiring these into the CSRF/CORS middleware and the OAuth callback helper is
-the remaining, security-sensitive part of S-01.4e (a hasty change to origin
-validation or redirect URIs is a security risk) — done as a focused pass. Per the
-spec, the custom-domain flip that needs these is off the instant-signup path, so
-a redeploy there is acceptable until the wiring lands.
+NOTE: the OAuth-redirect-base resolver is now WIRED into the OAuth legs
+(``redirect_uri_for``/``build_authorize_url``/``exchange_code`` + the distribution
+router, commit efcdefc) — safe because that value goes to the trusted provider and
+its source is instance_config/env, never user input. The CORS resolver is NOT yet
+wired: CORS ``allow_origins`` is set statically at app construction (``main.py``), so
+making it instance_config-aware needs a startup DB read or a dynamic origin check —
+the genuinely security-architecture-sensitive part, deliberately left for a reviewed
+pass. Per the spec, the custom-domain CORS flip is off the instant-signup path, so a
+redeploy there is acceptable until that wiring lands.
 """
 
 from __future__ import annotations
