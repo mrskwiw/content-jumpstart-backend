@@ -4,6 +4,7 @@ Export service for generating deliverable files.
 Handles TXT, Markdown, DOCX, and CSV export generation from database posts.
 """
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -14,6 +15,7 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
+from backend.services.geo import article_jsonld
 from backend.utils.logger import logger
 
 # Flat-table columns for the CSV deliverable, in operator order. Raw platform slug
@@ -29,6 +31,57 @@ _PLATFORM_DISPLAY_NAMES: dict = {
     "twitter": "Microblog",
     "email": "Email Newsletter",
 }
+
+
+def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
+    """schema.org Article JSON-LD for a blog post, as a fenced markdown block (GEO-01).
+
+    Embedding Article markup is what makes a page eligible for AI Overviews /
+    answer-engine citation — the 2026 GEO differentiator. Returns [] for non-blog
+    posts or when no headline can be derived. The operator pastes the block into the
+    page ``<head>``.
+    """
+    platform = (post.target_platform or "").lower()
+    if platform != "blog" or not post.content:
+        return []
+
+    # Headline = first non-empty content line, stripped of markdown heading/quote marks.
+    headline = ""
+    for raw in post.content.splitlines():
+        stripped = raw.lstrip("#>*- ").strip()
+        if stripped:
+            headline = stripped[:110]
+            break
+    if not headline:
+        return []
+
+    description = " ".join(post.content.split())[:155]
+
+    published = datetime.now().date().isoformat()
+    created = getattr(post, "created_at", None)
+    if created is not None:
+        try:
+            published = created.date().isoformat()
+        except AttributeError:
+            pass
+
+    data = article_jsonld(
+        headline=headline,
+        description=description,
+        author=client.name,
+        date_published=published,
+        publisher=client.name,
+    )
+    return [
+        "#### GEO Metadata (schema.org Article JSON-LD)",
+        "",
+        "*Paste into the page `<head>` so AI answer engines can cite this article.*",
+        "",
+        "```json",
+        json.dumps(data, indent=2, ensure_ascii=False),
+        "```",
+        "",
+    ]
 
 
 def _safe_project_name(project: Optional["Project"], client: Optional["Client"]) -> str:
@@ -357,6 +410,9 @@ async def _generate_markdown(
             lines.append(post.twitter_share_copy)
             lines.append("```")
             lines.append("")
+
+        # GEO / answer-engine schema.org markup for blog posts (no-op otherwise)
+        lines.extend(_blog_geo_jsonld_block(post, client))
 
         # Separator
         lines.append("---")

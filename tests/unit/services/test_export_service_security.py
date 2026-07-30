@@ -70,8 +70,13 @@ def _make_posts(n: int = 3) -> list:
 
 
 def _run(coro):
-    """Run an async coroutine synchronously."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run an async coroutine synchronously.
+
+    Uses asyncio.run (fresh loop per call) rather than the deprecated
+    get_event_loop().run_until_complete — the latter breaks once any other test in
+    the session calls asyncio.run() and closes the shared loop (test-order pollution).
+    """
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
