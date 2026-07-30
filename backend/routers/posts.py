@@ -10,8 +10,10 @@ from backend.middleware.authorization import (
     verify_post_ownership,
     filter_user_posts,
 )  # TR-021: Authorization
+from backend.schemas.atomize import AtomizeRequest, AtomizeResponse
 from backend.schemas.post import PostResponse, PostUpdate
 from backend.services import crud
+from backend.services.atomize import pull_quotes, to_thread
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from backend.utils.pagination import paginate_hybrid, get_pagination_params
@@ -21,6 +23,27 @@ from backend.models import Post, User
 from backend.utils.http_rate_limiter import lenient_limiter
 
 router = APIRouter()
+
+
+@router.post("/atomize", response_model=AtomizeResponse)
+@lenient_limiter.limit("500/hour")  # TR-004: cheap, stateless CPU-only transform
+async def atomize_content(
+    request: Request,
+    body: AtomizeRequest,
+    current_user: User = Depends(get_current_user),
+) -> AtomizeResponse:
+    """Repurpose long-form content into a numbered thread + pull-quotes (ATOMIZE-01).
+
+    Deterministic, no LLM call and no persistence — a stateless transform over the
+    supplied text, so it needs auth but no ownership check.
+    """
+    if not body.text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="text must not be blank"
+        )
+    thread = to_thread(body.text, max_chars=body.max_chars)
+    quotes = pull_quotes(body.text, limit=body.max_quotes)
+    return AtomizeResponse(thread=thread, thread_count=len(thread), pull_quotes=quotes)
 
 
 @router.get("/")

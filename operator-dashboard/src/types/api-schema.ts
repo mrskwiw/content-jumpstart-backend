@@ -1554,6 +1554,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/posts/atomize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Atomize Content
+         * @description Repurpose long-form content into a numbered thread + pull-quotes (ATOMIZE-01).
+         *
+         *     Deterministic, no LLM call and no persistence — a stateless transform over the
+         *     supplied text, so it needs auth but no ownership check.
+         */
+        post: operations["atomize_content_api_posts_atomize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/posts/": {
         parameters: {
             query?: never;
@@ -4638,6 +4661,50 @@ export interface components {
             duration_s?: number | null;
             /** Mime */
             mime?: string | null;
+        };
+        /**
+         * AtomizeRequest
+         * @description Repurpose one long-form piece into platform atoms.
+         */
+        AtomizeRequest: {
+            /**
+             * Text
+             * @description Long-form content to repurpose
+             */
+            text: string;
+            /**
+             * Max Chars
+             * @description Max characters per thread post (default X-friendly 270)
+             * @default 270
+             */
+            max_chars: number;
+            /**
+             * Max Quotes
+             * @description Max pull-quotes to return
+             * @default 3
+             */
+            max_quotes: number;
+        };
+        /**
+         * AtomizeResponse
+         * @description A numbered thread plus standalone pull-quote candidates.
+         */
+        AtomizeResponse: {
+            /**
+             * Thread
+             * @description Numbered thread posts, each within max_chars
+             */
+            thread: string[];
+            /**
+             * Thread Count
+             * @description Number of posts in the thread
+             */
+            thread_count: number;
+            /**
+             * Pull Quotes
+             * @description Punchy standalone sentences for graphics
+             */
+            pull_quotes: string[];
         };
         /**
          * AvailableStoriesRequest
@@ -9997,6 +10064,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atomize_content_api_posts_atomize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AtomizeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AtomizeResponse"];
                 };
             };
             /** @description Validation Error */

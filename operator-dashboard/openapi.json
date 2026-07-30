@@ -3559,6 +3559,53 @@
         }
       }
     },
+    "/api/posts/atomize": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Atomize Content",
+        "description": "Repurpose long-form content into a numbered thread + pull-quotes (ATOMIZE-01).\n\nDeterministic, no LLM call and no persistence \u2014 a stateless transform over the\nsupplied text, so it needs auth but no ownership check.",
+        "operationId": "atomize_content_api_posts_atomize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AtomizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AtomizeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/posts/": {
       "get": {
         "tags": [
@@ -10093,6 +10140,71 @@
           "url"
         ],
         "title": "AssetOut"
+      },
+      "AtomizeRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text",
+            "description": "Long-form content to repurpose"
+          },
+          "max_chars": {
+            "type": "integer",
+            "maximum": 5000.0,
+            "minimum": 50.0,
+            "title": "Max Chars",
+            "description": "Max characters per thread post (default X-friendly 270)",
+            "default": 270
+          },
+          "max_quotes": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Max Quotes",
+            "description": "Max pull-quotes to return",
+            "default": 3
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "AtomizeRequest",
+        "description": "Repurpose one long-form piece into platform atoms."
+      },
+      "AtomizeResponse": {
+        "properties": {
+          "thread": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Thread",
+            "description": "Numbered thread posts, each within max_chars"
+          },
+          "thread_count": {
+            "type": "integer",
+            "title": "Thread Count",
+            "description": "Number of posts in the thread"
+          },
+          "pull_quotes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pull Quotes",
+            "description": "Punchy standalone sentences for graphics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread",
+          "thread_count",
+          "pull_quotes"
+        ],
+        "title": "AtomizeResponse",
+        "description": "A numbered thread plus standalone pull-quote candidates."
       },
       "AvailableStoriesRequest": {
         "properties": {
