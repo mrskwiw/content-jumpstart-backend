@@ -194,48 +194,55 @@ def delete_setting(db: Session, user_id: int, key: str, category: str = "integra
 
 
 # ── Instance-global config (S-01.4a) ──────────────────────────────────────────
-# The `settings` table is per-user, so instance-global values (plan tier, account
-# state, CORS origins, canonical domain) live under the owner (primary superuser)
-# in a reserved `instance` category. The control plane writes these at runtime
-# (S-01.4), so plan/domain changes take effect WITHOUT a redeploy — the whole
-# point of moving them out of startup env.
-INSTANCE_CATEGORY = "instance"
-
-
-def _owner_user_id(db: Session) -> str:
-    """Return the instance owner's id (earliest superuser) that holds instance config."""
-    from ..models.user import User
-
-    owner = db.query(User).filter(User.is_superuser.is_(True)).order_by(User.created_at).first()
-    if owner is None:
-        raise RuntimeError("no owner (superuser) exists to hold instance config")
-    return owner.id
+# Instance-global values (plan tier, account state, CORS origins, canonical
+# domain) live in a dedicated SINGLETON table (backend/models/instance_config.py),
+# NOT the per-user `settings` table. The control plane writes these at runtime
+# (S-01.4) so plan/domain changes take effect WITHOUT a redeploy.
+#
+# Why a dedicated table (not a `settings` category): instance config must survive
+# admin churn (create/promote/demote/soft-delete). Deriving an "owner" user to
+# hold it is brittle — ownership can shift and reads can return stale/mixed rows
+# (the flaw the S-01.4a adversarial review caught). One row per key has no owner
+# concept, so writes and reads always agree.
 
 
 def get_instance_config(db: Session, key: str, default: Optional[str] = None) -> Optional[str]:
-    """Read an instance-global config value (``category='instance'``).
+    """Read an instance-global config value; returns ``default`` when unset."""
+    from ..models.instance_config import InstanceConfig
 
-    Owner-agnostic on read (a siloed instance has one owner), so a caller never
-    needs to know which user holds it. Returns ``default`` when unset.
-    """
-    setting = (
-        db.query(Setting).filter(Setting.category == INSTANCE_CATEGORY, Setting.key == key).first()
-    )
-    if setting is None or setting.value is None:
+    row = db.query(InstanceConfig).filter(InstanceConfig.key == key).first()
+    if row is None or row.value is None:
         return default
-    return setting.value
+    return decrypt_value(row.value) if row.is_encrypted else row.value
 
 
-def set_instance_config(db: Session, key: str, value: Optional[str]) -> Setting:
-    """Upsert an instance-global config value (stored under the owner, unencrypted)."""
-    owner_id = _owner_user_id(db)
-    return set_setting(db, owner_id, key, value, category=INSTANCE_CATEGORY, encrypt=False)
+def set_instance_config(db: Session, key: str, value: Optional[str], encrypt: bool = False):
+    """Upsert an instance-global config value (one row per key)."""
+    from ..models.instance_config import InstanceConfig
+
+    stored_value = encrypt_value(value) if (encrypt and value) else value
+    row = db.query(InstanceConfig).filter(InstanceConfig.key == key).first()
+    if row:
+        row.value = stored_value
+        row.is_encrypted = bool(encrypt)
+    else:
+        row = InstanceConfig(key=key, value=stored_value, is_encrypted=bool(encrypt))
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def get_all_instance_config(db: Session) -> dict:
     """All instance-global config as a ``{key: value}`` dict (bulk read / caching)."""
-    rows = db.query(Setting).filter(Setting.category == INSTANCE_CATEGORY).all()
-    return {r.key: r.value for r in rows if r.value is not None}
+    from ..models.instance_config import InstanceConfig
+
+    out: dict = {}
+    for row in db.query(InstanceConfig).all():
+        if row.value is None:
+            continue
+        out[row.key] = decrypt_value(row.value) if row.is_encrypted else row.value
+    return out
 
 
 def get_web_search_config(db: Session, user_id: int) -> dict:

@@ -14,6 +14,7 @@ from .project import Project
 from .research_result import ResearchResult
 from .run import Run
 from .setting import Setting
+from .instance_config import InstanceConfig
 from .story import MinedStory, StoryUsage
 from .user import User
 from .trends import (
@@ -40,6 +41,7 @@ __all__ = [
     "Deliverable",
     "ResearchResult",
     "Setting",
+    "InstanceConfig",
     "MinedStory",
     "StoryUsage",
     "TrendsSearch",
