@@ -11,8 +11,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from backend.services.genericity import analyze_genericity
-from backend.services.predict import predict_engagement
+from .genericity import analyze_genericity
+from .predict import predict_engagement
 
 _REGENERATE_BELOW = 45.0  # predicted-score floor
 _GENERIC_THRESHOLD = 0.4

@@ -1,6 +1,6 @@
 """BRAND-CORE-02 — generic-AI signal detection."""
 
-from backend.services.genericity import analyze_genericity
+from src.analysis.genericity import analyze_genericity
 
 _GENERIC = (
     "In today's fast-paced digital world, businesses must leverage cutting-edge tools.\n"

@@ -1,6 +1,6 @@
 """PREDICT-01 — pre-publish engagement prediction."""
 
-from backend.services.predict import predict_engagement
+from src.analysis.predict import predict_engagement
 
 # Strong LinkedIn post: number-led hook, LinkedIn-length (150-300w), question, CTA,
 # low genericity.

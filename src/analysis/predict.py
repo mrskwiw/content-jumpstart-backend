@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from backend.services.genericity import analyze_genericity
+from .genericity import analyze_genericity
 
 # Rough platform sweet-spots (words) for the prose body.
 _LENGTH_TARGETS: dict[str, tuple[int, int]] = {

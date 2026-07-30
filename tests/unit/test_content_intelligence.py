@@ -1,6 +1,6 @@
 """Content-intelligence facade — assess_post composes genericity + predict."""
 
-from backend.services.content_intelligence import assess_post
+from src.analysis.content_intelligence import assess_post
 
 _STRONG = (
     "3 words killed our onboarding conversion.\n\n"
