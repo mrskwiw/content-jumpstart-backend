@@ -102,3 +102,17 @@ def test_exchange_code_prefers_pinned_over_changed_config(db_session, monkeypatc
         db=db_session,
     )
     assert captured["redirect_uri"] == "https://pinned.example.com/cb"
+
+
+def test_callback_error_path_uses_env_base_not_instance_config(client, db_session, monkeypatch):
+    # The [high] fix: the ERROR redirect must stay DB-free/robust — it uses the env
+    # base, NOT the instance_config custom domain (which would add a DB read to the
+    # error path).
+    monkeypatch.setenv(_ENV, "https://env.example.com")
+    set_instance_config(db_session, "oauth_redirect_base", "https://custom.example.com")
+    r = client.get(
+        "/api/distribution/oauth/linkedin/callback?error=access_denied",
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 307)
+    assert r.headers["location"].startswith("https://env.example.com/dashboard")

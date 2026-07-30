@@ -6,6 +6,7 @@ All read/write endpoints are scoped to the authenticated user; `process-due` is
 superuser-gated (called by a scheduled worker with an admin token).
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -244,11 +245,13 @@ def oauth_callback(
 ):
     """Provider redirect target. Verifies the signed state, exchanges the code for
     tokens, stores the (encrypted) credential, then bounces back to the UI."""
-    # Bounce back to the instance's canonical UI (instance_config custom domain, env
-    # fallback) — matches where the app actually lives on a custom domain.
-    frontend = resolved_oauth_redirect_base(db)
     path = "/dashboard/settings/connections"
-    done = f"{frontend}{path}" if frontend else path
+    # ERROR redirects use the env base only — DB-free so a redirect never depends on a
+    # DB read (an OAuth error must always be able to bounce the user back cleanly). The
+    # SUCCESS redirect resolves the canonical custom domain below, after the DB is
+    # already confirmed working by save_credential.
+    env_base = os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
+    done = f"{env_base}{path}" if env_base else path
 
     if error:
         return RedirectResponse(f"{done}?error={error}")
@@ -282,7 +285,12 @@ def oauth_callback(
         token_expires_at=token.get("expires_at"),
         display_name=f"{platform} account",
     )
-    return RedirectResponse(f"{done}?connected={platform}")
+    # Success: bounce to the instance's canonical UI (custom domain from
+    # instance_config, env fallback). The DB was just used successfully above, so
+    # resolving here adds no new failure mode to the error paths.
+    success_base = resolved_oauth_redirect_base(db)
+    success_done = f"{success_base}{path}" if success_base else path
+    return RedirectResponse(f"{success_done}?connected={platform}")
 
 
 def requests_quote(value: str) -> str:
