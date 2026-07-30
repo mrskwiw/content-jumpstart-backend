@@ -74,6 +74,23 @@ def test_blog_block_emits_publishable_script_tag():
     assert "description" in data
 
 
+def test_script_breakout_is_escaped():
+    # Client-controlled content containing </script> must NOT close the tag early.
+    malicious = "Beat the </script><script>alert(1)</script> algorithm\n\nBody text here."
+    block = _blog_geo_jsonld_block(_make_post(malicious), _make_client())
+    joined = "\n".join(block)
+
+    # Exactly one opening and one closing script tag — the payload didn't break out.
+    assert joined.count(_OPEN) == 1
+    assert joined.count(_CLOSE) == 1
+    # The literal </script> from content is escaped inside the payload.
+    assert "\\u003c/script\\u003e" in joined
+    # ...and it still parses as valid JSON-LD, decoding back to the real text.
+    data = _jsonld_from(joined)
+    assert data["@type"] == "Article"
+    assert "</script>" in data["headline"]  # < decoded back to <
+
+
 def test_blog_block_uses_post_created_date():
     post = _make_post(_BLOG)
     post.created_at = datetime(2026, 3, 14, 9, 30)

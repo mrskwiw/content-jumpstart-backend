@@ -75,11 +75,13 @@ def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
     # Emit a ready-to-paste <script type="application/ld+json"> tag, not a bare JSON
     # block — JSON-LD is only recognised by search / answer engines inside that
     # script element in the page <head>. The operator copies the snippet verbatim.
-    script = (
-        '<script type="application/ld+json">\n'
-        + json.dumps(data, indent=2, ensure_ascii=False)
-        + "\n</script>"
-    )
+    json_text = json.dumps(data, indent=2, ensure_ascii=False)
+    # Escape HTML-significant chars so client-controlled content containing
+    # "</script>" (in the headline/description) cannot break out of the script
+    # element once pasted into a live page. Still valid JSON-LD — parsers decode
+    # the \uXXXX escapes. This is the standard safe-JSON-in-<script> transform.
+    json_text = json_text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    script = '<script type="application/ld+json">\n' + json_text + "\n</script>"
     return [
         "#### GEO Metadata (schema.org Article JSON-LD)",
         "",
