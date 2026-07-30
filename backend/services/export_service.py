@@ -1,7 +1,7 @@
 """
 Export service for generating deliverable files.
 
-Handles TXT, Markdown, and DOCX export generation from database posts.
+Handles TXT, Markdown, DOCX, and CSV export generation from database posts.
 """
 
 from datetime import datetime
@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session
 from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
+from backend.services.csv_export import posts_to_csv
 from backend.utils.logger import logger
+
+# Flat-table columns for the CSV deliverable, in operator order. Raw platform slug
+# (not the display name) keeps the file friendly to scheduler/spreadsheet re-import.
+_CSV_COLUMNS: tuple = ("platform", "template", "content", "word_count", "character_count")
 
 # Human-readable display names for platform enum values stored in the database
 _PLATFORM_DISPLAY_NAMES: dict = {
@@ -122,6 +127,8 @@ async def generate_export_file(
             research_only,
             db,
         )
+    elif format == "csv":
+        return await _generate_csv(posts, full_path)
     else:
         return await _generate_txt(
             posts,
@@ -133,6 +140,31 @@ async def generate_export_file(
             research_only,
             db,
         )
+
+
+async def _generate_csv(posts: List[Post], output_path: Path) -> Tuple[Path, int]:
+    """Generate a CSV deliverable — one row per post (flat table for schedulers).
+
+    CSV is a machine-friendly export, so it carries only the post table (no audit
+    log or research appendix); research-only exports with no posts yield a
+    header-only file. Escaping is handled by the stdlib csv module via posts_to_csv.
+    """
+    rows = [
+        {
+            "platform": p.target_platform or "",
+            "template": p.template_name or "",
+            "content": p.content or "",
+            "word_count": p.word_count,
+            "character_count": len(p.content) if p.content else 0,
+        }
+        for p in posts
+    ]
+    csv_text = posts_to_csv(rows, columns=_CSV_COLUMNS)
+    # newline="" so the csv module's \r\n line terminators are written verbatim.
+    output_path.write_text(csv_text, encoding="utf-8", newline="")
+    file_size = output_path.stat().st_size
+    logger.info(f"Generated CSV deliverable: {output_path} ({file_size} bytes)")
+    return output_path, file_size
 
 
 async def _generate_txt(

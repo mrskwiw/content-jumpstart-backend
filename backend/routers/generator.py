@@ -94,7 +94,7 @@ class ExportInput(BaseModel):
     """Input for export endpoint"""
 
     project_id: str
-    format: str = "txt"  # txt, md, docx
+    format: str = "txt"  # txt, md, docx, csv
     include_audit_log: bool = False
     include_research: bool = False  # NEW: Include research results appendix
 
