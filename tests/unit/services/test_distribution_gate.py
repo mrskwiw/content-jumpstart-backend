@@ -45,3 +45,20 @@ def test_empty_content_is_rejected():
     for text in ("", "   ", "\n\t"):
         with pytest.raises(ValueError, match="empty"):
             _gate_compliance("twitter", text)
+
+
+def test_media_only_post_with_empty_caption_is_allowed():
+    # An image/video post can have no caption — the media is the content.
+    _gate_compliance("facebook", "", has_media=True)
+    _gate_compliance("twitter", "   ", has_media=True)
+
+
+def test_media_post_with_oversized_caption_still_gated():
+    # A caption that IS present must still respect the platform's char limit.
+    with pytest.raises(ValueError, match="280|limit"):
+        _gate_compliance("twitter", "x " * 200, has_media=True)
+
+
+def test_empty_caption_without_media_still_rejected():
+    with pytest.raises(ValueError, match="empty"):
+        _gate_compliance("twitter", "", has_media=False)

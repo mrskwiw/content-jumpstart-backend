@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 
 
-def _gate_compliance(platform: str, content: str) -> None:
+def _gate_compliance(platform: str, content: str, *, has_media: bool = False) -> None:
     """Reject content the platform API would hard-reject, at schedule time.
 
     Uses the API-rejection-only compliance check (char ceiling + hashtag over-cap;
@@ -43,7 +43,13 @@ def _gate_compliance(platform: str, content: str) -> None:
     an oversized one (e.g. an X post past 280 chars) fails fast with a 400 instead of
     a silent worker failure at publish time. Platforms without a compliance spec
     (instagram/tiktok/youtube/stub) are skipped — there is nothing to check.
+
+    A media-only post (image/video with an empty caption) is valid — the media is
+    the post — so when ``has_media`` is set and the caption is blank there is nothing
+    to gate. A non-empty caption is still validated against the platform's limits.
     """
+    if has_media and not content.strip():
+        return  # media-only post — the attachment is the content
     try:
         plat = Platform(platform)
     except ValueError:
@@ -153,7 +159,7 @@ def schedule_post(
     # Reject content the platform API would hard-reject (e.g. an X post over 280
     # chars) up front, so it fails fast (400) at schedule time rather than as a
     # silent worker failure at publish time.
-    _gate_compliance(platform, content)
+    _gate_compliance(platform, content, has_media=bool(media_url))
     # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)
@@ -224,7 +230,7 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     # catches content that never went through schedule_post's gate. A post the
     # platform API would reject is failed here instead of making a doomed API call.
     try:
-        _gate_compliance(sp.platform, sp.content)
+        _gate_compliance(sp.platform, sp.content, has_media=bool(sp.media_url))
     except ValueError as e:
         sp.status = "failed"
         sp.error_message = str(e)
