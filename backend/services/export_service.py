@@ -72,13 +72,22 @@ def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
         date_published=published,
         publisher=client.name,
     )
+    # Emit a ready-to-paste <script type="application/ld+json"> tag, not a bare JSON
+    # block — JSON-LD is only recognised by search / answer engines inside that
+    # script element in the page <head>. The operator copies the snippet verbatim.
+    script = (
+        '<script type="application/ld+json">\n'
+        + json.dumps(data, indent=2, ensure_ascii=False)
+        + "\n</script>"
+    )
     return [
         "#### GEO Metadata (schema.org Article JSON-LD)",
         "",
-        "*Paste into the page `<head>` so AI answer engines can cite this article.*",
+        "*Paste this snippet verbatim into the page `<head>` so AI answer engines "
+        "can cite this article.*",
         "",
-        "```json",
-        json.dumps(data, indent=2, ensure_ascii=False),
+        "```html",
+        script,
         "```",
         "",
     ]

@@ -41,6 +41,15 @@ def _make_post(content, platform="blog", template="Blog Post"):
 
 _BLOG = "How to Rank in AI Overviews\n\nAnswer-engine visibility is the new SEO. Here is how."
 
+_OPEN = '<script type="application/ld+json">'
+_CLOSE = "</script>"
+
+
+def _jsonld_from(text: str) -> dict:
+    """Extract and parse the JSON-LD payload from inside the <script> tag."""
+    inner = text.split(_OPEN, 1)[1].split(_CLOSE, 1)[0]
+    return json.loads(inner)
+
 
 def test_non_blog_post_yields_no_block():
     assert _blog_geo_jsonld_block(_make_post(_BLOG, platform="linkedin"), _make_client()) == []
@@ -50,13 +59,13 @@ def test_empty_content_yields_no_block():
     assert _blog_geo_jsonld_block(_make_post("", platform="blog"), _make_client()) == []
 
 
-def test_blog_block_is_valid_article_jsonld():
+def test_blog_block_emits_publishable_script_tag():
     block = _blog_geo_jsonld_block(_make_post(_BLOG), _make_client(name="Acme Co"))
     assert block  # non-empty
-    # Extract the fenced JSON payload and parse it.
     joined = "\n".join(block)
-    payload = joined.split("```json\n", 1)[1].split("\n```", 1)[0]
-    data = json.loads(payload)
+    # Must be a real, ready-to-paste JSON-LD script tag, not a bare code block.
+    assert _OPEN in joined and _CLOSE in joined
+    data = _jsonld_from(joined)
     assert data["@type"] == "Article"
     assert data["@context"] == "https://schema.org"
     assert data["headline"] == "How to Rank in AI Overviews"  # first line, markdown stripped
@@ -69,8 +78,7 @@ def test_blog_block_uses_post_created_date():
     post = _make_post(_BLOG)
     post.created_at = datetime(2026, 3, 14, 9, 30)
     block = _blog_geo_jsonld_block(post, _make_client())
-    payload = "\n".join(block).split("```json\n", 1)[1].split("\n```", 1)[0]
-    assert json.loads(payload)["datePublished"] == "2026-03-14"
+    assert _jsonld_from("\n".join(block))["datePublished"] == "2026-03-14"
 
 
 def test_markdown_export_embeds_jsonld_for_blog_post():
@@ -86,7 +94,10 @@ def test_markdown_export_embeds_jsonld_for_blog_post():
     try:
         text = out_path.read_text(encoding="utf-8")
         assert "GEO Metadata (schema.org Article JSON-LD)" in text
-        assert '"@type": "Article"' in text
+        # End-to-end: the exported artifact contains publishable structured data
+        # (a real script tag), not just a fenced code block.
+        assert _OPEN in text
+        assert _jsonld_from(text)["@type"] == "Article"
         assert size > 0
     finally:
         out_path.unlink(missing_ok=True)
