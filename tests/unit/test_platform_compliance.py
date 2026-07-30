@@ -56,6 +56,44 @@ def test_clean_linkedin_post_publishable_no_hard():
     assert r.hashtag_count == 3
 
 
+def test_api_only_demotes_word_floor_to_warning():
+    # 5-word tweet: hard-fails normally, but api_only lets it publish (word count
+    # is not an API rejection) — surfaced as a warning instead.
+    strict = check_compliance("Ship boring copy. It converts.", Platform.TWITTER)
+    api = check_compliance("Ship boring copy. It converts.", Platform.TWITTER, api_only=True)
+    assert strict.publishable is False
+    assert api.publishable is True
+    assert any("below twitter minimum" in w for w in api.warnings)
+    assert api.hard == []
+
+
+def test_api_only_still_hard_fails_char_ceiling():
+    # The char ceiling is a real API limit — api_only must NOT relax it.
+    text = "x " * 200  # 400 chars, > 280
+    api = check_compliance(text, Platform.TWITTER, api_only=True)
+    assert api.publishable is False
+    assert any("API limit of 280" in v for v in api.hard)
+
+
+def test_api_only_does_not_char_gate_linkedin():
+    # LinkedIn's spec max_chars (1800) is a QUALITY ceiling, not the API limit
+    # (~3000). api_only must not block a long LinkedIn post on chars — only Twitter
+    # has a listed API char limit. Strict mode still blocks it.
+    long_li = "word " * 380  # ~1900 chars, 380 words
+    strict = check_compliance(long_li, Platform.LINKEDIN)
+    api = check_compliance(long_li, Platform.LINKEDIN, api_only=True)
+    assert strict.publishable is False  # char > 1800 hard in QA context
+    assert api.publishable is True  # not char-gated in api_only
+    assert api.hard == []
+
+
+def test_api_only_still_hard_fails_hashtag_over_cap():
+    body = "word " * 240 + "#a #b #c #d #e"  # 5 tags > LinkedIn max 3
+    api = check_compliance(body, Platform.LINKEDIN, api_only=True)
+    assert api.publishable is False
+    assert any("exceeds linkedin max of 3" in v for v in api.hard)
+
+
 def test_report_reports_counts():
     r = check_compliance("hello world #x", Platform.TWITTER)
     assert r.char_count == len("hello world #x")

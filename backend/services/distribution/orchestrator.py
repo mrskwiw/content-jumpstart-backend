@@ -26,11 +26,31 @@ from backend.models.distribution import (
 )
 from backend.services.distribution.oauth import ensure_fresh_token
 from backend.services.distribution.publishers import dry_run_enabled, get_publisher
+from backend.services.platform_compliance import check_compliance
 from backend.services.settings_service import encrypt_value
+from src.models.client_brief import Platform
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
+
+
+def _gate_compliance(platform: str, content: str) -> None:
+    """Reject content the platform API would hard-reject, at schedule time.
+
+    Uses the API-rejection-only compliance check (char ceiling + hashtag over-cap;
+    word counts are advisory), so a deliberately short scheduled post is allowed but
+    an oversized one (e.g. an X post past 280 chars) fails fast with a 400 instead of
+    a silent worker failure at publish time. Platforms without a compliance spec
+    (instagram/tiktok/youtube/stub) are skipped — there is nothing to check.
+    """
+    try:
+        plat = Platform(platform)
+    except ValueError:
+        return  # no length/hashtag spec for this platform — nothing to gate
+    report = check_compliance(content, plat, api_only=True)
+    if not report.publishable:
+        raise ValueError(f"Content fails {platform} limits: {'; '.join(report.hard)}")
 
 
 def _now() -> datetime:
@@ -130,6 +150,10 @@ def schedule_post(
 ) -> ScheduledPost:
     if platform not in SUPPORTED_PLATFORMS:
         raise ValueError(f"Unsupported platform: {platform}")
+    # Reject content the platform API would hard-reject (e.g. an X post over 280
+    # chars) up front, so it fails fast (400) at schedule time rather than as a
+    # silent worker failure at publish time.
+    _gate_compliance(platform, content)
     # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)

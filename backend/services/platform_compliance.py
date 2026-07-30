@@ -26,6 +26,15 @@ from src.models.client_brief import Platform
 
 _HASHTAG_RE = re.compile(r"(?<!\w)#\w+")
 
+# True platform-API hard character limits — a post over these is actually
+# rejected/truncated by the platform. Deliberately NARROWER than
+# PLATFORM_LENGTH_SPECS' ``max_chars`` (a quality ceiling: LinkedIn 1800 vs the real
+# ~3000 API limit, Facebook 650 vs ~63k). Only limits that are both well-established
+# AND realistically reachable by short-form posts are listed; in api_only mode a
+# platform absent here is not char-gated, so legitimate longer posts are never
+# blocked. Twitter/X's 280 is the one commonly-hit real limit.
+_API_HARD_CHAR_LIMITS: dict[Platform, int] = {Platform.TWITTER: 280}
+
 
 def count_hashtags(text: str) -> int:
     """Number of ``#tag`` tokens (word-boundary anchored; ignores ``a#b``)."""
@@ -43,8 +52,16 @@ class ComplianceReport:
     warnings: list[str] = field(default_factory=list)
 
 
-def check_compliance(text: str, platform: Platform) -> ComplianceReport:
-    """Gate ``text`` for ``platform``; ``publishable`` is False on any hard violation."""
+def check_compliance(text: str, platform: Platform, *, api_only: bool = False) -> ComplianceReport:
+    """Gate ``text`` for ``platform``; ``publishable`` is False on any hard violation.
+
+    ``api_only=True`` restricts hard failures to what the platform *API* actually
+    rejects — the character ceiling and hashtag over-cap — and demotes the word-count
+    floor/ceiling to warnings. Use it for the distribution pre-publish gate, where a
+    deliberately short scheduled post must not be blocked; leave it False for the
+    generation QA context, where the repo's length validator treats word bounds as
+    hard failures.
+    """
     char_count = len(text)
     word_count = len(text.split())
     hashtag_count = count_hashtags(text)
@@ -54,19 +71,30 @@ def check_compliance(text: str, platform: Platform) -> ComplianceReport:
 
     specs = PLATFORM_LENGTH_SPECS.get(platform)
     if specs:
-        # Hard character ceiling — the platform API rejects/truncates past this.
-        max_chars = specs["max_chars"]
-        if char_count > max_chars:
-            hard.append(f"{char_count} chars exceeds {platform.value} hard limit of {max_chars}")
+        # Character ceiling. In api_only mode use the TRUE API limit (only a few
+        # platforms; absent → not char-gated) so we never block a legitimately long
+        # post; otherwise use the spec's quality ceiling (the QA-context behaviour).
+        if api_only:
+            api_limit = _API_HARD_CHAR_LIMITS.get(platform)
+            if api_limit is not None and char_count > api_limit:
+                hard.append(f"{char_count} chars exceeds {platform.value} API limit of {api_limit}")
+        else:
+            max_chars = specs["max_chars"]
+            if char_count > max_chars:
+                hard.append(
+                    f"{char_count} chars exceeds {platform.value} hard limit of {max_chars}"
+                )
 
         # Word bounds: under min_words / over max_words HARD-fail the repo's length
-        # validator, so they block here too. Missing the optimal band is a warning.
+        # validator, so they block here too — UNLESS api_only, since a word count is
+        # not something the platform API rejects. Missing the optimal band is a warning.
         min_w, max_w = specs["min_words"], specs["max_words"]
         opt_lo, opt_hi = specs["optimal_min_words"], specs["optimal_max_words"]
+        word_bound = warnings if api_only else hard
         if word_count < min_w:
-            hard.append(f"{word_count} words below {platform.value} minimum of {min_w}")
+            word_bound.append(f"{word_count} words below {platform.value} minimum of {min_w}")
         elif word_count > max_w:
-            hard.append(f"{word_count} words above {platform.value} maximum of {max_w}")
+            word_bound.append(f"{word_count} words above {platform.value} maximum of {max_w}")
         elif word_count < opt_lo or word_count > opt_hi:
             warnings.append(
                 f"{word_count} words outside optimal {opt_lo}-{opt_hi} for {platform.value}"
