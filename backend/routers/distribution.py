@@ -6,7 +6,6 @@ All read/write endpoints are scoped to the authenticated user; `process-due` is
 superuser-gated (called by a scheduled worker with an admin token).
 """
 
-import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -23,6 +22,7 @@ from backend.models.distribution import (
     ScheduledPost,
 )
 from backend.services.distribution import oauth, orchestrator
+from backend.services.runtime_config import resolved_oauth_redirect_base
 from backend.utils.auth import create_access_token, decode_token
 
 router = APIRouter(prefix="/api/distribution", tags=["Distribution"])
@@ -206,7 +206,19 @@ def oauth_start(
             detail=f"{platform} OAuth is not configured on this server "
             f"({provider.client_id_env}/{provider.client_secret_env} unset).",
         )
-    state_data = {"sub": current_user.id, "oauth_platform": platform, "cid": client_id}
+    # Resolve the callback URL once and PIN it in the signed state, so the exchange
+    # leg reuses the identical redirect_uri even if instance_config changes mid-flow
+    # (OAuth rejects a mismatch between the authorize and token legs).
+    try:
+        redirect_uri = oauth.redirect_uri_for(platform, db)
+    except oauth.OAuthError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    state_data = {
+        "sub": current_user.id,
+        "oauth_platform": platform,
+        "cid": client_id,
+        "ru": redirect_uri,
+    }
     code_challenge = None
     if provider.use_pkce:
         pkce = oauth.make_pkce_pair()
@@ -214,7 +226,9 @@ def oauth_start(
         code_challenge = pkce["challenge"]
     state = create_access_token(state_data, expires_delta=_OAUTH_STATE_TTL)
     try:
-        url = oauth.build_authorize_url(platform, state, code_challenge=code_challenge, db=db)
+        url = oauth.build_authorize_url(
+            platform, state, code_challenge=code_challenge, redirect_uri=redirect_uri
+        )
     except oauth.OAuthError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"authorize_url": url}
@@ -230,7 +244,9 @@ def oauth_callback(
 ):
     """Provider redirect target. Verifies the signed state, exchanges the code for
     tokens, stores the (encrypted) credential, then bounces back to the UI."""
-    frontend = os.getenv("OAUTH_REDIRECT_BASE_URL", "").rstrip("/")
+    # Bounce back to the instance's canonical UI (instance_config custom domain, env
+    # fallback) — matches where the app actually lives on a custom domain.
+    frontend = resolved_oauth_redirect_base(db)
     path = "/dashboard/settings/connections"
     done = f"{frontend}{path}" if frontend else path
 
@@ -244,7 +260,15 @@ def oauth_callback(
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
     try:
-        token = oauth.exchange_code(platform, code, code_verifier=payload.get("cv"), db=db)
+        # Reuse the redirect_uri pinned in the signed state (falls back to db/env for
+        # any state issued before pinning existed).
+        token = oauth.exchange_code(
+            platform,
+            code,
+            code_verifier=payload.get("cv"),
+            redirect_uri=payload.get("ru"),
+            db=db,
+        )
     except oauth.OAuthError as e:
         return RedirectResponse(f"{done}?error={requests_quote(str(e))}")
 

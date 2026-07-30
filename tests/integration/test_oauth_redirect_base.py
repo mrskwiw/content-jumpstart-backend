@@ -66,3 +66,39 @@ def test_missing_base_raises(monkeypatch):
         assert False, "expected OAuthError"
     except oauth.OAuthError:
         pass
+
+
+def test_build_authorize_url_uses_pinned_redirect_uri(monkeypatch):
+    # An explicit redirect_uri bypasses resolution entirely — even with NO base set
+    # (which would otherwise raise), proving the pinned value is used verbatim.
+    from urllib.parse import quote
+
+    monkeypatch.setenv("LINKEDIN_CLIENT_ID", "id")
+    monkeypatch.setenv("LINKEDIN_CLIENT_SECRET", "sec")
+    monkeypatch.delenv(_ENV, raising=False)
+    url = oauth.build_authorize_url(
+        "linkedin", "state123", redirect_uri="https://pinned.example.com/cb"
+    )
+    assert quote("https://pinned.example.com/cb", safe="") in url
+
+
+def test_exchange_code_prefers_pinned_over_changed_config(db_session, monkeypatch):
+    # The [high] fix: even if instance_config changes between the two OAuth legs, the
+    # exchange uses the PINNED redirect_uri (from the signed state), not a re-resolve.
+    monkeypatch.setenv(_ENV, "https://env.example.com")
+    set_instance_config(db_session, "oauth_redirect_base", "https://changed.example.com")
+    captured: dict = {}
+
+    def _fake_post(provider, data):  # noqa: ANN001
+        captured.update(data)
+        return {"access_token": "tok"}
+
+    monkeypatch.setattr(oauth, "_post_token", _fake_post)
+    oauth.exchange_code(
+        "linkedin",
+        "code123",
+        code_verifier="v",
+        redirect_uri="https://pinned.example.com/cb",
+        db=db_session,
+    )
+    assert captured["redirect_uri"] == "https://pinned.example.com/cb"

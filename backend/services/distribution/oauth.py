@@ -210,9 +210,18 @@ def make_pkce_pair() -> Dict[str, str]:
 
 
 def build_authorize_url(
-    platform: str, state: str, *, code_challenge: Optional[str] = None, db: Session | None = None
+    platform: str,
+    state: str,
+    *,
+    code_challenge: Optional[str] = None,
+    db: Session | None = None,
+    redirect_uri: Optional[str] = None,
 ) -> str:
-    """Build the URL to redirect a user to for granting access."""
+    """Build the URL to redirect a user to for granting access.
+
+    ``redirect_uri`` pins the exact callback URL (stored in ``state`` so the exchange
+    leg reuses the identical value); when omitted it is resolved from ``db``/env.
+    """
     provider = get_provider(platform)
     if not provider.is_configured:
         raise OAuthError(
@@ -222,7 +231,7 @@ def build_authorize_url(
     params = {
         "response_type": "code",
         "client_id": provider.client_id,
-        "redirect_uri": redirect_uri_for(platform, db),
+        "redirect_uri": redirect_uri or redirect_uri_for(platform, db),
         "scope": " ".join(provider.scopes),
         "state": state,
         **provider.extra_authorize_params,
@@ -284,18 +293,24 @@ def _normalize_token(payload: Dict) -> Dict:
 
 
 def exchange_code(
-    platform: str, code: str, *, code_verifier: Optional[str] = None, db: Session | None = None
+    platform: str,
+    code: str,
+    *,
+    code_verifier: Optional[str] = None,
+    db: Session | None = None,
+    redirect_uri: Optional[str] = None,
 ) -> Dict:
     """Exchange an authorization code for tokens. Returns the normalized token dict.
 
-    ``db`` MUST match what ``build_authorize_url`` used so the redirect_uri is
-    identical across both legs (OAuth requires it; a mismatch is rejected).
+    ``redirect_uri`` MUST be the exact value used at authorize time (the caller pins
+    it in the signed ``state`` and passes it back here) — OAuth rejects a mismatch. If
+    omitted it is resolved from ``db``/env, which only matches when the base is stable.
     """
     provider = get_provider(platform)
     data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": redirect_uri_for(platform, db),
+        "redirect_uri": redirect_uri or redirect_uri_for(platform, db),
     }
     if provider.use_pkce:
         if not code_verifier:
