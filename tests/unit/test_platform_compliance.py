@@ -17,11 +17,19 @@ def test_twitter_over_280_is_hard_fail():
     assert any("hard limit of 280" in v for v in r.hard)
 
 
-def test_twitter_short_is_publishable_with_warning():
+def test_twitter_below_word_floor_is_hard_fail():
+    # 5 words — under Twitter's min_words floor (8); the repo validator fails this.
     r = check_compliance("Ship boring copy. It converts.", Platform.TWITTER)
-    assert r.publishable is True  # under 280
-    # word count below optimal band -> a warning, not a block
-    assert r.warnings
+    assert r.publishable is False
+    assert any("below twitter minimum" in v for v in r.hard)
+
+
+def test_below_optimal_but_valid_is_warning_not_block():
+    # 10 words: within [min 8, max 50] but below optimal 12 -> warning, publishable.
+    r = check_compliance("one two three four five six seven eight nine ten", Platform.TWITTER)
+    assert r.publishable is True
+    assert r.hard == []
+    assert any("outside optimal" in w for w in r.warnings)
 
 
 def test_too_many_hashtags_hard_fail_on_linkedin():

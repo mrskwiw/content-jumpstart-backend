@@ -2,12 +2,15 @@
 
 Distinct from the word-count *optimizer* in ``src/config/platform_specs.py``: this
 is the hard gate a post must pass before we hand it to a platform's publish API, so
-a request that the platform would reject (e.g. an X post over 280 chars, too many
-hashtags) is caught here instead of failing mid-distribution. Composes the existing
-char/length specs and hashtag policy — no new platform constants. Pure/deterministic.
+a post the platform API *or* our own length validator would reject (an X post over
+280 chars, under the word floor, over the word ceiling, too many hashtags) is caught
+here instead of failing mid-distribution. Composes the existing char/length specs and
+hashtag policy — no new platform constants. Pure/deterministic.
 
-``hard`` violations block publishing (the API would reject or truncate). ``warnings``
-are sub-optimal but publishable (below/above the optimal length band).
+``hard`` violations block publishing: the char ceiling (API truncates/rejects) and
+the min/max word bounds (the repo's length validator FAILS these — see the "will fail
+validation" notes in ``platform_specs.py``). ``warnings`` are sub-optimal but
+publishable — misses of the *optimal* word band only.
 """
 
 from __future__ import annotations
@@ -18,7 +21,6 @@ from dataclasses import dataclass, field
 from src.config.platform_specs import (
     PLATFORM_LENGTH_SPECS,
     get_hashtag_policy,
-    validate_platform_length,
 )
 from src.models.client_brief import Platform
 
@@ -56,10 +58,19 @@ def check_compliance(text: str, platform: Platform) -> ComplianceReport:
         max_chars = specs["max_chars"]
         if char_count > max_chars:
             hard.append(f"{char_count} chars exceeds {platform.value} hard limit of {max_chars}")
-        # Word-count band is advisory (sub-optimal, still publishable).
-        ok, msg = validate_platform_length(word_count, platform)
-        if not ok and msg:
-            warnings.append(msg)
+
+        # Word bounds: under min_words / over max_words HARD-fail the repo's length
+        # validator, so they block here too. Missing the optimal band is a warning.
+        min_w, max_w = specs["min_words"], specs["max_words"]
+        opt_lo, opt_hi = specs["optimal_min_words"], specs["optimal_max_words"]
+        if word_count < min_w:
+            hard.append(f"{word_count} words below {platform.value} minimum of {min_w}")
+        elif word_count > max_w:
+            hard.append(f"{word_count} words above {platform.value} maximum of {max_w}")
+        elif word_count < opt_lo or word_count > opt_hi:
+            warnings.append(
+                f"{word_count} words outside optimal {opt_lo}-{opt_hi} for {platform.value}"
+            )
 
     # Hashtag count vs the platform's policy cap.
     policy = get_hashtag_policy(platform)
