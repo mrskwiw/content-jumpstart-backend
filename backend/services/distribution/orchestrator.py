@@ -179,10 +179,6 @@ def schedule_post(
 ) -> ScheduledPost:
     if platform not in SUPPORTED_PLATFORMS:
         raise ValueError(f"Unsupported platform: {platform}")
-    # Reject content the platform API would hard-reject (e.g. an X post over 280
-    # chars) up front, so it fails fast (400) at schedule time rather than as a
-    # silent worker failure at publish time.
-    _gate_compliance(platform, content)
     # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)
@@ -199,6 +195,11 @@ def schedule_post(
         status="pending",
         retry_count=0,
     )
+    # Gate the EXACT payload that will be published — the UTM-tagged content when
+    # tagging is enabled — so a post that passes here also passes at publish time.
+    # Otherwise tagging could push a borderline post over the char limit and turn a
+    # valid scheduled post into a silent publish-time failure.
+    _gate_compliance(platform, _publishable_content(sp))
     db.add(sp)
     db.commit()
     db.refresh(sp)

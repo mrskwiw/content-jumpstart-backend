@@ -6,6 +6,8 @@ cron `process-due` worker, per-user ownership, and the fail-closed behaviour for
 a not-yet-implemented platform.
 """
 
+import pytest
+
 from backend.models import User
 from backend.utils.auth import get_password_hash, create_access_token
 
@@ -214,3 +216,32 @@ def test_publish_sends_utm_tagged_content_when_enabled(db_session, monkeypatch):
     assert "utm_campaign=sp-utm" in captured["content"]  # fell back to sp.id
     # The authored row is unchanged — only the sent payload is tagged.
     assert sp.content == "Read https://acme.com/post today"
+
+
+def test_schedule_gates_the_tagged_payload_not_just_authored(db_session, monkeypatch):
+    """With UTM tagging on, schedule_post must gate the TAGGED content, so a tweet
+    that is valid untagged but exceeds 280 once tagged is rejected up front — never
+    scheduled only to fail silently at publish time."""
+    from datetime import datetime, timezone
+
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "dist-tagchar@example.com", "user-tagchar")
+    # ~250 chars: under 280 authored, but UTM params push it over once tagged.
+    content = "Launch is live, read the full story here: https://acme.com/blog/launch " + (
+        "x" * 180
+    )
+    assert len(content) < 280
+
+    monkeypatch.setenv("DISTRIBUTION_UTM_TAGGING", "true")
+    with pytest.raises(ValueError):
+        orchestrator.schedule_post(
+            db_session, u.id, "twitter", content, datetime(2030, 1, 1, tzinfo=timezone.utc)
+        )
+
+    # With tagging OFF, the same authored content is accepted (it fits untagged).
+    monkeypatch.setenv("DISTRIBUTION_UTM_TAGGING", "false")
+    sp = orchestrator.schedule_post(
+        db_session, u.id, "twitter", content, datetime(2030, 1, 1, tzinfo=timezone.utc)
+    )
+    assert sp.status == "pending"
