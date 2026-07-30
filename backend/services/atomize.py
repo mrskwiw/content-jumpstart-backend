@@ -11,11 +11,16 @@ from __future__ import annotations
 import re
 
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
-_NUMBERING_RESERVE = 8  # room for a trailing " (10/10)"
+_NUMBERING_RESERVE = 8  # initial guess — room for a trailing " (10/10)"
 
 
 def _sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE_RE.split(text.strip()) if s.strip()]
+
+
+def _suffix_len(total: int) -> int:
+    """Length of the ``" (i/total)"`` numbering suffix at its widest (i == total)."""
+    return len(f" ({total}/{total})")
 
 
 def _pack_words(sentence: str, budget: int) -> list[str]:
@@ -33,9 +38,8 @@ def _pack_words(sentence: str, budget: int) -> list[str]:
     return chunks
 
 
-def to_thread(text: str, *, max_chars: int = 270) -> list[str]:
-    """Split ``text`` into a numbered thread of posts each <= ``max_chars``."""
-    budget = max_chars - _NUMBERING_RESERVE
+def _pack_thread(text: str, budget: int) -> list[str]:
+    """Pack sentences into chunks each <= ``budget`` characters."""
     chunks: list[str] = []
     current = ""
     for sentence in _sentences(text):
@@ -52,6 +56,29 @@ def to_thread(text: str, *, max_chars: int = 270) -> list[str]:
             current = f"{current} {sentence}".strip()
     if current:
         chunks.append(current)
+    return chunks
+
+
+def to_thread(text: str, *, max_chars: int = 270) -> list[str]:
+    """Split ``text`` into a numbered thread of posts each <= ``max_chars``.
+
+    The numbering suffix (`" (i/total)"`) grows with the post count, so the reserved
+    room is resolved iteratively: pack, measure the actual widest suffix for the
+    resulting count, and re-pack with a bigger reserve if needed. This guarantees
+    every returned post — suffix included — stays within ``max_chars``, even for
+    threads of 100+ posts where a fixed reserve would overflow.
+    """
+    reserve = _NUMBERING_RESERVE
+    chunks = _pack_thread(text, max(max_chars - reserve, 1))
+    for _ in range(6):  # converges in a couple of steps; bounded as a backstop
+        total = len(chunks)
+        if total <= 1:
+            return chunks
+        needed = _suffix_len(total)
+        if needed <= reserve:
+            break
+        reserve = needed
+        chunks = _pack_thread(text, max(max_chars - reserve, 1))
 
     total = len(chunks)
     if total <= 1:

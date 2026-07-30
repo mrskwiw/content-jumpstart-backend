@@ -47,3 +47,23 @@ def test_pull_quotes_skips_colon_endings():
     text = "Here are the three reasons it worked so well for us: Reason one is clarity always."
     quotes = pull_quotes(text)
     assert not any(q.endswith(":") for q in quotes)
+
+
+def test_numbering_never_exceeds_max_chars_for_large_threads():
+    # 300 short sentences -> a 100+ post thread whose numbering suffix is 3 digits.
+    # Every post (suffix included) must still fit within max_chars.
+    text = " ".join("Sentence number {}.".format(i) for i in range(300))
+    max_chars = 40
+    thread = to_thread(text, max_chars=max_chars)
+    assert len(thread) >= 100  # enough posts to reach 3-digit numbering
+    assert all(len(post) <= max_chars for post in thread)
+    # ...and the numbering really is 3-digit (proving the reserve grew).
+    assert thread[0].endswith(f"(1/{len(thread)})")
+    assert len(str(len(thread))) >= 3
+
+
+def test_every_post_within_limit_across_widths():
+    text = " ".join(f"This is sentence {i} in a long piece." for i in range(80))
+    for max_chars in (30, 60, 120, 280):
+        thread = to_thread(text, max_chars=max_chars)
+        assert all(len(post) <= max_chars for post in thread), max_chars

@@ -10145,9 +10145,10 @@
         "properties": {
           "text": {
             "type": "string",
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Text",
-            "description": "Long-form content to repurpose"
+            "description": "Long-form content to repurpose (<=50k chars; ~8k words)"
           },
           "max_chars": {
             "type": "integer",

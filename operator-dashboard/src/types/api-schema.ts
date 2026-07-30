@@ -4669,7 +4669,7 @@ export interface components {
         AtomizeRequest: {
             /**
              * Text
-             * @description Long-form content to repurpose
+             * @description Long-form content to repurpose (<=50k chars; ~8k words)
              */
             text: string;
             /**

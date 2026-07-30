@@ -94,3 +94,9 @@ def test_atomize_empty_text_is_422(client, auth_headers):
     # min_length=1 -> schema validation rejects an empty string before the handler.
     r = client.post("/api/posts/atomize", json={"text": ""}, headers=auth_headers)
     assert r.status_code == 422
+
+
+def test_atomize_oversized_text_is_rejected(client, auth_headers):
+    # max_length caps the input so the endpoint can't be a DoS primitive.
+    r = client.post("/api/posts/atomize", json={"text": "x " * 30000}, headers=auth_headers)
+    assert r.status_code == 422
