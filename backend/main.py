@@ -632,6 +632,28 @@ async def health_check_head():
 
 
 # Global exception handler (TR-010: Error sanitization)
+from backend.services.account_state import AccountSuspendedError  # noqa: E402
+
+
+@app.exception_handler(AccountSuspendedError)
+async def account_suspended_handler(request: Request, exc: AccountSuspendedError):
+    """Past-due / suspended account attempted a spend → 402 (S-01.4d).
+
+    Reads are never routed here (only spends raise this), so viewing/exporting
+    content stays available while billing is resolved.
+    """
+    return JSONResponse(
+        status_code=402,
+        content={
+            "detail": (
+                "Your subscription is past due or suspended. Update billing to "
+                "resume generating — your existing content stays accessible."
+            ),
+            "account_state": exc.state,
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """
