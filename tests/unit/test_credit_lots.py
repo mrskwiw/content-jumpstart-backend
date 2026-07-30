@@ -88,6 +88,19 @@ def test_consume_rejects_nonpositive(db):
         consume_fefo(db, USER, 0)
 
 
+def test_session_usable_after_insufficient_error(db):
+    # Decision #201: consume_fefo does not commit/rollback and does not self-lock,
+    # so an insufficient-credits error leaves the caller's session fully usable
+    # (no wiped work, no held locks) — the caller owns the transaction.
+    grant(db, USER, 30, "topup")
+    with pytest.raises(InsufficientCreditsError):
+        consume_fefo(db, USER, 100, now=NOW)
+    # the session still works: prior grant intact + a new grant + a valid consume
+    grant(db, USER, 100, "topup")
+    consume_fefo(db, USER, 50, now=NOW)
+    assert available_balance(db, USER, now=NOW) == 80  # 30 + 100 - 50
+
+
 def test_expire_lots_sweeps_lapsed(db):
     grant(db, USER, 100, "allowance", expires_at=NOW - timedelta(days=1))  # lapsed w/ remainder
     grant(db, USER, 50, "topup", expires_at=None)

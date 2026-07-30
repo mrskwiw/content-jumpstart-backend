@@ -14,6 +14,14 @@ lapses and permanent credits are preserved. Expired lots are never spent.
 (S-01.4b-ii) can compose a credit op atomically with surrounding work (mirroring
 the existing ``purchase_credits(commit=False)`` webhook pattern, Bug #177) instead
 of a low-level helper silently committing or wiping unrelated pending changes.
+
+**Concurrency:** the helpers do NOT self-lock lot rows. Per-user credit
+operations are serialized by the **caller holding the ``User`` row ``FOR UPDATE``
+lock** — the established credit_service pattern (deduct/refund/purchase/admin all
+do ``db.query(User).with_for_update()``). ``consume_fefo`` therefore MUST be
+called while that lock is held. This deliberately avoids a lot-level ``FOR
+UPDATE``, which — combined with caller-owned transactions — would pin lock rows
+until the caller's transaction ends on the failure path (BUGS.md Decision #201).
 """
 
 from __future__ import annotations
@@ -70,17 +78,20 @@ def available_balance(db: Session, user_id: str, now: datetime | None = None) ->
 
 
 def _fefo_lots(db: Session, user_id: str) -> list[CreditLot]:
-    """Live-first ordering: soonest expiry first, nulls last, then oldest first.
+    """Lots in FEFO order: soonest expiry first, nulls last, then oldest first.
 
     ``expires_at IS NULL`` sorts 0/1 so non-null (real expiries) come first and
     never-expire lots come last — portable across SQLite and Postgres (avoids
     relying on NULLS LAST).
+
+    No ``FOR UPDATE`` here: concurrency is serialized by the caller's ``User`` row
+    lock (see module docstring / Decision #201), so self-locking lots would only
+    pin rows across a failed spend without adding safety.
     """
     null_last = case((CreditLot.expires_at.is_(None), 1), else_=0)
     return (
         db.query(CreditLot)
         .filter(CreditLot.user_id == user_id)
-        .with_for_update()
         .order_by(null_last, CreditLot.expires_at, CreditLot.created_at)
         .all()
     )
@@ -89,9 +100,11 @@ def _fefo_lots(db: Session, user_id: str) -> list[CreditLot]:
 def consume_fefo(db: Session, user_id: str, amount: int, now: datetime | None = None) -> None:
     """Draw ``amount`` credits from live lots, soonest-expiring first.
 
-    Raises :class:`InsufficientCreditsError` (without mutating) if live lots
-    can't cover it. Sufficiency is checked BEFORE any mutation, so a raise leaves
-    lots untouched — the caller owns rollback of its own transaction.
+    Must be called while the caller holds the ``User`` row ``FOR UPDATE`` lock
+    (the credit_service pattern) — that serializes concurrent spends. Raises
+    :class:`InsufficientCreditsError` (without mutating) if live lots can't cover
+    it; since no lot lock is taken and no mutation occurs before the check, a
+    raise leaves state clean and holds nothing.
     """
     if amount <= 0:
         raise ValueError("consume amount must be positive")
@@ -100,8 +113,6 @@ def consume_fefo(db: Session, user_id: str, amount: int, now: datetime | None = 
 
     available = sum(lot.remaining for lot in lots)
     if available < amount:
-        # No mutation has occurred; do not commit/rollback here — the caller owns
-        # the transaction (and the FOR UPDATE lock is released when it does).
         raise InsufficientCreditsError(f"insufficient credits: need {amount}, have {available}")
 
     outstanding = amount
@@ -129,7 +140,6 @@ def expire_lots(db: Session, now: datetime | None = None) -> int:
             CreditLot.expires_at <= at,
             CreditLot.remaining > 0,
         )
-        .with_for_update()
         .all()
     )
     for lot in lapsed:
