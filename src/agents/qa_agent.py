@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 
+from ..analysis.predict import predict_engagement
 from ..config.template_rules import ClientType
 from ..models.post import Post
 from ..models.qa_report import QAReport
@@ -157,6 +158,9 @@ class QAAgent:
             )
         )
 
+        # Advisory pre-publish engagement prediction (does not affect pass/fail)
+        engagement_prediction = self._predict_engagement_summary(posts)
+
         # Create report
         report = QAReport(
             client_name=client_name,
@@ -170,6 +174,7 @@ class QAAgent:
             keyword_validation=keyword_results,
             seo_validation=seo_results if not seo_results.get("skipped", False) else None,
             citation_validation=citation_results if citation_results["posts_flagged"] > 0 else None,
+            engagement_prediction=engagement_prediction,
             total_issues=len(all_issues),
             all_issues=all_issues,
         )
@@ -186,6 +191,40 @@ class QAAgent:
     # These run after all posts are generated and flag issues without
     # blocking delivery — operators see warnings in the run log.
     # ------------------------------------------------------------------
+
+    # Predicted engagement below this heuristic floor counts as "weak". Matches the
+    # regenerator's regenerate-below floor (PREDICT-01 / content_intelligence).
+    _ENGAGEMENT_WEAK_FLOOR = 45.0
+
+    def _predict_engagement_summary(self, posts: "List[Post]") -> Optional[dict]:
+        """Advisory pre-publish engagement estimate across the batch.
+
+        Runs the PREDICT-01 heuristic per post and summarises it (average, minimum,
+        count below the weak floor). Purely informational — surfaced in the QA report
+        so operators see predicted performance, never gates pass/fail. Returns None
+        for an empty batch.
+        """
+        if not posts:
+            return None
+
+        scores = []
+        for post in posts:
+            if not post.content:
+                continue
+            platform = post.target_platform.value if post.target_platform else "linkedin"
+            scores.append(predict_engagement(post.content, platform=platform).score)
+
+        if not scores:
+            return None
+
+        weak = sum(1 for s in scores if s < self._ENGAGEMENT_WEAK_FLOOR)
+        return {
+            "average_score": round(sum(scores) / len(scores), 1),
+            "min_score": min(scores),
+            "weak_count": weak,
+            "weak_floor": self._ENGAGEMENT_WEAK_FLOOR,
+            "total": len(scores),
+        }
 
     def _check_stat_conflicts(self, posts: "List[Post]") -> "List[str]":
         """Detect contradictory percentage claims on the same topic (Bug #143).

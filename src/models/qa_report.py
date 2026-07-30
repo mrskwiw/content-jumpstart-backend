@@ -37,6 +37,10 @@ class QAReport(BaseModel):
     citation_validation: Optional[Dict[str, Any]] = Field(
         None, description="Unverified source attribution warnings (advisory only)"
     )
+    engagement_prediction: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Predicted-engagement summary (advisory pre-publish signal; does not affect pass/fail)",
+    )
 
     # Summary
     total_issues: int = Field(0, description="Total number of issues found")
@@ -202,6 +206,24 @@ class QAReport(BaseModel):
             lines.append("")
             for warning in self.citation_validation.get("warnings", []):
                 lines.append(f"- {warning}")
+            lines.append("")
+
+        # Predicted Engagement (advisory — pre-publish signal, no pass/fail impact)
+        if self.engagement_prediction:
+            ep = self.engagement_prediction
+            lines.append("## Predicted Engagement (advisory)")
+            lines.append("")
+            lines.append(f"**Average Score:** {ep['average_score']:.0f}/100")
+            lines.append(f"**Lowest Score:** {ep['min_score']:.0f}/100")
+            lines.append(
+                f"**Below Floor ({ep['weak_floor']:.0f}):** "
+                f"{ep['weak_count']} of {ep['total']} posts"
+            )
+            lines.append("")
+            lines.append(
+                "*Heuristic pre-publish estimate (hook, length fit, CTA, genericity) — "
+                "not a guarantee of performance.*"
+            )
             lines.append("")
 
         # Recommendations

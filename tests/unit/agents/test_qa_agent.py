@@ -698,3 +698,53 @@ class TestQAAgent:
             # Should calculate score without headline component
             # (0.9 + 0.5 + 0.9) / 3 = 0.767
             assert result.quality_score == pytest.approx(0.767, rel=0.01)
+
+
+class TestEngagementPrediction:
+    """PREDICT-01 wired into the QA report as an advisory pre-publish signal."""
+
+    def _posts(self, n=3):
+        return [
+            Post(
+                content=f"Post {i} with a specific hook and a clear closing line.",
+                template_id=i + 1,
+                template_name=f"Template {i + 1}",
+                client_name="Test Client",
+            )
+            for i in range(n)
+        ]
+
+    def test_summary_none_for_empty_batch(self):
+        assert QAAgent()._predict_engagement_summary([]) is None
+
+    def test_summary_has_expected_shape(self):
+        summary = QAAgent()._predict_engagement_summary(self._posts(3))
+        assert summary is not None
+        assert set(summary) == {
+            "average_score",
+            "min_score",
+            "weak_count",
+            "weak_floor",
+            "total",
+        }
+        assert summary["total"] == 3
+        assert 0 <= summary["average_score"] <= 100
+        assert 0 <= summary["weak_count"] <= 3
+        assert summary["min_score"] <= summary["average_score"]
+
+    def test_validate_posts_populates_prediction_and_renders(self):
+        # Real validators (no mocks) so to_markdown has every field it renders.
+        agent = QAAgent()
+        report = agent.validate_posts(self._posts(3), "Test Client")
+
+        assert report.engagement_prediction is not None
+        assert report.engagement_prediction["total"] == 3
+        assert "Predicted Engagement" in report.to_markdown()
+
+    def test_prediction_is_advisory_present_in_serialized_report(self):
+        # The engagement summary is surfaced on the report; pass/fail is decided by
+        # the validators, not by predicted engagement.
+        agent = QAAgent()
+        report = agent.validate_posts(self._posts(2), "Test Client")
+        assert "engagement_prediction" in report.model_dump()
+        assert report.engagement_prediction["total"] == 2

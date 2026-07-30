@@ -218,6 +218,27 @@ class TestQAReport:
         # Should not have recommendations section for passing report
         assert "## Recommendations" not in markdown
 
+    def test_to_markdown_renders_engagement_prediction(self, passing_qa_report):
+        """The advisory engagement-prediction section renders its values when present."""
+        passing_qa_report.engagement_prediction = {
+            "average_score": 72.4,
+            "min_score": 40.0,
+            "weak_count": 1,
+            "weak_floor": 45.0,
+            "total": 30,
+        }
+        markdown = passing_qa_report.to_markdown()
+
+        assert "## Predicted Engagement (advisory)" in markdown
+        assert "**Average Score:** 72/100" in markdown
+        assert "**Lowest Score:** 40/100" in markdown
+        assert "**Below Floor (45):** 1 of 30 posts" in markdown
+
+    def test_to_markdown_omits_engagement_prediction_when_absent(self, passing_qa_report):
+        """No engagement section when the field is None (default)."""
+        assert passing_qa_report.engagement_prediction is None
+        assert "Predicted Engagement" not in passing_qa_report.to_markdown()
+
     def test_to_markdown_failing_report(self, failing_qa_report):
         """Test markdown generation for failing report"""
         markdown = failing_qa_report.to_markdown()
