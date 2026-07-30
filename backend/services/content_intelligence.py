@@ -8,6 +8,7 @@ pre-publish predictor together with actionable flags.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from backend.services.genericity import analyze_genericity
@@ -15,6 +16,16 @@ from backend.services.predict import predict_engagement
 
 _REGENERATE_BELOW = 45.0  # predicted-score floor
 _GENERIC_THRESHOLD = 0.4
+
+# A trailing run of hashtags (own line or tacked onto the last line). Stripped
+# before scoring so the tag cloud doesn't inflate the length/engagement signals —
+# genericity and prediction must see the prose body, not the tags.
+_TRAILING_TAGS_RE = re.compile(r"(\s+#\w+)+\s*$")
+
+
+def _prose_body(text: str) -> str:
+    """Return ``text`` with a trailing hashtag block removed."""
+    return _TRAILING_TAGS_RE.sub("", text).rstrip()
 
 
 @dataclass
@@ -35,8 +46,9 @@ def assess_post(
     generic_threshold: float = _GENERIC_THRESHOLD,
 ) -> PostAssessment:
     """Assess a post; ``should_regenerate`` is the actionable QA output."""
-    generic = analyze_genericity(text, threshold=generic_threshold)
-    pred = predict_engagement(text, platform=platform)
+    body = _prose_body(text)
+    generic = analyze_genericity(body, threshold=generic_threshold)
+    pred = predict_engagement(body, platform=platform)
 
     flags: list[str] = []
     if generic.generic_opener:

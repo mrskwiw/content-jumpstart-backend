@@ -9,7 +9,7 @@ preserving any query params already on the URL.
 
 from __future__ import annotations
 
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import urlencode, urlparse, urlunparse
 
 
 def build_tracked_url(
@@ -33,18 +33,16 @@ def build_tracked_url(
         raise ValueError("source and campaign are required")
 
     parsed = urlparse(base_url)
-    # Preserve non-UTM query params; our UTMs win over any pre-existing ones.
-    params = [
-        (k, v)
-        for k, v in parse_qsl(parsed.query, keep_blank_values=True)
-        if not k.startswith("utm_")
-    ]
-    params.append(("utm_source", source))
-    params.append(("utm_medium", medium))
-    params.append(("utm_campaign", campaign))
-    if content:
-        params.append(("utm_content", content))
-    if term:
-        params.append(("utm_term", term))
+    # Keep existing non-UTM query pairs BYTE-EXACT — do not round-trip them through
+    # parse/re-encode, so a signed or opaque query string is never mutated. Only
+    # utm_* keys are ours to own, so we drop any stale ones and append fresh.
+    kept = [p for p in parsed.query.split("&") if p and not p.lower().startswith("utm_")]
 
-    return urlunparse(parsed._replace(query=urlencode(params)))
+    utm = [("utm_source", source), ("utm_medium", medium), ("utm_campaign", campaign)]
+    if content:
+        utm.append(("utm_content", content))
+    if term:
+        utm.append(("utm_term", term))
+    kept.append(urlencode(utm))
+
+    return urlunparse(parsed._replace(query="&".join(kept)))

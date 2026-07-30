@@ -55,6 +55,15 @@ def test_requires_source_and_campaign():
         build_tracked_url("https://acme.com", source="s", campaign="")
 
 
+def test_signed_query_param_preserved_byte_exact():
+    # A signature param must survive untouched (no re-encoding of + / % / case).
+    signed = "https://acme.com/p?sig=aB%2Fc9%2Bd&exp=1712000000"
+    url = build_tracked_url(signed, source="linkedin", campaign="c")
+    assert "sig=aB%2Fc9%2Bd" in url  # exact bytes, not re-encoded
+    assert "exp=1712000000" in url
+    assert "utm_source=linkedin" in url
+
+
 def test_path_and_scheme_preserved():
     url = build_tracked_url("https://acme.com/a/b/c", source="s", campaign="c")
     parsed = urlparse(url)

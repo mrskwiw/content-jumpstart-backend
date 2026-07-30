@@ -45,6 +45,15 @@ def test_low_predicted_score_triggers_regeneration_even_if_not_generic():
     assert any("predicted engagement" in r for r in a.reasons)
 
 
+def test_trailing_hashtags_do_not_change_assessment():
+    # Appended hashtags must not shift the length/engagement/genericity scoring.
+    plain = assess_post(_STRONG, platform="linkedin")
+    tagged = assess_post(_STRONG + "\n\n#growth #saas #onboarding", platform="linkedin")
+    assert tagged.predicted_score == plain.predicted_score
+    assert tagged.genericity_score == plain.genericity_score
+    assert tagged.should_regenerate == plain.should_regenerate
+
+
 def test_thresholds_are_tunable():
     # with a lenient floor, a mediocre post passes
     weakish = "We improved the dashboard and users seem happier with the new layout now."
