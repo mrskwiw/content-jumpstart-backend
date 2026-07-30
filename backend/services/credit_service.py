@@ -16,13 +16,41 @@ from typing import Dict, List, Optional
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from backend.models import CreditPackage, CreditTransaction, User
+from backend.models import CreditLot, CreditPackage, CreditTransaction, User
+from backend.services import credit_lots
 
 
 class InsufficientCreditsError(Exception):
     """Raised when user doesn't have enough credits for an operation."""
 
     pass
+
+
+# ── Credit lots (S-01.4b-ii) ──────────────────────────────────────────────────
+# Credits are held as FEFO lots (backend/services/credit_lots.py): subscription
+# allowance rolls over 30 days then expires; top-ups never expire. `credit_balance`
+# on User is kept as a CACHED SUM of live lot remaining so the ~30 existing readers
+# and the API contract are unchanged. All mutators below run under the User row
+# FOR UPDATE lock (the invariant consume_fefo requires — Decision #201).
+
+
+def _ensure_lots_backfilled(db: Session, user: User) -> None:
+    """Lazily migrate a legacy flat balance into a single non-expiring lot.
+
+    Existing users have a ``credit_balance`` but no lots. On the first mutation we
+    seed one ``migration`` lot equal to that balance, so nothing is lost and there
+    is no separate migration run to coordinate. Idempotent: only fires when the
+    user has a positive balance and zero lots.
+    """
+    if user.credit_balance and user.credit_balance > 0:
+        has_lot = db.query(CreditLot.id).filter(CreditLot.user_id == user.id).first() is not None
+        if not has_lot:
+            credit_lots.grant(db, user.id, user.credit_balance, source="migration", expires_at=None)
+
+
+def _sync_cached_balance(db: Session, user: User) -> None:
+    """Refresh the cached ``credit_balance`` field to the live lot sum."""
+    user.credit_balance = credit_lots.available_balance(db, user.id)
 
 
 def get_balance(db: Session, user_id: str) -> int:
@@ -75,19 +103,25 @@ def deduct_credits(
     if amount <= 0:
         raise ValueError("Deduction amount must be positive")
 
-    # Get user with row-level lock for atomic update
+    # Get user with row-level lock — serializes all credit ops for this user, so
+    # consume_fefo runs safely without its own lot lock (Decision #201).
     user = db.query(User).filter(User.id == user_id).with_for_update().first()
     if not user:
         raise ValueError(f"User not found: {user_id}")
 
-    # Check balance
-    if user.credit_balance < amount:
+    _ensure_lots_backfilled(db, user)
+
+    # Spend from lots, FEFO. consume_fefo raises before mutating on insufficient,
+    # so no partial spend; translate to this module's error for caller contract.
+    try:
+        credit_lots.consume_fefo(db, user_id, amount)
+    except credit_lots.InsufficientCreditsError:
         raise InsufficientCreditsError(
-            f"Insufficient credits. Required: {amount}, Available: {user.credit_balance}"
+            f"Insufficient credits. Required: {amount}, "
+            f"Available: {credit_lots.available_balance(db, user_id)}"
         )
 
-    # Deduct credits
-    user.credit_balance -= amount
+    _sync_cached_balance(db, user)
     user.total_credits_used += amount
 
     # Create transaction record (negative amount for deduction)
@@ -151,8 +185,10 @@ def purchase_credits(
     if not package.is_active:
         raise ValueError(f"Package is inactive: {package.name}")
 
-    # Add credits
-    user.credit_balance += package.credits
+    # Add credits as a non-expiring top-up lot; balance = live lot sum.
+    _ensure_lots_backfilled(db, user)
+    credit_lots.grant(db, user_id, package.credits, source="topup", expires_at=None)
+    _sync_cached_balance(db, user)
     user.total_credits_purchased += package.credits
 
     # Create transaction record (positive amount for purchase)
@@ -215,8 +251,10 @@ def refund_credits(
     if not user:
         raise ValueError(f"User not found: {user_id}")
 
-    # Add credits
-    user.credit_balance += amount
+    # Add credits back as a non-expiring refund lot; balance = live lot sum.
+    _ensure_lots_backfilled(db, user)
+    credit_lots.grant(db, user_id, amount, source="refund", expires_at=None)
+    _sync_cached_balance(db, user)
     user.total_credits_used -= amount  # Reverse the usage
 
     # Create transaction record (positive amount for refund)
@@ -268,16 +306,21 @@ def admin_adjust_credits(
     if not user:
         raise ValueError(f"User not found: {user_id}")
 
-    # Check balance if negative adjustment
-    if amount < 0 and user.credit_balance < abs(amount):
-        raise ValueError(f"Cannot adjust by {amount}. User balance: {user.credit_balance}")
-
-    # Adjust balance
-    user.credit_balance += amount
-
-    # Adjust usage tracking (only for negative adjustments)
-    if amount < 0:
+    # Positive → grant an admin lot (non-expiring); negative → spend FEFO.
+    _ensure_lots_backfilled(db, user)
+    if amount > 0:
+        credit_lots.grant(db, user_id, amount, source="admin", expires_at=None)
+    else:
+        try:
+            credit_lots.consume_fefo(db, user_id, abs(amount))
+        except credit_lots.InsufficientCreditsError:
+            raise ValueError(
+                f"Cannot adjust by {amount}. User balance: "
+                f"{credit_lots.available_balance(db, user_id)}"
+            )
         user.total_credits_used += abs(amount)
+
+    _sync_cached_balance(db, user)
 
     # Create transaction record
     full_description = f"Admin adjustment by {admin_user_id}: {description}"
@@ -342,7 +385,7 @@ def get_package_pricing(db: Session, package_type: Optional[str] = None) -> List
     Returns:
         List of active packages, sorted by credits ascending
     """
-    query = db.query(CreditPackage).filter(CreditPackage.is_active == True)  # noqa: E712
+    query = db.query(CreditPackage).filter(CreditPackage.is_active.is_(True))
 
     if package_type:
         query = query.filter(CreditPackage.package_type == package_type)
@@ -464,7 +507,11 @@ def estimate_cost(
     total_credits = post_credits + tool_credits
 
     return {
-        "posts": {"count": num_posts, "credits_each": 20, "total_credits": post_credits},
+        "posts": {
+            "count": num_posts,
+            "credits_each": 20,
+            "total_credits": post_credits,
+        },
         "research_tools": {"tools": tool_breakdown, "total_credits": tool_credits},
         "total_credits": total_credits,
         "estimated_cost_usd": {
