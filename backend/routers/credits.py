@@ -65,7 +65,9 @@ def get_credit_balance(
     """Get current user's credit balance."""
     try:
         return CreditBalanceResponse(
-            balance=current_user.credit_balance,
+            # Live lot sum, not the cached column — excludes expired credits even
+            # for an idle user with no intervening mutation (S-01.4b-ii review).
+            balance=credit_service.live_balance(db, current_user.id),
             total_purchased=current_user.total_credits_purchased,
             total_used=current_user.total_credits_used,
             is_enterprise=current_user.is_enterprise,

@@ -34,6 +34,10 @@ class InsufficientCreditsError(Exception):
 # FOR UPDATE lock (the invariant consume_fefo requires — Decision #201).
 
 
+def _has_lots(db: Session, user_id: str) -> bool:
+    return db.query(CreditLot.id).filter(CreditLot.user_id == user_id).first() is not None
+
+
 def _ensure_lots_backfilled(db: Session, user: User) -> None:
     """Lazily migrate a legacy flat balance into a single non-expiring lot.
 
@@ -42,15 +46,29 @@ def _ensure_lots_backfilled(db: Session, user: User) -> None:
     is no separate migration run to coordinate. Idempotent: only fires when the
     user has a positive balance and zero lots.
     """
-    if user.credit_balance and user.credit_balance > 0:
-        has_lot = db.query(CreditLot.id).filter(CreditLot.user_id == user.id).first() is not None
-        if not has_lot:
-            credit_lots.grant(db, user.id, user.credit_balance, source="migration", expires_at=None)
+    if user.credit_balance and user.credit_balance > 0 and not _has_lots(db, user.id):
+        credit_lots.grant(db, user.id, user.credit_balance, source="migration", expires_at=None)
 
 
 def _sync_cached_balance(db: Session, user: User) -> None:
     """Refresh the cached ``credit_balance`` field to the live lot sum."""
     user.credit_balance = credit_lots.available_balance(db, user.id)
+
+
+def live_balance(db: Session, user_id: str) -> int:
+    """Accurate spendable balance from live lots.
+
+    Reads must NOT trust the cached ``credit_balance`` column alone: it is only
+    refreshed on writes + the scheduled expire sweep, so an idle user whose
+    allowance lot expired would otherwise report an overstated, unspendable
+    balance. Once lots exist, the live lot sum is truth (expired excluded);
+    legacy users with a flat balance but no lots yet fall back to the column
+    until their first mutation migrates it.
+    """
+    if not _has_lots(db, user_id):
+        user = db.query(User).filter(User.id == user_id).first()
+        return user.credit_balance if user else 0
+    return credit_lots.available_balance(db, user_id)
 
 
 def get_balance(db: Session, user_id: str) -> int:
@@ -71,7 +89,9 @@ def get_balance(db: Session, user_id: str) -> int:
     if not user:
         raise ValueError(f"User not found: {user_id}")
 
-    return user.credit_balance
+    # Derive from live lots so expired credits are never reported as spendable
+    # (the cached column can be stale for an idle user — S-01.4b-ii review).
+    return live_balance(db, user_id)
 
 
 def deduct_credits(
@@ -425,7 +445,7 @@ def get_credit_summary(db: Session, user_id: str) -> Dict:
     additional_packages = get_package_pricing(db, package_type="additional")
 
     summary = {
-        "balance": user.credit_balance,
+        "balance": live_balance(db, user_id),
         "total_purchased": user.total_credits_purchased,
         "total_used": user.total_credits_used,
         "is_enterprise": user.is_enterprise,
