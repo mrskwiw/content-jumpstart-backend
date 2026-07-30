@@ -8,6 +8,7 @@ from .communication import Communication  # noqa: F401
 from .conversation import Conversation
 from .message import Message
 from .credit import CreditTransaction, CreditPackage
+from .credit_lot import CreditLot
 from .deliverable import Deliverable
 from .post import Post
 from .project import Project
@@ -50,6 +51,7 @@ __all__ = [
     "TrendsKeywordInsight",
     "CreditTransaction",
     "CreditPackage",
+    "CreditLot",
     "StripeCustomer",
     "StripePayment",
     "AuditLog",
