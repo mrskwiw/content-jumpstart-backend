@@ -32,6 +32,7 @@ class EmailType(str, Enum):
     REVISION_CONFIRMATION = "revision_confirmation"
     SATISFACTION_SURVEY = "satisfaction_survey"
     PASSWORD_RESET = "password_reset"  # pragma: allowlist secret  # enum value, not a credential
+    EMAIL_VERIFICATION = "email_verification"
     WELCOME = "welcome"
     GENERAL = "general"
 
@@ -250,6 +251,27 @@ Best regards,
 The Content Jumpstart Team
                 """.strip(),
                 variables=["client_name", "reset_link", "expiry_minutes"],
+            ),
+            EmailType.EMAIL_VERIFICATION: EmailTemplate(
+                template_id="email_verification",
+                email_type=EmailType.EMAIL_VERIFICATION,
+                subject="Verify your Content Jumpstart email ✅",
+                body_text="""
+Hi {client_name},
+
+Thanks for signing up for Content Jumpstart! Please confirm your email address by
+clicking the link below:
+
+{verify_link}
+
+This link expires in {expiry_minutes} minutes.
+
+If you didn't create this account, you can safely ignore this email.
+
+Best regards,
+The Content Jumpstart Team
+                """.strip(),
+                variables=["client_name", "verify_link", "expiry_minutes"],
             ),
             EmailType.REVISION_CONFIRMATION: EmailTemplate(
                 template_id="revision_confirmation",
@@ -650,6 +672,31 @@ The Content Jumpstart Team
 
         message = self.create_email_from_template(
             email_type=EmailType.PASSWORD_RESET, to_email=client_email, variables=variables
+        )
+        message.priority = EmailPriority.HIGH
+
+        return self.send_email(message)
+
+    def send_verification_email(
+        self,
+        client_name: str,
+        client_email: str,
+        verify_link: str,
+        expiry_minutes: int = 1440,
+    ) -> tuple[bool, Optional[str]]:
+        """Send an email-verification link (GAP-AUTH-02).
+
+        ``verify_link`` is the fully-formed ``{APP_BASE_URL}/verify-email?token=…`` URL
+        built by the caller; ``expiry_minutes`` mirrors the token's actual lifetime.
+        """
+        variables = {
+            "client_name": client_name,
+            "verify_link": verify_link,
+            "expiry_minutes": str(expiry_minutes),
+        }
+
+        message = self.create_email_from_template(
+            email_type=EmailType.EMAIL_VERIFICATION, to_email=client_email, variables=variables
         )
         message.priority = EmailPriority.HIGH
 

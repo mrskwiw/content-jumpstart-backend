@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # Self-service password-reset link lifetime (GAP-AUTH-01). Short by design;
     # the token is single-use (its "pv" claim invalidates once the password changes).
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    # Email-verification link lifetime (GAP-AUTH-02). 24h by default.
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
+    # When True, login is blocked (403) until the user's email is verified. Default
+    # False so verification is additive/reversible — tracked + surfaced but not enforced.
+    REQUIRE_EMAIL_VERIFICATION: bool = False
 
     # Super Admin Configuration
     # Comma-separated list of email addresses for super admins (original system administrators)

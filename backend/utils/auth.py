@@ -152,6 +152,23 @@ def create_password_reset_token(data: dict) -> str:
     return jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
 
 
+def create_email_verification_token(data: dict) -> str:
+    """Create a short-lived JWT for email verification (GAP-AUTH-02).
+
+    Type is "email_verify" — get_current_user rejects it, so it grants no API access;
+    only /auth/verify-email accepts it. Naturally idempotent (verifying twice is a
+    no-op), so it needs no "pv"/single-use trick. Expiry defaults to
+    settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "email_verify"})
+
+    secret_manager = get_secret_manager()
+    primary_secret = secret_manager.get_primary_secret() or settings.SECRET_KEY
+    return jwt.encode(to_encode, primary_secret, algorithm=settings.ALGORITHM)
+
+
 def create_refresh_token(data: dict) -> str:
     """
     Create JWT refresh token using primary secret from SecretManager.

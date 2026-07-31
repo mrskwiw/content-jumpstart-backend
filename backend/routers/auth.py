@@ -12,9 +12,11 @@ from backend.schemas.auth import (
     LogoutRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     TokenResponse,
     UserCreate,
+    VerifyEmailRequest,
 )
 from backend.services import crud
 from sqlalchemy.orm import Session
@@ -30,6 +32,7 @@ from backend.services.session_revocation_service import (
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
     create_access_token,
+    create_email_verification_token,
     create_password_reset_token,
     create_refresh_token,
     decode_token,
@@ -66,6 +69,32 @@ def _send_password_reset_email(recipient_name: str, recipient_email: str, reset_
         logger.exception("Failed to send password-reset email")
 
 
+def _send_verification_email(recipient_name: str, recipient_email: str, verify_link: str) -> None:
+    """Deliver an email-verification link as a background task (GAP-AUTH-02).
+
+    Best-effort like the reset email — failures are logged, never surfaced, so the
+    registration/resend response is unaffected by SMTP latency or errors.
+    """
+    try:
+        from agent.email_system import EmailSystem
+
+        EmailSystem().send_verification_email(
+            client_name=recipient_name,
+            client_email=recipient_email,
+            verify_link=verify_link,
+            expiry_minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
+        )
+    except Exception:  # pragma: no cover - defensive; email is best-effort
+        logger.exception("Failed to send verification email")
+
+
+def _verification_link(user_id: str) -> str:
+    """Build the verification URL for a user (token embeds their id)."""
+    token = create_email_verification_token({"sub": user_id})
+    base = os.getenv("APP_BASE_URL", "https://content-jumpstart.com").rstrip("/")
+    return f"{base}/verify-email?token={token}"
+
+
 @router.post("/login", response_model=TokenResponse)
 @strict_limiter.limit("10/hour")  # TR-004: Prevent brute force attacks
 async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
@@ -97,6 +126,14 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Inactive user",
         )
 
+    # GAP-AUTH-02: optionally block login until the email is verified (default off, so
+    # verification is additive — tracked/surfaced but not enforced unless configured).
+    if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before signing in.",
+        )
+
     # MFA disabled by operator decision — password-only login for all accounts.
     # Re-enable by restoring should_enforce_mfa() and the TOTP block. See BUGS.md #172.
 
@@ -120,6 +157,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             created_at=user.created_at,
             updated_at=user.updated_at,
             must_change_password=bool(user.must_change_password),
+            email_verified=bool(user.email_verified),
         ),
     )
 
@@ -306,6 +344,71 @@ async def reset_password(
         "status": "success",
         "message": "Password updated successfully. You can now sign in.",
     }
+
+
+@router.post("/verify-email", status_code=status.HTTP_200_OK)
+@standard_limiter.limit("20/hour")  # TR-004: throttle token guessing
+async def verify_email(request: Request, body: VerifyEmailRequest, db: Session = Depends(get_db)):
+    """Confirm a user's email address from a verification link (GAP-AUTH-02).
+
+    The token (type ``email_verify``) carries the user id. Marks the account verified;
+    idempotent — verifying an already-verified account succeeds without change.
+    """
+    payload = decode_token(body.token)
+    if not payload or payload.get("type") != "email_verify":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification link",
+        )
+    user_id = payload.get("sub")
+    user = crud.get_user(db, user_id) if user_id else None
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification link",
+        )
+
+    if not user.email_verified:
+        from datetime import datetime, timezone
+
+        user.email_verified = True
+        user.email_verified_at = datetime.now(timezone.utc)
+        db.add(user)
+        db.commit()
+        logger.info(f"Email verified for user {user.email} (id={user.id})")
+    return {"status": "success", "message": "Email verified"}
+
+
+@router.post("/resend-verification", status_code=status.HTTP_200_OK)
+@strict_limiter.limit("5/hour")  # TR-004: throttle verification-email sends / abuse
+async def resend_verification(
+    request: Request,
+    body: ResendVerificationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Re-send an email-verification link (GAP-AUTH-02).
+
+    Returns the same generic response regardless of whether the email maps to an
+    account (no user enumeration). Sends only when the account exists and is not
+    already verified.
+    """
+    generic_response = {
+        "status": "success",
+        "message": "If an account exists for that email and needs verification, a link has been sent.",
+    }
+    user = crud.get_user_by_email(db, body.email)
+    if user and not user.email_verified:
+        background_tasks.add_task(
+            _send_verification_email,
+            user.full_name or user.email,
+            user.email,
+            _verification_link(user.id),
+        )
+        logger.info(f"Verification link re-sent for user {user.email} (id={user.id})")
+    else:
+        logger.info(f"Resend-verification requested for unknown/verified email: {body.email}")
+    return generic_response
 
 
 @router.post("/refresh", response_model=RefreshTokenResponse)
@@ -508,7 +611,12 @@ async def logout_all(
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 @strict_limiter.limit("3/hour")  # TR-023: Prevent spam account creation
-async def register_user(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
+async def register_user(
+    request: Request,
+    user_data: UserCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """
     Register a new user and return authentication tokens.
 
@@ -595,6 +703,14 @@ async def register_user(request: Request, user_data: UserCreate, db: Session = D
         f"Admin activation required."
     )
 
+    # GAP-AUTH-02: email an address-verification link (best-effort, off the request path).
+    background_tasks.add_task(
+        _send_verification_email,
+        user.full_name or user.email,
+        user.email,
+        _verification_link(user.id),
+    )
+
     # TR-023: Return tokens but user cannot use them until activated
     # This allows immediate testing in dev, but requires activation in production
     token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
@@ -616,5 +732,6 @@ async def register_user(request: Request, user_data: UserCreate, db: Session = D
             created_at=user.created_at,
             updated_at=user.updated_at,
             must_change_password=bool(user.must_change_password),
+            email_verified=bool(user.email_verified),
         ),
     )

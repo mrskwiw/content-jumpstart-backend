@@ -227,6 +227,86 @@
         }
       }
     },
+    "/api/auth/verify-email": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify Email",
+        "description": "Confirm a user's email address from a verification link (GAP-AUTH-02).\n\nThe token (type ``email_verify``) carries the user id. Marks the account verified;\nidempotent \u2014 verifying an already-verified account succeeds without change.",
+        "operationId": "verify_email_api_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/resend-verification": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Resend Verification",
+        "description": "Re-send an email-verification link (GAP-AUTH-02).\n\nReturns the same generic response regardless of whether the email maps to an\naccount (no user enumeration). Sends only when the account exists and is not\nalready verified.",
+        "operationId": "resend_verification_api_auth_resend_verification_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "tags": [
@@ -16849,6 +16929,21 @@
         "title": "ResearchToolCost",
         "description": "Research tool cost breakdown."
       },
+      "ResendVerificationRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ResendVerificationRequest",
+        "description": "Schema for requesting a fresh email-verification link (GAP-AUTH-02)."
+      },
       "ResetPasswordRequest": {
         "properties": {
           "token": {
@@ -18611,6 +18706,11 @@
             "type": "boolean",
             "title": "Mustchangepassword",
             "default": false
+          },
+          "emailVerified": {
+            "type": "boolean",
+            "title": "Emailverified",
+            "default": false
           }
         },
         "type": "object",
@@ -18719,6 +18819,20 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyEmailRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "VerifyEmailRequest",
+        "description": "Schema for confirming an email-verification token (GAP-AUTH-02)."
       },
       "WebSearchConfigResponse": {
         "properties": {

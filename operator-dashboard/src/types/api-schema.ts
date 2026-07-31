@@ -173,6 +173,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Confirm a user's email address from a verification link (GAP-AUTH-02).
+         *
+         *     The token (type ``email_verify``) carries the user id. Marks the account verified;
+         *     idempotent — verifying an already-verified account succeeds without change.
+         */
+        post: operations["verify_email_api_auth_verify_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Re-send an email-verification link (GAP-AUTH-02).
+         *
+         *     Returns the same generic response regardless of whether the email maps to an
+         *     account (no user enumeration). Sends only when the account exists and is not
+         *     already verified.
+         */
+        post: operations["resend_verification_api_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/refresh": {
         parameters: {
             query?: never;
@@ -7176,6 +7223,17 @@ export interface components {
             credits: number;
         };
         /**
+         * ResendVerificationRequest
+         * @description Schema for requesting a fresh email-verification link (GAP-AUTH-02).
+         */
+        ResendVerificationRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
          * ResetPasswordRequest
          * @description Schema for completing a self-service password reset (GAP-AUTH-01).
          *
@@ -7919,6 +7977,11 @@ export interface components {
              * @default false
              */
             mustChangePassword: boolean;
+            /**
+             * Emailverified
+             * @default false
+             */
+            emailVerified: boolean;
         };
         /**
          * UserStatsResponse
@@ -7956,6 +8019,14 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VerifyEmailRequest
+         * @description Schema for confirming an email-verification token (GAP-AUTH-02).
+         */
+        VerifyEmailRequest: {
+            /** Token */
+            token: string;
         };
         /**
          * WebSearchConfigResponse
@@ -8209,6 +8280,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_api_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendVerificationRequest"];
             };
         };
         responses: {

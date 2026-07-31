@@ -552,6 +552,9 @@ def init_db():
                 ("is_enterprise", "BOOLEAN DEFAULT FALSE"),
                 ("custom_credit_rate", "REAL"),
                 ("enterprise_notes", "TEXT"),
+                # GAP-AUTH-02: email verification (existing DBs get these on boot).
+                ("email_verified", "BOOLEAN DEFAULT FALSE"),
+                ("email_verified_at", "TIMESTAMP"),
             ]
 
             for col_name, col_type in new_user_columns:

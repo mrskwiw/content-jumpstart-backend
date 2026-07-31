@@ -144,6 +144,8 @@ class UserResponse(BaseModel):
     # S-01.4f: True when the operator must set their own password (control-plane
     # seeded admin on first login). The frontend forces a reset while this is set.
     must_change_password: bool = False
+    # GAP-AUTH-02: whether the user has confirmed their email address.
+    email_verified: bool = False
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -193,6 +195,18 @@ class LogoutRequest(BaseModel):
     """
 
     refresh_token: Optional[str] = None
+
+
+class VerifyEmailRequest(BaseModel):
+    """Schema for confirming an email-verification token (GAP-AUTH-02)."""
+
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    """Schema for requesting a fresh email-verification link (GAP-AUTH-02)."""
+
+    email: EmailStr
 
 
 class RefreshTokenResponse(BaseModel):

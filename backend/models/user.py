@@ -51,6 +51,12 @@ class User(Base, SoftDeleteMixin):
     # on any password change/reset.
     must_change_password = Column(Boolean, default=False, nullable=False)
 
+    # GAP-AUTH-02: email verification. `email_verified` flips True when the user
+    # confirms their address via the verification link; `email_verified_at` records
+    # when. Login is not gated on this unless settings.REQUIRE_EMAIL_VERIFICATION.
+    email_verified = Column(Boolean, default=False, nullable=False)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     settings = relationship("Setting", back_populates="user", cascade="all, delete-orphan")
 
