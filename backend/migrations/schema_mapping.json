@@ -1,5 +1,5 @@
 {
-  "current_version": 6,
+  "current_version": 7,
   "version_migrations": {
     "1": {
       "description": "Add file_size_bytes to deliverables table",
@@ -130,6 +130,25 @@
           {
             "name": "qa_score",
             "type": "REAL",
+            "nullable": true,
+            "default": null
+          }
+        ]
+      }
+    },
+    "7": {
+      "description": "GAP-AUTH-02: add email_verified/email_verified_at to users; one-time grandfather backfill sets pre-existing accounts to email_verified=TRUE so enabling REQUIRE_EMAIL_VERIFICATION cannot lock out incumbents",
+      "users": {
+        "add_columns": [
+          {
+            "name": "email_verified",
+            "type": "BOOLEAN",
+            "nullable": false,
+            "default": true
+          },
+          {
+            "name": "email_verified_at",
+            "type": "TIMESTAMP",
             "nullable": true,
             "default": null
           }

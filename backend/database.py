@@ -587,6 +587,24 @@ def init_db():
                     except Exception as e:
                         print(f">> Migration for {col_name} failed: {e}")
 
+            # GAP-AUTH-02 one-time grandfather backfill (schema v7). The add-column
+            # DEFAULT TRUE only grandfathers when the column is freshly added; this
+            # covers deployments where users.email_verified already exists with FALSE
+            # incumbents. Gated on the version bump so it runs exactly once and never
+            # re-flips genuinely-unverified NEW signups on a later boot.
+            if current_version < 7:
+                try:
+                    conn.execute(
+                        text(
+                            "UPDATE users SET email_verified = TRUE "
+                            "WHERE email_verified = FALSE OR email_verified IS NULL"
+                        )
+                    )
+                    conn.commit()
+                    print(">> GAP-AUTH-02: grandfathered pre-existing users to email_verified=TRUE")
+                except Exception as e:
+                    print(f">> email_verified grandfather backfill skipped/failed: {e}")
+
         # Seed credit packages (only if table is empty)
         # CreditPackage table is auto-created by Base.metadata.create_all()
         if "credit_packages" in inspector.get_table_names():

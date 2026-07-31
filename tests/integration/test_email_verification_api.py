@@ -130,3 +130,26 @@ def test_grandfather_backfill_on_alter():
         c.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT TRUE"))
         val = c.execute(text("SELECT email_verified FROM users WHERE id = 'old'")).scalar()
     assert val in (1, True)  # pre-existing row grandfathered to verified
+
+
+def test_grandfather_backfill_update_flips_existing_false_rows():
+    # Covers the case the DEFAULT-TRUE add-column can't: a DB that ALREADY has
+    # users.email_verified with FALSE incumbents. The one-time v7 backfill UPDATE
+    # flips existing FALSE/NULL rows to TRUE (already-true rows are untouched).
+    from sqlalchemy import create_engine, text
+
+    eng = create_engine("sqlite://")
+    with eng.begin() as c:
+        c.execute(
+            text("CREATE TABLE users (id TEXT PRIMARY KEY, email_verified BOOLEAN DEFAULT 0)")
+        )
+        c.execute(text("INSERT INTO users (id, email_verified) VALUES ('a', 0), ('b', 1)"))
+        c.execute(
+            text(
+                "UPDATE users SET email_verified = TRUE "
+                "WHERE email_verified = FALSE OR email_verified IS NULL"
+            )
+        )
+        rows = dict(c.execute(text("SELECT id, email_verified FROM users")).fetchall())
+    assert rows["a"] in (1, True)  # incumbent flipped to verified
+    assert rows["b"] in (1, True)  # already-verified stays verified
