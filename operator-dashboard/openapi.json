@@ -275,7 +275,7 @@
           "Authentication"
         ],
         "summary": "Logout",
-        "description": "Server-side logout (GAP-AUTH-03): blacklist the caller's current access token\n(and the supplied refresh token, if any) so they can't be reused before expiry.",
+        "description": "Server-side logout (GAP-AUTH-03) \u2014 the session must not survive the call.\n\nA precise single-device logout revokes BOTH credentials by jti: the current access\ntoken and the refresh token the client supplies. If either can't be targeted by\njti \u2014 a legacy token minted before this feature, or a caller that omitted the\nrefresh token \u2014 we cannot guarantee the long-lived refresh credential is dead, so\nwe **fail closed** with a session-wide cutoff (revokes all the user's sessions)\nrather than leave a usable token behind. Clients that want single-device logout\nmust send ``refresh_token``.",
         "operationId": "logout_api_auth_logout_post",
         "requestBody": {
           "content": {

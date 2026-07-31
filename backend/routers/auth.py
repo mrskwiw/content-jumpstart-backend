@@ -381,18 +381,21 @@ async def refresh_token(
     return RefreshTokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
-def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) -> None:
-    """Blacklist a single token by its jti, honouring its own expiry as the purge
-    horizon. A token without a jti (legacy) or that won't decode is silently skipped —
-    such a token is already unusable once the user has any newer revocation in place."""
+def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) -> bool:
+    """Blacklist a single token by its jti; return whether a jti was actually revoked.
+
+    Returns False when the token won't decode or carries no jti (a legacy token minted
+    before GAP-AUTH-03). The caller uses that signal to fail closed — a token we can't
+    target precisely must be killed by a session-wide cutoff instead, never left alive.
+    """
     from datetime import datetime, timezone
 
     payload = decode_token(token)
     if not payload:
-        return
+        return False
     jti = payload.get("jti")
     if not jti:
-        return
+        return False
     exp = payload.get("exp")
     expires_at = (
         datetime.fromtimestamp(exp, tz=timezone.utc) if isinstance(exp, (int, float)) else None
@@ -405,6 +408,7 @@ def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) 
         expires_at=expires_at,
         reason=reason,
     )
+    return True
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
@@ -416,12 +420,32 @@ async def logout(
     current_user: User = Depends(get_current_user),
     credentials=Depends(security),
 ):
-    """Server-side logout (GAP-AUTH-03): blacklist the caller's current access token
-    (and the supplied refresh token, if any) so they can't be reused before expiry."""
-    _revoke_token_string(db, credentials.credentials, user_id=current_user.id, reason="logout")
+    """Server-side logout (GAP-AUTH-03) — the session must not survive the call.
+
+    A precise single-device logout revokes BOTH credentials by jti: the current access
+    token and the refresh token the client supplies. If either can't be targeted by
+    jti — a legacy token minted before this feature, or a caller that omitted the
+    refresh token — we cannot guarantee the long-lived refresh credential is dead, so
+    we **fail closed** with a session-wide cutoff (revokes all the user's sessions)
+    rather than leave a usable token behind. Clients that want single-device logout
+    must send ``refresh_token``.
+    """
+    access_revoked = _revoke_token_string(
+        db, credentials.credentials, user_id=current_user.id, reason="logout"
+    )
+    refresh_revoked = False
     if body and body.refresh_token:
-        _revoke_token_string(db, body.refresh_token, user_id=current_user.id, reason="logout")
-    logger.info(f"User logged out (sessions token revoked) id={current_user.id}")
+        refresh_revoked = _revoke_token_string(
+            db, body.refresh_token, user_id=current_user.id, reason="logout"
+        )
+
+    if not (access_revoked and refresh_revoked):
+        # Couldn't precisely kill both credentials → revoke the whole session set so
+        # nothing (incl. a legacy/unsupplied refresh token) outlives logout.
+        revoke_user_sessions(db, current_user.id, reason="logout_failclosed")
+        logger.info(f"User logged out (session-wide fail-closed) id={current_user.id}")
+    else:
+        logger.info(f"User logged out (single device) id={current_user.id}")
     return {"status": "success", "message": "Logged out"}
 
 

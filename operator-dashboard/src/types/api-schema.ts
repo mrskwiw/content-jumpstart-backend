@@ -196,6 +196,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Server-side logout (GAP-AUTH-03) — the session must not survive the call.
+         *
+         *     A precise single-device logout revokes BOTH credentials by jti: the current access
+         *     token and the refresh token the client supplies. If either can't be targeted by
+         *     jti — a legacy token minted before this feature, or a caller that omitted the
+         *     refresh token — we cannot guarantee the long-lived refresh credential is dead, so
+         *     we **fail closed** with a session-wide cutoff (revokes all the user's sessions)
+         *     rather than leave a usable token behind. Clients that want single-device logout
+         *     must send ``refresh_token``.
+         */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout All
+         * @description Revoke ALL of the caller's active sessions (every device), independent of any
+         *     password change — a per-user cutoff over token issue time (GAP-AUTH-03).
+         */
+        post: operations["logout_all_api_auth_logout_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register": {
         parameters: {
             query?: never;
@@ -395,6 +444,52 @@ export interface paths {
          *         HTTPException 400: Password validation failed
          */
         post: operations["reset_user_password_api_admin_users__user_id__reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{user_id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke User Sessions Endpoint
+         * @description Admin: kill ALL of a user's active sessions on demand (GAP-AUTH-03).
+         *
+         *     Unlike an admin password reset, this revokes sessions without changing the
+         *     target's password — a per-user cutoff over token issue time. Audit-logged.
+         */
+        post: operations["revoke_user_sessions_endpoint_api_admin_users__user_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/revoke-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Token Endpoint
+         * @description Admin: blacklist a single compromised session/refresh token by its jti.
+         *
+         *     The jti is surfaced in security logs / audit trails; killing it invalidates that
+         *     one token immediately without touching the user's other sessions. Audit-logged.
+         */
+        post: operations["revoke_token_endpoint_api_admin_revoke_token_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6182,6 +6277,17 @@ export interface components {
             totp_code?: string | null;
         };
         /**
+         * LogoutRequest
+         * @description Schema for server-side logout (GAP-AUTH-03).
+         *
+         *     ``refresh_token`` is optional — when supplied it is blacklisted alongside the
+         *     caller's current access token so a stored refresh token can't outlive logout.
+         */
+        LogoutRequest: {
+            /** Refresh Token */
+            refresh_token?: string | null;
+        };
+        /**
          * MarkDeliveredRequest
          * @description Schema for marking deliverable as delivered
          */
@@ -7076,6 +7182,18 @@ export interface components {
             token: string;
             /** New Password */
             new_password: string;
+        };
+        /**
+         * RevokeTokenRequest
+         * @description Blacklist one specific compromised token by its jti (GAP-AUTH-03).
+         */
+        RevokeTokenRequest: {
+            /** Jti */
+            jti: string;
+            /** Token Type */
+            token_type?: string | null;
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * RunCostBreakdown
@@ -8141,6 +8259,59 @@ export interface operations {
             };
         };
     };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogoutRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_all_api_auth_logout_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     register_user_api_auth_register_post: {
         parameters: {
             query?: never;
@@ -8320,6 +8491,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_user_sessions_endpoint_api_admin_users__user_id__revoke_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_token_endpoint_api_admin_revoke_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
