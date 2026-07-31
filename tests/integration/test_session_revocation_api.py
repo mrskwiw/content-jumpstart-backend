@@ -133,6 +133,27 @@ def test_logout_legacy_token_directs_to_logout_all(db_session, client, test_user
     assert client.post("/api/auth/logout-all", json={}, headers=legacy_hdr).status_code == 200
 
 
+def test_logout_rejects_access_token_as_refresh(db_session, client, test_user):
+    # Passing the ACCESS token in the refresh_token field must be rejected (type check),
+    # else logout would revoke the access token twice and leave the real refresh path
+    # alive — a logout bypass.
+    access = create_access_token(data={"sub": test_user.id})
+    r = client.post(
+        "/api/auth/logout",
+        json={"refresh_token": access},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert r.status_code == 400
+    # The access token itself was NOT revoked by that rejected call: a proper logout
+    # (with a real refresh token) still succeeds afterwards.
+    good = client.post(
+        "/api/auth/logout",
+        json={"refresh_token": create_refresh_token(data={"sub": test_user.id})},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert good.status_code == 200
+
+
 def test_logout_rejects_foreign_refresh_token(db_session, client):
     # /logout must not revoke a refresh token that belongs to a different user.
     a = _mk_user(db_session, uid="user-fa1", email="fa1@example.com")

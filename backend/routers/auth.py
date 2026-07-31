@@ -459,12 +459,19 @@ async def logout(
             detail="refresh_token is required to log out this session; use /logout-all "
             "to end all sessions",
         )
-    # The refresh token must be a targetable token that belongs to this caller, so
-    # /logout can never be used to revoke an arbitrary or someone else's token, and the
-    # refresh credential is guaranteed dead (not silently left alive).
+    # The supplied token must be an actual REFRESH token (type=="refresh") that is
+    # targetable (has a jti) and belongs to this caller. The type check is essential:
+    # an access token is also a JWT with jti+sub, so without it a caller could pass the
+    # access token as the refresh_token, revoke it twice, and leave the real refresh
+    # credential alive — a logout bypass. This also blocks revoking an arbitrary or
+    # someone else's token.
     refresh_payload = decode_token(refresh_token)
-    refresh_jti = refresh_payload.get("jti") if refresh_payload else None
-    if not refresh_jti or refresh_payload.get("sub") != current_user.id:
+    if (
+        not refresh_payload
+        or refresh_payload.get("type") != "refresh"
+        or not refresh_payload.get("jti")
+        or refresh_payload.get("sub") != current_user.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid refresh_token for this session",
