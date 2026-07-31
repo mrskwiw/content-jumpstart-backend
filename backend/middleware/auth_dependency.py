@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
+from backend.services.session_revocation_service import is_token_revoked
 from backend.utils.auth import decode_token, password_fingerprint
 
 
@@ -131,6 +132,16 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Explicit revocation (GAP-AUTH-03): this token's jti was blacklisted, or all of
+    # the user's sessions were revoked on demand (independent of password change).
+    if is_token_revoked(db, payload):
+        logger.warning(f"AUTH: Revoked token rejected for {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session revoked. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     logger.debug(f"AUTH: Successfully authenticated user: {user.email}")
     return user
 
@@ -201,6 +212,15 @@ async def get_current_user_for_mfa_setup(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Honour explicit revocation on the MFA-enrollment path too (GAP-AUTH-03).
+    if is_token_revoked(db, payload):
+        _logger.warning(f"MFA-enroll auth: revoked token rejected for {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session revoked. Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

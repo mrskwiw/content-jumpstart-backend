@@ -27,6 +27,7 @@ from .trends import (
 from .stripe_payment import StripeCustomer, StripePayment
 from .audit_log import AuditLog
 from .deletion_audit_log import DeletionAuditLog
+from .revoked_token import RevokedToken
 from .client_keywords import ClientKeyword
 from .distribution import PlatformCredential, ScheduledPost, PostedContent
 from .analytics import PostMetric
@@ -56,6 +57,7 @@ __all__ = [
     "StripePayment",
     "AuditLog",
     "DeletionAuditLog",
+    "RevokedToken",
     "ClientKeyword",
     "Conversation",
     "Message",

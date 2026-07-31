@@ -12,9 +12,10 @@ All endpoints require admin (is_superuser=True) authentication.
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from backend.config import settings
 from backend.database import get_db
@@ -27,7 +28,8 @@ from backend.schemas.auth import (
     UserStatsResponse,
 )
 from backend.schemas.credit_schemas import GrantCreditsRequest, GrantCreditsResponse
-from backend.services import credit_service, crud
+from backend.services import audit_service, credit_service, crud
+from backend.services.session_revocation_service import revoke_jti, revoke_user_sessions
 from backend.utils.auth import get_password_hash
 from backend.utils.logger import logger
 
@@ -354,6 +356,80 @@ def reset_user_password(
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
+
+
+class RevokeTokenRequest(BaseModel):
+    """Blacklist one specific compromised token by its jti (GAP-AUTH-03)."""
+
+    jti: str
+    token_type: Optional[str] = None
+    reason: Optional[str] = None
+
+
+@router.post("/users/{user_id}/revoke-sessions", status_code=status.HTTP_200_OK)
+def revoke_user_sessions_endpoint(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin: kill ALL of a user's active sessions on demand (GAP-AUTH-03).
+
+    Unlike an admin password reset, this revokes sessions without changing the
+    target's password — a per-user cutoff over token issue time. Audit-logged.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User not found: {user_id}"
+        )
+
+    revoke_user_sessions(db, user_id, reason=f"admin_revoke by {admin.email}")
+    audit_service.log_action(
+        db,
+        user_id=admin.id,
+        user_email=admin.email,
+        action="Revoked all user sessions",
+        action_type="security",
+        resource_type="user",
+        resource_id=user_id,
+        resource_name=user.email,
+        ip_address=audit_service.get_client_ip(request),
+    )
+    logger.info(f"Admin {admin.email} revoked all sessions for user {user.email}")
+    return {"status": "success", "message": f"All sessions revoked for {user.email}"}
+
+
+@router.post("/revoke-token", status_code=status.HTTP_200_OK)
+def revoke_token_endpoint(
+    body: RevokeTokenRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin: blacklist a single compromised session/refresh token by its jti.
+
+    The jti is surfaced in security logs / audit trails; killing it invalidates that
+    one token immediately without touching the user's other sessions. Audit-logged.
+    """
+    revoke_jti(
+        db,
+        body.jti,
+        token_type=body.token_type,
+        reason=body.reason or f"admin_revoke by {admin.email}",
+    )
+    audit_service.log_action(
+        db,
+        user_id=admin.id,
+        user_email=admin.email,
+        action="Revoked token",
+        action_type="security",
+        resource_type="token",
+        resource_id=body.jti,
+        ip_address=audit_service.get_client_ip(request),
+    )
+    logger.info(f"Admin {admin.email} revoked token jti={body.jti}")
+    return {"status": "success", "message": "Token revoked"}
 
 
 @router.get("/users", response_model=List[UserResponse])

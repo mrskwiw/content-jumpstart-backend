@@ -185,6 +185,16 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    """Schema for server-side logout (GAP-AUTH-03).
+
+    ``refresh_token`` is optional — when supplied it is blacklisted alongside the
+    caller's current access token so a stored refresh token can't outlive logout.
+    """
+
+    refresh_token: Optional[str] = None
+
+
 class RefreshTokenResponse(BaseModel):
     """Schema for refresh token response (does not include user)"""
 

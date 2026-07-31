@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import hashlib
 import logging
+import uuid
 
 import bcrypt
 from jose import JWTError, jwt
@@ -85,12 +86,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """
     to_encode = data.copy()
 
+    now = datetime.utcnow()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "type": "access"})
+    # jti: unique per token → targeted revocation (GAP-AUTH-03). iat: issue time →
+    # per-user "revoke everything issued before T" cutoff. Both intrinsic, so callers
+    # don't change; a token minted before this carries neither and is treated as legacy.
+    to_encode.update({"exp": expire, "iat": now, "jti": uuid.uuid4().hex, "type": "access"})
 
     # Use primary secret from SecretManager
     secret_manager = get_secret_manager()
@@ -158,8 +163,10 @@ def create_refresh_token(data: dict) -> str:
         Encoded JWT refresh token
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    now = datetime.utcnow()
+    expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    # jti + iat mirror the access-token contract (GAP-AUTH-03 revocation).
+    to_encode.update({"exp": expire, "iat": now, "jti": uuid.uuid4().hex, "type": "refresh"})
 
     # Use primary secret from SecretManager
     secret_manager = get_secret_manager()

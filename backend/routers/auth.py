@@ -9,6 +9,7 @@ from backend.schemas.auth import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
+    LogoutRequest,
     RefreshTokenRequest,
     RefreshTokenResponse,
     ResetPasswordRequest,
@@ -19,8 +20,13 @@ from backend.services import crud
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.middleware.auth_dependency import get_current_user
+from backend.middleware.auth_dependency import get_current_user, security
 from backend.models import User
+from backend.services.session_revocation_service import (
+    is_token_revoked,
+    revoke_jti,
+    revoke_user_sessions,
+)
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
     create_access_token,
@@ -359,12 +365,78 @@ async def refresh_token(
             detail="Session expired. Please sign in again.",
         )
 
+    # Explicit revocation (GAP-AUTH-03): a blacklisted refresh jti or a per-user
+    # cutoff must block the refresh, else a revoked session could mint fresh tokens.
+    if is_token_revoked(db, payload):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session revoked. Please sign in again.",
+        )
+
     # Create new tokens (re-bind to current password version)
     token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}
     access_token = create_access_token(data=token_data)
     new_refresh_token = create_refresh_token(data=token_data)
 
     return RefreshTokenResponse(access_token=access_token, refresh_token=new_refresh_token)
+
+
+def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) -> None:
+    """Blacklist a single token by its jti, honouring its own expiry as the purge
+    horizon. A token without a jti (legacy) or that won't decode is silently skipped —
+    such a token is already unusable once the user has any newer revocation in place."""
+    from datetime import datetime, timezone
+
+    payload = decode_token(token)
+    if not payload:
+        return
+    jti = payload.get("jti")
+    if not jti:
+        return
+    exp = payload.get("exp")
+    expires_at = (
+        datetime.fromtimestamp(exp, tz=timezone.utc) if isinstance(exp, (int, float)) else None
+    )
+    revoke_jti(
+        db,
+        jti,
+        user_id=user_id,
+        token_type=payload.get("type"),
+        expires_at=expires_at,
+        reason=reason,
+    )
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+@standard_limiter.limit("60/hour")
+async def logout(
+    request: Request,
+    body: LogoutRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    credentials=Depends(security),
+):
+    """Server-side logout (GAP-AUTH-03): blacklist the caller's current access token
+    (and the supplied refresh token, if any) so they can't be reused before expiry."""
+    _revoke_token_string(db, credentials.credentials, user_id=current_user.id, reason="logout")
+    if body and body.refresh_token:
+        _revoke_token_string(db, body.refresh_token, user_id=current_user.id, reason="logout")
+    logger.info(f"User logged out (sessions token revoked) id={current_user.id}")
+    return {"status": "success", "message": "Logged out"}
+
+
+@router.post("/logout-all", status_code=status.HTTP_200_OK)
+@standard_limiter.limit("20/hour")
+async def logout_all(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Revoke ALL of the caller's active sessions (every device), independent of any
+    password change — a per-user cutoff over token issue time (GAP-AUTH-03)."""
+    revoke_user_sessions(db, current_user.id, reason="logout_all")
+    logger.info(f"User revoked all own sessions id={current_user.id}")
+    return {"status": "success", "message": "All sessions revoked"}
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)

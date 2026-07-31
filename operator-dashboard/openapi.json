@@ -269,6 +269,76 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logout",
+        "description": "Server-side logout (GAP-AUTH-03): blacklist the caller's current access token\n(and the supplied refresh token, if any) so they can't be reused before expiry.",
+        "operationId": "logout_api_auth_logout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Logout All",
+        "description": "Revoke ALL of the caller's active sessions (every device), independent of any\npassword change \u2014 a per-user cutoff over token issue time (GAP-AUTH-03).",
+        "operationId": "logout_all_api_auth_logout_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/auth/register": {
       "post": {
         "tags": [
@@ -559,6 +629,97 @@
             }
           }
         }
+      }
+    },
+    "/api/admin/users/{user_id}/revoke-sessions": {
+      "post": {
+        "tags": [
+          "Admin - User Management"
+        ],
+        "summary": "Revoke User Sessions Endpoint",
+        "description": "Admin: kill ALL of a user's active sessions on demand (GAP-AUTH-03).\n\nUnlike an admin password reset, this revokes sessions without changing the\ntarget's password \u2014 a per-user cutoff over token issue time. Audit-logged.",
+        "operationId": "revoke_user_sessions_endpoint_api_admin_users__user_id__revoke_sessions_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/revoke-token": {
+      "post": {
+        "tags": [
+          "Admin - User Management"
+        ],
+        "summary": "Revoke Token Endpoint",
+        "description": "Admin: blacklist a single compromised session/refresh token by its jti.\n\nThe jti is surfaced in security logs / audit trails; killing it invalidates that\none token immediately without touching the user's other sessions. Audit-logged.",
+        "operationId": "revoke_token_endpoint_api_admin_revoke_token_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/admin/users": {
@@ -14335,6 +14496,24 @@
         "title": "LoginRequest",
         "description": "Schema for login request"
       },
+      "LogoutRequest": {
+        "properties": {
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "title": "LogoutRequest",
+        "description": "Schema for server-side logout (GAP-AUTH-03).\n\n``refresh_token`` is optional \u2014 when supplied it is blacklisted alongside the\ncaller's current access token so a stored refresh token can't outlive logout."
+      },
       "MarkDeliveredRequest": {
         "properties": {
           "delivered_at": {
@@ -16689,6 +16868,42 @@
         ],
         "title": "ResetPasswordRequest",
         "description": "Schema for completing a self-service password reset (GAP-AUTH-01).\n\n``token`` is the single-use \"password_reset\" JWT delivered by email;\n``new_password`` must satisfy the same strength rules as every other\npassword-setting path."
+      },
+      "RevokeTokenRequest": {
+        "properties": {
+          "jti": {
+            "type": "string",
+            "title": "Jti"
+          },
+          "token_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Type"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jti"
+        ],
+        "title": "RevokeTokenRequest",
+        "description": "Blacklist one specific compromised token by its jti (GAP-AUTH-03)."
       },
       "RunCostBreakdown": {
         "properties": {
