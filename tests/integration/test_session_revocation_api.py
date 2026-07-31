@@ -110,23 +110,16 @@ def test_logout_with_refresh_kills_the_refresh_token(db_session, client, test_us
     assert rr.status_code == 401
 
 
-def test_logout_legacy_token_fails_closed(db_session, client, test_user):
-    # A legacy access token (no jti) can't be targeted → even with a refresh token
-    # supplied, logout must fail closed (cutoff) and the bearer must then be rejected.
+def test_logout_legacy_token_fails_closed_without_refresh(db_session, client, test_user):
+    # A legacy access token (no jti) can't be targeted precisely. It must NOT be forced
+    # to supply a refresh token (the 400 guard is only for modern jti tokens) — logout
+    # fails closed with a session-wide cutoff so the legacy session is force-ended.
     legacy = _legacy_access_token(test_user.id)
     hdr = {"Authorization": f"Bearer {legacy}"}
-    # refresh_token is present (contract satisfied); the legacy ACCESS token has no jti
-    # so precise revocation is impossible → fail-closed cutoff.
-    ok = client.post(
-        "/api/auth/logout",
-        json={"refresh_token": create_refresh_token(data={"sub": test_user.id})},
-        headers=hdr,
-    )
+    ok = client.post("/api/auth/logout", json={}, headers=hdr)  # no refresh token
     assert ok.status_code == 200, ok.text
     # The legacy token is now rejected (session-wide cutoff; no iat → fail-safe).
-    assert (
-        client.post("/api/auth/logout", json={"refresh_token": "x"}, headers=hdr).status_code == 401
-    )
+    assert client.post("/api/auth/logout", json={}, headers=hdr).status_code == 401
 
 
 def test_logout_all_revokes_prior_sessions(db_session, client, test_user):

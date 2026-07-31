@@ -209,15 +209,19 @@ export interface paths {
          * Logout
          * @description Server-side single-device logout (GAP-AUTH-03) — the session must not survive.
          *
-         *     ``refresh_token`` is **required**: precise single-device logout revokes BOTH the
-         *     current access token and the refresh token by jti, so the caller's device is fully
-         *     ended while other devices keep working. Omitting it returns 400 (use ``/logout-all``
-         *     to intentionally end every session) — so a client bug can never silently wipe all
-         *     of a user's sessions. Only a legacy token without a jti (minted before this feature)
-         *     falls back to a session-wide cutoff, since it cannot be targeted precisely.
+         *     The behaviour keys off whether the access token can be targeted precisely:
          *
-         *     All revocation writes commit in a single transaction: either the whole logout takes
-         *     effect or none of it does, so a mid-flight failure can't leave a half-revoked
+         *     * **Modern access token (has a jti):** ``refresh_token`` is required — we revoke
+         *       BOTH the access and refresh tokens by jti, ending just this device while other
+         *       devices keep working. Omitting it returns 400 (use ``/logout-all`` to end every
+         *       session), so a client bug can't silently wipe all of a user's sessions.
+         *     * **Legacy access token (no jti, minted before this feature):** it can't be
+         *       targeted, so we fail closed with a session-wide cutoff regardless of whether a
+         *       refresh token is supplied — the transitional legacy session is still force-ended.
+         *
+         *     A supplied refresh token that itself lacks a jti also triggers the fail-closed
+         *     cutoff. All revocation writes commit in a single transaction: either the whole
+         *     logout lands or none of it does, so a mid-flight failure can't leave a half-revoked
          *     (access dead, refresh alive) session.
          */
         post: operations["logout_api_auth_logout_post"];
