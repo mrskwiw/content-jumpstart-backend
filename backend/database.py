@@ -169,6 +169,10 @@ def init_db():
         else:
             raise  # Re-raise if it's a different error
 
+    # Tracks whether the GAP-AUTH-02 v7 grandfather backfill succeeded; if it fails we
+    # must NOT advance the schema version, so the one-time migration retries next boot.
+    email_verified_backfill_ok = True
+
     # Run migrations (add missing columns)
     with engine.connect() as conn:
         inspector = inspect(engine)
@@ -590,8 +594,11 @@ def init_db():
             # GAP-AUTH-02 one-time grandfather backfill (schema v7). The add-column
             # DEFAULT TRUE only grandfathers when the column is freshly added; this
             # covers deployments where users.email_verified already exists with FALSE
-            # incumbents. Gated on the version bump so it runs exactly once and never
-            # re-flips genuinely-unverified NEW signups on a later boot.
+            # incumbents. Runs only while below v7, then the version bump (below) stops
+            # it re-flipping genuinely-unverified NEW signups. RETRY-SAFE: if it fails,
+            # email_verified_backfill_ok stays False and the schema version is NOT
+            # advanced, so the whole (idempotent) migration + backfill retries next boot
+            # instead of stranding incumbents behind a v7 the app thinks is complete.
             if current_version < 7:
                 try:
                     conn.execute(
@@ -603,7 +610,8 @@ def init_db():
                     conn.commit()
                     print(">> GAP-AUTH-02: grandfathered pre-existing users to email_verified=TRUE")
                 except Exception as e:
-                    print(f">> email_verified grandfather backfill skipped/failed: {e}")
+                    email_verified_backfill_ok = False
+                    print(f">> email_verified grandfather backfill FAILED (will retry): {e}")
 
         # Seed credit packages (only if table is empty)
         # CreditPackage table is auto-created by Base.metadata.create_all()
@@ -780,7 +788,15 @@ def init_db():
     config = load_migration_rules()
     latest_version = config["current_version"]
 
-    if current_version < latest_version:
+    if current_version < latest_version and not email_verified_backfill_ok:
+        # Hold the version back so the (idempotent) migrations + the GAP-AUTH-02
+        # grandfather backfill retry next boot rather than leaving incumbents stranded
+        # behind a v7 the app believes is complete.
+        print(
+            ">> WARNING: holding schema version at "
+            f"v{current_version} — email_verified backfill failed; will retry next boot"
+        )
+    elif current_version < latest_version:
         set_schema_version(engine, latest_version)
         print(f">> DEBUG: Schema version updated: v{current_version} -> v{latest_version}")
     elif current_version == latest_version:
