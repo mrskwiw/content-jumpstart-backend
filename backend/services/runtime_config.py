@@ -8,15 +8,17 @@ These are **pure resolvers with an env fallback**: when ``instance_config`` is
 empty (every current instance, and any pre-claim pool slot) they return exactly
 what the env-based code returns today, so existing behavior is unchanged.
 
-NOTE: the OAuth-redirect-base resolver is now WIRED into the OAuth legs
+NOTE: the OAuth-redirect-base resolver is WIRED into the OAuth legs
 (``redirect_uri_for``/``build_authorize_url``/``exchange_code`` + the distribution
 router, commit efcdefc) — safe because that value goes to the trusted provider and
-its source is instance_config/env, never user input. The CORS resolver is NOT yet
-wired: CORS ``allow_origins`` is set statically at app construction (``main.py``), so
-making it instance_config-aware needs a startup DB read or a dynamic origin check —
-the genuinely security-architecture-sensitive part, deliberately left for a reviewed
-pass. Per the spec, the custom-domain CORS flip is off the instant-signup path, so a
-redeploy there is acceptable until that wiring lands.
+its source is instance_config/env, never user input.
+
+``resolved_cors_origins`` is intentionally NOT wired (BUGS.md Decision #210): CORS runs
+on the env ``CORS_ORIGINS`` list, and a control-plane custom-domain promotion adds the
+new origin to that env + redeploys the instance. Runtime instance_config-driven CORS
+(a custom middleware) was declined as an unneeded security surface — the spec sanctions
+the redeploy path. This resolver stays as a tested building block should that
+enhancement ever be wanted; it is not dead by accident.
 """
 
 from __future__ import annotations
