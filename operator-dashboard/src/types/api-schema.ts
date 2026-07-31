@@ -207,22 +207,21 @@ export interface paths {
         put?: never;
         /**
          * Logout
-         * @description Server-side single-device logout (GAP-AUTH-03) — the session must not survive.
+         * @description Precise single-device logout (GAP-AUTH-03) — revokes exactly this session.
          *
-         *     The behaviour keys off whether the access token can be targeted precisely:
+         *     This endpoint is **precise-only and never performs an account-wide cutoff**, so an
+         *     access bearer alone can't wipe every session here — that capability lives solely in
+         *     the explicit ``/logout-all``. It revokes the caller's current access token AND the
+         *     supplied ``refresh_token`` by jti, ending just this device while other devices keep
+         *     working. Both are required:
          *
-         *     * **Modern access token (has a jti):** ``refresh_token`` is required — we revoke
-         *       BOTH the access and refresh tokens by jti, ending just this device while other
-         *       devices keep working. Omitting it returns 400 (use ``/logout-all`` to end every
-         *       session), so a client bug can't silently wipe all of a user's sessions.
-         *     * **Legacy access token (no jti, minted before this feature):** it can't be
-         *       targeted, so we fail closed with a session-wide cutoff regardless of whether a
-         *       refresh token is supplied — the transitional legacy session is still force-ended.
+         *     * ``refresh_token`` must be supplied and belong to the caller (else 400) — otherwise
+         *       the long-lived refresh credential would outlive logout.
+         *     * The access token must carry a jti (else **409** → use ``/logout-all``). A legacy
+         *       token minted before this feature can't be targeted individually; ending it is the
+         *       explicit account-wide operation, not an implicit escalation here.
          *
-         *     A supplied refresh token that itself lacks a jti also triggers the fail-closed
-         *     cutoff. All revocation writes commit in a single transaction: either the whole
-         *     logout lands or none of it does, so a mid-flight failure can't leave a half-revoked
-         *     (access dead, refresh alive) session.
+         *     Both revokes commit in one transaction (all-or-nothing).
          */
         post: operations["logout_api_auth_logout_post"];
         delete?: never;

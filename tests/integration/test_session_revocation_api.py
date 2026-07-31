@@ -110,16 +110,39 @@ def test_logout_with_refresh_kills_the_refresh_token(db_session, client, test_us
     assert rr.status_code == 401
 
 
-def test_logout_legacy_token_fails_closed_without_refresh(db_session, client, test_user):
-    # A legacy access token (no jti) can't be targeted precisely. It must NOT be forced
-    # to supply a refresh token (the 400 guard is only for modern jti tokens) — logout
-    # fails closed with a session-wide cutoff so the legacy session is force-ended.
-    legacy = _legacy_access_token(test_user.id)
-    hdr = {"Authorization": f"Bearer {legacy}"}
-    ok = client.post("/api/auth/logout", json={}, headers=hdr)  # no refresh token
-    assert ok.status_code == 200, ok.text
-    # The legacy token is now rejected (session-wide cutoff; no iat → fail-safe).
-    assert client.post("/api/auth/logout", json={}, headers=hdr).status_code == 401
+def test_logout_legacy_token_directs_to_logout_all(db_session, client, test_user):
+    # A legacy access token (no jti) can't be logged out individually and must NOT be
+    # able to trigger an account-wide cutoff via /logout — it's 409'd toward /logout-all.
+    legacy_hdr = {"Authorization": f"Bearer {_legacy_access_token(test_user.id)}"}
+    # A pre-existing modern session for the same user, minted before the logout attempt.
+    other_access = create_access_token(data={"sub": test_user.id})
+    other_refresh = create_refresh_token(data={"sub": test_user.id})
+
+    r = client.post("/api/auth/logout", json={}, headers=legacy_hdr)
+    assert r.status_code == 409
+
+    # No account-wide cutoff happened: the pre-existing session still authenticates
+    # (if a cutoff had run, this token — minted before it — would be 401).
+    still_alive = client.post(
+        "/api/auth/logout",
+        json={"refresh_token": other_refresh},
+        headers={"Authorization": f"Bearer {other_access}"},
+    )
+    assert still_alive.status_code == 200
+    # The explicit account-wide path is still available to the legacy bearer.
+    assert client.post("/api/auth/logout-all", json={}, headers=legacy_hdr).status_code == 200
+
+
+def test_logout_rejects_foreign_refresh_token(db_session, client):
+    # /logout must not revoke a refresh token that belongs to a different user.
+    a = _mk_user(db_session, uid="user-fa1", email="fa1@example.com")
+    b = _mk_user(db_session, uid="user-fb1", email="fb1@example.com")
+    r = client.post(
+        "/api/auth/logout",
+        json={"refresh_token": create_refresh_token(data={"sub": b.id})},
+        headers={"Authorization": f"Bearer {create_access_token(data={'sub': a.id})}"},
+    )
+    assert r.status_code == 400
 
 
 def test_logout_all_revokes_prior_sessions(db_session, client, test_user):
