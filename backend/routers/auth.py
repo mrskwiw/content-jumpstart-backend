@@ -381,12 +381,16 @@ async def refresh_token(
     return RefreshTokenResponse(access_token=access_token, refresh_token=new_refresh_token)
 
 
-def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) -> bool:
+def _revoke_token_string(
+    db: Session, token: str, *, user_id: str, reason: str, commit: bool = True
+) -> bool:
     """Blacklist a single token by its jti; return whether a jti was actually revoked.
 
     Returns False when the token won't decode or carries no jti (a legacy token minted
     before GAP-AUTH-03). The caller uses that signal to fail closed — a token we can't
     target precisely must be killed by a session-wide cutoff instead, never left alive.
+    ``commit`` is threaded through so the caller can batch several revokes into one
+    atomic transaction.
     """
     from datetime import datetime, timezone
 
@@ -407,6 +411,7 @@ def _revoke_token_string(db: Session, token: str, *, user_id: str, reason: str) 
         token_type=payload.get("type"),
         expires_at=expires_at,
         reason=reason,
+        commit=commit,
     )
     return True
 
@@ -420,32 +425,47 @@ async def logout(
     current_user: User = Depends(get_current_user),
     credentials=Depends(security),
 ):
-    """Server-side logout (GAP-AUTH-03) — the session must not survive the call.
+    """Server-side single-device logout (GAP-AUTH-03) — the session must not survive.
 
-    A precise single-device logout revokes BOTH credentials by jti: the current access
-    token and the refresh token the client supplies. If either can't be targeted by
-    jti — a legacy token minted before this feature, or a caller that omitted the
-    refresh token — we cannot guarantee the long-lived refresh credential is dead, so
-    we **fail closed** with a session-wide cutoff (revokes all the user's sessions)
-    rather than leave a usable token behind. Clients that want single-device logout
-    must send ``refresh_token``.
+    ``refresh_token`` is **required**: precise single-device logout revokes BOTH the
+    current access token and the refresh token by jti, so the caller's device is fully
+    ended while other devices keep working. Omitting it returns 400 (use ``/logout-all``
+    to intentionally end every session) — so a client bug can never silently wipe all
+    of a user's sessions. Only a legacy token without a jti (minted before this feature)
+    falls back to a session-wide cutoff, since it cannot be targeted precisely.
+
+    All revocation writes commit in a single transaction: either the whole logout takes
+    effect or none of it does, so a mid-flight failure can't leave a half-revoked
+    (access dead, refresh alive) session.
     """
-    access_revoked = _revoke_token_string(
-        db, credentials.credentials, user_id=current_user.id, reason="logout"
-    )
-    refresh_revoked = False
-    if body and body.refresh_token:
-        refresh_revoked = _revoke_token_string(
-            db, body.refresh_token, user_id=current_user.id, reason="logout"
+    if not (body and body.refresh_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="refresh_token is required for logout; use /logout-all to end all sessions",
         )
-
-    if not (access_revoked and refresh_revoked):
-        # Couldn't precisely kill both credentials → revoke the whole session set so
-        # nothing (incl. a legacy/unsupplied refresh token) outlives logout.
-        revoke_user_sessions(db, current_user.id, reason="logout_failclosed")
-        logger.info(f"User logged out (session-wide fail-closed) id={current_user.id}")
-    else:
-        logger.info(f"User logged out (single device) id={current_user.id}")
+    try:
+        access_revoked = _revoke_token_string(
+            db, credentials.credentials, user_id=current_user.id, reason="logout", commit=False
+        )
+        refresh_revoked = _revoke_token_string(
+            db, body.refresh_token, user_id=current_user.id, reason="logout", commit=False
+        )
+        if not (access_revoked and refresh_revoked):
+            # A legacy token without a jti can't be targeted → fail closed with a
+            # session-wide cutoff so nothing (incl. the refresh token) outlives logout.
+            revoke_user_sessions(db, current_user.id, reason="logout_failclosed", commit=False)
+            wide = True
+        else:
+            wide = False
+        db.commit()  # atomic: all revokes land together or not at all
+    except Exception:
+        db.rollback()
+        raise
+    logger.info(
+        "User logged out (%s) id=%s",
+        "session-wide fail-closed" if wide else "single device",
+        current_user.id,
+    )
     return {"status": "success", "message": "Logged out"}
 
 

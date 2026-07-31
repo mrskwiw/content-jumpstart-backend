@@ -275,7 +275,7 @@
           "Authentication"
         ],
         "summary": "Logout",
-        "description": "Server-side logout (GAP-AUTH-03) \u2014 the session must not survive the call.\n\nA precise single-device logout revokes BOTH credentials by jti: the current access\ntoken and the refresh token the client supplies. If either can't be targeted by\njti \u2014 a legacy token minted before this feature, or a caller that omitted the\nrefresh token \u2014 we cannot guarantee the long-lived refresh credential is dead, so\nwe **fail closed** with a session-wide cutoff (revokes all the user's sessions)\nrather than leave a usable token behind. Clients that want single-device logout\nmust send ``refresh_token``.",
+        "description": "Server-side single-device logout (GAP-AUTH-03) \u2014 the session must not survive.\n\n``refresh_token`` is **required**: precise single-device logout revokes BOTH the\ncurrent access token and the refresh token by jti, so the caller's device is fully\nended while other devices keep working. Omitting it returns 400 (use ``/logout-all``\nto intentionally end every session) \u2014 so a client bug can never silently wipe all\nof a user's sessions. Only a legacy token without a jti (minted before this feature)\nfalls back to a session-wide cutoff, since it cannot be targeted precisely.\n\nAll revocation writes commit in a single transaction: either the whole logout takes\neffect or none of it does, so a mid-flight failure can't leave a half-revoked\n(access dead, refresh alive) session.",
         "operationId": "logout_api_auth_logout_post",
         "requestBody": {
           "content": {
