@@ -21,7 +21,7 @@ class Tenant(Base):
     Attributes:
         tenant_id: Unique tenant identifier
         tenant_name: Agency/organization name
-        subdomain: Subdomain for portal access (agency.yourplatform.com)
+        subdomain: Subdomain for portal access (agency.content-jumpstart.com)
         custom_domain: Optional custom domain (agency.com)
         logo_url: URL to agency logo
         primary_color: Brand primary color (hex)
