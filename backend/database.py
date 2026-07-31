@@ -553,7 +553,10 @@ def init_db():
                 ("custom_credit_rate", "REAL"),
                 ("enterprise_notes", "TEXT"),
                 # GAP-AUTH-02: email verification (existing DBs get these on boot).
-                ("email_verified", "BOOLEAN DEFAULT FALSE"),
+                # DEFAULT TRUE grandfathers pre-existing accounts as verified so that
+                # enabling REQUIRE_EMAIL_VERIFICATION can never lock out incumbents; the
+                # ORM model default is False, so NEW signups still start unverified.
+                ("email_verified", "BOOLEAN DEFAULT TRUE"),
                 ("email_verified_at", "TIMESTAMP"),
             ]
 

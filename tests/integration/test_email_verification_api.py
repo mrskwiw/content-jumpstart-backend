@@ -100,3 +100,33 @@ def test_login_gate_blocks_unverified_when_enabled(db_session, client, monkeypat
     _mk_user(db_session, uid="user-ev8", email="ev8@example.com", verified=True)
     ok = client.post("/api/auth/login", json={"email": "ev8@example.com", "password": _PW})
     assert ok.status_code == 200, ok.text
+
+
+def test_gate_enforced_on_every_authenticated_request(db_session, client, monkeypatch):
+    # The gate lives in the shared auth dependency, so an already-issued token (e.g.
+    # from /register) can't bypass verification — every authenticated request is gated.
+    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+    unverified = _mk_user(db_session, uid="user-ev9", email="ev9@example.com", verified=False)
+    token = create_access_token(data={"sub": unverified.id})
+    r = client.post("/api/auth/logout-all", json={}, headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 403  # blocked by get_current_user, not just /login
+    # A verified user's token still works.
+    verified = _mk_user(db_session, uid="user-ev10", email="ev10@example.com", verified=True)
+    vtoken = create_access_token(data={"sub": verified.id})
+    ok = client.post("/api/auth/logout-all", json={}, headers={"Authorization": f"Bearer {vtoken}"})
+    assert ok.status_code == 200
+
+
+def test_grandfather_backfill_on_alter():
+    # The migration ALTER for existing DBs uses DEFAULT TRUE, so accounts that predate
+    # email verification are grandfathered as verified and can't be locked out when the
+    # gate is enabled. (New ORM inserts still default False via the model.)
+    from sqlalchemy import create_engine, text
+
+    eng = create_engine("sqlite://")
+    with eng.begin() as c:
+        c.execute(text("CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT)"))
+        c.execute(text("INSERT INTO users (id, email) VALUES ('old', 'old@example.com')"))
+        c.execute(text("ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT TRUE"))
+        val = c.execute(text("SELECT email_verified FROM users WHERE id = 'old'")).scalar()
+    assert val in (1, True)  # pre-existing row grandfathered to verified

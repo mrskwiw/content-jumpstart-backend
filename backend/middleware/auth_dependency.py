@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from backend.services import crud
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.database import get_db
 from backend.models import User
 from backend.services.session_revocation_service import is_token_revoked
@@ -140,6 +141,16 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session revoked. Please sign in again.",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # GAP-AUTH-02: when email verification is enforced, gate EVERY authenticated
+    # request (not just /login) so a registration-issued token can't bypass it.
+    # The verify/resend endpoints are unauthenticated, so they stay reachable.
+    if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+        logger.warning(f"AUTH: Unverified email blocked for {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address to continue.",
         )
 
     logger.debug(f"AUTH: Successfully authenticated user: {user.email}")
