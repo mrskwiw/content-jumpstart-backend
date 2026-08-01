@@ -220,7 +220,16 @@ def transfer_ownership_endpoint(
     return {"status": "success", "message": "Ownership transferred"}
 
 
-@router.delete("", status_code=status.HTTP_200_OK)
+@router.delete(
+    "",
+    status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "description": "Sustained concurrent activity prevented a clean teardown; "
+            "retry (the underlying error is logged server-side — Decision #214)."
+        }
+    },
+)
 def delete_team_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

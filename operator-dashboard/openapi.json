@@ -1135,6 +1135,9 @@
                 "schema": {}
               }
             }
+          },
+          "409": {
+            "description": "Sustained concurrent activity prevented a clean teardown; retry (the underlying error is logged server-side \u2014 Decision #214)."
           }
         },
         "security": [

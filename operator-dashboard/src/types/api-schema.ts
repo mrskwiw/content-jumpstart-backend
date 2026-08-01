@@ -9126,6 +9126,13 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
+            /** @description Sustained concurrent activity prevented a clean teardown; retry (the underlying error is logged server-side — Decision #214). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     add_member_api_teams_members_post: {
