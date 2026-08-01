@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import type { User, LoginRequest } from '@/types/api';
 import { authApi } from '@/api/auth';
+import { queryClient } from '@/providers/queryClient';
 
 interface AuthContextType {
   user: User | null;
@@ -93,6 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('refresh_token', response.refresh_token);
       localStorage.setItem('user', JSON.stringify(response.user));
 
+      // Drop any cached query data from a prior session before the new user's
+      // components mount, so no other operator's clients/projects/balance can be
+      // read from the session-lived singleton QueryClient (cross-user cache boundary).
+      queryClient.clear();
       setUser(response.user);
     } catch (error) {
       console.error('Login failed:', error);
@@ -105,6 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout();
     } finally {
       setUser(null);
+      // Clear all cached per-user query data so the next operator to log in on this
+      // same tab cannot read the previous user's clients/projects/balance/etc. from
+      // the session-lived singleton QueryClient.
+      queryClient.clear();
     }
   };
 

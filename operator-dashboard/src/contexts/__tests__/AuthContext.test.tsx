@@ -5,6 +5,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { authApi } from '@/api/auth';
+import { queryClient } from '@/providers/queryClient';
 import type { LoginRequest, User, LoginResponse } from '@/types/api';
 
 jest.mock('@/api/auth');
@@ -127,6 +128,21 @@ describe('AuthContext', () => {
       expect(localStorage.getItem('user')).toBe(JSON.stringify(mockUser));
     });
 
+    it('should clear stale query cache on login (fresh start for the new user)', async () => {
+      mockedAuthApi.login.mockResolvedValue(mockLoginResponse);
+      // A leftover cache entry from a previous session on the same tab.
+      queryClient.setQueryData(['projects'], { items: [{ id: 'p-prev' }] });
+
+      const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.login({ email: 'test@example.com', password: 'password123' });
+      });
+
+      expect(queryClient.getQueryData(['projects'])).toBeUndefined();
+    });
+
     it('should throw error if login response is missing access_token', async () => {
       mockedAuthApi.login.mockResolvedValue({
         ...mockLoginResponse,
@@ -191,6 +207,23 @@ describe('AuthContext', () => {
       expect(mockedAuthApi.logout).toHaveBeenCalled();
       expect(result.current.user).toBeNull();
       expect(result.current.isAuthenticated).toBe(false);
+    });
+
+    it('should clear the query cache on logout (no cross-user data leak)', async () => {
+      mockedAuthApi.logout.mockResolvedValue(undefined);
+      localStorage.setItem('user', JSON.stringify(mockUser));
+      localStorage.setItem('access_token', 'token');
+      // Seed the singleton cache as if the prior operator had loaded data.
+      queryClient.setQueryData(['clients'], [{ id: 'c-prev' }]);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+      await waitFor(() => expect(result.current.user).toEqual(mockUser));
+
+      await act(async () => {
+        await result.current.logout();
+      });
+
+      expect(queryClient.getQueryData(['clients'])).toBeUndefined();
     });
 
     it('should clear user even if logout API call fails', async () => {

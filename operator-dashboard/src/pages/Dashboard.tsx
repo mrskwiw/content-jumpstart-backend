@@ -46,19 +46,15 @@ export default function Dashboard() {
     navigate(ROUTES.LOGIN);
   };
 
-  // Scope cache keys to the authenticated user. The QueryClient is a session-lived
-  // singleton and logout does not clear it, so unscoped keys could surface the previous
-  // operator's clients/projects/balance to the next one after a logout→login in the same
-  // tab. Per-user keys make that impossible (user B reads under a different key).
-  const uid = user?.id ?? 'anon';
-  const clients = useQuery({ queryKey: ['clients', uid], queryFn: () => clientsApi.list() });
-  const projects = useQuery({ queryKey: ['projects', uid], queryFn: () => projectsApi.list() });
-  const credits = useQuery({
-    queryKey: ['credits', 'balance', uid],
-    queryFn: () => creditsApi.getBalance(),
-  });
+  // Shared cache keys (consistent with the rest of the app, so Dashboard dedupes with
+  // e.g. ContentReview). Cross-user isolation is handled centrally: AuthContext clears
+  // the singleton QueryClient on login/logout, so no prior operator's data survives an
+  // auth transition on the same tab.
+  const clients = useQuery({ queryKey: ['clients'], queryFn: () => clientsApi.list() });
+  const projects = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() });
+  const credits = useQuery({ queryKey: ['credits', 'balance'], queryFn: () => creditsApi.getBalance() });
   const costs = useQuery({
-    queryKey: ['costs', 'summary', 30, uid],
+    queryKey: ['costs', 'summary', 30],
     queryFn: () => costsApi.getUserCostSummary(30),
   });
 
