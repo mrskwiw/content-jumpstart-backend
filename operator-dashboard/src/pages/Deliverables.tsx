@@ -21,6 +21,7 @@ import { format } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatFileSize } from '@/utils/formatters';
+import { downloadHint } from '@/utils/deliverableDownload';
 import { Button, Badge, Card, CardContent } from '@/components/ui';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
@@ -135,7 +136,10 @@ export default function Deliverables() {
   const handleDownload = async (deliverable: Deliverable) => {
     try {
       setDownloadingId(deliverable.id);
-      const { blob, filename } = await deliverablesApi.download(deliverable.id, deliverable.format);
+      const { blob, filename } = await deliverablesApi.download(
+        deliverable.id,
+        downloadHint(deliverable.format, deliverable.path)
+      );
 
       // Create download link and trigger download
       const url = window.URL.createObjectURL(blob);
