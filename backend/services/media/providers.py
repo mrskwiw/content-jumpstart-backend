@@ -790,8 +790,86 @@ class ElevenLabsDubProvider(BaseMediaProvider):
 
 # Real providers are wired here as they're built. A name absent from this map
 # (outside dry-run) falls through to NotImplementedProvider (fail-closed).
+class FluxProvider(BaseMediaProvider):
+    """Black Forest Labs FLUX image generation (IMAGE-GEN). Async: submit a text→image
+    request, poll for the finished image URL (which the orchestrator re-hosts to
+    storage). Requires `BFL_API_KEY`; fail-closed otherwise."""
+
+    name = "flux"
+    BASE = "https://api.bfl.ml/v1"
+
+    def start(self, spec: dict) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("BFL_API_KEY")
+            prompt = spec.get("prompt") or spec.get("script") or ""
+            if not prompt:
+                return MediaResult(ok=False, error="Flux requires a 'prompt' in the spec")
+            model = spec.get("model", "flux-pro-1.1")
+            resp = requests.post(
+                f"{self.BASE}/{model}",
+                headers={"x-key": api_key, "Content-Type": "application/json"},
+                json={
+                    "prompt": prompt,
+                    "width": int(spec.get("width", 1024)),
+                    "height": int(spec.get("height", 1024)),
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(ok=False, error=f"Flux {resp.status_code}: {resp.text[:300]}")
+            job_id = (resp.json() or {}).get("id", "")
+            if not job_id:
+                return MediaResult(ok=False, error="Flux returned no job id")
+            return MediaResult(ok=True, external_id=job_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Flux submit failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+    def poll(self, external_id: str) -> MediaResult:
+        import requests
+
+        try:
+            api_key = _require_env("BFL_API_KEY")
+            resp = requests.get(
+                f"{self.BASE}/get_result",
+                headers={"x-key": api_key},
+                params={"id": external_id},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code >= 400:
+                return MediaResult(
+                    ok=False, error=f"Flux status {resp.status_code}: {resp.text[:200]}"
+                )
+            data = resp.json() or {}
+            status = str(data.get("status") or "")
+            if status == "Ready":
+                url = (data.get("result") or {}).get("sample")
+                if not url:
+                    return MediaResult(
+                        ok=False, external_id=external_id, error="Flux ready with no image url"
+                    )
+                return MediaResult(
+                    ok=True, done=True, external_id=external_id, asset_url=url, mime="image/png"
+                )
+            # Terminal failure states (content moderation, error, expired handle).
+            if status in ("Error", "Content Moderated", "Request Moderated", "Task not found"):
+                return MediaResult(ok=False, external_id=external_id, error=f"Flux {status}")
+            # Pending / Processing / anything else → still in flight.
+            return MediaResult(ok=True, external_id=external_id, done=False)
+        except _MissingCredential as e:
+            return MediaResult(ok=False, error=str(e))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Flux poll failed: %s", e)
+            return MediaResult(ok=False, error=str(e))
+
+
 _REAL_PROVIDERS: dict[str, type[BaseMediaProvider]] = {
     "elevenlabs_tts": ElevenLabsTTSProvider,
+    "flux": FluxProvider,
     "elevenlabs_isolator": ElevenLabsIsolatorProvider,
     "elevenlabs_dub": ElevenLabsDubProvider,
     "auphonic": AuphonicProvider,

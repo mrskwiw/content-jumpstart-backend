@@ -13,6 +13,7 @@ from backend.services.media.providers import (
     ElevenLabsTTSProvider,
     FfmpegProvider,
     HeyGenProvider,
+    FluxProvider,
     KlingProvider,
     MediaKind,
     NotImplementedProvider,
@@ -628,3 +629,72 @@ def test_dub_poll_missing_cred_and_network(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, get=_raise)
     assert not ElevenLabsDubProvider(MediaKind.DUB).poll("d1|es").ok  # network
+
+
+# ── Flux (IMAGE-GEN) ──────────────────────────────────────────────────────────
+
+
+def test_flux_missing_credential(monkeypatch):
+    monkeypatch.delenv("BFL_API_KEY", raising=False)
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    assert not r.ok and "BFL_API_KEY" in r.error
+
+
+def test_flux_missing_prompt(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({})
+    assert not r.ok and "prompt" in r.error.lower()
+
+
+def test_flux_start_success_returns_job_id(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(json_body={"id": "job-123"}))
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    assert r.ok and r.external_id == "job-123" and not r.done
+
+
+def test_flux_start_http_error(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(status=402, text="pay up"))
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    assert not r.ok and "402" in r.error
+
+
+def test_flux_start_no_job_id(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, post=lambda url, **kw: _Resp(json_body={}))
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    assert not r.ok and "no job id" in r.error.lower()
+
+
+def test_flux_poll_ready_returns_image(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(
+        monkeypatch,
+        get=lambda url, **kw: _Resp(
+            json_body={"status": "Ready", "result": {"sample": "https://cdn/x.png"}}
+        ),
+    )
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("job-123")
+    assert r.ok and r.done and r.asset_url == "https://cdn/x.png" and r.mime == "image/png"
+
+
+def test_flux_poll_pending_not_done(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(json_body={"status": "Pending"}))
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("job-123")
+    assert r.ok and not r.done
+
+
+def test_flux_poll_moderated_fails(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(json_body={"status": "Content Moderated"}))
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("job-123")
+    assert not r.ok and "Moderated" in r.error
+
+
+def test_flux_poll_ready_without_url_fails(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    _patch(monkeypatch, get=lambda url, **kw: _Resp(json_body={"status": "Ready", "result": {}}))
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("job-123")
+    assert not r.ok and "no image url" in r.error.lower()

@@ -53,12 +53,21 @@ def test_estimate_cost_prices_an_image_as_a_flat_unit(monkeypatch):
     assert estimate_cost(MediaKind.GEN_IMAGE, "mystery") > 0
 
 
-def test_real_image_provider_fails_closed_until_implemented(monkeypatch):
+def test_real_image_provider_fails_closed_without_credentials(monkeypatch):
     monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    monkeypatch.delenv("BFL_API_KEY", raising=False)
+    # flux is a real provider now; without its API key it fails closed (no silent stub).
     prov = get_provider(MediaKind.GEN_IMAGE, "flux")
-    assert isinstance(prov, NotImplementedProvider)
+    assert not isinstance(prov, NotImplementedProvider)
     res = prov.start({"prompt": "x"})
-    assert res.ok is False and "not implemented" in (res.error or "").lower()
+    assert res.ok is False and "BFL_API_KEY" in (res.error or "")
+
+
+def test_unknown_image_provider_still_fails_closed(monkeypatch):
+    monkeypatch.delenv("MEDIA_DRY_RUN", raising=False)
+    prov = get_provider(MediaKind.GEN_IMAGE, "some-unknown-image-provider")
+    assert isinstance(prov, NotImplementedProvider)
+    assert prov.start({"prompt": "x"}).ok is False
 
 
 def test_dry_run_routes_image_to_stub(monkeypatch):
