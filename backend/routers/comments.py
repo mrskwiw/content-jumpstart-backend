@@ -108,19 +108,20 @@ def delete_comment(
     comment = comment_service.get_comment(db, comment_id)
     if not comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
-    # The caller must at least be able to read the post (team member of its team).
-    post = _post_with_read_access(comment.post_id, db, current_user)
-    project = crud.get_project(db, post.project_id)
-    # Manager check is scoped to the POST'S team explicitly (not the caller's own team),
-    # so it's correct even if a user could ever belong to more than one team.
-    is_team_manager = team_service.is_manager(
-        db, current_user.id, project.team_id if project else None
-    )
-    is_author = comment.author_user_id == current_user.id
-    if not (is_author or current_user.is_superuser or is_team_manager):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the comment's author or a team owner/admin can delete it",
-        )
+
+    # Deletion must stay possible even when the parent post/project is SOFT-DELETED
+    # (the privacy/deletion flow soft-deletes posts while leaving comments) — so we do
+    # NOT go through the read guard (which 404s deleted parents) here. The author or a
+    # superuser can always clean up their/any comment; otherwise the caller must be a
+    # manager of the post's team (resolved leniently, tolerating a soft-deleted parent).
+    if not (comment.author_user_id == current_user.id or current_user.is_superuser):
+        post = crud.get_post(db, comment.post_id)
+        project = crud.get_project(db, post.project_id) if post else None
+        team_id = project.team_id if project else None
+        if not (team_id and team_service.is_manager(db, current_user.id, team_id)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the comment's author or a team owner/admin can delete it",
+            )
     comment_service.delete_comment(db, comment)
     return {"status": "success", "message": "Comment deleted"}

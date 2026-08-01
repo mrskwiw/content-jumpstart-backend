@@ -170,6 +170,32 @@ def test_soft_deleted_post_not_commentable(db_session):
     )
 
 
+def test_comment_deletable_after_post_soft_deleted(db_session):
+    # Cleanup must still work: the privacy flow soft-deletes posts but leaves comments;
+    # the author/manager must be able to remove them (an outsider still cannot).
+    from backend.services import comment_service
+
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cm-cl", "cmcl@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    editor = _mk_user(db_session, "cm-cle", "cmcle@example.com")
+    _add(db_session, team.id, editor, ROLE_EDITOR)
+    post = _mk_post(db_session, owner)
+    c1 = comment_service.add_comment(db_session, post.id, editor.id, "n1")
+    c2 = comment_service.add_comment(db_session, post.id, editor.id, "n2")
+    post.is_deleted = True
+    db_session.commit()
+
+    # An outsider still cannot delete a comment on the (soft-deleted) post.
+    outsider = _mk_user(db_session, "cm-clx", "cmclx@example.com")
+    team_service.ensure_personal_team(db_session, outsider)
+    assert client.delete(f"/api/comments/{c1.id}", headers=_hdr(outsider.id)).status_code == 403
+    # The author can clean up their comment even though the post is soft-deleted.
+    assert client.delete(f"/api/comments/{c1.id}", headers=_hdr(editor.id)).status_code == 200
+    # A team manager (owner) can clean up the other one.
+    assert client.delete(f"/api/comments/{c2.id}", headers=_hdr(owner.id)).status_code == 200
+
+
 def test_comment_body_validation_and_missing_post(db_session):
     client = TestClient(app)
     owner = _mk_user(db_session, "cm-vo", "cmvo@example.com")
