@@ -171,7 +171,12 @@ export const DeliverableSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   clientId: z.string(),
-  format: z.enum(['txt', 'md', 'docx']),
+  // Document exports (txt/md/docx/pdf) AND media-generation deliverables. The Phase-12
+  // media path stores a media-family format (audio/video/image); this enum must accept
+  // them or getDetails().parse() throws on any media deliverable. (Previously only the
+  // document formats were listed, so audio/video media deliverables already failed to
+  // parse — image just surfaced the pre-existing gap.)
+  format: z.enum(['txt', 'md', 'docx', 'pdf', 'audio', 'video', 'image']),
   path: z.string(),
   createdAt: z.string().datetime({ offset: true }),
   status: DeliverableStatusSchema,
