@@ -1,35 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, FileText, Users, LayoutTemplate, Download } from 'lucide-react';
-import { engagementApi, type BusinessSummary } from '@/api/engagement';
-
-/** Build a CSV of exactly what the page shows (real loaded data, no fabrication). */
-function summaryToCsv(data: BusinessSummary): string {
-  const esc = (v: string | number) => {
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const rows: string[] = [
-    'section,label,projects_or_uses,posts',
-    esc('totals') + `,All,${data.totals.projects},${data.totals.posts}`,
-    ...data.monthly.map((m) => `monthly,${esc(m.month)},${m.projects},${m.posts}`),
-    ...data.by_client.map((c) => `by_client,${esc(c.client_name)},${c.projects},${c.posts}`),
-    ...data.by_template.map((t) => `by_template,${esc(t.template_name)},${t.usage_count},`),
-  ];
-  return rows.join('\n');
-}
-
-function downloadCsv(data: BusinessSummary) {
-  const blob = new Blob([summaryToCsv(data)], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `analytics-${data.days}d.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+import { engagementApi } from '@/api/engagement';
+import { downloadSummaryCsv } from '@/utils/analyticsCsv';
 
 const RANGES: Array<{ label: string; days: number }> = [
   { label: 'Last 30 days', days: 30 },
@@ -90,7 +63,7 @@ export default function Analytics() {
           </select>
           <button
             type="button"
-            onClick={() => data && downloadCsv(data)}
+            onClick={() => data && downloadSummaryCsv(data)}
             disabled={!data}
             className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
           >
