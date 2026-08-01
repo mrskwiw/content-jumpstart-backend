@@ -203,15 +203,31 @@ def transfer_ownership(db: Session, team_id: str, current_owner_id: str, new_own
 def delete_team(db: Session, team_id: str) -> None:
     """Disband a team: revert its resources to solo (creator-owned) and drop all
     memberships + the team. Each member keeps the resources they created (via the
-    per-user legacy path); resources they didn't create are no longer shared."""
-    for model in (Client, Project):
-        for row in db.query(model).filter(model.team_id == team_id).all():
-            row.team_id = None
-    db.query(TeamMember).filter(TeamMember.team_id == team_id).delete()
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if team is not None:
+    per-user legacy path); resources they didn't create are no longer shared.
+
+    Concurrency-safe against a create/join that races the teardown: if the final team
+    delete fails on the FK because another request attached a new client/project/member
+    to the team between the sweep and the commit, we roll back and re-sweep (bounded
+    retry) so the newly-attached rows are re-homed too, rather than 500-ing. The FK
+    keeps this fail-safe — a stray row can never orphan a deleted team."""
+    from sqlalchemy.exc import IntegrityError
+
+    for _attempt in range(3):
+        for model in (Client, Project):
+            for row in db.query(model).filter(model.team_id == team_id).all():
+                row.team_id = None
+        db.query(TeamMember).filter(TeamMember.team_id == team_id).delete()
+        team = db.query(Team).filter(Team.id == team_id).first()
+        if team is None:
+            db.commit()
+            break
         db.delete(team)
-    db.commit()
+        try:
+            db.commit()
+            break
+        except IntegrityError:
+            # A concurrent create/join attached a row after our sweep — re-home + retry.
+            db.rollback()
     _invalidate_resource_caches()
 
 
