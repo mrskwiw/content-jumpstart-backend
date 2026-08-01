@@ -646,11 +646,48 @@ def test_flux_missing_prompt(monkeypatch):
     assert not r.ok and "prompt" in r.error.lower()
 
 
-def test_flux_start_success_returns_job_id(monkeypatch):
+def test_flux_start_uses_polling_url_and_requests_png(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    captured = {}
+
+    def _post(url, **kw):
+        captured["json"] = kw.get("json")
+        return _Resp(
+            json_body={
+                "id": "job-123",
+                "polling_url": "https://api.eu.bfl.ml/v1/get_result?id=job-123",
+            }
+        )
+
+    _patch(monkeypatch, post=_post)
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    # The provider-issued polling URL becomes the external handle (region-safe polling)…
+    assert r.ok and not r.done
+    assert r.external_id == "https://api.eu.bfl.ml/v1/get_result?id=job-123"
+    # …and the output format is pinned to PNG so it matches the persisted MIME.
+    assert captured["json"]["output_format"] == "png"
+
+
+def test_flux_start_falls_back_to_constructed_url_without_polling_url(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, post=lambda url, **kw: _Resp(json_body={"id": "job-123"}))
     r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
-    assert r.ok and r.external_id == "job-123" and not r.done
+    assert r.ok and r.external_id.endswith("/get_result?id=job-123")
+
+
+def test_flux_poll_hits_the_polling_url_directly(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    seen = {}
+
+    def _get(url, **kw):
+        seen["url"] = url
+        return _Resp(json_body={"status": "Ready", "result": {"sample": "https://cdn/x.png"}})
+
+    _patch(monkeypatch, get=_get)
+    handle = "https://api.eu.bfl.ml/v1/get_result?id=job-123"
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll(handle)
+    assert r.ok and r.done and r.asset_url == "https://cdn/x.png"
+    assert seen["url"] == handle  # polled the exact provider-issued URL, not a rebuilt one
 
 
 def test_flux_start_http_error(monkeypatch):

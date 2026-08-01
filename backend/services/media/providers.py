@@ -814,15 +814,23 @@ class FluxProvider(BaseMediaProvider):
                     "prompt": prompt,
                     "width": int(spec.get("width", 1024)),
                     "height": int(spec.get("height", 1024)),
+                    # Pin the output format so it matches the MIME we persist (BFL defaults
+                    # to JPEG); the stub + our storage extension assume PNG.
+                    "output_format": "png",
                 },
                 timeout=_HTTP_TIMEOUT,
             )
             if resp.status_code >= 400:
                 return MediaResult(ok=False, error=f"Flux {resp.status_code}: {resp.text[:300]}")
-            job_id = (resp.json() or {}).get("id", "")
+            body = resp.json() or {}
+            job_id = body.get("id", "")
             if not job_id:
                 return MediaResult(ok=False, error="Flux returned no job id")
-            return MediaResult(ok=True, external_id=job_id, done=False)
+            # BFL returns a per-job polling_url (may be a region-specific host) and expects
+            # clients to poll THAT, not a hardcoded base. Store it as the external handle;
+            # fall back to constructing the global URL when it's absent.
+            polling_url = body.get("polling_url") or f"{self.BASE}/get_result?id={job_id}"
+            return MediaResult(ok=True, external_id=polling_url, done=False)
         except _MissingCredential as e:
             return MediaResult(ok=False, error=str(e))
         except Exception as e:  # noqa: BLE001
@@ -834,12 +842,15 @@ class FluxProvider(BaseMediaProvider):
 
         try:
             api_key = _require_env("BFL_API_KEY")
-            resp = requests.get(
-                f"{self.BASE}/get_result",
-                headers={"x-key": api_key},
-                params={"id": external_id},
-                timeout=_HTTP_TIMEOUT,
+            # external_id is the polling handle from start(): the BFL polling_url (or the
+            # global get_result URL we constructed). Hit it directly so region-routed jobs
+            # poll the correct host; tolerate a bare id for older/edge handles.
+            url = (
+                external_id
+                if external_id.startswith(("http://", "https://"))
+                else f"{self.BASE}/get_result?id={external_id}"
             )
+            resp = requests.get(url, headers={"x-key": api_key}, timeout=_HTTP_TIMEOUT)
             if resp.status_code >= 400:
                 return MediaResult(
                     ok=False, error=f"Flux status {resp.status_code}: {resp.text[:200]}"
