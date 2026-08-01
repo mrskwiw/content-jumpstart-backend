@@ -106,9 +106,15 @@ def ensure_personal_team(db: Session, user: User, *, commit: bool = True) -> Tea
 
 
 def add_member(db: Session, team_id: str, target_user: User, role: str) -> TeamMember:
-    """Add an existing user to a team with a role, migrating their existing team-less
-    resources into the team (so the team sees all their work — no permanent solo split).
-    Raises if role invalid or the user already belongs to a team."""
+    """Add an existing user to a team with a role.
+
+    Policy (BUGS.md Decision #213): an invitee's PRE-EXISTING solo resources are NOT
+    auto-migrated into the team — that would be a non-consented ownership transfer of
+    another user's private work by a manager. Their old solo clients/projects stay
+    private (``team_id NULL`` → per-user path); only resources they create AFTER joining
+    are team-owned. Moving prior work into the team is a future explicit, consented step.
+    Raises if role invalid or the user already belongs to a team.
+    """
     if role not in TEAM_ROLES or role == ROLE_OWNER:
         # owner is assigned only at team creation / transfer, never via add.
         raise TeamError(f"invalid role: {role!r}")
@@ -116,9 +122,7 @@ def add_member(db: Session, team_id: str, target_user: User, role: str) -> TeamM
         raise TeamError("user already belongs to a team")
     member = TeamMember(team_id=team_id, user_id=target_user.id, role=role)
     db.add(member)
-    _stamp_user_resources(db, target_user.id, team_id)  # migrate their solo resources
     db.commit()
-    _invalidate_resource_caches()
     return member
 
 
