@@ -500,13 +500,15 @@ describe('Settings Page', () => {
       const securityTab = screen.getByRole('button', { name: /security/i });
       await user.click(securityTab);
 
+      // The export control was redesigned to be role-aware; a non-superuser (the default
+      // test auth state) sees the admin-export note. Assert that exact control text rather
+      // than the stale "Export My Data" label or a too-generic /export/i match.
       await waitFor(() => {
         expect(screen.getByText(/data & privacy/i)).toBeInTheDocument();
-        // The privacy section's export control was redesigned per role: a superuser sees
-        // "Export All Data (full instance)"; others see an admin-export note — both contain
-        // "export". (Prior assertion `/export my data/i` was stale, hence the red.)
-        expect(screen.getByText(/export/i)).toBeInTheDocument();
-        expect(screen.getByText(/delete my account/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/full-instance data export is available to administrators/i)
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
       });
     });
   });
