@@ -17,21 +17,44 @@ def get_approval(db: Session, post_id: str) -> Optional[PostApproval]:
     return db.query(PostApproval).filter(PostApproval.post_id == post_id).first()
 
 
+def _reset_to_pending(approval: PostApproval, submitter_user_id: str) -> None:
+    approval.status = APPROVAL_PENDING
+    approval.submitted_by_user_id = submitter_user_id
+    approval.decided_by_user_id = None
+    approval.decided_at = None
+    approval.note = None
+
+
 def submit_for_approval(db: Session, post_id: str, submitter_user_id: str) -> PostApproval:
-    """Submit a post for review (create or reset its approval record to pending)."""
+    """Submit a post for review (create or reset its approval record to pending).
+
+    Conflict-safe: ``post_id`` is unique, so two near-simultaneous submits could both see
+    no row and both insert. The loser's ``IntegrityError`` is caught — we re-fetch the
+    row the winner created and reset it to pending, so a duplicate submit returns a
+    stable result instead of a 500.
+    """
+    from sqlalchemy.exc import IntegrityError
+
     approval = get_approval(db, post_id)
-    if approval is None:
-        approval = PostApproval(
-            post_id=post_id, submitted_by_user_id=submitter_user_id, status=APPROVAL_PENDING
-        )
-        db.add(approval)
-    else:
-        approval.status = APPROVAL_PENDING
-        approval.submitted_by_user_id = submitter_user_id
-        approval.decided_by_user_id = None
-        approval.decided_at = None
-        approval.note = None
-    db.commit()
+    if approval is not None:
+        _reset_to_pending(approval, submitter_user_id)
+        db.commit()
+        db.refresh(approval)
+        return approval
+
+    approval = PostApproval(
+        post_id=post_id, submitted_by_user_id=submitter_user_id, status=APPROVAL_PENDING
+    )
+    db.add(approval)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        approval = get_approval(db, post_id)
+        if approval is None:  # truly gone (not the expected race) — surface it
+            raise
+        _reset_to_pending(approval, submitter_user_id)
+        db.commit()
     db.refresh(approval)
     return approval
 

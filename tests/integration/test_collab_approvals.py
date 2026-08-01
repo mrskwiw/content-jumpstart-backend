@@ -143,6 +143,64 @@ def test_reject_with_note_and_resubmit(db_session):
     assert r.json()["status"] == "pending" and r.json()["decided_by_user_id"] is None
 
 
+def test_legacy_teamless_post_creator_can_submit_and_approve(db_session):
+    # A legacy team-less post (team_id NULL): its creator can both submit AND approve
+    # (mirrors the authorization layer's creator fallback — otherwise legacy content
+    # strands, submittable but never approvable).
+    client = TestClient(app)
+    creator = _mk_user(db_session, "ap-lc", "aplc@example.com")  # no team
+    post = _mk_post(db_session, creator)
+    assert crud.get_project(db_session, post.project_id).team_id is None
+
+    assert (
+        client.post(f"/api/posts/{post.id}/approval/submit", headers=_hdr(creator.id)).status_code
+        == 200
+    )
+    r = client.post(f"/api/posts/{post.id}/approval/approve", json={}, headers=_hdr(creator.id))
+    assert r.status_code == 200 and r.json()["status"] == "approved"
+    # An unrelated user has no access to the legacy post.
+    other = _mk_user(db_session, "ap-lo", "aplo@example.com")
+    assert (
+        client.post(f"/api/posts/{post.id}/approval/submit", headers=_hdr(other.id)).status_code
+        == 403
+    )
+
+
+def test_submit_recovers_from_insert_conflict(db_session, monkeypatch):
+    # Two near-simultaneous submits: the loser's unique-constraint IntegrityError is
+    # caught and it re-homes onto the winner's row (pending), not a 500.
+    from sqlalchemy.exc import IntegrityError
+
+    from backend.models import PostApproval
+    from backend.services import approval_service
+
+    owner = _mk_user(db_session, "ap-rc", "aprc@example.com")
+    team_service.ensure_personal_team(db_session, owner)
+    post = _mk_post(db_session, owner)
+
+    orig_commit = db_session.commit
+    state = {"first": True}
+
+    def fake_commit():
+        if state["first"]:
+            state["first"] = False
+            # Simulate a concurrent submit that already created the row, then conflict.
+            db_session.rollback()
+            db_session.add(
+                PostApproval(post_id=post.id, submitted_by_user_id="other", status="approved")
+            )
+            orig_commit()
+            raise IntegrityError("insert", {}, Exception("UNIQUE post_id"))
+        return orig_commit()
+
+    monkeypatch.setattr(db_session, "commit", fake_commit)
+    result = approval_service.submit_for_approval(db_session, post.id, owner.id)
+    monkeypatch.undo()
+
+    assert result.status == "pending" and result.submitted_by_user_id == owner.id
+    assert db_session.query(PostApproval).filter_by(post_id=post.id).count() == 1
+
+
 def test_approval_cascades_with_post_delete(db_session):
     from backend.models import PostApproval
 

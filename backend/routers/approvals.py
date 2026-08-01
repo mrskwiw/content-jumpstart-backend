@@ -59,12 +59,21 @@ def _require_post_access(post_id: str, db: Session, user: User, *, is_write: boo
 
 def _require_post_manager(post_id: str, db: Session, user: User) -> Post:
     post, project = _post_and_project(post_id, db)
-    if not (user.is_superuser or team_service.is_manager(db, user.id, project.team_id)):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only a team owner or admin can approve or reject",
-        )
-    return post
+    if user.is_superuser:
+        return post
+    # Legacy team-less project (team_id IS NULL): mirror the authorization layer's
+    # creator fallback — the creator is effectively the manager of their own solo
+    # content, so they can approve/reject it (otherwise legacy posts strand: submittable
+    # via the creator check but never approvable).
+    if project.team_id is None:
+        if project.user_id == user.id:
+            return post
+    elif team_service.is_manager(db, user.id, project.team_id):
+        return post
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only a team owner or admin can approve or reject",
+    )
 
 
 @router.get("/posts/{post_id}/approval", response_model=Optional[ApprovalResponse])
