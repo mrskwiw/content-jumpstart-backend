@@ -44,11 +44,32 @@ interface CalendarEvent {
   status?: string;
 }
 
-// Queue rows in a terminal/inactive state are NOT upcoming schedule entries — a
-// posted/failed/canceled job must not masquerade as an actionable future post. We
-// exclude by known-terminal states (rather than include-only-known-active) so any
-// new pending-like status still surfaces on the schedule.
-const TERMINAL_POST_STATUSES = new Set(['posted', 'failed', 'canceled', 'cancelled']);
+// Only *truly terminal* states are dropped: a posted or canceled job is done and must
+// not masquerade as an actionable future post. `failed` is deliberately NOT terminal —
+// the distribution orchestrator re-queues failed posts (up to 24h / 3 attempts), so a
+// failed row is still actionable and stays on the calendar, flagged distinctly (see
+// statusBadge) rather than silently vanishing. Excluding by known-terminal state (not
+// include-only-known-active) means any new pending-like status still surfaces.
+const TERMINAL_POST_STATUSES = new Set(['posted', 'canceled', 'cancelled']);
+
+// A short, distinct label for a non-routine post status so failed/in-flight rows don't
+// look like ordinary healthy upcoming posts. `pending` is the normal case → no badge.
+function statusBadge(status?: string): { label: string; cls: string } | null {
+  switch ((status ?? '').toLowerCase()) {
+    case 'failed':
+      return {
+        label: 'Failed — retrying',
+        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+      };
+    case 'posting':
+      return {
+        label: 'Posting',
+        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+      };
+    default:
+      return null;
+  }
+}
 
 /** Map a scheduled distribution post onto a calendar 'post' event. The queue schema
  *  exposes no client/project names, so those are left unset (optional). */
@@ -418,7 +439,17 @@ export default function Calendar() {
                               }`} />
                             </div>
                             <div>
-                              <h4 className="font-medium text-neutral-900 dark:text-neutral-100">{event.title}</h4>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium text-neutral-900 dark:text-neutral-100">{event.title}</h4>
+                                {(() => {
+                                  const b = statusBadge(event.status);
+                                  return b ? (
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>
+                                      {b.label}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
                               {event.client && (
                                 <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
                                   Client: {event.client} • Project: {event.project}

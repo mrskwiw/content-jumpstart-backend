@@ -41,7 +41,7 @@ describe('Calendar Page', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('renders active scheduled posts but hides terminal (posted/failed) queue rows', async () => {
+  it('shows pending + retryable-failed posts (flagged) but hides terminal posted rows', async () => {
     mockedQueue.mockResolvedValue([
       {
         id: 'sp1',
@@ -65,16 +65,30 @@ describe('Calendar Page', () => {
         error_message: null,
         retry_count: 0,
       },
+      {
+        id: 'sp3',
+        platform: 'facebook',
+        content: 'Post that hit an outage',
+        status: 'failed',
+        scheduled_for: '2026-02-12T12:00:00Z',
+        posted_at: null,
+        platform_url: null,
+        error_message: 'rate limited',
+        retry_count: 1,
+      },
     ]);
 
     renderWithProviders(<Calendar />);
 
-    // List view shows every (active) event regardless of the visible month.
+    // List view shows every (non-terminal) event regardless of the visible month.
     fireEvent.click(screen.getByText('List View'));
 
     // The pending post appears…
     await waitFor(() => expect(screen.getByText('Linkedin post')).toBeInTheDocument());
     expect(screen.getByText(/launch announcement/i)).toBeInTheDocument();
+    // …the failed post stays visible (still retrying) and is flagged distinctly…
+    expect(screen.getByText('Facebook post')).toBeInTheDocument();
+    expect(screen.getByText(/failed — retrying/i)).toBeInTheDocument();
     // …but the already-posted row is NOT shown as an upcoming schedule entry.
     expect(screen.queryByText('Twitter post')).not.toBeInTheDocument();
     expect(screen.queryByText(/already published/i)).not.toBeInTheDocument();
