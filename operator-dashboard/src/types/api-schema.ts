@@ -2440,6 +2440,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics/business-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Business Summary
+         * @description Real project/post/client/template activity for the internal-ops Analytics page
+         *     (GAP-UI-01). Scoped to the user's own resources; revenue/quality are intentionally
+         *     absent (not tracked). ``days`` is clamped to [1, 366].
+         */
+        get: operations["business_summary_api_analytics_business_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/overview": {
         parameters: {
             query?: never;
@@ -12025,6 +12047,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    business_summary_api_analytics_business_summary_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

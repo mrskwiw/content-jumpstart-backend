@@ -5910,6 +5910,54 @@
         ]
       }
     },
+    "/api/analytics/business-summary": {
+      "get": {
+        "tags": [
+          "Analytics & Engagement",
+          "Analytics & Engagement"
+        ],
+        "summary": "Business Summary",
+        "description": "Real project/post/client/template activity for the internal-ops Analytics page\n(GAP-UI-01). Scoped to the user's own resources; revenue/quality are intentionally\nabsent (not tracked). ``days`` is clamped to [1, 366].",
+        "operationId": "business_summary_api_analytics_business_summary_get",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 90,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/analytics/overview": {
       "get": {
         "tags": [

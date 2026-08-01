@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.middleware.auth_dependency import get_current_user
-from backend.services.analytics import collectors, engine, report
+from backend.services.analytics import business, collectors, engine, report
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics & Engagement"])
 
@@ -24,6 +24,18 @@ def collect(
 ):
     """Collect the latest engagement metrics for the user's published posts."""
     return collectors.collect_for_user(db, current_user.id)
+
+
+@router.get("/business-summary")
+def business_summary(
+    days: int = 90,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Real project/post/client/template activity for the internal-ops Analytics page
+    (GAP-UI-01). Scoped to the user's own resources; revenue/quality are intentionally
+    absent (not tracked). ``days`` is clamped to [1, 366]."""
+    return business.business_summary(db, current_user.id, days=days)
 
 
 @router.get("/overview")
