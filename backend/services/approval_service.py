@@ -29,14 +29,14 @@ def _reset_to_pending(approval: PostApproval, submitter_user_id: str) -> None:
 
 
 def _apply_submit(db: Session, approval: PostApproval, submitter_user_id: str) -> PostApproval:
-    """Reset an existing (row-locked) approval to pending — UNLESS it's already approved,
-    in which case submit is a no-op (never silently un-approve a decided post; a racing
-    or duplicate submit can't clobber an approval). Rejected/pending → back to pending,
-    so the reject→fix→resubmit flow works."""
-    if approval.status != APPROVAL_APPROVED:
-        _reset_to_pending(approval, submitter_user_id)
-        db.commit()
-        db.refresh(approval)
+    """Reset an existing (row-locked) approval to pending. Resubmitting ALWAYS reopens
+    review — from rejected (reject→fix→resubmit) AND from approved (Decision #215): an
+    approved post whose content was edited must go back through the gate, so approval
+    can't outlive a content change. The row lock makes this atomic vs a concurrent
+    decide, so this is the intended resubmit, not a lost update."""
+    _reset_to_pending(approval, submitter_user_id)
+    db.commit()
+    db.refresh(approval)
     return approval
 
 
