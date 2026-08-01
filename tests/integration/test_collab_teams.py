@@ -236,6 +236,33 @@ def test_create_team_endpoint_and_solo_me(db_session):
     )
 
 
+def test_invite_migrates_invitees_solo_resources(db_session):
+    # An invitee's pre-existing solo resources must join the team (no permanent split).
+    owner = _mk_user(db_session, "cb-mo", "cbmo@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    invitee = _mk_user(db_session, "cb-mi", "cbmi@example.com")
+    solo_client = _mk_client(db_session, invitee)  # created while solo → team_id NULL
+    assert solo_client.team_id is None
+
+    team_service.add_member(db_session, team.id, invitee, ROLE_EDITOR)
+    db_session.refresh(solo_client)
+    assert solo_client.team_id == team.id  # migrated into the team on join
+    # The owner (teammate) can now see it.
+    assert solo_client.id in {c.id for c in filter_user_clients(db_session, owner).all()}
+
+
+def test_create_team_invalidates_resource_caches(db_session, monkeypatch):
+    # create_team stamps team_id directly, so it must drop the cached client/project
+    # reads or authorization could keep seeing a stale team_id=NULL.
+    import backend.services.crud as crud_mod
+
+    calls = []
+    monkeypatch.setattr(crud_mod, "invalidate_related_caches", lambda *a, **k: calls.append(a))
+    owner = _mk_user(db_session, "cb-ci", "cbci@example.com")
+    team_service.create_team(db_session, owner, "Acme")
+    assert calls, "create_team did not invalidate the client/project caches"
+
+
 def test_solo_user_can_be_invited(db_session):
     # The finding-1 fix: a normal (solo) registered user CAN be added to a team.
     client = TestClient(app)

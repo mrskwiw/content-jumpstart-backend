@@ -51,12 +51,20 @@ def list_members(db: Session, team_id: str) -> List[TeamMember]:
 # ── team creation ───────────────────────────────────────────────────────────────
 
 
-def _stamp_owner_resources(db: Session, owner_id: str, team_id: str) -> None:
-    """Assign the owner's team-less clients/projects to ``team_id`` (their existing
-    solo resources join the team they just created)."""
+def _stamp_user_resources(db: Session, user_id: str, team_id: str) -> None:
+    """Move a user's team-less clients/projects into ``team_id`` (their solo resources
+    join the team on create/join). Caller commits + invalidates caches."""
     for model in (Client, Project):
-        for row in db.query(model).filter(model.user_id == owner_id, model.team_id.is_(None)).all():
+        for row in db.query(model).filter(model.user_id == user_id, model.team_id.is_(None)).all():
             row.team_id = team_id
+
+
+def _invalidate_resource_caches() -> None:
+    """Drop the crud read-caches for clients/projects after re-homing team_id, so
+    authorization no longer sees a stale ``team_id=NULL`` and deny teammates."""
+    from backend.services.crud import invalidate_related_caches
+
+    invalidate_related_caches("project", "projects", "client", "clients")
 
 
 def create_team(db: Session, owner: User, name: str, *, commit: bool = True) -> Team:
@@ -72,9 +80,10 @@ def create_team(db: Session, owner: User, name: str, *, commit: bool = True) -> 
     db.add(team)
     db.flush()  # assign team.id
     db.add(TeamMember(team_id=team.id, user_id=owner.id, role=ROLE_OWNER))
-    _stamp_owner_resources(db, owner.id, team.id)
+    _stamp_user_resources(db, owner.id, team.id)
     if commit:
         db.commit()
+        _invalidate_resource_caches()
     return team
 
 
@@ -97,8 +106,9 @@ def ensure_personal_team(db: Session, user: User, *, commit: bool = True) -> Tea
 
 
 def add_member(db: Session, team_id: str, target_user: User, role: str) -> TeamMember:
-    """Add an existing user to a team with a role. Raises if role invalid or the user
-    already belongs to a team (one membership per user)."""
+    """Add an existing user to a team with a role, migrating their existing team-less
+    resources into the team (so the team sees all their work — no permanent solo split).
+    Raises if role invalid or the user already belongs to a team."""
     if role not in TEAM_ROLES or role == ROLE_OWNER:
         # owner is assigned only at team creation / transfer, never via add.
         raise TeamError(f"invalid role: {role!r}")
@@ -106,7 +116,9 @@ def add_member(db: Session, team_id: str, target_user: User, role: str) -> TeamM
         raise TeamError("user already belongs to a team")
     member = TeamMember(team_id=team_id, user_id=target_user.id, role=role)
     db.add(member)
+    _stamp_user_resources(db, target_user.id, team_id)  # migrate their solo resources
     db.commit()
+    _invalidate_resource_caches()
     return member
 
 
