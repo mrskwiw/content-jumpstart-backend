@@ -21,7 +21,7 @@ import { format } from 'date-fns';
 import { DeliverableDrawer } from '@/components/deliverables/DeliverableDrawer';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { formatFileSize } from '@/utils/formatters';
-import { downloadHint } from '@/utils/deliverableDownload';
+import { downloadHint, isMediaDeliverable } from '@/utils/deliverableDownload';
 import { Button, Badge, Card, CardContent } from '@/components/ui';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
@@ -365,6 +365,11 @@ export default function Deliverables() {
                             {getDeliverableName(d.path)}
                           </span>
                           <Badge variant={d.status === 'draft' ? 'default' : d.status === 'ready' ? 'info' : 'success'}>{d.status}</Badge>
+                          {/* Format badge — media deliverables (image/audio/video) are
+                              highlighted so they read distinctly from document exports. */}
+                          <Badge variant={isMediaDeliverable(d.format) ? 'warning' : 'default'}>
+                            {isMediaDeliverable(d.format) ? `${d.format} (media)` : d.format}
+                          </Badge>
                           <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatFileSize(d.fileSizeBytes)}</span>
                         </div>
                         <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono">{d.path}</p>

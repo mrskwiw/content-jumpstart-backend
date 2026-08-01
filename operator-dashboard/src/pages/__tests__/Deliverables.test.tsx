@@ -14,6 +14,15 @@ jest.mock('@/api/deliverables', () => ({
         createdAt: new Date().toISOString(),
         status: 'ready',
       },
+      {
+        id: 'd2',
+        projectId: 'p1',
+        clientId: 'c1',
+        format: 'image',
+        path: 'media/u/j/asset.png',
+        createdAt: new Date().toISOString(),
+        status: 'ready',
+      },
     ]),
     markDelivered: jest.fn().mockResolvedValue({}),
   },
@@ -52,6 +61,18 @@ describe('Deliverables page', () => {
     });
 
     expect(screen.getByText(/outputs\/p1\/doc.docx/i)).toBeInTheDocument();
-    expect(screen.getByText(/Mark Delivered/i)).toBeInTheDocument();
+    // Two deliverables in the mock → one Mark-Delivered control each.
+    expect(screen.getAllByText(/Mark Delivered/i).length).toBeGreaterThan(0);
+  });
+
+  it('distinguishes media deliverables with a "(media)" format badge', async () => {
+    const { wrapper } = renderWithProviders();
+    render(<Deliverables />, { wrapper });
+
+    await waitFor(() => expect(screen.getByText(/media\/u\/j\/asset.png/i)).toBeInTheDocument());
+    // The image deliverable is flagged as media; the docx one is not.
+    expect(screen.getByText('image (media)')).toBeInTheDocument();
+    expect(screen.getByText('docx')).toBeInTheDocument();
+    expect(screen.queryByText('docx (media)')).not.toBeInTheDocument();
   });
 });
