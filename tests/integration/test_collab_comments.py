@@ -136,6 +136,40 @@ def test_comment_delete_permissions(db_session):
     assert client.delete(f"/api/comments/{cid2}", headers=_hdr(owner.id)).status_code == 200
 
 
+def test_deleting_project_cascades_comments(db_session):
+    # A commented post/project must remain deletable — comments cascade with the post.
+    from backend.models import Comment
+    from backend.services import comment_service
+
+    owner = _mk_user(db_session, "cm-c1", "cmc1@example.com")
+    team_service.ensure_personal_team(db_session, owner)
+    post = _mk_post(db_session, owner)
+    comment_service.add_comment(db_session, post.id, owner.id, "review note")
+    assert db_session.query(Comment).filter_by(post_id=post.id).count() == 1
+
+    assert crud.delete_project(db_session, post.project_id) is True
+    # The post's comments were removed by the ORM cascade (no FK integrity error).
+    assert db_session.query(Comment).filter_by(post_id=post.id).count() == 0
+
+
+def test_soft_deleted_post_not_commentable(db_session):
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cm-sd", "cmsd@example.com")
+    team_service.ensure_personal_team(db_session, owner)
+    post = _mk_post(db_session, owner)
+    post.is_deleted = True
+    db_session.commit()
+
+    # A soft-deleted post is treated as gone: cannot list or add comments.
+    assert client.get(f"/api/posts/{post.id}/comments", headers=_hdr(owner.id)).status_code == 404
+    assert (
+        client.post(
+            f"/api/posts/{post.id}/comments", json={"body": "x"}, headers=_hdr(owner.id)
+        ).status_code
+        == 404
+    )
+
+
 def test_comment_body_validation_and_missing_post(db_session):
     client = TestClient(app)
     owner = _mk_user(db_session, "cm-vo", "cmvo@example.com")

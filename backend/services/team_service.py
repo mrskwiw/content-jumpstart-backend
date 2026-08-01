@@ -159,9 +159,16 @@ def remove_member(db: Session, team_id: str, target_user_id: str) -> None:
     db.commit()
 
 
-def is_manager(db: Session, user_id: str) -> bool:
-    """Whether the user may manage members (owner/admin)."""
-    return (user_role(db, user_id) or "") in MANAGE_ROLES
+def is_manager(db: Session, user_id: str, team_id: Optional[str] = None) -> bool:
+    """Whether the user is a manager (owner/admin). When ``team_id`` is given, require
+    that they manage THAT specific team (correct-by-construction for cross-team checks,
+    not relying on the one-team-per-user coupling); when omitted, their own team."""
+    m = get_membership(db, user_id)
+    if m is None or m.role not in MANAGE_ROLES:
+        return False
+    if team_id is not None and m.team_id != team_id:
+        return False
+    return True
 
 
 def is_owner(db: Session, user_id: str) -> bool:

@@ -41,10 +41,12 @@ def _post_with_read_access(post_id: str, db: Session, user: User) -> Post:
     """Load a post the caller can READ (a member of its team, its creator, or a
     superuser); 404 if missing, 403 if not permitted."""
     post = crud.get_post(db, post_id)
-    if not post:
+    # A soft-deleted post (or its soft-deleted project) is treated as gone — deleted
+    # content isn't commentable, matching the deleted-row filtering on other read paths.
+    if not post or getattr(post, "is_deleted", False):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
     project = crud.get_project(db, post.project_id)
-    if not project:
+    if not project or getattr(project, "is_deleted", False):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Post's project not found"
         )
@@ -107,9 +109,15 @@ def delete_comment(
     if not comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
     # The caller must at least be able to read the post (team member of its team).
-    _post_with_read_access(comment.post_id, db, current_user)
+    post = _post_with_read_access(comment.post_id, db, current_user)
+    project = crud.get_project(db, post.project_id)
+    # Manager check is scoped to the POST'S team explicitly (not the caller's own team),
+    # so it's correct even if a user could ever belong to more than one team.
+    is_team_manager = team_service.is_manager(
+        db, current_user.id, project.team_id if project else None
+    )
     is_author = comment.author_user_id == current_user.id
-    if not (is_author or current_user.is_superuser or team_service.is_manager(db, current_user.id)):
+    if not (is_author or current_user.is_superuser or is_team_manager):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the comment's author or a team owner/admin can delete it",
