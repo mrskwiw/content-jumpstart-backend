@@ -46,11 +46,19 @@ export default function Dashboard() {
     navigate(ROUTES.LOGIN);
   };
 
-  const clients = useQuery({ queryKey: ['clients'], queryFn: () => clientsApi.list() });
-  const projects = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() });
-  const credits = useQuery({ queryKey: ['credits', 'balance'], queryFn: () => creditsApi.getBalance() });
+  // Scope cache keys to the authenticated user. The QueryClient is a session-lived
+  // singleton and logout does not clear it, so unscoped keys could surface the previous
+  // operator's clients/projects/balance to the next one after a logout→login in the same
+  // tab. Per-user keys make that impossible (user B reads under a different key).
+  const uid = user?.id ?? 'anon';
+  const clients = useQuery({ queryKey: ['clients', uid], queryFn: () => clientsApi.list() });
+  const projects = useQuery({ queryKey: ['projects', uid], queryFn: () => projectsApi.list() });
+  const credits = useQuery({
+    queryKey: ['credits', 'balance', uid],
+    queryFn: () => creditsApi.getBalance(),
+  });
   const costs = useQuery({
-    queryKey: ['costs', 'summary', 30],
+    queryKey: ['costs', 'summary', 30, uid],
     queryFn: () => costsApi.getUserCostSummary(30),
   });
 

@@ -28,27 +28,24 @@ jest.mock('react-router-dom', () => {
   };
 });
 
-// Mock useAuth
-// Field names follow the current camelCase User model (fullName / isSuperuser),
-// not the legacy snake_case shape.
+// Mock useAuth via a controllable jest.fn so individual tests can swap the user shape
+// (the prior inline jest.mock() inside a test body was a hoisting no-op).
+// Field names follow the current camelCase User model (fullName / isSuperuser).
 const mockLogout = jest.fn();
+const mockUseAuth = jest.fn();
 jest.mock('@/contexts/AuthContext', () => ({
   // Passthrough provider so shared test-utils (which wraps in AuthProvider) works.
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
-  useAuth: () => ({
-    user: {
-      id: 'user-1',
-      email: 'test@example.com',
-      fullName: 'Test User',
-      isSuperuser: true,
-    },
-    logout: mockLogout,
-  }),
+  useAuth: () => mockUseAuth(),
 }));
 
 describe('Dashboard Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-1', email: 'test@example.com', fullName: 'Test User', isSuperuser: true },
+      logout: mockLogout,
+    });
     (clientsApi.list as jest.Mock).mockResolvedValue([]);
     (projectsApi.list as jest.Mock).mockResolvedValue({ items: [], page_size: 20 });
     (creditsApi.getBalance as jest.Mock).mockResolvedValue({ balance: 0 });
@@ -108,22 +105,16 @@ describe('Dashboard Page', () => {
   });
 
   it('should display email when name not available', () => {
-    // Override mock for this test
-    jest.mock('@/contexts/AuthContext', () => ({
-      useAuth: () => ({
-        user: {
-          id: 'user-2',
-          email: 'email@example.com',
-          name: undefined,
-          role: 'user',
-          is_superuser: false,
-        },
-        logout: mockLogout,
-      }),
-    }));
+    // Actually swap the user shape for this test (fullName absent → email fallback).
+    mockUseAuth.mockReturnValue({
+      user: { id: 'user-2', email: 'email@example.com', fullName: undefined, isSuperuser: false },
+      logout: mockLogout,
+    });
 
     renderWithProviders(<Dashboard />);
-    // Should fall back to email when name is not provided
-    expect(screen.getByText(/Welcome,/i)).toBeInTheDocument();
+    // Falls back to email when the display name is not provided.
+    expect(screen.getByText('email@example.com')).toBeInTheDocument();
+    // And a non-superuser shows the 'Operator' badge.
+    expect(screen.getByText('Operator')).toBeInTheDocument();
   });
 });
