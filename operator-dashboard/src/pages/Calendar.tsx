@@ -41,7 +41,14 @@ interface CalendarEvent {
   project?: string;
   description?: string;
   time?: string;
+  status?: string;
 }
+
+// Queue rows in a terminal/inactive state are NOT upcoming schedule entries — a
+// posted/failed/canceled job must not masquerade as an actionable future post. We
+// exclude by known-terminal states (rather than include-only-known-active) so any
+// new pending-like status still surfaces on the schedule.
+const TERMINAL_POST_STATUSES = new Set(['posted', 'failed', 'canceled', 'cancelled']);
 
 /** Map a scheduled distribution post onto a calendar 'post' event. The queue schema
  *  exposes no client/project names, so those are left unset (optional). */
@@ -61,6 +68,7 @@ function scheduledPostToEvent(sp: ScheduledPost): CalendarEvent {
     type: 'post',
     description: excerpt || undefined,
     time,
+    status: sp.status,
   };
 }
 
@@ -82,7 +90,10 @@ export default function Calendar() {
   });
 
   const events = useMemo(
-    () => scheduledPosts.map(scheduledPostToEvent),
+    () =>
+      scheduledPosts
+        .filter((sp) => !TERMINAL_POST_STATUSES.has((sp.status ?? '').toLowerCase()))
+        .map(scheduledPostToEvent),
     [scheduledPosts]
   );
 

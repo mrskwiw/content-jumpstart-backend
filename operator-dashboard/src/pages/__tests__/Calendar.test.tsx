@@ -41,16 +41,27 @@ describe('Calendar Page', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('renders scheduled distribution posts from the queue as calendar events', async () => {
+  it('renders active scheduled posts but hides terminal (posted/failed) queue rows', async () => {
     mockedQueue.mockResolvedValue([
       {
         id: 'sp1',
         platform: 'linkedin',
         content: 'Launch announcement for the new feature',
-        status: 'scheduled',
+        status: 'pending',
         scheduled_for: '2026-02-10T14:30:00Z',
         posted_at: null,
         platform_url: null,
+        error_message: null,
+        retry_count: 0,
+      },
+      {
+        id: 'sp2',
+        platform: 'twitter',
+        content: 'Already published thread',
+        status: 'posted',
+        scheduled_for: '2026-02-11T09:00:00Z',
+        posted_at: '2026-02-11T09:00:05Z',
+        platform_url: 'https://x.com/x/1',
         error_message: null,
         retry_count: 0,
       },
@@ -58,12 +69,15 @@ describe('Calendar Page', () => {
 
     renderWithProviders(<Calendar />);
 
-    // List view shows every event regardless of the visible month.
+    // List view shows every (active) event regardless of the visible month.
     fireEvent.click(screen.getByText('List View'));
 
+    // The pending post appears…
     await waitFor(() => expect(screen.getByText('Linkedin post')).toBeInTheDocument());
-    // The content excerpt is carried through as the event description.
     expect(screen.getByText(/launch announcement/i)).toBeInTheDocument();
+    // …but the already-posted row is NOT shown as an upcoming schedule entry.
+    expect(screen.queryByText('Twitter post')).not.toBeInTheDocument();
+    expect(screen.queryByText(/already published/i)).not.toBeInTheDocument();
     expect(mockedQueue).toHaveBeenCalled();
   });
 });
