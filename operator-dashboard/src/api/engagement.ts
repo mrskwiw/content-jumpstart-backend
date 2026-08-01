@@ -45,7 +45,23 @@ export interface Trend {
   prior_rate: number;
 }
 
+// Business summary (GAP-UI-01) — real project/post/client/template activity.
+// Revenue and quality are intentionally NOT part of this contract (not tracked).
+export interface BusinessSummary {
+  days: number;
+  totals: { projects: number; posts: number; clients: number };
+  monthly: Array<{ month: string; projects: number; posts: number }>;
+  by_client: Array<{ client_name: string; projects: number; posts: number }>;
+  by_template: Array<{ template_name: string; usage_count: number }>;
+}
+
 export const engagementApi = {
+  async businessSummary(days = 90): Promise<BusinessSummary> {
+    const { data } = await apiClient.get<BusinessSummary>('/api/analytics/business-summary', {
+      params: { days },
+    });
+    return data;
+  },
   async collect(): Promise<{ collected: number; skipped: number; dry_run: boolean }> {
     const { data } = await apiClient.post('/api/analytics/collect');
     return data;

@@ -1,31 +1,49 @@
 /**
- * Smoke tests for Analytics page
+ * Tests for the internal-ops Analytics page (GAP-UI-01) — real business summary.
  */
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import { screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Analytics from '../Analytics';
+import { engagementApi } from '@/api/engagement';
+
+jest.mock('@/api/engagement', () => ({
+  engagementApi: { businessSummary: jest.fn() },
+}));
+
+const mockedSummary = engagementApi.businessSummary as jest.MockedFunction<
+  typeof engagementApi.businessSummary
+>;
 
 describe('Analytics Page', () => {
-  it('should render without crashing', () => {
-    const { container } = renderWithProviders(<Analytics />);
-    expect(container).toBeInTheDocument();
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSummary.mockResolvedValue({
+      days: 90,
+      totals: { projects: 12, posts: 340, clients: 5 },
+      monthly: [{ month: '2026-07', projects: 12, posts: 340 }],
+      by_client: [{ client_name: 'Acme', projects: 8, posts: 240 }],
+      by_template: [{ template_name: 'How-To', usage_count: 118 }],
+    });
   });
 
-  it('should render analytics dashboard header', () => {
-    const { container } = renderWithProviders(<Analytics />);
-    expect(container).toHaveTextContent('Analytics');
+  it('renders the header and range selector', async () => {
+    renderWithProviders(<Analytics />);
+    expect(screen.getByRole('heading', { name: 'Analytics' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
-  it('should render time range filters', () => {
-    const { container } = renderWithProviders(<Analytics />);
-    // Should have time range buttons
-    expect(container.querySelector('button')).toBeInTheDocument();
-  });
+  it('renders real totals and breakdowns from the business summary', async () => {
+    renderWithProviders(<Analytics />);
 
-  it('should render metric cards', () => {
-    const { container } = renderWithProviders(<Analytics />);
-    // Should render multiple metric cards
-    const cards = container.querySelectorAll('[class*="rounded"]');
-    expect(cards.length).toBeGreaterThan(0);
+    // "340" (posts) and "12" (projects) appear in both the KPI card and the monthly row.
+    await waitFor(() => expect(screen.getAllByText('340').length).toBeGreaterThan(0)); // posts
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0); // projects
+    // Client + template breakdown rows come through.
+    expect(screen.getByText('Acme')).toBeInTheDocument();
+    expect(screen.getByText('How-To')).toBeInTheDocument();
+    // No fabricated revenue/quality copy on the page.
+    expect(screen.queryByText(/revenue/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quality/i)).not.toBeInTheDocument();
   });
 });
