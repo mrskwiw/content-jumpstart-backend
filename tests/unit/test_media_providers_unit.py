@@ -646,90 +646,38 @@ def test_flux_missing_prompt(monkeypatch):
     assert not r.ok and "prompt" in r.error.lower()
 
 
-def test_flux_start_uses_polling_url_and_requests_png(monkeypatch):
+def test_flux_start_stores_job_id_and_requests_png(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
     captured = {}
 
     def _post(url, **kw):
         captured["json"] = kw.get("json")
-        return _Resp(
-            json_body={
-                "id": "job-123",
-                "polling_url": "https://api.eu.bfl.ml/v1/get_result?id=job-123",
-            }
-        )
+        # A response-supplied polling_url is present but deliberately IGNORED (cred-exfil
+        # risk); we store only the id and poll our own trusted base.
+        return _Resp(json_body={"id": "job-123", "polling_url": "https://evil.attacker.com/x"})
 
     _patch(monkeypatch, post=_post)
     r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
-    # The provider-issued polling URL becomes the external handle (region-safe polling)…
     assert r.ok and not r.done
-    assert r.external_id == "https://api.eu.bfl.ml/v1/get_result?id=job-123"
-    # …and the output format is pinned to PNG so it matches the persisted MIME.
+    assert r.external_id == "job-123"  # bare id, not the response URL
     assert captured["json"]["output_format"] == "png"
 
 
-def test_flux_start_falls_back_to_constructed_url_without_polling_url(monkeypatch):
-    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
-    _patch(monkeypatch, post=lambda url, **kw: _Resp(json_body={"id": "job-123"}))
-    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
-    assert r.ok and r.external_id.endswith("/get_result?id=job-123")
-
-
-def test_flux_rejects_untrusted_polling_url_at_submit(monkeypatch):
-    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
-    # A malicious/MITM'd submit response points polling at an attacker host — must NOT be
-    # stored; fall back to our own BFL get_result URL so the key never leaves BFL.
-    _patch(
-        monkeypatch,
-        post=lambda url, **kw: _Resp(
-            json_body={"id": "job-9", "polling_url": "https://evil.attacker.com/steal?id=job-9"}
-        ),
-    )
-    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
-    assert r.ok
-    assert "attacker.com" not in r.external_id
-    assert r.external_id == "https://api.bfl.ml/v1/get_result?id=job-9"
-
-
-def test_flux_poll_refuses_untrusted_handle(monkeypatch):
-    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
-    called = {"n": 0}
-
-    def _get(url, **kw):
-        called["n"] += 1
-        return _Resp(json_body={"status": "Ready", "result": {"sample": "x"}})
-
-    _patch(monkeypatch, get=_get)
-    # Defense-in-depth: a tampered non-BFL handle is refused without any request (no key leak).
-    r = FluxProvider(MediaKind.GEN_IMAGE).poll("https://evil.attacker.com/steal")
-    assert not r.ok and "trusted BFL" in r.error
-    assert called["n"] == 0
-
-
-def test_flux_trusted_url_helper():
-    from backend.services.media.providers import _is_trusted_bfl_url
-
-    assert _is_trusted_bfl_url("https://api.bfl.ml/v1/get_result?id=1")
-    assert _is_trusted_bfl_url("https://api.eu.bfl.ml/v1/get_result?id=1")
-    assert not _is_trusted_bfl_url("http://api.bfl.ml/v1/get_result?id=1")  # not https
-    assert not _is_trusted_bfl_url("https://evil.attacker.com/x")
-    assert not _is_trusted_bfl_url("https://bfl.ml.attacker.com/x")  # suffix-spoof
-    assert not _is_trusted_bfl_url("not a url")
-
-
-def test_flux_poll_hits_the_polling_url_directly(monkeypatch):
+def test_flux_poll_only_hits_our_trusted_base(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
     seen = {}
 
     def _get(url, **kw):
         seen["url"] = url
+        seen["params"] = kw.get("params")
         return _Resp(json_body={"status": "Ready", "result": {"sample": "https://cdn/x.png"}})
 
     _patch(monkeypatch, get=_get)
-    handle = "https://api.eu.bfl.ml/v1/get_result?id=job-123"
-    r = FluxProvider(MediaKind.GEN_IMAGE).poll(handle)
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("job-123")
     assert r.ok and r.done and r.asset_url == "https://cdn/x.png"
-    assert seen["url"] == handle  # polled the exact provider-issued URL, not a rebuilt one
+    # The API key only ever goes to our own hardcoded BFL base, keyed by the stored id.
+    assert seen["url"] == "https://api.bfl.ml/v1/get_result"
+    assert seen["params"] == {"id": "job-123"}
 
 
 def test_flux_start_http_error(monkeypatch):

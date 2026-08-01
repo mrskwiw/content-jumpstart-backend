@@ -790,21 +790,6 @@ class ElevenLabsDubProvider(BaseMediaProvider):
 
 # Real providers are wired here as they're built. A name absent from this map
 # (outside dry-run) falls through to NotImplementedProvider (fail-closed).
-def _is_trusted_bfl_url(url: str) -> bool:
-    """True only for an https URL on a Black Forest Labs host. The polling URL comes back
-    in the submit RESPONSE, so we must not send the API key (`x-key`) to it unless it's a
-    genuine BFL endpoint — otherwise a malicious/MITM'd response could redirect polling to
-    an attacker host and exfiltrate the credential (authenticated SSRF)."""
-    from urllib.parse import urlparse
-
-    try:
-        parsed = urlparse(url)
-    except Exception:  # noqa: BLE001
-        return False
-    host = (parsed.hostname or "").lower()
-    return parsed.scheme == "https" and (host == "bfl.ml" or host.endswith(".bfl.ml"))
-
-
 class FluxProvider(BaseMediaProvider):
     """Black Forest Labs FLUX image generation (IMAGE-GEN). Async: submit a text→image
     request, poll for the finished image URL (which the orchestrator re-hosts to
@@ -837,21 +822,16 @@ class FluxProvider(BaseMediaProvider):
             )
             if resp.status_code >= 400:
                 return MediaResult(ok=False, error=f"Flux {resp.status_code}: {resp.text[:300]}")
-            body = resp.json() or {}
-            job_id = body.get("id", "")
+            job_id = (resp.json() or {}).get("id", "")
             if not job_id:
                 return MediaResult(ok=False, error="Flux returned no job id")
-            # BFL returns a per-job polling_url (may be a region-specific host) and expects
-            # clients to poll THAT, not a hardcoded base. Store it as the external handle —
-            # but ONLY if it's a trusted BFL host, since we send the API key when polling;
-            # otherwise fall back to the global get_result URL constructed from the id.
-            polling_url = body.get("polling_url") or ""
-            handle = (
-                polling_url
-                if _is_trusted_bfl_url(polling_url)
-                else f"{self.BASE}/get_result?id={job_id}"
-            )
-            return MediaResult(ok=True, external_id=handle, done=False)
+            # Store only the job id and always poll our own trusted BASE (get_result is
+            # id-addressable). We deliberately IGNORE the response-supplied `polling_url`:
+            # sending the API key (`x-key`) to a URL taken from the submit RESPONSE is an
+            # authenticated-SSRF / credential-exfiltration risk, and a host allowlist proved
+            # brittle (BFL's exact polling-host set is uncertain → stuck jobs). Global
+            # get_result is the documented, id-addressable path. See BUGS.md Decision #225.
+            return MediaResult(ok=True, external_id=job_id, done=False)
         except _MissingCredential as e:
             return MediaResult(ok=False, error=str(e))
         except Exception as e:  # noqa: BLE001
@@ -863,21 +843,14 @@ class FluxProvider(BaseMediaProvider):
 
         try:
             api_key = _require_env("BFL_API_KEY")
-            # external_id is the polling handle from start(): a trusted BFL polling_url or
-            # the global get_result URL we constructed. A bare id (older/edge handle) is
-            # rebuilt onto our own BASE. Defense-in-depth: never send the API key to a
-            # non-BFL URL, even if a stored handle were somehow tampered.
-            if external_id.startswith(("http://", "https://")):
-                if not _is_trusted_bfl_url(external_id):
-                    return MediaResult(
-                        ok=False,
-                        external_id=external_id,
-                        error="Flux polling handle is not a trusted BFL URL — refusing to send credentials",
-                    )
-                url = external_id
-            else:
-                url = f"{self.BASE}/get_result?id={external_id}"
-            resp = requests.get(url, headers={"x-key": api_key}, timeout=_HTTP_TIMEOUT)
+            # Always poll our own trusted BASE with the stored job id — the API key never
+            # goes to any response-supplied URL (see start() / Decision #225).
+            resp = requests.get(
+                f"{self.BASE}/get_result",
+                headers={"x-key": api_key},
+                params={"id": external_id},
+                timeout=_HTTP_TIMEOUT,
+            )
             if resp.status_code >= 400:
                 return MediaResult(
                     ok=False, error=f"Flux status {resp.status_code}: {resp.text[:200]}"
