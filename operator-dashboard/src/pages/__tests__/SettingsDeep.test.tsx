@@ -493,16 +493,36 @@ describe('Settings Page', () => {
       });
     });
 
-    it('should render data & privacy section', async () => {
+    // The privacy-section export control is role-aware (SecurityTab reads
+    // user.isSuperuser). AuthProvider only loads the stored user when BOTH access_token
+    // and user are present in localStorage, so each case seeds both. Split by role so a
+    // removal/mislabel of the real export control — or an access-control regression that
+    // shows the full-instance export to a non-superuser — fails the suite.
+    it('renders the full-instance export control for a superuser', async () => {
       const user = userEvent.setup();
+      localStorage.setItem('access_token', 'token');
+      localStorage.setItem('user', JSON.stringify({ isSuperuser: true }));
       renderWithProviders(<Settings />);
 
-      const securityTab = screen.getByRole('button', { name: /security/i });
-      await user.click(securityTab);
+      await user.click(screen.getByRole('button', { name: /security/i }));
 
-      // The export control was redesigned to be role-aware; a non-superuser (the default
-      // test auth state) sees the admin-export note. Assert that exact control text rather
-      // than the stale "Export My Data" label or a too-generic /export/i match.
+      await waitFor(() => {
+        expect(screen.getByText(/data & privacy/i)).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /export all data \(full instance\)/i })
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
+      });
+    });
+
+    it('hides the full-instance export from a non-superuser (admin-only note instead)', async () => {
+      const user = userEvent.setup();
+      localStorage.setItem('access_token', 'token');
+      localStorage.setItem('user', JSON.stringify({ isSuperuser: false }));
+      renderWithProviders(<Settings />);
+
+      await user.click(screen.getByRole('button', { name: /security/i }));
+
       await waitFor(() => {
         expect(screen.getByText(/data & privacy/i)).toBeInTheDocument();
         expect(
@@ -510,6 +530,10 @@ describe('Settings Page', () => {
         ).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /delete my account/i })).toBeInTheDocument();
       });
+      // Access-control guard: the full-instance export button must NOT be offered here.
+      expect(
+        screen.queryByRole('button', { name: /export all data \(full instance\)/i })
+      ).not.toBeInTheDocument();
     });
   });
 
