@@ -48,9 +48,22 @@ def business_summary(db: Session, user_id: str, days: int = 90) -> Dict:
     # soft-deleted posts are filtered as well.
     clients = db.query(Client).filter(Client.user_id == user_id, Client.is_deleted.is_(False)).all()
     client_name = {c.id: c.name for c in clients}
+    active_client_ids = set(client_name.keys())
 
+    # Also drop projects whose CLIENT was soft-deleted (archived): `archive_client` soft-
+    # deletes only the client and leaves its projects/posts active, so filtering projects by
+    # their own is_deleted alone would let an archived client's downstream content resurface
+    # (as an "Unknown" client). Require the parent client to be active too.
     projects = (
-        db.query(Project).filter(Project.user_id == user_id, Project.is_deleted.is_(False)).all()
+        db.query(Project)
+        .filter(
+            Project.user_id == user_id,
+            Project.is_deleted.is_(False),
+            Project.client_id.in_(active_client_ids),
+        )
+        .all()
+        if active_client_ids
+        else []
     )
     project_client = {p.id: p.client_id for p in projects}
     project_ids = list(project_client.keys())

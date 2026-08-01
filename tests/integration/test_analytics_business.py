@@ -129,6 +129,23 @@ def test_business_summary_excludes_soft_deleted(db_session):
     assert s["by_template"] == [{"template_name": "How-To", "usage_count": 1}]
 
 
+def test_business_summary_excludes_archived_clients_downstream(db_session):
+    # `archive_client` soft-deletes ONLY the client, leaving projects/posts active — those
+    # must still be excluded from analytics (no resurfacing as an "Unknown" client).
+    now = datetime.utcnow()
+    _user(db_session, "u1")
+    db_session.add(Client(id="c_arch", user_id="u1", name="Archived", is_deleted=True))
+    db_session.commit()
+    _project(db_session, "p_under_arch", "u1", "c_arch", now)  # active project, dead client
+    _post(db_session, "orphan", "p_under_arch", "How-To", now)  # active post under it
+
+    s = business.business_summary(db_session, "u1", days=90)
+
+    assert s["totals"] == {"projects": 0, "posts": 0, "clients": 0}
+    assert s["by_client"] == []
+    assert s["by_template"] == []
+
+
 def test_business_summary_is_scoped_to_the_user(db_session):
     now = datetime.utcnow()
     _user(db_session, "u1")
