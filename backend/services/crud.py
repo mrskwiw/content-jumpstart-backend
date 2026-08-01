@@ -240,8 +240,11 @@ def create_project(db: Session, project: ProjectCreate, user_id: str) -> Project
         project: Project data
         user_id: ID of user creating the project (TR-021: ownership)
     """
+    from backend.services import team_service
+
     project_data = project.model_dump()
-    project_data["user_id"] = user_id  # TR-021: Set owner
+    project_data["user_id"] = user_id  # TR-021: creator (created_by)
+    project_data["team_id"] = team_service.user_team_id(db, user_id)  # COLLAB-01: owning team
     db_project = Project(id=f"proj-{uuid.uuid4().hex[:12]}", **project_data)
     db.add(db_project)
     db.commit()
@@ -397,8 +400,11 @@ def create_client(db: Session, client: ClientCreate, user_id: str) -> Client:
     client_id = f"client-{uuid.uuid4().hex[:12]}"
     print(f"[CREATE] Creating client: {client_id} ({client.name})")
 
+    from backend.services import team_service
+
     client_data = client.model_dump()
-    client_data["user_id"] = user_id  # TR-021: Set owner
+    client_data["user_id"] = user_id  # TR-021: creator (created_by)
+    client_data["team_id"] = team_service.user_team_id(db, user_id)  # COLLAB-01: owning team
     db_client = Client(id=client_id, **client_data)
     db.add(db_client)
 

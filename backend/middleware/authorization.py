@@ -13,62 +13,115 @@ IMPORTANT: This module requires user_id fields to be added to models:
 Until these fields are added, authorization checks will not function properly.
 """
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import User, Project, Client, Post, Deliverable, Run
+from backend.models.team import WRITE_ROLES
 from backend.middleware.auth_dependency import get_current_user
 from backend.utils.logger import logger
+
+# HTTP methods that MUTATE a resource — a team "viewer" is blocked from these.
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _is_write(request: Request | None) -> bool:
+    return request is not None and request.method.upper() in _WRITE_METHODS
 
 
 # ==================== Authorization Helpers ====================
 
 
-def _check_ownership(resource_type: str, resource, current_user: User) -> bool:
+def _check_ownership(
+    resource_type: str,
+    resource,
+    current_user: User,
+    db: Session | None = None,
+    *,
+    is_write: bool = False,
+) -> bool:
+    """Check whether ``current_user`` may access ``resource`` (COLLAB-01, team-aware).
+
+    Access is by TEAM now, not by the single ``user_id`` creator:
+    - superusers → always allowed;
+    - a resource with a ``team_id`` → the caller must belong to that team, and for a
+      **write** (``is_write``) their role must permit mutation (a ``viewer`` is 403'd);
+    - a legacy resource with ``team_id IS NULL`` (pre-backfill) → fall back to the old
+      creator check (``resource.user_id == current_user.id``);
+    - a model with neither field → fail closed.
+
+    ``db`` is needed to resolve the caller's membership/role for the team path; when it
+    is omitted (e.g. the assistant helpers) only the superuser + legacy paths apply.
     """
-    Check if user owns a resource or is a superuser.
-
-    Args:
-        resource_type: Type of resource (for logging)
-        resource: The resource instance to check
-        current_user: The authenticated user
-
-    Returns:
-        True if user has access, False otherwise
-
-    NOTE: Requires user_id field on resource model
-    """
-    # Superusers have access to all resources
     if current_user.is_superuser:
         logger.debug(f"Superuser {current_user.email} granted access to {resource_type}")
         return True
 
-    # Check if resource has user_id field
-    if not hasattr(resource, "user_id"):
-        logger.error(
-            f"SECURITY ERROR: {resource_type} model missing user_id field - "
-            f"denying access as security precaution (TR-021)"
-        )
-        # SECURITY FIX: Fail closed (deny access) if user_id is missing (TR-021)
-        # This prevents IDOR vulnerabilities if a model is missing authorization fields
+    has_team = hasattr(resource, "team_id")
+    has_user = hasattr(resource, "user_id")
+    if not has_team and not has_user:
+        logger.error(f"SECURITY ERROR: {resource_type} missing team_id/user_id - denying (TR-021)")
         return False
 
-    # Check ownership
-    if resource.user_id != current_user.id:
+    resource_team_id = getattr(resource, "team_id", None) if has_team else None
+
+    # Legacy row not yet backfilled onto a team → creator-based check (unchanged).
+    if resource_team_id is None:
+        owner_id = getattr(resource, "user_id", None) if has_user else None
+        if owner_id != current_user.id:
+            logger.warning(
+                f"Authorization denied: {current_user.email} -> {resource_type} "
+                f"(legacy owner_id={owner_id})"
+            )
+            return False
+        return True
+
+    # Team-owned: the caller must be a member of the resource's team.
+    from backend.services import team_service
+
+    membership = team_service.get_membership(db, current_user.id) if db is not None else None
+    if membership is None or membership.team_id != resource_team_id:
         logger.warning(
-            f"Authorization denied: User {current_user.email} attempted to access "
-            f"{resource_type} owned by user_id={resource.user_id}"
+            f"Authorization denied: {current_user.email} not in team {resource_team_id} "
+            f"for {resource_type}"
         )
         return False
-
+    if is_write and membership.role not in WRITE_ROLES:
+        logger.warning(
+            f"Authorization denied: {current_user.email} role={membership.role} "
+            f"may not write {resource_type} (viewer is read-only)"
+        )
+        return False
     return True
+
+
+def _team_scope(query, model_cls, db: Session, current_user: User):
+    """Scope a list query to the caller's team (COLLAB-01).
+
+    Returns rows owned by the caller's team, plus any legacy un-backfilled rows the
+    caller created (``team_id IS NULL AND user_id == me``) so nothing disappears during
+    the migration window. ``model_cls`` must expose ``team_id`` + ``user_id`` (Client /
+    Project — the indirect resources scope through Project).
+    """
+    from backend.services import team_service
+
+    team_id = team_service.user_team_id(db, current_user.id)
+    if team_id is None:
+        return query.filter(model_cls.user_id == current_user.id)
+    return query.filter(
+        (model_cls.team_id == team_id)
+        | (model_cls.team_id.is_(None) & (model_cls.user_id == current_user.id))
+    )
 
 
 # ==================== Project Ownership ====================
 
 
 async def verify_project_ownership(
-    project_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Project:
     """
     Verify user owns project, return project if authorized.
@@ -87,7 +140,7 @@ async def verify_project_ownership(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    if not _check_ownership("Project", project, current_user):
+    if not _check_ownership("Project", project, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this project",
@@ -100,7 +153,10 @@ async def verify_project_ownership(
 
 
 async def verify_client_ownership(
-    client_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    client_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Client:
     """
     Verify user owns client, return client if authorized.
@@ -119,7 +175,7 @@ async def verify_client_ownership(
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client not found")
 
-    if not _check_ownership("Client", client, current_user):
+    if not _check_ownership("Client", client, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You don't own this client"
         )
@@ -131,7 +187,10 @@ async def verify_client_ownership(
 
 
 async def verify_post_ownership(
-    post_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    post_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Post:
     """
     Verify user owns post (via project ownership), return post if authorized.
@@ -159,7 +218,7 @@ async def verify_post_ownership(
             status_code=status.HTTP_404_NOT_FOUND, detail="Post's project not found"
         )
 
-    if not _check_ownership("Project", project, current_user):
+    if not _check_ownership("Project", project, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You don't own this post"
         )
@@ -171,6 +230,7 @@ async def verify_post_ownership(
 
 
 async def verify_deliverable_ownership(
+    request: Request,
     deliverable_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -201,7 +261,7 @@ async def verify_deliverable_ownership(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deliverable's project not found"
         )
 
-    if not _check_ownership("Project", project, current_user):
+    if not _check_ownership("Project", project, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: You don't own this deliverable",
@@ -214,7 +274,10 @@ async def verify_deliverable_ownership(
 
 
 async def verify_run_ownership(
-    run_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Run:
     """
     Verify user owns run (via project ownership).
@@ -240,7 +303,7 @@ async def verify_run_ownership(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run's project not found")
 
-    if not _check_ownership("Project", project, current_user):
+    if not _check_ownership("Project", project, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You don't own this run"
         )
@@ -269,15 +332,8 @@ def filter_user_projects(db: Session, current_user: User):
     if current_user.is_superuser:
         return db.query(Project)
 
-    # Regular users see only their own
-    query = db.query(Project)
-
-    # Check if model has user_id field
-    if not hasattr(Project, "user_id"):
-        logger.warning("Project model missing user_id field - returning all projects (INSECURE)")
-        return query
-
-    return query.filter(Project.user_id == current_user.id)
+    # COLLAB-01: the caller's whole team, not just their own rows.
+    return _team_scope(db.query(Project), Project, db, current_user)
 
 
 def filter_user_clients(db: Session, current_user: User):
@@ -294,15 +350,8 @@ def filter_user_clients(db: Session, current_user: User):
     if current_user.is_superuser:
         return db.query(Client)
 
-    # Regular users see only their own
-    query = db.query(Client)
-
-    # Check if model has user_id field
-    if not hasattr(Client, "user_id"):
-        logger.warning("Client model missing user_id field - returning all clients (INSECURE)")
-        return query
-
-    return query.filter(Client.user_id == current_user.id)
+    # COLLAB-01: the caller's whole team, not just their own rows.
+    return _team_scope(db.query(Client), Client, db, current_user)
 
 
 def filter_user_deliverables(db: Session, current_user: User):
@@ -321,17 +370,9 @@ def filter_user_deliverables(db: Session, current_user: User):
     if current_user.is_superuser:
         return db.query(Deliverable)
 
-    # Regular users see only deliverables from their own projects
+    # COLLAB-01: scope through the parent project's team.
     query = db.query(Deliverable).join(Project, Deliverable.project_id == Project.id)
-
-    # Check if Project model has user_id field
-    if not hasattr(Project, "user_id"):
-        logger.warning(
-            "Project model missing user_id field - returning all deliverables (INSECURE)"
-        )
-        return db.query(Deliverable)
-
-    return query.filter(Project.user_id == current_user.id)
+    return _team_scope(query, Project, db, current_user)
 
 
 def filter_user_runs(db: Session, current_user: User):
@@ -350,15 +391,9 @@ def filter_user_runs(db: Session, current_user: User):
     if current_user.is_superuser:
         return db.query(Run)
 
-    # Regular users see only runs from their own projects
+    # COLLAB-01: scope through the parent project's team.
     query = db.query(Run).join(Project, Run.project_id == Project.id)
-
-    # Check if Project model has user_id field
-    if not hasattr(Project, "user_id"):
-        logger.warning("Project model missing user_id field - returning all runs (INSECURE)")
-        return db.query(Run)
-
-    return query.filter(Project.user_id == current_user.id)
+    return _team_scope(query, Project, db, current_user)
 
 
 def filter_user_posts(db: Session, current_user: User):
@@ -377,22 +412,19 @@ def filter_user_posts(db: Session, current_user: User):
     if current_user.is_superuser:
         return db.query(Post)
 
-    # Regular users see only posts from their own projects
+    # COLLAB-01: scope through the parent project's team.
     query = db.query(Post).join(Project, Post.project_id == Project.id)
-
-    # Check if Project model has user_id field
-    if not hasattr(Project, "user_id"):
-        logger.warning("Project model missing user_id field - returning all posts (INSECURE)")
-        return db.query(Post)
-
-    return query.filter(Project.user_id == current_user.id)
+    return _team_scope(query, Project, db, current_user)
 
 
 # ==================== Brief Ownership (via Project) ====================
 
 
 async def verify_brief_ownership(
-    brief_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    request: Request,
+    brief_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Verify user owns brief (via project ownership).
@@ -420,7 +452,7 @@ async def verify_brief_ownership(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brief's project not found"
         )
 
-    if not _check_ownership("Project", project, current_user):
+    if not _check_ownership("Project", project, current_user, db, is_write=_is_write(request)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You don't own this brief"
         )

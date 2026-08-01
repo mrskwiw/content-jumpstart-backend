@@ -1047,6 +1047,182 @@
         ]
       }
     },
+    "/api/teams/me": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Get My Team",
+        "description": "The caller's team, their role, and all members.",
+        "operationId": "get_my_team_api_teams_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/teams/members": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Add Member",
+        "description": "Add an existing, registered user to the caller's team (owner/admin only).",
+        "operationId": "add_member_api_teams_members_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/teams/members/{user_id}": {
+      "patch": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Change Member Role",
+        "description": "Change a member's role (owner/admin only). The owner's role is immutable here.",
+        "operationId": "change_member_role_api_teams_members__user_id__patch",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Remove Member",
+        "description": "Remove a member (owner/admin), or leave the team yourself. Owner can't be removed.",
+        "operationId": "remove_member_api_teams_members__user_id__delete",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -10234,6 +10410,25 @@
   },
   "components": {
     "schemas": {
+      "AddMemberRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": "viewer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "AddMemberRequest"
+      },
       "AdminCreditAdjustmentRequest": {
         "properties": {
           "user_id": {
@@ -10859,6 +11054,19 @@
         ],
         "title": "ChangePasswordRequest",
         "description": "Schema for a user changing their OWN password (self-service).\n\nRequires the current password for re-authentication and enforces the\nstrong-password policy on the new password."
+      },
+      "ChangeRoleRequest": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "ChangeRoleRequest"
       },
       "ChatRequest": {
         "properties": {
@@ -18196,6 +18404,71 @@
         ],
         "title": "StoryUsageResponse",
         "description": "Schema for story usage response"
+      },
+      "TeamMemberResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "role"
+        ],
+        "title": "TeamMemberResponse"
+      },
+      "TeamResponse": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "my_role": {
+            "type": "string",
+            "title": "My Role"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberResponse"
+            },
+            "type": "array",
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "name",
+          "my_role",
+          "members"
+        ],
+        "title": "TeamResponse"
       },
       "TestConnectionRequest": {
         "properties": {

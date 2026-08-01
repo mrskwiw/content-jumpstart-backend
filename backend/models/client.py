@@ -19,7 +19,10 @@ class Client(Base, SoftDeleteMixin):
     id = Column(String, primary_key=True)
     user_id = Column(
         String, ForeignKey("users.id"), nullable=False, index=True
-    )  # TR-021: Owner of client
+    )  # TR-021: creator (created_by); COLLAB-01: access is by team_id, not this
+    team_id = Column(
+        String, ForeignKey("teams.id"), nullable=True, index=True
+    )  # COLLAB-01: owning team (the access axis); backfilled for legacy rows
     name = Column(String, nullable=False, index=True)
     email = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -28,6 +28,7 @@ from .stripe_payment import StripeCustomer, StripePayment
 from .audit_log import AuditLog
 from .deletion_audit_log import DeletionAuditLog
 from .revoked_token import RevokedToken
+from .team import Team, TeamMember
 from .client_keywords import ClientKeyword
 from .distribution import PlatformCredential, ScheduledPost, PostedContent
 from .analytics import PostMetric
@@ -58,6 +59,8 @@ __all__ = [
     "AuditLog",
     "DeletionAuditLog",
     "RevokedToken",
+    "Team",
+    "TeamMember",
     "ClientKeyword",
     "Conversation",
     "Message",

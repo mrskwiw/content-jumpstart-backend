@@ -10,7 +10,7 @@ Verifies that:
 - Missing resources raise 404
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -53,6 +53,10 @@ def _user(id: str = "user-1", is_superuser: bool = False):
 def _resource_with_owner(user_id: str):
     r = MagicMock()
     r.user_id = user_id
+    # COLLAB-01: team_id=None → _check_ownership uses the legacy creator-based path,
+    # which is exactly the owner-vs-non-owner behavior these unit tests assert. Team-
+    # aware access is covered end-to-end in tests/integration/test_collab_teams.py.
+    r.team_id = None
     return r
 
 
@@ -123,7 +127,10 @@ class TestVerifyProjectOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_project.return_value = project
             result = await verify_project_ownership(
-                project_id="proj-1", db=MagicMock(), current_user=user
+                project_id="proj-1",
+                request=MagicMock(method="GET"),
+                db=MagicMock(),
+                current_user=user,
             )
         assert result is project
 
@@ -135,7 +142,10 @@ class TestVerifyProjectOwnership:
             mock_crud.get_project.return_value = None
             with pytest.raises(HTTPException) as exc:
                 await verify_project_ownership(
-                    project_id="nonexistent", db=MagicMock(), current_user=user
+                    project_id="nonexistent",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
                 )
         assert exc.value.status_code == 404
 
@@ -149,7 +159,10 @@ class TestVerifyProjectOwnership:
             mock_crud.get_project.return_value = project
             with pytest.raises(HTTPException) as exc:
                 await verify_project_ownership(
-                    project_id="proj-victim", db=MagicMock(), current_user=attacker
+                    project_id="proj-victim",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=attacker,
                 )
         assert exc.value.status_code == 403
         assert "Access denied" in exc.value.detail
@@ -162,7 +175,10 @@ class TestVerifyProjectOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_project.return_value = project
             result = await verify_project_ownership(
-                project_id="proj-1", db=MagicMock(), current_user=superuser
+                project_id="proj-1",
+                request=MagicMock(method="GET"),
+                db=MagicMock(),
+                current_user=superuser,
             )
         assert result is project
 
@@ -181,7 +197,12 @@ class TestVerifyClientOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_client.return_value = None
             with pytest.raises(HTTPException) as exc:
-                await verify_client_ownership(client_id="c-999", db=MagicMock(), current_user=user)
+                await verify_client_ownership(
+                    client_id="c-999",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
+                )
         assert exc.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -194,7 +215,10 @@ class TestVerifyClientOwnership:
             mock_crud.get_client.return_value = client
             with pytest.raises(HTTPException) as exc:
                 await verify_client_ownership(
-                    client_id="c-victim", db=MagicMock(), current_user=attacker
+                    client_id="c-victim",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=attacker,
                 )
         assert exc.value.status_code == 403
 
@@ -213,7 +237,12 @@ class TestVerifyPostOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_post.return_value = None
             with pytest.raises(HTTPException) as exc:
-                await verify_post_ownership(post_id="p-999", db=MagicMock(), current_user=user)
+                await verify_post_ownership(
+                    post_id="p-999",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
+                )
         assert exc.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -226,7 +255,12 @@ class TestVerifyPostOwnership:
             mock_crud.get_post.return_value = post
             mock_crud.get_project.return_value = None
             with pytest.raises(HTTPException) as exc:
-                await verify_post_ownership(post_id="p-1", db=MagicMock(), current_user=user)
+                await verify_post_ownership(
+                    post_id="p-1",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
+                )
         assert exc.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -242,7 +276,10 @@ class TestVerifyPostOwnership:
             mock_crud.get_project.return_value = project
             with pytest.raises(HTTPException) as exc:
                 await verify_post_ownership(
-                    post_id="p-victim-post", db=MagicMock(), current_user=attacker
+                    post_id="p-victim-post",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=attacker,
                 )
         assert exc.value.status_code == 403
 
@@ -256,7 +293,9 @@ class TestVerifyPostOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_post.return_value = post
             mock_crud.get_project.return_value = project
-            result = await verify_post_ownership(post_id="p-1", db=MagicMock(), current_user=user)
+            result = await verify_post_ownership(
+                post_id="p-1", request=MagicMock(method="GET"), db=MagicMock(), current_user=user
+            )
         assert result is post
 
 
@@ -280,7 +319,10 @@ class TestVerifyDeliverableOwnership:
             mock_crud.get_project.return_value = project
             with pytest.raises(HTTPException) as exc:
                 await verify_deliverable_ownership(
-                    deliverable_id="d-victim", db=MagicMock(), current_user=attacker
+                    deliverable_id="d-victim",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=attacker,
                 )
         assert exc.value.status_code == 403
 
@@ -291,7 +333,10 @@ class TestVerifyDeliverableOwnership:
             mock_crud.get_deliverable.return_value = None
             with pytest.raises(HTTPException) as exc:
                 await verify_deliverable_ownership(
-                    deliverable_id="d-999", db=MagicMock(), current_user=user
+                    deliverable_id="d-999",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
                 )
         assert exc.value.status_code == 404
 
@@ -316,7 +361,10 @@ class TestVerifyRunOwnership:
             mock_crud.get_project.return_value = project
             with pytest.raises(HTTPException) as exc:
                 await verify_run_ownership(
-                    run_id="run-victim", db=MagicMock(), current_user=attacker
+                    run_id="run-victim",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=attacker,
                 )
         assert exc.value.status_code == 403
 
@@ -326,7 +374,12 @@ class TestVerifyRunOwnership:
         with patch(self._PATCH) as mock_crud:
             mock_crud.get_run.return_value = None
             with pytest.raises(HTTPException) as exc:
-                await verify_run_ownership(run_id="run-999", db=MagicMock(), current_user=user)
+                await verify_run_ownership(
+                    run_id="run-999",
+                    request=MagicMock(method="GET"),
+                    db=MagicMock(),
+                    current_user=user,
+                )
         assert exc.value.status_code == 404
 
 
@@ -339,9 +392,12 @@ class TestFilterUserResources:
     """Verify list queries are scoped to the current user."""
 
     def _mock_db_with_model(self, model_cls, has_user_id: bool = True):
-        """Return a mock db whose query().filter() chain is inspectable."""
-        if has_user_id:
-            model_cls.user_id = MagicMock()
+        """Return a mock db whose query().filter() chain is inspectable.
+
+        NOTE: this no longer mutates ``model_cls.user_id`` — the real models already
+        have the column, and permanently replacing it with a MagicMock leaked across
+        tests (corrupting later real-DB suites). The mock db below is all that's needed.
+        """
         db = MagicMock()
         query_mock = MagicMock()
         db.query.return_value = query_mock
@@ -354,7 +410,7 @@ class TestFilterUserResources:
 
         superuser = _user("admin", is_superuser=True)
         db, query_mock = self._mock_db_with_model(Project)
-        result = filter_user_projects(db, superuser)
+        filter_user_projects(db, superuser)
         # Superuser: query returned directly without filter()
         db.query.assert_called_once_with(Project)
         query_mock.filter.assert_not_called()
@@ -365,7 +421,7 @@ class TestFilterUserResources:
         user = _user("u1")
         db, query_mock = self._mock_db_with_model(Client)
         filter_user_clients(db, user)
-        query_mock.filter.assert_called_once()
+        query_mock.filter.assert_called()
 
     def test_filter_projects_regular_user_filtered(self):
         from backend.models import Project
@@ -373,28 +429,28 @@ class TestFilterUserResources:
         user = _user("u1")
         db, query_mock = self._mock_db_with_model(Project)
         filter_user_projects(db, user)
-        query_mock.filter.assert_called_once()
+        query_mock.filter.assert_called()
 
     def test_filter_posts_regular_user_filtered(self):
-        from backend.models import Post, Project
+        from backend.models import Project
 
         user = _user("u1")
         db, query_mock = self._mock_db_with_model(Project)
         filter_user_posts(db, user)
-        query_mock.filter.assert_called_once()
+        query_mock.filter.assert_called()
 
     def test_filter_runs_regular_user_filtered(self):
-        from backend.models import Run, Project
+        from backend.models import Project
 
         user = _user("u1")
         db, query_mock = self._mock_db_with_model(Project)
         filter_user_runs(db, user)
-        query_mock.filter.assert_called_once()
+        query_mock.filter.assert_called()
 
     def test_filter_deliverables_regular_user_filtered(self):
-        from backend.models import Deliverable, Project
+        from backend.models import Project
 
         user = _user("u1")
         db, query_mock = self._mock_db_with_model(Project)
         filter_user_deliverables(db, user)
-        query_mock.filter.assert_called_once()
+        query_mock.filter.assert_called()

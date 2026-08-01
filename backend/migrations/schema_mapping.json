@@ -1,5 +1,5 @@
 {
-  "current_version": 7,
+  "current_version": 8,
   "version_migrations": {
     "1": {
       "description": "Add file_size_bytes to deliverables table",
@@ -149,6 +149,29 @@
           {
             "name": "email_verified_at",
             "type": "TIMESTAMP",
+            "nullable": true,
+            "default": null
+          }
+        ]
+      }
+    },
+    "8": {
+      "description": "COLLAB-01: add teams/team_members tables (created by SQLAlchemy) + team_id on clients/projects; idempotent backfill (team_service.backfill_teams) gives every pre-existing user a personal team and stamps their clients/projects with it",
+      "clients": {
+        "add_columns": [
+          {
+            "name": "team_id",
+            "type": "VARCHAR",
+            "nullable": true,
+            "default": null
+          }
+        ]
+      },
+      "projects": {
+        "add_columns": [
+          {
+            "name": "team_id",
+            "type": "VARCHAR",
             "nullable": true,
             "default": null
           }

@@ -613,6 +613,23 @@ def init_db():
                     email_verified_backfill_ok = False
                     print(f">> email_verified grandfather backfill FAILED (will retry): {e}")
 
+        # COLLAB-01: add team_id to clients/projects on existing DBs (create_all adds it
+        # to fresh tables; this ALTERs pre-existing ones). The teams/team_members tables
+        # are created by create_all. The data backfill (personal teams + stamping
+        # team_id) runs after this block via team_service.backfill_teams — it is
+        # idempotent (only touches NULL rows) so it needs no version gate.
+        for _tbl in ("clients", "projects"):
+            if _tbl in inspector.get_table_names():
+                _cols = [c["name"] for c in inspector.get_columns(_tbl)]
+                if "team_id" not in _cols:
+                    print(f">> Running migration: Adding team_id column to {_tbl} table")
+                    try:
+                        conn.execute(text(f"ALTER TABLE {_tbl} ADD COLUMN team_id VARCHAR"))
+                        conn.commit()
+                        print(f">> Migration for {_tbl}.team_id completed")
+                    except Exception as e:
+                        print(f">> Migration for {_tbl}.team_id failed: {e}")
+
         # Seed credit packages (only if table is empty)
         # CreditPackage table is auto-created by Base.metadata.create_all()
         if "credit_packages" in inspector.get_table_names():
@@ -783,6 +800,20 @@ def init_db():
                             print(f">> Migration for {table_name}.{col_name} completed")
                         except Exception as e:
                             print(f">> Migration for {table_name}.{col_name} failed: {e}")
+
+    # COLLAB-01: grandfather users/resources onto teams. Idempotent (touches only
+    # rows with no team) so it is safe to run every boot — needs no version gate,
+    # unlike the boolean email_verified backfill. Best-effort: a failure is logged and
+    # retried next boot, and never blocks startup.
+    try:
+        from backend.services import team_service
+
+        with SessionLocal() as _team_session:
+            _created = team_service.backfill_teams(_team_session)
+        if _created:
+            print(f">> COLLAB-01: created personal teams for {_created} pre-existing user(s)")
+    except Exception as e:  # pragma: no cover - defensive; backfill retries next boot
+        print(f">> COLLAB-01 teams backfill skipped/failed (will retry): {e}")
 
     # Update schema version to latest after all migrations
     config = load_migration_rules()

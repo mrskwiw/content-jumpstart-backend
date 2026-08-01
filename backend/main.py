@@ -60,6 +60,7 @@ from backend.routers import (
     trends,
     stripe_checkout,
     client_keywords,
+    teams,
 )
 from slowapi.errors import RateLimitExceeded
 from backend.utils.http_rate_limiter import (
@@ -725,6 +726,7 @@ else:
 # These MUST be registered before any catch-all routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - User Management"])
+app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(
     health.router, prefix="/api", tags=["Health & Monitoring"]
 )  # Routes at /api/health/...
