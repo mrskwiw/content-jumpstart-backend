@@ -48,6 +48,9 @@ _RATE_CENTS_PER_SEC: dict[str, float] = {
     "kling": 12.0,  # primary b-roll
     "veo": 30.0,  # premium b-roll (60 s ≈ $18–24)
     "ffmpeg": 0.0,  # local assembly
+    # IMAGE-GEN: images are priced per unit; GEN_IMAGE defaults to 1s so this reads as a
+    # flat per-image cost. ~5¢/image is an indicative Flux rate — re-verify at integration.
+    "flux": 5.0,
 }
 
 

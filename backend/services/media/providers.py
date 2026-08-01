@@ -34,6 +34,7 @@ class MediaKind(str, Enum):
     LIPSYNC = "lipsync"  # C1  Sync.so
     AVATAR_VIDEO = "avatar_video"  # HeyGen talking-head
     GEN_CLIP = "gen_clip"  # Kling / Veo b-roll clip
+    GEN_IMAGE = "gen_image"  # IMAGE-GEN: Flux / DALL·E / Ideogram still image
     ASSEMBLE = "assemble"  # ffmpeg concat / mux (local)
 
 
@@ -99,6 +100,17 @@ class StubProvider(BaseMediaProvider):
     def poll(self, external_id: str) -> MediaResult:
         # The stub completes on the first poll — deterministic and instant.
         digest = external_id.rsplit("_", 1)[-1]
+        if _is_image(self.kind):
+            # A still image has no duration; return an image asset + mime.
+            return MediaResult(
+                ok=True,
+                external_id=external_id,
+                asset_url=f"https://stub.local/media/{digest}.png",
+                done=True,
+                cost_cents=0,
+                duration_s=None,
+                mime="image/png",
+            )
         return MediaResult(
             ok=True,
             external_id=external_id,
@@ -815,8 +827,18 @@ _DEFAULT_SECONDS: dict[MediaKind, float] = {
     MediaKind.LIPSYNC: 30.0,
     MediaKind.AVATAR_VIDEO: 60.0,
     MediaKind.GEN_CLIP: 8.0,
+    # A still image is a single unit, not a duration; 1.0 makes the per-second cost
+    # model resolve to a flat per-image price (rate × 1s).
+    MediaKind.GEN_IMAGE: 1.0,
     MediaKind.ASSEMBLE: 0.0,
 }
+
+_IMAGE_KINDS = {MediaKind.GEN_IMAGE}
+
+
+def _is_image(kind: MediaKind) -> bool:
+    return kind in _IMAGE_KINDS
+
 
 _VIDEO_KINDS = {MediaKind.AVATAR_VIDEO, MediaKind.GEN_CLIP, MediaKind.LIPSYNC, MediaKind.ASSEMBLE}
 
