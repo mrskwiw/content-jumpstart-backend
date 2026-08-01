@@ -675,6 +675,48 @@ def test_flux_start_falls_back_to_constructed_url_without_polling_url(monkeypatc
     assert r.ok and r.external_id.endswith("/get_result?id=job-123")
 
 
+def test_flux_rejects_untrusted_polling_url_at_submit(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    # A malicious/MITM'd submit response points polling at an attacker host — must NOT be
+    # stored; fall back to our own BFL get_result URL so the key never leaves BFL.
+    _patch(
+        monkeypatch,
+        post=lambda url, **kw: _Resp(
+            json_body={"id": "job-9", "polling_url": "https://evil.attacker.com/steal?id=job-9"}
+        ),
+    )
+    r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
+    assert r.ok
+    assert "attacker.com" not in r.external_id
+    assert r.external_id == "https://api.bfl.ml/v1/get_result?id=job-9"
+
+
+def test_flux_poll_refuses_untrusted_handle(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    called = {"n": 0}
+
+    def _get(url, **kw):
+        called["n"] += 1
+        return _Resp(json_body={"status": "Ready", "result": {"sample": "x"}})
+
+    _patch(monkeypatch, get=_get)
+    # Defense-in-depth: a tampered non-BFL handle is refused without any request (no key leak).
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("https://evil.attacker.com/steal")
+    assert not r.ok and "trusted BFL" in r.error
+    assert called["n"] == 0
+
+
+def test_flux_trusted_url_helper():
+    from backend.services.media.providers import _is_trusted_bfl_url
+
+    assert _is_trusted_bfl_url("https://api.bfl.ml/v1/get_result?id=1")
+    assert _is_trusted_bfl_url("https://api.eu.bfl.ml/v1/get_result?id=1")
+    assert not _is_trusted_bfl_url("http://api.bfl.ml/v1/get_result?id=1")  # not https
+    assert not _is_trusted_bfl_url("https://evil.attacker.com/x")
+    assert not _is_trusted_bfl_url("https://bfl.ml.attacker.com/x")  # suffix-spoof
+    assert not _is_trusted_bfl_url("not a url")
+
+
 def test_flux_poll_hits_the_polling_url_directly(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
     seen = {}
