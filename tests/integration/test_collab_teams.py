@@ -348,7 +348,9 @@ def test_delete_team_surfaces_failure_when_retries_exhausted(db_session, monkeyp
         raise IntegrityError("delete teams", {}, Exception("FK violation"))
 
     monkeypatch.setattr(db_session, "commit", always_conflict)
-    with pytest.raises(team_service.TeamError):
+    # A persistent/exhausted integrity failure surfaces the ORIGINAL error (→ 500),
+    # not a false success and not a misclassified retryable conflict.
+    with pytest.raises(IntegrityError):
         team_service.delete_team(db_session, team.id)
     # The team was NOT deleted (all retries rolled back).
     monkeypatch.undo()

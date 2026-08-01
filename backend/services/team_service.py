@@ -210,9 +210,12 @@ def delete_team(db: Session, team_id: str) -> None:
     to the team between the sweep and the commit, we roll back and re-sweep (bounded
     retry) so the newly-attached rows are re-homed too, rather than 500-ing. The FK
     keeps this fail-safe — a stray row can never orphan a deleted team."""
+    import logging
+
     from sqlalchemy.exc import IntegrityError
 
-    for _attempt in range(3):
+    attempts = 3
+    for attempt in range(attempts):
         for model in (Client, Project):
             for row in db.query(model).filter(model.team_id == team_id).all():
                 row.team_id = None
@@ -226,14 +229,23 @@ def delete_team(db: Session, team_id: str) -> None:
         try:
             db.commit()
         except IntegrityError:
-            # A concurrent create/join attached a row after our sweep — re-home + retry.
             db.rollback()
+            # We already cleared every KNOWN reference (clients/projects → NULL, members
+            # deleted), so a surviving IntegrityError is either the expected concurrent-
+            # attachment race (retry re-homes it) or an UNEXPECTED integrity bug. Retry
+            # a bounded number of times for the race; on the last attempt, re-raise the
+            # ORIGINAL error so a persistent problem surfaces as a 500 (visible) rather
+            # than being masked as a retryable client conflict. Never report success.
+            if attempt == attempts - 1:
+                logging.getLogger(__name__).error(
+                    "delete_team failed after %d attempts (persistent integrity error?) " "team=%s",
+                    attempts,
+                    team_id,
+                )
+                raise
             continue
         _invalidate_resource_caches()  # only on a CONFIRMED successful teardown
         return
-    # Retry budget exhausted under sustained contention: the rollback undid our work and
-    # the team still exists, so we must NOT report success (no cache invalidation, raise).
-    raise TeamError("could not delete the team due to concurrent activity; please retry")
 
 
 def adopt_resources(db: Session, user_id: str, team_id: str) -> int:

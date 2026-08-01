@@ -742,6 +742,9 @@ export interface paths {
         /**
          * Delete Team Endpoint
          * @description Disband the team (owner only). Resources revert to their creators (solo).
+         *
+         *     A persistent/exhausted integrity failure propagates as a 500 (a real server problem
+         *     stays visible) rather than being reported as a successful or client-retryable delete.
          */
         delete: operations["delete_team_endpoint_api_teams_delete"];
         options?: never;
