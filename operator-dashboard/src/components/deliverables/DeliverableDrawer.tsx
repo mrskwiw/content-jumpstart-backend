@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Download, FileText } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { deliverablesApi } from '@/api/deliverables';
+import { downloadHint, isMediaDeliverable } from '@/utils/deliverableDownload';
 import type { Deliverable } from '@/types/domain';
 import { OverviewTab } from './tabs/OverviewTab';
 import { PreviewTab } from './tabs/PreviewTab';
@@ -34,10 +36,14 @@ function getDeliverableName(path: string): string {
 }
 
 export function DeliverableDrawer({ deliverable, onClose }: Props) {
+  // Media deliverables (image/audio/video) are stored as asset keys, not export files —
+  // getDetails() (file preview / posts / QA) is export-oriented and would show binary
+  // garbage / empty tabs for them, so skip it and render a media panel instead.
+  const isMedia = !!deliverable && isMediaDeliverable(deliverable.format);
   const { data: details, isLoading, error } = useQuery({
     queryKey: ['deliverable-details', deliverable?.id],
     queryFn: () => deliverable ? deliverablesApi.getDetails(deliverable.id) : null,
-    enabled: !!deliverable,
+    enabled: !!deliverable && !isMedia,
     staleTime: 30000, // Cache for 30 seconds
   });
 
@@ -65,7 +71,9 @@ export function DeliverableDrawer({ deliverable, onClose }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">
-          {isLoading && (
+          {isMedia && <MediaDeliverablePanel deliverable={deliverable} />}
+
+          {!isMedia && isLoading && (
             <div className="flex flex-col items-center justify-center h-full">
               <Loader2 className="h-8 w-8 text-blue-600 dark:text-blue-400 animate-spin mb-3" />
               <div className="text-sm text-neutral-500 dark:text-neutral-400">Loading details...</div>
@@ -155,6 +163,68 @@ export function DeliverableDrawer({ deliverable, onClose }: Props) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Detail panel for a media-generation deliverable (image/audio/video). Media assets
+ * aren't text/export files, so instead of the preview/posts/QA tabs this offers the
+ * essentials: what it is and a download.
+ */
+function MediaDeliverablePanel({ deliverable }: { deliverable: Deliverable }) {
+  const [downloading, setDownloading] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const handleDownload = async () => {
+    setFailed(false);
+    setDownloading(true);
+    try {
+      const { blob, filename } = await deliverablesApi.download(
+        deliverable.id,
+        downloadHint(deliverable.format, deliverable.path)
+      );
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setFailed(true);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+      <FileText className="h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+      <div>
+        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+          {deliverable.format.toUpperCase()} media deliverable
+        </p>
+        <p className="mt-1 max-w-sm text-xs text-neutral-500 dark:text-neutral-400">
+          This is a generated media asset, not a text export — download it to view or play.
+        </p>
+        <p className="mt-2 break-all font-mono text-xs text-neutral-400 dark:text-neutral-500">
+          {deliverable.path}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={downloading}
+        className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+      >
+        <Download className={`h-4 w-4 ${downloading ? 'animate-bounce' : ''}`} />
+        {downloading ? 'Downloading…' : 'Download'}
+      </button>
+      {failed && (
+        <p className="text-xs text-red-600 dark:text-red-400">Download failed. Please try again.</p>
+      )}
     </div>
   );
 }
