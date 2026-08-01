@@ -19,6 +19,7 @@ import {
 import { postsApi } from '@/api/posts';
 import { projectsApi } from '@/api/projects';
 import { clientsApi } from '@/api/clients';
+import PostReviewPanel from '@/components/review/PostReviewPanel';
 import type { PostDraft, Project, Client } from '@/types/domain';
 import type { PaginatedResponse } from '@/types/pagination';
 
@@ -785,6 +786,13 @@ export default function ContentReview() {
               ) : (
                 <div className="prose prose-sm max-w-none dark:prose-invert">
                   <p className="whitespace-pre-wrap text-neutral-900 dark:text-neutral-100">{post.content}</p>
+                </div>
+              )}
+
+              {/* Team review: approval gate + comments */}
+              {editingPostId !== post.id && (
+                <div className="mt-4">
+                  <PostReviewPanel postId={post.id} />
                 </div>
               )}
 

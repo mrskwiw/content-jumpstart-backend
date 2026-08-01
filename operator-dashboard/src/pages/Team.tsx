@@ -237,18 +237,17 @@ export default function Team() {
                     <div className="text-xs text-neutral-500 dark:text-neutral-400">{m.email}</div>
                   </td>
                   <td className="px-4 py-3">
+                    {/* Role change is reversible (unlike remove/transfer/leave, which are
+                        confirmed): applied directly with a success toast so the owner can
+                        instantly correct a mis-selection. Deliberately NOT confirm-gated — a
+                        confirm on a controlled select can leave the shown option drifted from
+                        the real role on cancel (BUGS.md Decision #216). */}
                     {canEditThis ? (
                       <select
                         value={m.role}
                         onChange={(e) => {
                           const role = e.target.value as TeamRole;
-                          if (role === m.role) return;
-                          if (
-                            window.confirm(
-                              `Change ${m.full_name || m.email}'s role to ${role}?`
-                            )
-                          )
-                            changeRole.mutate({ userId: m.user_id, role });
+                          if (role !== m.role) changeRole.mutate({ userId: m.user_id, role });
                         }}
                         className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
                       >

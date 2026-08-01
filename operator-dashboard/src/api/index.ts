@@ -7,6 +7,7 @@ export { deliverablesApi } from './deliverables';
 export { generatorApi } from './generator';
 export { postsApi } from './posts';
 export { projectsApi } from './projects';
+export { reviewApi } from './review';
 export { runsApi } from './runs';
 export { settingsApi } from './settings';
 export { storiesApi } from './stories';
