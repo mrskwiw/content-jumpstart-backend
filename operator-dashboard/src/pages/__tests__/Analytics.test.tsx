@@ -2,7 +2,7 @@
  * Tests for the internal-ops Analytics page (GAP-UI-01) — real business summary.
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Analytics from '../Analytics';
 import { engagementApi } from '@/api/engagement';
@@ -45,5 +45,23 @@ describe('Analytics Page', () => {
     // No fabricated revenue/quality copy on the page.
     expect(screen.queryByText(/revenue/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/quality/i)).not.toBeInTheDocument();
+  });
+
+  it('exports the shown data as CSV', async () => {
+    const createURL = jest.fn(() => 'blob:x');
+    const revokeURL = jest.fn();
+    // jsdom lacks URL.createObjectURL; stub it plus the anchor click.
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createURL;
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeURL;
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    renderWithProviders(<Analytics />);
+    const exportBtn = await screen.findByRole('button', { name: /export csv/i });
+    await waitFor(() => expect(exportBtn).not.toBeDisabled());
+    fireEvent.click(exportBtn);
+
+    expect(createURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    clickSpy.mockRestore();
   });
 });

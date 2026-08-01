@@ -57,10 +57,24 @@ export interface BusinessSummary {
 
 export const engagementApi = {
   async businessSummary(days = 90): Promise<BusinessSummary> {
-    const { data } = await apiClient.get<BusinessSummary>('/api/analytics/business-summary', {
-      params: { days },
-    });
-    return data;
+    const { data } = await apiClient.get<Partial<BusinessSummary>>(
+      '/api/analytics/business-summary',
+      { params: { days } }
+    );
+    // Normalize at the boundary so a partial/schema-skewed 200 (e.g. version skew during
+    // a partial deploy) degrades gracefully instead of crashing the render path.
+    const t = data?.totals ?? {};
+    return {
+      days: typeof data?.days === 'number' ? data.days : days,
+      totals: {
+        projects: t.projects ?? 0,
+        posts: t.posts ?? 0,
+        clients: t.clients ?? 0,
+      },
+      monthly: Array.isArray(data?.monthly) ? data.monthly : [],
+      by_client: Array.isArray(data?.by_client) ? data.by_client : [],
+      by_template: Array.isArray(data?.by_template) ? data.by_template : [],
+    };
   },
   async collect(): Promise<{ collected: number; skipped: number; dry_run: boolean }> {
     const { data } = await apiClient.post('/api/analytics/collect');
