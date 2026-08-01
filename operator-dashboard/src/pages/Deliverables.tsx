@@ -468,8 +468,18 @@ export default function Deliverables() {
                       <p className="text-xs text-neutral-500 dark:text-neutral-400">{d.projectId}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                        {d.format.toUpperCase()}
+                      {/* Same media distinction as the grouped view so switching to list
+                          mode doesn't lose the media-vs-export flag. */}
+                      <span
+                        className={`rounded px-2 py-1 text-xs font-medium ${
+                          isMediaDeliverable(d.format)
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                            : 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+                        }`}
+                      >
+                        {isMediaDeliverable(d.format)
+                          ? `${d.format.toUpperCase()} (MEDIA)`
+                          : d.format.toUpperCase()}
                       </span>
                     </td>
                     <td className="px-4 py-3">

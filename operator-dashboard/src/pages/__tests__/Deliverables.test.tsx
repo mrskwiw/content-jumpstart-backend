@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import Deliverables from '@/pages/Deliverables';
 import { renderWithProviders } from '@/test-utils';
 
@@ -74,5 +74,19 @@ describe('Deliverables page', () => {
     expect(screen.getByText('image (media)')).toBeInTheDocument();
     expect(screen.getByText('docx')).toBeInTheDocument();
     expect(screen.queryByText('docx (media)')).not.toBeInTheDocument();
+  });
+
+  it('keeps the media distinction after switching to list view', async () => {
+    const { wrapper } = renderWithProviders();
+    render(<Deliverables />, { wrapper });
+
+    await waitFor(() => expect(screen.getByText('image (media)')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'List' }));
+
+    // The list-view format cell carries the same media flag (uppercased).
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('IMAGE (MEDIA)')).toBeInTheDocument();
+    expect(within(table).getByText('DOCX')).toBeInTheDocument();
+    expect(within(table).queryByText('DOCX (MEDIA)')).not.toBeInTheDocument();
   });
 });
