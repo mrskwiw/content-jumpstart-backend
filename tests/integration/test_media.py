@@ -125,6 +125,45 @@ def test_generate_and_process_due_completes_pipeline(client, db_session, monkeyp
     assert "stub.local" in signed.json()["url"]
 
 
+def test_gen_image_pipeline_end_to_end(client, db_session, monkeypatch):
+    """IMAGE-GEN: kind=gen_image is reachable and its image asset persists under a
+    real image extension (not an opaque .bin)."""
+    _dry_run(monkeypatch)
+    user = _make_user(db_session, "media-img@example.com", "user-mediaimg")
+    admin = _make_user(
+        db_session, "media-imgadm@example.com", "user-mediaimgadm", is_superuser=True
+    )
+
+    # Reachable via the standalone `kind` (the pipeline name), like the audio utilities.
+    r = client.post(
+        "/api/media/generate",
+        json={"kind": "gen_image", "spec": {"prompt": "a red bicycle"}, "confirm": True},
+        headers=_hdr(user),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["confirmed"] is True
+
+    proc = client.post("/api/media/process-due", headers=_hdr(admin))
+    assert proc.status_code == 200, proc.text
+
+    jobs = client.get("/api/media/jobs?pipeline=gen_image", headers=_hdr(user)).json()
+    assert len(jobs) == 1
+    assert jobs[0]["status"] == "done"
+
+    detail = client.get(f"/api/media/jobs/{jobs[0]['id']}", headers=_hdr(user)).json()
+    asset = detail["assets"][0]
+    # Stored under a real image extension so it downloads as an image, not a .bin blob.
+    assert asset["url"].endswith(".png")
+
+    dl = client.get(
+        f"/api/media/assets/{asset['id']}/download",
+        headers=_hdr(user),
+        follow_redirects=False,
+    )
+    assert dl.status_code in (302, 307)
+    assert ".png" in dl.headers["location"]
+
+
 def test_generate_over_budget_returns_402(client, db_session, monkeypatch):
     _dry_run(monkeypatch)
     monkeypatch.setenv("MEDIA_MAX_JOB_COST_CENTS", "1")  # anything real is over budget

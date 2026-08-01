@@ -68,6 +68,12 @@ PIPELINES: dict[str, list[tuple[MediaKind, str]]] = {
     "dub": [
         (MediaKind.DUB, "elevenlabs_dub"),
     ],
+    # IMAGE-GEN (single-op, prompt-based): the name doubles as the `kind=` the API
+    # accepts. "flux" fail-closes via NotImplementedProvider until its integration +
+    # API key land; MEDIA_DRY_RUN routes it to the stub so the path is exercisable now.
+    "gen_image": [
+        (MediaKind.GEN_IMAGE, "flux"),
+    ],
 }
 
 # Pipelines whose single op consumes an existing source asset (not a script).
@@ -552,7 +558,16 @@ def _apply_result(db: Session, job: MediaJob, result) -> MediaJob:
     return job
 
 
-_EXT_BY_MIME = {"video/mp4": ".mp4", "audio/mpeg": ".mp3", "audio/wav": ".wav"}
+_EXT_BY_MIME = {
+    "video/mp4": ".mp4",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    # IMAGE-GEN: keep image assets under a real image extension so they re-host and
+    # download as an image type, not an opaque .bin / application/octet-stream.
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
 
 
 def _persist_result(job: MediaJob, result, asset_id: str) -> StoredObject:
