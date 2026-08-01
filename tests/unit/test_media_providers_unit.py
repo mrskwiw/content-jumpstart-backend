@@ -680,6 +680,24 @@ def test_flux_poll_only_hits_our_trusted_base(monkeypatch):
     assert seen["params"] == {"id": "job-123"}
 
 
+def test_flux_poll_extracts_id_from_a_legacy_url_handle(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
+    seen = {}
+
+    def _get(url, **kw):
+        seen["url"] = url
+        seen["params"] = kw.get("params")
+        return _Resp(json_body={"status": "Ready", "result": {"sample": "https://cdn/x.png"}})
+
+    _patch(monkeypatch, get=_get)
+    # A handle stored by an earlier build (full URL, even an untrusted host): we extract
+    # only the `id` and still poll OUR base — the URL itself is never fetched.
+    r = FluxProvider(MediaKind.GEN_IMAGE).poll("https://evil.attacker.com/get_result?id=job-77")
+    assert r.ok and r.done
+    assert seen["url"] == "https://api.bfl.ml/v1/get_result"
+    assert seen["params"] == {"id": "job-77"}
+
+
 def test_flux_start_http_error(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "k")  # pragma: allowlist secret
     _patch(monkeypatch, post=lambda url, **kw: _Resp(status=402, text="pay up"))

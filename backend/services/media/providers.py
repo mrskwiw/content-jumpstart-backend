@@ -843,12 +843,19 @@ class FluxProvider(BaseMediaProvider):
 
         try:
             api_key = _require_env("BFL_API_KEY")
-            # Always poll our own trusted BASE with the stored job id — the API key never
-            # goes to any response-supplied URL (see start() / Decision #225).
+            # Always poll our own trusted BASE with the job id — the API key never goes to
+            # any response-supplied URL (see start() / Decision #225). Compat shim: if a
+            # handle from an earlier build was a full URL, extract just its `id` query param
+            # and use that on our base (never fetch the URL itself).
+            job_id = external_id
+            if external_id.startswith(("http://", "https://")):
+                from urllib.parse import parse_qs, urlparse
+
+                job_id = (parse_qs(urlparse(external_id).query).get("id") or [external_id])[0]
             resp = requests.get(
                 f"{self.BASE}/get_result",
                 headers={"x-key": api_key},
-                params={"id": external_id},
+                params={"id": job_id},
                 timeout=_HTTP_TIMEOUT,
             )
             if resp.status_code >= 400:
