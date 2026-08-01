@@ -197,8 +197,24 @@ def test_submit_recovers_from_insert_conflict(db_session, monkeypatch):
     result = approval_service.submit_for_approval(db_session, post.id, owner.id)
     monkeypatch.undo()
 
-    assert result.status == "pending" and result.submitted_by_user_id == owner.id
+    # Recovered from the insert conflict AND did not clobber the concurrent APPROVAL:
+    # submit is a no-op on an already-approved row (no lost update, no 500).
+    assert result.status == "approved"
     assert db_session.query(PostApproval).filter_by(post_id=post.id).count() == 1
+
+
+def test_submit_is_noop_on_approved_post(db_session):
+    client = TestClient(app)
+    owner = _mk_user(db_session, "ap-na", "apna@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    editor = _mk_user(db_session, "ap-ne", "apne@example.com")
+    _add(db_session, team.id, editor, ROLE_EDITOR)
+    post = _mk_post(db_session, owner)
+    client.post(f"/api/posts/{post.id}/approval/submit", headers=_hdr(editor.id))
+    client.post(f"/api/posts/{post.id}/approval/approve", json={}, headers=_hdr(owner.id))
+    # Submitting an already-approved post must NOT silently un-approve it.
+    r = client.post(f"/api/posts/{post.id}/approval/submit", headers=_hdr(editor.id))
+    assert r.status_code == 200 and r.json()["status"] == "approved"
 
 
 def test_approval_cascades_with_post_delete(db_session):
