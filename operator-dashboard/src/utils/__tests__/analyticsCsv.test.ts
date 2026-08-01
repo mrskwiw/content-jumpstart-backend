@@ -45,4 +45,20 @@ describe('summaryToCsv', () => {
     expect(csv).toContain("'-2+3");
     expect(csv).toContain("'@SUM(A1)");
   });
+
+  it('neutralizes leading-newline and full-width formula triggers', () => {
+    const csv = summaryToCsv({
+      ...base,
+      monthly: [],
+      by_client: [
+        { client_name: '\n=SUM(A1)', projects: 1, posts: 1 },
+        { client_name: '＝HYPERLINK(1)', projects: 1, posts: 1 }, // full-width '='
+        { client_name: '＋2', projects: 1, posts: 1 }, // full-width '+'
+      ],
+    });
+    // Each dangerous value is single-quote-prefixed (the \n case is also quoted).
+    expect(csv).toContain(`"'\n=SUM(A1)"`);
+    expect(csv).toContain("'＝HYPERLINK(1)");
+    expect(csv).toContain("'＋2");
+  });
 });

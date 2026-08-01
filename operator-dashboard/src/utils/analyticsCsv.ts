@@ -4,11 +4,13 @@ import type { BusinessSummary } from '@/api/engagement';
 export function summaryToCsv(data: BusinessSummary): string {
   const esc = (v: string | number) => {
     let s = String(v);
-    // Neutralize spreadsheet formula injection (CWE-1236): a cell beginning with
-    // = + - @ (or a tab/CR that Excel trims) is executed as a formula when the export is
-    // opened in Excel/Sheets. Tenant-controlled client/template names could carry a payload
-    // like =HYPERLINK(...), so prefix such values with a single quote.
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    // Neutralize spreadsheet formula injection (CWE-1236): a cell beginning with a
+    // formula-trigger char is executed as a formula when the export is opened in
+    // Excel/Sheets. Tenant-controlled client/template names could carry a payload like
+    // =HYPERLINK(...), so prefix such values with a single quote. Cover the full
+    // OWASP-documented set: ASCII = + - @, the whitespace triggers tab/CR/LF, and the
+    // full-width homoglyphs ＝ ＋ － ＠ (U+FF1D/FF0B/FF0D/FF20) some apps normalize.
+    if (/^[=+\-@\t\r\n＝＋－＠]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const rows: string[] = [
