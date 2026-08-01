@@ -15,7 +15,7 @@ month extraction.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -29,7 +29,7 @@ def _to_naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
     if dt.tzinfo is not None:
-        return dt.astimezone(tz=None).replace(tzinfo=None)
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
 
 
@@ -42,15 +42,23 @@ def business_summary(db: Session, user_id: str, days: int = 90) -> Dict:
     days = max(1, min(days, 366))
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    clients = db.query(Client).filter(Client.user_id == user_id).all()
+    # Exclude soft-deleted rows (SoftDeleteMixin) — content removed via the deletion /
+    # privacy flow must stay hidden from analytics. Posts of a soft-deleted project are
+    # excluded transitively (project_ids only contains active projects), and individually
+    # soft-deleted posts are filtered as well.
+    clients = db.query(Client).filter(Client.user_id == user_id, Client.is_deleted.is_(False)).all()
     client_name = {c.id: c.name for c in clients}
 
-    projects = db.query(Project).filter(Project.user_id == user_id).all()
+    projects = (
+        db.query(Project).filter(Project.user_id == user_id, Project.is_deleted.is_(False)).all()
+    )
     project_client = {p.id: p.client_id for p in projects}
     project_ids = list(project_client.keys())
 
     posts: List[Post] = (
-        db.query(Post).filter(Post.project_id.in_(project_ids)).all() if project_ids else []
+        db.query(Post).filter(Post.project_id.in_(project_ids), Post.is_deleted.is_(False)).all()
+        if project_ids
+        else []
     )
 
     # ── Windowed aggregation ────────────────────────────────────────────────────

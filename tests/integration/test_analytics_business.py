@@ -85,6 +85,50 @@ def test_business_summary_excludes_rows_outside_window(db_session):
     assert s["totals"]["posts"] == 1
 
 
+def test_business_summary_excludes_soft_deleted(db_session):
+    now = datetime.utcnow()
+    _user(db_session, "u1")
+    _client(db_session, "c1", "u1", "Acme")
+    _project(db_session, "p_live", "u1", "c1", now)
+    _post(db_session, "live", "p_live", "How-To", now)
+    # A soft-deleted project (its post must be excluded transitively), an individually
+    # soft-deleted post on the live project, and a live post inside the deleted project.
+    db_session.add(
+        Project(
+            id="p_del", user_id="u1", client_id="c1", name="Proj", created_at=now, is_deleted=True
+        )
+    )
+    db_session.add(
+        Post(
+            id="del_in_live",
+            project_id="p_live",
+            run_id="run-x",
+            content="b",
+            template_name="How-To",
+            created_at=now,
+            is_deleted=True,
+        )
+    )
+    db_session.add(
+        Post(
+            id="post_in_del",
+            project_id="p_del",
+            run_id="run-x",
+            content="b",
+            template_name="How-To",
+            created_at=now,
+        )
+    )
+    db_session.commit()
+
+    s = business.business_summary(db_session, "u1", days=90)
+
+    # Only the live project and its single non-deleted post are counted.
+    assert s["totals"]["projects"] == 1
+    assert s["totals"]["posts"] == 1
+    assert s["by_template"] == [{"template_name": "How-To", "usage_count": 1}]
+
+
 def test_business_summary_is_scoped_to_the_user(db_session):
     now = datetime.utcnow()
     _user(db_session, "u1")
