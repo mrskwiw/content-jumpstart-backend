@@ -227,7 +227,12 @@ def delete_team_endpoint(
 ):
     """Disband the team (owner only). Resources revert to their creators (solo)."""
     team_id = _require_owner(db, current_user)
-    team_service.delete_team(db, team_id)
+    try:
+        team_service.delete_team(db, team_id)
+    except team_service.TeamError as exc:
+        # Sustained concurrent activity prevented a clean teardown — 409 so the caller
+        # retries rather than believing the team was deleted.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"status": "success", "message": "Team deleted"}
 
 

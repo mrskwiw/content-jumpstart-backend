@@ -335,6 +335,26 @@ def test_delete_team_reverts_resources_to_solo(db_session):
     assert _check_ownership("Client", c, owner, db_session) is True
 
 
+def test_delete_team_surfaces_failure_when_retries_exhausted(db_session, monkeypatch):
+    # If every delete attempt hits FK contention, delete_team must RAISE (not return a
+    # false success) so the endpoint doesn't report "Team deleted" for a live team.
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    owner = _mk_user(db_session, "cb-de", "cbde@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+
+    def always_conflict():
+        raise IntegrityError("delete teams", {}, Exception("FK violation"))
+
+    monkeypatch.setattr(db_session, "commit", always_conflict)
+    with pytest.raises(team_service.TeamError):
+        team_service.delete_team(db_session, team.id)
+    # The team was NOT deleted (all retries rolled back).
+    monkeypatch.undo()
+    assert team_service.get_membership(db_session, owner.id) is not None
+
+
 def test_adopt_resources_brings_solo_work_into_team(db_session):
     client = TestClient(app)
     owner = _mk_user(db_session, "cb-ao", "cbao@example.com")

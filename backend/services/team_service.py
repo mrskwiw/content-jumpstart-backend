@@ -218,17 +218,22 @@ def delete_team(db: Session, team_id: str) -> None:
                 row.team_id = None
         db.query(TeamMember).filter(TeamMember.team_id == team_id).delete()
         team = db.query(Team).filter(Team.id == team_id).first()
-        if team is None:
+        if team is None:  # already gone → nothing to delete; treat as success
             db.commit()
-            break
+            _invalidate_resource_caches()
+            return
         db.delete(team)
         try:
             db.commit()
-            break
         except IntegrityError:
             # A concurrent create/join attached a row after our sweep — re-home + retry.
             db.rollback()
-    _invalidate_resource_caches()
+            continue
+        _invalidate_resource_caches()  # only on a CONFIRMED successful teardown
+        return
+    # Retry budget exhausted under sustained contention: the rollback undid our work and
+    # the team still exists, so we must NOT report success (no cache invalidation, raise).
+    raise TeamError("could not delete the team due to concurrent activity; please retry")
 
 
 def adopt_resources(db: Session, user_id: str, team_id: str) -> int:
