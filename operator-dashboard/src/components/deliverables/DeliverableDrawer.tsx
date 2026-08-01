@@ -73,7 +73,9 @@ export function DeliverableDrawer({ deliverable, onClose }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">
-          {isMedia && <MediaDeliverablePanel deliverable={deliverable} />}
+          {/* key by id so the panel (and its markDelivered mutation state) remounts fresh
+              per deliverable — a prior "delivered" success must not leak onto the next. */}
+          {isMedia && <MediaDeliverablePanel key={deliverable.id} deliverable={deliverable} />}
 
           {!isMedia && isLoading && (
             <div className="flex flex-col items-center justify-center h-full">

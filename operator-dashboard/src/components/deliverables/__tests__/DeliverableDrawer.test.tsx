@@ -67,6 +67,27 @@ describe('DeliverableDrawer — media deliverables', () => {
     expect(mockedMarkDelivered).toHaveBeenCalledTimes(1);
   });
 
+  it('does not leak a prior "delivered" success onto a different deliverable', async () => {
+    mockedMarkDelivered.mockResolvedValue({});
+    const { wrapper } = renderWithProviders();
+    const { rerender } = render(
+      <DeliverableDrawer deliverable={mediaDeliverable} onClose={() => {}} />,
+      { wrapper }
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /mark delivered/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /mark delivered/i })).not.toBeInTheDocument()
+    );
+
+    // Switch the drawer to a DIFFERENT, still-undelivered media deliverable.
+    const other: Deliverable = { ...mediaDeliverable, id: 'd-img-2', path: 'media/u/j/two.png' };
+    rerender(<DeliverableDrawer deliverable={other} onClose={() => {}} />);
+
+    // The Mark-Delivered control is back — the previous success didn't carry over.
+    expect(await screen.findByRole('button', { name: /mark delivered/i })).toBeInTheDocument();
+  });
+
   it('fetches export details for a document deliverable (not the media panel)', async () => {
     mockedGetDetails.mockResolvedValue({
       ...mediaDeliverable,
