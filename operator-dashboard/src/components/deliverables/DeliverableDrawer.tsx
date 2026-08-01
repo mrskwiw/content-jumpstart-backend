@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { X, Loader2, Download, FileText } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Loader2, Download, FileText, CheckCircle } from 'lucide-react';
 import * as Tabs from '@radix-ui/react-tabs';
+import { format } from 'date-fns';
 import { deliverablesApi } from '@/api/deliverables';
 import { downloadHint, isMediaDeliverable } from '@/utils/deliverableDownload';
+import { formatFileSize } from '@/utils/formatters';
 import type { Deliverable } from '@/types/domain';
 import { OverviewTab } from './tabs/OverviewTab';
 import { PreviewTab } from './tabs/PreviewTab';
@@ -175,6 +177,14 @@ export function DeliverableDrawer({ deliverable, onClose }: Props) {
 function MediaDeliverablePanel({ deliverable }: { deliverable: Deliverable }) {
   const [downloading, setDownloading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Media deliverables are still deliverables — keep the metadata + delivery workflow.
+  const markDelivered = useMutation({
+    mutationFn: () =>
+      deliverablesApi.markDelivered(deliverable.id, { deliveredAt: new Date().toISOString() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['deliverables'] }),
+  });
 
   const handleDownload = async () => {
     setFailed(false);
@@ -199,31 +209,75 @@ function MediaDeliverablePanel({ deliverable }: { deliverable: Deliverable }) {
     }
   };
 
+  const meta: Array<[string, string]> = [
+    ['Format', deliverable.format.toUpperCase()],
+    ['Status', deliverable.status],
+    ['Size', formatFileSize(deliverable.fileSizeBytes)],
+    ['Created', format(new Date(deliverable.createdAt), 'PPp')],
+    [
+      'Delivered',
+      deliverable.deliveredAt ? format(new Date(deliverable.deliveredAt), 'PPp') : 'Not yet',
+    ],
+  ];
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-      <FileText className="h-12 w-12 text-neutral-400 dark:text-neutral-500" />
-      <div>
-        <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-          {deliverable.format.toUpperCase()} media deliverable
-        </p>
-        <p className="mt-1 max-w-sm text-xs text-neutral-500 dark:text-neutral-400">
-          This is a generated media asset, not a text export — download it to view or play.
-        </p>
-        <p className="mt-2 break-all font-mono text-xs text-neutral-400 dark:text-neutral-500">
-          {deliverable.path}
-        </p>
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
+      <div className="flex flex-col items-center gap-3 text-center">
+        <FileText className="h-12 w-12 text-neutral-400 dark:text-neutral-500" />
+        <div>
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+            {deliverable.format.toUpperCase()} media deliverable
+          </p>
+          <p className="mt-1 max-w-sm text-xs text-neutral-500 dark:text-neutral-400">
+            A generated media asset, not a text export — download it to view or play.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+        >
+          <Download className={`h-4 w-4 ${downloading ? 'animate-bounce' : ''}`} />
+          {downloading ? 'Downloading…' : 'Download'}
+        </button>
+        {failed && (
+          <p className="text-xs text-red-600 dark:text-red-400">Download failed. Please try again.</p>
+        )}
       </div>
-      <button
-        type="button"
-        onClick={handleDownload}
-        disabled={downloading}
-        className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-      >
-        <Download className={`h-4 w-4 ${downloading ? 'animate-bounce' : ''}`} />
-        {downloading ? 'Downloading…' : 'Download'}
-      </button>
-      {failed && (
-        <p className="text-xs text-red-600 dark:text-red-400">Download failed. Please try again.</p>
+
+      {/* Metadata — media deliverables keep the same at-a-glance info as export ones. */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-700">
+        {meta.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs text-neutral-500 dark:text-neutral-400">{label}</dt>
+            <dd className="mt-0.5 text-sm text-neutral-900 dark:text-neutral-100">{value}</dd>
+          </div>
+        ))}
+        <div className="col-span-2">
+          <dt className="text-xs text-neutral-500 dark:text-neutral-400">Path</dt>
+          <dd className="mt-0.5 break-all font-mono text-xs text-neutral-400 dark:text-neutral-500">
+            {deliverable.path}
+          </dd>
+        </div>
+      </dl>
+
+      {/* Delivery workflow — retained for media deliverables. */}
+      {deliverable.status !== 'delivered' && (
+        <button
+          type="button"
+          onClick={() => markDelivered.mutate()}
+          disabled={markDelivered.isPending}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-800 hover:bg-green-100 disabled:opacity-50 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/30"
+        >
+          <CheckCircle className="h-4 w-4" />
+          {markDelivered.isPending ? 'Marking Delivered…' : 'Mark Delivered'}
+        </button>
+      )}
+      {markDelivered.isError && (
+        <p className="text-center text-xs text-red-600 dark:text-red-400">
+          Couldn't mark delivered. Please try again.
+        </p>
       )}
     </div>
   );
