@@ -58,6 +58,13 @@ describe('DeliverableDrawer — media deliverables', () => {
     const markBtn = screen.getByRole('button', { name: /mark delivered/i });
     fireEvent.click(markBtn);
     await waitFor(() => expect(mockedMarkDelivered).toHaveBeenCalledWith('d-img', expect.any(Object)));
+
+    // After success the button is replaced by a confirmation — it can't be re-fired in
+    // the window before the parent refetch lands (no duplicate mark-delivered PATCH).
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /mark delivered/i })).not.toBeInTheDocument()
+    );
+    expect(mockedMarkDelivered).toHaveBeenCalledTimes(1);
   });
 
   it('fetches export details for a document deliverable (not the media panel)', async () => {

@@ -262,8 +262,15 @@ function MediaDeliverablePanel({ deliverable }: { deliverable: Deliverable }) {
         </div>
       </dl>
 
-      {/* Delivery workflow — retained for media deliverables. */}
-      {deliverable.status !== 'delivered' && (
+      {/* Delivery workflow — retained for media deliverables. Once the mutation
+          succeeds the control is replaced by a confirmation (not just disabled), so it
+          can't be re-fired in the window before the parent list refetch lands and passes
+          a fresh `delivered` status prop — avoiding a duplicate mark-delivered PATCH. */}
+      {markDelivered.isSuccess || deliverable.status === 'delivered' ? (
+        <p className="inline-flex items-center justify-center gap-2 text-sm font-medium text-green-700 dark:text-green-400">
+          <CheckCircle className="h-4 w-4" /> Delivered
+        </p>
+      ) : (
         <button
           type="button"
           onClick={() => markDelivered.mutate()}
