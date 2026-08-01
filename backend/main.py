@@ -62,6 +62,7 @@ from backend.routers import (
     client_keywords,
     teams,
     comments,
+    approvals,
 )
 from slowapi.errors import RateLimitExceeded
 from backend.utils.http_rate_limiter import (
@@ -729,6 +730,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - User Management"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(comments.router, prefix="/api", tags=["Comments"])
+app.include_router(approvals.router, prefix="/api", tags=["Approvals"])
 app.include_router(
     health.router, prefix="/api", tags=["Health & Monitoring"]
 )  # Routes at /api/health/...
