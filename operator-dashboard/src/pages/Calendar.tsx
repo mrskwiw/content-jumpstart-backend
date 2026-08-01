@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   Filter,
   X,
 } from 'lucide-react';
+import { distributionApi, type ScheduledPost } from '@/api/distribution';
 import {
   format,
   startOfMonth,
@@ -41,32 +43,53 @@ interface CalendarEvent {
   time?: string;
 }
 
+/** Map a scheduled distribution post onto a calendar 'post' event. The queue schema
+ *  exposes no client/project names, so those are left unset (optional). */
+function scheduledPostToEvent(sp: ScheduledPost): CalendarEvent {
+  const platform = sp.platform ? sp.platform[0].toUpperCase() + sp.platform.slice(1) : 'Post';
+  const excerpt = (sp.content ?? '').trim().slice(0, 60);
+  let time: string | undefined;
+  try {
+    time = format(parseISO(sp.scheduled_for), 'hh:mm a');
+  } catch {
+    time = undefined;
+  }
+  return {
+    id: sp.id,
+    title: `${platform} post`,
+    date: sp.scheduled_for,
+    type: 'post',
+    description: excerpt || undefined,
+    time,
+  };
+}
+
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedEventTypes, setSelectedEventTypes] = useState<EventType[]>(['post', 'deadline', 'team']);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // Mock events - would come from API
-  const mockEvents: CalendarEvent[] = [
-    { id: '1', title: 'LinkedIn Post - TechFlow', date: '2024-12-18', type: 'post', client: 'TechFlow Solutions', project: 'Q4 Campaign', time: '09:00 AM' },
-    { id: '2', title: 'Deliverable Due - Creative Agency', date: '2024-12-19', type: 'deadline', client: 'Creative Agency Pro', project: 'Holiday Series', time: '05:00 PM' },
-    { id: '3', title: 'Team Meeting', date: '2024-12-20', type: 'team', description: 'Weekly content review', time: '02:00 PM' },
-    { id: '4', title: 'Twitter Thread - Marketing Masters', date: '2024-12-20', type: 'post', client: 'Marketing Masters', project: 'Social Strategy', time: '11:00 AM' },
-    { id: '5', title: 'Blog Post - Content Kings', date: '2024-12-22', type: 'post', client: 'Content Kings', project: 'SEO Initiative', time: '10:00 AM' },
-    { id: '6', title: 'Final Review - Digital Dynamics', date: '2024-12-23', type: 'deadline', client: 'Digital Dynamics', project: 'Brand Refresh', time: '03:00 PM' },
-    { id: '7', title: 'Facebook Posts - TechFlow', date: '2024-12-24', type: 'post', client: 'TechFlow Solutions', project: 'Q4 Campaign', time: '01:00 PM' },
-    { id: '8', title: 'Team Out of Office', date: '2024-12-25', type: 'team', description: 'Holiday - Office Closed' },
-    { id: '9', title: 'LinkedIn Carousel - Creative Agency', date: '2024-12-26', type: 'post', client: 'Creative Agency Pro', project: 'Year End Wrap', time: '08:00 AM' },
-    { id: '10', title: 'Project Kickoff - New Client', date: '2024-12-27', type: 'team', description: 'Discovery call with GrowthCo', time: '10:00 AM' },
-    { id: '11', title: 'Deliverable Package - Marketing Masters', date: '2024-12-30', type: 'deadline', client: 'Marketing Masters', project: 'Q1 Prep', time: '04:00 PM' },
-    { id: '12', title: 'Email Newsletter - Content Kings', date: '2024-12-31', type: 'post', client: 'Content Kings', project: 'Monthly Newsletter', time: '09:00 AM' },
-  ];
+  // Real posting schedule from the distribution queue. Deadlines/team events have no
+  // backend source yet, so only 'post' events are populated (the filter chips remain).
+  const {
+    data: scheduledPosts = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['distribution', 'queue'],
+    queryFn: () => distributionApi.queue(),
+  });
+
+  const events = useMemo(
+    () => scheduledPosts.map(scheduledPostToEvent),
+    [scheduledPosts]
+  );
 
   // Filter events by selected types
   const filteredEvents = useMemo(() => {
-    return mockEvents.filter(event => selectedEventTypes.includes(event.type));
-  }, [mockEvents, selectedEventTypes]);
+    return events.filter(event => selectedEventTypes.includes(event.type));
+  }, [events, selectedEventTypes]);
 
   // Get calendar days for current month view
   const calendarDays = useMemo(() => {
@@ -142,6 +165,14 @@ export default function Calendar() {
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Posting schedules, delivery deadlines, and team availability
           </p>
+          {isLoading && (
+            <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">Loading schedule…</p>
+          )}
+          {isError && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              Couldn't load the posting schedule.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800">
