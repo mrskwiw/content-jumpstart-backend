@@ -739,7 +739,11 @@ export interface paths {
          *     The caller's existing team-less clients/projects are moved into the new team.
          */
         post: operations["create_team_endpoint_api_teams_post"];
-        delete?: never;
+        /**
+         * Delete Team Endpoint
+         * @description Disband the team (owner only). Resources revert to their creators (solo).
+         */
+        delete: operations["delete_team_endpoint_api_teams_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -787,6 +791,49 @@ export interface paths {
          * @description Change a member's role (owner/admin only). The owner's role is immutable here.
          */
         patch: operations["change_member_role_api_teams_members__user_id__patch"];
+        trace?: never;
+    };
+    "/api/teams/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Ownership Endpoint
+         * @description Transfer team ownership to another member (owner only). The caller becomes admin.
+         */
+        post: operations["transfer_ownership_endpoint_api_teams_transfer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/teams/adopt-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adopt Resources Endpoint
+         * @description Move the caller's own team-less (solo) clients/projects into their team.
+         *
+         *     The explicit, self-consented counterpart to the no-auto-migrate-on-invite policy
+         *     (Decision #213): a member deliberately brings their prior solo work into the team.
+         */
+        post: operations["adopt_resources_endpoint_api_teams_adopt_resources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/health": {
@@ -7977,6 +8024,11 @@ export interface components {
             /** Created At */
             created_at?: string | null;
         };
+        /** TransferOwnershipRequest */
+        TransferOwnershipRequest: {
+            /** User Id */
+            user_id: string;
+        };
         /**
          * TrendsSearchRequest
          * @description Request for trends search.
@@ -9052,6 +9104,26 @@ export interface operations {
             };
         };
     };
+    delete_team_endpoint_api_teams_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     add_member_api_teams_members_post: {
         parameters: {
             query?: never;
@@ -9147,6 +9219,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_ownership_endpoint_api_teams_transfer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferOwnershipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adopt_resources_endpoint_api_teams_adopt_resources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

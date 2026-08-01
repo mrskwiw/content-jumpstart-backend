@@ -11,7 +11,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from backend.models import Client, Project, Team, TeamMember, User
-from backend.models.team import MANAGE_ROLES, ROLE_OWNER, TEAM_ROLES, WRITE_ROLES
+from backend.models.team import MANAGE_ROLES, ROLE_ADMIN, ROLE_OWNER, TEAM_ROLES, WRITE_ROLES
 
 
 class TeamError(Exception):
@@ -162,3 +162,70 @@ def remove_member(db: Session, team_id: str, target_user_id: str) -> None:
 def is_manager(db: Session, user_id: str) -> bool:
     """Whether the user may manage members (owner/admin)."""
     return (user_role(db, user_id) or "") in MANAGE_ROLES
+
+
+def is_owner(db: Session, user_id: str) -> bool:
+    return user_role(db, user_id) == ROLE_OWNER
+
+
+# ── team lifecycle ───────────────────────────────────────────────────────────────
+
+
+def transfer_ownership(db: Session, team_id: str, current_owner_id: str, new_owner_id: str) -> None:
+    """Hand ownership to another current member. The old owner becomes an admin.
+
+    Lets an owner subsequently leave the team (owners can't be removed while owner).
+    """
+    if current_owner_id == new_owner_id:
+        raise TeamError("you are already the owner")
+    new_member = (
+        db.query(TeamMember)
+        .filter(TeamMember.team_id == team_id, TeamMember.user_id == new_owner_id)
+        .first()
+    )
+    if new_member is None:
+        raise TeamError("the new owner must be a member of this team")
+    old_member = (
+        db.query(TeamMember)
+        .filter(TeamMember.team_id == team_id, TeamMember.user_id == current_owner_id)
+        .first()
+    )
+    if old_member is None or old_member.role != ROLE_OWNER:
+        raise TeamError("only the current owner can transfer ownership")
+    old_member.role = ROLE_ADMIN
+    new_member.role = ROLE_OWNER
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if team is not None:
+        team.owner_user_id = new_owner_id
+    db.commit()
+
+
+def delete_team(db: Session, team_id: str) -> None:
+    """Disband a team: revert its resources to solo (creator-owned) and drop all
+    memberships + the team. Each member keeps the resources they created (via the
+    per-user legacy path); resources they didn't create are no longer shared."""
+    for model in (Client, Project):
+        for row in db.query(model).filter(model.team_id == team_id).all():
+            row.team_id = None
+    db.query(TeamMember).filter(TeamMember.team_id == team_id).delete()
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if team is not None:
+        db.delete(team)
+    db.commit()
+    _invalidate_resource_caches()
+
+
+def adopt_resources(db: Session, user_id: str, team_id: str) -> int:
+    """Move the CALLER's own team-less resources into their team (self-consented — the
+    explicit counterpart to the no-auto-migrate-on-invite policy, Decision #213).
+    Returns the number of resources moved."""
+    moved = 0
+    for model in (Client, Project):
+        rows = db.query(model).filter(model.user_id == user_id, model.team_id.is_(None)).all()
+        for row in rows:
+            row.team_id = team_id
+            moved += 1
+    if moved:
+        db.commit()
+        _invalidate_resource_caches()
+    return moved

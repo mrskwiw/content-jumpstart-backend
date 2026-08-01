@@ -1119,6 +1119,29 @@
             "HTTPBearerWith401": []
           }
         ]
+      },
+      "delete": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Delete Team Endpoint",
+        "description": "Disband the team (owner only). Resources revert to their creators (solo).",
+        "operationId": "delete_team_endpoint_api_teams_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/teams/members": {
@@ -1268,6 +1291,76 @@
             }
           }
         }
+      }
+    },
+    "/api/teams/transfer": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Transfer Ownership Endpoint",
+        "description": "Transfer team ownership to another member (owner only). The caller becomes admin.",
+        "operationId": "transfer_ownership_endpoint_api_teams_transfer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferOwnershipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/teams/adopt-resources": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Adopt Resources Endpoint",
+        "description": "Move the caller's own team-less (solo) clients/projects into their team.\n\nThe explicit, self-consented counterpart to the no-auto-migrate-on-invite policy\n(Decision #213): a member deliberately brings their prior solo work into the team.",
+        "operationId": "adopt_resources_endpoint_api_teams_adopt_resources_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
       }
     },
     "/api/health": {
@@ -18746,6 +18839,19 @@
         ],
         "title": "TransactionSummary",
         "description": "Summary of a transaction for credit summary."
+      },
+      "TransferOwnershipRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "TransferOwnershipRequest"
       },
       "TrendsSearchRequest": {
         "properties": {

@@ -53,6 +53,10 @@ class ChangeRoleRequest(BaseModel):
     role: str
 
 
+class TransferOwnershipRequest(BaseModel):
+    user_id: str
+
+
 def _require_membership(db: Session, user: User) -> str:
     """Return the caller's team_id, or 404 if they somehow have no team."""
     team_id = team_service.user_team_id(db, user.id)
@@ -68,6 +72,17 @@ def _require_manager(db: Session, user: User) -> str:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only a team owner or admin can manage members",
+        )
+    return team_id
+
+
+def _require_owner(db: Session, user: User) -> str:
+    """Return the caller's team_id, requiring the owner role (else 403)."""
+    team_id = _require_membership(db, user)
+    if not team_service.is_owner(db, user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the team owner can do this",
         )
     return team_id
 
@@ -188,3 +203,44 @@ def remove_member(
     except team_service.TeamError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"status": "success", "message": "Member removed"}
+
+
+@router.post("/transfer", status_code=status.HTTP_200_OK)
+def transfer_ownership_endpoint(
+    body: TransferOwnershipRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Transfer team ownership to another member (owner only). The caller becomes admin."""
+    team_id = _require_owner(db, current_user)
+    try:
+        team_service.transfer_ownership(db, team_id, current_user.id, body.user_id)
+    except team_service.TeamError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "success", "message": "Ownership transferred"}
+
+
+@router.delete("", status_code=status.HTTP_200_OK)
+def delete_team_endpoint(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Disband the team (owner only). Resources revert to their creators (solo)."""
+    team_id = _require_owner(db, current_user)
+    team_service.delete_team(db, team_id)
+    return {"status": "success", "message": "Team deleted"}
+
+
+@router.post("/adopt-resources", status_code=status.HTTP_200_OK)
+def adopt_resources_endpoint(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move the caller's own team-less (solo) clients/projects into their team.
+
+    The explicit, self-consented counterpart to the no-auto-migrate-on-invite policy
+    (Decision #213): a member deliberately brings their prior solo work into the team.
+    """
+    team_id = _require_membership(db, current_user)
+    moved = team_service.adopt_resources(db, current_user.id, team_id)
+    return {"status": "success", "moved": moved}

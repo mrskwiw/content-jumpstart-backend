@@ -288,6 +288,72 @@ def test_solo_user_can_be_invited(db_session):
     )
 
 
+def test_transfer_ownership_then_owner_can_leave(db_session):
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cb-to", "cbto@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    member = _mk_user(db_session, "cb-tm", "cbtm@example.com")
+    team_service.add_member(db_session, team.id, member, ROLE_EDITOR)
+
+    # A non-owner cannot transfer.
+    assert (
+        client.post(
+            "/api/teams/transfer", json={"user_id": member.id}, headers=_hdr(member.id)
+        ).status_code
+        == 403
+    )
+    # Owner transfers to the member.
+    r = client.post("/api/teams/transfer", json={"user_id": member.id}, headers=_hdr(owner.id))
+    assert r.status_code == 200, r.text
+    assert team_service.user_role(db_session, member.id) == "owner"
+    assert team_service.user_role(db_session, owner.id) == "admin"
+    # The former owner (now admin) can leave.
+    assert (
+        client.delete(f"/api/teams/members/{owner.id}", headers=_hdr(owner.id)).status_code == 200
+    )
+    assert team_service.get_membership(db_session, owner.id) is None
+
+
+def test_delete_team_reverts_resources_to_solo(db_session):
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cb-dt", "cbdt@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    c = _mk_client(db_session, owner)  # team_id = team.id
+    assert c.team_id == team.id
+    member = _mk_user(db_session, "cb-dtm", "cbdtm@example.com")
+    team_service.add_member(db_session, team.id, member, ROLE_EDITOR)
+
+    # A non-owner cannot delete the team.
+    assert client.delete("/api/teams", headers=_hdr(member.id)).status_code == 403
+    # Owner disbands the team.
+    assert client.delete("/api/teams", headers=_hdr(owner.id)).status_code == 200
+    db_session.refresh(c)
+    assert c.team_id is None  # reverted to solo (creator-owned)
+    assert team_service.get_membership(db_session, owner.id) is None
+    assert team_service.get_membership(db_session, member.id) is None
+    # The creator still owns the client via the legacy per-user path.
+    assert _check_ownership("Client", c, owner, db_session) is True
+
+
+def test_adopt_resources_brings_solo_work_into_team(db_session):
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cb-ao", "cbao@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    member = _mk_user(db_session, "cb-am", "cbam@example.com")
+    solo = _mk_client(db_session, member)  # solo client from before joining
+    team_service.add_member(db_session, team.id, member, ROLE_EDITOR)
+    db_session.refresh(solo)
+    assert solo.team_id is None  # not auto-migrated on invite (Decision #213)
+
+    # Member explicitly adopts their own solo work into the team (self-consented).
+    r = client.post("/api/teams/adopt-resources", headers=_hdr(member.id))
+    assert r.status_code == 200 and r.json()["moved"] >= 1
+    db_session.refresh(solo)
+    assert solo.team_id == team.id
+    # Now the owner (teammate) can see it.
+    assert solo.id in {x.id for x in filter_user_clients(db_session, owner).all()}
+
+
 def test_add_member_rejects_user_already_on_a_team(db_session):
     client = TestClient(app)
     owner = _mk_user(db_session, "cb-do", "cbdo@example.com")
