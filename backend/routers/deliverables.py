@@ -4,7 +4,7 @@ from typing import List, Optional
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from backend.middleware.auth_dependency import get_current_user
 from backend.services.export_service import generate_export_file
 from backend.utils.logger import logger
@@ -117,6 +117,11 @@ async def mark_delivered(
     return updated_deliverable
 
 
+# Deliverable.format values produced by the Phase-12 media pipeline. These are served
+# from media storage (asset keys), not the document-export file flow.
+_MEDIA_DELIVERABLE_FORMATS = {"audio", "video", "image"}
+
+
 @router.get("/{deliverable_id}/download")
 @standard_limiter.limit("100/hour")  # TR-004: Standard operation
 async def download_deliverable(
@@ -136,6 +141,22 @@ async def download_deliverable(
     Validates file existence and path security.
     """
     # TR-021: deliverable already verified by dependency
+
+    # Media-generation deliverables (audio/video/image) are stored as media-asset storage
+    # keys, NOT export files under data/outputs. Serve them via a signed redirect from
+    # media storage — the same path /api/media/assets/{id}/download uses — instead of the
+    # export-file flow below (which would look for data/outputs/media/… and then wrongly
+    # try to regenerate a document). See MEDIA-DELIVERABLE-SPLIT (BUGS.md Decision #223).
+    if (deliverable.format or "").lower() in _MEDIA_DELIVERABLE_FORMATS:
+        from backend.services.media.storage import StorageError, signed_url_for
+
+        try:
+            return RedirectResponse(signed_url_for(deliverable.path))
+        except StorageError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Media asset is unavailable: {e}",
+            )
 
     # Construct file path
     # Assuming files are stored in data/outputs/ relative to project root

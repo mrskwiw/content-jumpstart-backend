@@ -142,6 +142,46 @@ def deliverable_for_user_a(db_session: Session, test_user_a, project_for_user_a,
     return deliverable
 
 
+@pytest.fixture
+def media_deliverable_for_user_a(db_session: Session, test_user_a, project_for_user_a):
+    """A Phase-12 media deliverable (image): path is a storage KEY, not a data/outputs file."""
+    deliverable = Deliverable(
+        id="del-media-img-1",
+        project_id=project_for_user_a.id,
+        client_id=project_for_user_a.client_id,
+        run_id=None,  # media jobs aren't tied to a generation run
+        path="media/user-a/job-1/asset-1.png",  # storage key, not a filesystem path
+        format="image",
+        status="ready",
+        delivered_at=None,
+    )
+    db_session.add(deliverable)
+    db_session.commit()
+    db_session.refresh(deliverable)
+    return deliverable
+
+
+class TestMediaDeliverableDownload:
+    """MEDIA-DELIVERABLE-SPLIT: media deliverables serve via a signed media-storage
+    redirect, NOT the data/outputs export-file flow (which would 404 + try to
+    regenerate a document from a storage key)."""
+
+    def test_media_deliverable_downloads_via_signed_redirect(
+        self, client, auth_headers_user_a, media_deliverable_for_user_a, monkeypatch
+    ):
+        monkeypatch.setenv("MEDIA_DRY_RUN", "true")  # StubStorage → deterministic signed URL
+        resp = client.get(
+            f"/api/deliverables/{media_deliverable_for_user_a.id}/download",
+            headers=auth_headers_user_a,
+            follow_redirects=False,
+        )
+        assert resp.status_code in (302, 307), resp.text
+        # Unconfigured storage in tests → StubStorage signs to a stub.local URL, and the
+        # original .png storage key is preserved (not regenerated as a document export).
+        assert "stub.local" in resp.headers["location"]
+        assert ".png" in resp.headers["location"]
+
+
 class TestListDeliverables:
     """Test GET /api/deliverables/"""
 
