@@ -196,6 +196,27 @@ def test_comment_deletable_after_post_soft_deleted(db_session):
     assert client.delete(f"/api/comments/{c2.id}", headers=_hdr(owner.id)).status_code == 200
 
 
+def test_manager_can_delete_comment_when_post_and_project_soft_deleted(db_session):
+    # Full cleanup path: a manager can remove a comment even when BOTH the post and its
+    # parent project are soft-deleted (get_project still resolves the team for the check).
+    from backend.services import comment_service
+
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cm-pp", "cmpp@example.com")
+    team = team_service.ensure_personal_team(db_session, owner)
+    editor = _mk_user(db_session, "cm-ppe", "cmppe@example.com")
+    _add(db_session, team.id, editor, ROLE_EDITOR)
+    post = _mk_post(db_session, owner)
+    c = comment_service.add_comment(db_session, post.id, editor.id, "note")
+
+    post.is_deleted = True
+    project = crud.get_project(db_session, post.project_id)
+    project.is_deleted = True
+    db_session.commit()
+
+    assert client.delete(f"/api/comments/{c.id}", headers=_hdr(owner.id)).status_code == 200
+
+
 def test_comment_body_validation_and_missing_post(db_session):
     client = TestClient(app)
     owner = _mk_user(db_session, "cm-vo", "cmvo@example.com")
