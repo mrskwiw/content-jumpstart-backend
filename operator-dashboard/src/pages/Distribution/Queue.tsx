@@ -6,6 +6,7 @@ import { Badge, BadgeProps } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { distributionApi, ScheduledPost } from '@/api/distribution';
+import { clientsApi } from '@/api/clients';
 
 const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
   pending: 'secondary',
@@ -19,11 +20,15 @@ export default function Queue() {
   const qc = useQueryClient();
   const creds = useQuery({ queryKey: ['credentials'], queryFn: distributionApi.listCredentials });
   const queue = useQuery({ queryKey: ['queue'], queryFn: () => distributionApi.queue() });
+  const clients = useQuery({ queryKey: ['clients'], queryFn: () => clientsApi.list() });
 
   const [platform, setPlatform] = useState('stub');
   const [content, setContent] = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
+  // Optional per-client attribution (MULTICLIENT-01): tags the scheduled post with a
+  // client so it rolls up in per-client analytics; empty = account-level / unattributed.
+  const [clientId, setClientId] = useState('');
 
   const schedule = useMutation({
     mutationFn: () =>
@@ -32,6 +37,7 @@ export default function Queue() {
         content,
         scheduled_for: new Date(scheduledFor || Date.now()).toISOString(),
         media_url: mediaUrl || undefined,
+        client_id: clientId || undefined,
       }),
     onSuccess: () => {
       setContent('');
@@ -98,6 +104,23 @@ export default function Queue() {
                   value={scheduledFor}
                   onChange={(e) => setScheduledFor(e.target.value)}
                 />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">
+                  Client <span className="font-normal text-slate-400">(optional)</span>
+                </span>
+                <select
+                  className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-neutral-900"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                >
+                  <option value="">No client (account-level)</option>
+                  {(clients.data ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <label className="block text-sm">
