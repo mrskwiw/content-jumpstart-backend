@@ -64,7 +64,13 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
 
   // The team lookup shares one query key across every mounted panel, so React Query
   // dedupes it to a single request regardless of how many posts are on the page.
-  const { data: team, isSuccess: teamLoaded } = useQuery({
+  const {
+    data: team,
+    isSuccess: teamLoaded,
+    isError: teamError,
+    isFetching: teamFetching,
+    refetch: refetchTeam,
+  } = useQuery({
     queryKey: ['team', 'me'],
     queryFn: () => teamsApi.getMyTeam(),
     enabled: expanded,
@@ -150,6 +156,23 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
 
       {expanded && (
         <div className="space-y-4 border-t border-neutral-200 p-4 dark:border-neutral-700">
+          {/* Permissions load failed: distinguish 'unknown' from 'unauthorized'. Privileged
+              controls stay withheld (fail-closed), but we surface an explicit retry so a
+              transient team-lookup failure isn't a silent, unrecoverable lockout. */}
+          {teamError && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-300">
+              <span>Couldn't load your permissions — review actions are hidden.</span>
+              <button
+                type="button"
+                onClick={() => refetchTeam()}
+                disabled={teamFetching}
+                className="rounded border border-amber-400 px-2 py-0.5 font-medium hover:bg-amber-100 disabled:opacity-50 dark:border-amber-600 dark:hover:bg-amber-900/40"
+              >
+                {teamFetching ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          )}
+
           {/* Approval gate */}
           <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">

@@ -127,9 +127,35 @@ describe('PostReviewPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
     // The panel body renders (approval resolved to "Not submitted")…
     await screen.findByText(/not submitted/i);
-    // …but with the team lookup failed, no privileged action is offered.
+    // …but with the team lookup failed, no privileged action is offered…
     expect(screen.queryByRole('button', { name: /submit for review/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /request changes/i })).not.toBeInTheDocument();
+    // …and the failure is recoverable, not a silent lockout: an explicit retry shows.
+    expect(await screen.findByText(/couldn't load your permissions/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+
+  it('recovers privileged controls when a retried team lookup succeeds', async () => {
+    mockedReview.getApproval.mockResolvedValue(null);
+    mockedReview.listComments.mockResolvedValue([]);
+    // First team fetch fails, the retry succeeds as an admin.
+    mockedTeams.getMyTeam
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        team: { team_id: 't1', name: 'Acme', my_role: 'admin', members: [] },
+      });
+
+    const { wrapper } = renderWithProviders();
+    render(<PostReviewPanel postId="p1" />, { wrapper });
+
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
+    const retry = await screen.findByRole('button', { name: /retry/i });
+    expect(screen.queryByRole('button', { name: /submit for review/i })).not.toBeInTheDocument();
+
+    fireEvent.click(retry);
+
+    // After a successful retry the admin's submit control appears (post is unsubmitted).
+    expect(await screen.findByRole('button', { name: /submit for review/i })).toBeInTheDocument();
   });
 });
