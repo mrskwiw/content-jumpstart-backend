@@ -32,7 +32,9 @@ export default function Team() {
   const { user } = useAuth();
   const [newTeamName, setNewTeamName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<TeamRole>('editor');
+  // Least privilege by default (matches the backend AddMemberRequest default); the
+  // owner/admin must deliberately raise the role before inviting.
+  const [inviteRole, setInviteRole] = useState<TeamRole>('viewer');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: TEAM_KEY,
@@ -238,9 +240,16 @@ export default function Team() {
                     {canEditThis ? (
                       <select
                         value={m.role}
-                        onChange={(e) =>
-                          changeRole.mutate({ userId: m.user_id, role: e.target.value as TeamRole })
-                        }
+                        onChange={(e) => {
+                          const role = e.target.value as TeamRole;
+                          if (role === m.role) return;
+                          if (
+                            window.confirm(
+                              `Change ${m.full_name || m.email}'s role to ${role}?`
+                            )
+                          )
+                            changeRole.mutate({ userId: m.user_id, role });
+                        }}
                         className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100"
                       >
                         {ASSIGNABLE_ROLES.map((r) => (
@@ -263,7 +272,14 @@ export default function Team() {
                       {isOwner && !isSelf && (
                         <button
                           type="button"
-                          onClick={() => transferOwnership.mutate(m.user_id)}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Make ${m.full_name || m.email} the owner? You'll become an admin.`
+                              )
+                            )
+                              transferOwnership.mutate(m.user_id);
+                          }}
                           disabled={transferOwnership.isPending}
                           className="text-xs text-amber-700 hover:underline disabled:opacity-50 dark:text-amber-400"
                           title="Make this member the team owner"
@@ -274,7 +290,9 @@ export default function Team() {
                       {isSelf && m.role !== 'owner' && (
                         <button
                           type="button"
-                          onClick={() => removeMember.mutate(m.user_id)}
+                          onClick={() => {
+                            if (window.confirm('Leave this team?')) removeMember.mutate(m.user_id);
+                          }}
                           disabled={removeMember.isPending}
                           className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:underline disabled:opacity-50 dark:text-neutral-300"
                         >
@@ -284,7 +302,10 @@ export default function Team() {
                       {canManage && !isSelf && m.role !== 'owner' && (
                         <button
                           type="button"
-                          onClick={() => removeMember.mutate(m.user_id)}
+                          onClick={() => {
+                            if (window.confirm(`Remove ${m.full_name || m.email} from the team?`))
+                              removeMember.mutate(m.user_id);
+                          }}
                           disabled={removeMember.isPending}
                           className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                         >
