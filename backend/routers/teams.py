@@ -34,6 +34,16 @@ class TeamResponse(BaseModel):
     members: List[TeamMemberResponse]
 
 
+class MyTeamResponse(BaseModel):
+    """The caller's team, or ``team: null`` when they are solo (not on a team)."""
+
+    team: Optional[TeamResponse] = None
+
+
+class CreateTeamRequest(BaseModel):
+    name: str
+
+
 class AddMemberRequest(BaseModel):
     email: EmailStr
     role: str = "viewer"
@@ -78,17 +88,35 @@ def _members_response(db: Session, team_id: str, my_role: str, name: str) -> Tea
     return TeamResponse(team_id=team_id, name=name, my_role=my_role, members=out)
 
 
-@router.get("/me", response_model=TeamResponse)
+@router.get("/me", response_model=MyTeamResponse)
 def get_my_team(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """The caller's team, their role, and all members."""
+    """The caller's team, role, and members — or ``team: null`` if they are solo."""
     membership = team_service.get_membership(db, current_user.id)
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not on a team")
+        return MyTeamResponse(team=None)
     from backend.models import Team
 
     team = db.query(Team).filter(Team.id == membership.team_id).first()
     name = team.name if team else membership.team_id
-    return _members_response(db, membership.team_id, membership.role, name)
+    return MyTeamResponse(team=_members_response(db, membership.team_id, membership.role, name))
+
+
+@router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
+def create_team_endpoint(
+    body: CreateTeamRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a team (the caller becomes its owner). Rejects a caller already on a team.
+
+    The caller's existing team-less clients/projects are moved into the new team.
+    """
+    try:
+        team = team_service.create_team(db, current_user, body.name)
+    except team_service.TeamError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    membership = team_service.get_membership(db, current_user.id)
+    return _members_response(db, team.id, membership.role, team.name)
 
 
 @router.post("/members", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)

@@ -65,26 +65,27 @@ def _hdr(user_id):
     return {"Authorization": f"Bearer {create_access_token(data={'sub': user_id})}"}
 
 
-# ── backfill ────────────────────────────────────────────────────────────────────
+# ── team creation stamps the owner's existing resources ─────────────────────────
 
 
-def test_backfill_creates_personal_team_and_stamps_resources(db_session):
+def test_create_team_stamps_owner_resources(db_session):
     owner = _mk_user(db_session, "cb-owner", "cbowner@example.com")
-    # A legacy client created before the owner had a team (team_id stays NULL).
+    # A team-less client created while the owner was solo (team_id NULL).
     legacy = Client(id="client-legacy1", user_id=owner.id, team_id=None, name="Legacy")
     db_session.add(legacy)
     db_session.commit()
 
-    created = team_service.backfill_teams(db_session)
-    assert created >= 1
-    # Owner now has a personal team, as its owner.
+    team = team_service.create_team(db_session, owner, "Acme")
     m = team_service.get_membership(db_session, owner.id)
-    assert m is not None and m.role == "owner"
-    # The legacy client was stamped with the owner's team.
+    assert m is not None and m.role == "owner" and m.team_id == team.id
+    # The owner's pre-existing team-less client was moved into the new team.
     db_session.refresh(legacy)
-    assert legacy.team_id == m.team_id
-    # Idempotent: a second run creates no new teams.
-    assert team_service.backfill_teams(db_session) == 0
+    assert legacy.team_id == team.id
+    # A user already on a team can't create another.
+    import pytest
+
+    with pytest.raises(team_service.TeamError):
+        team_service.create_team(db_session, owner, "Other")
 
 
 # ── object-level access (_check_ownership) ──────────────────────────────────────
@@ -176,10 +177,10 @@ def test_team_endpoints_flow(db_session):
     team_service.ensure_personal_team(db_session, owner)
     member = _mk_user(db_session, "cb-em", "cbem@example.com")  # registered, no team yet
 
-    # GET /me shows the owner alone.
+    # GET /me shows the owner alone (wrapped in {"team": ...}).
     r = client.get("/api/teams/me", headers=_hdr(owner.id))
     assert r.status_code == 200, r.text
-    body = r.json()
+    body = r.json()["team"]
     assert body["my_role"] == "owner" and len(body["members"]) == 1
 
     # Owner adds the member as editor.
@@ -215,6 +216,41 @@ def test_team_endpoints_flow(db_session):
     # The owner cannot leave their own team.
     r = client.delete(f"/api/teams/members/{owner.id}", headers=_hdr(owner.id))
     assert r.status_code == 400
+
+
+def test_create_team_endpoint_and_solo_me(db_session):
+    client = TestClient(app)
+    user = _mk_user(db_session, "cb-solo", "cbsolo@example.com")
+    # A solo (team-less) user: /me returns team: null (200, not 404).
+    r = client.get("/api/teams/me", headers=_hdr(user.id))
+    assert r.status_code == 200 and r.json()["team"] is None
+    # Create a team → the caller becomes owner.
+    r = client.post("/api/teams", json={"name": "Acme"}, headers=_hdr(user.id))
+    assert r.status_code == 201, r.text
+    assert r.json()["my_role"] == "owner"
+    # /me now reflects the team.
+    assert client.get("/api/teams/me", headers=_hdr(user.id)).json()["team"]["name"] == "Acme"
+    # Creating a second team is rejected.
+    assert (
+        client.post("/api/teams", json={"name": "Other"}, headers=_hdr(user.id)).status_code == 400
+    )
+
+
+def test_solo_user_can_be_invited(db_session):
+    # The finding-1 fix: a normal (solo) registered user CAN be added to a team.
+    client = TestClient(app)
+    owner = _mk_user(db_session, "cb-io", "cbio@example.com")
+    team_service.ensure_personal_team(db_session, owner)
+    invitee = _mk_user(db_session, "cb-inv", "cbinv@example.com")  # solo, invitable
+    r = client.post(
+        "/api/teams/members",
+        json={"email": invitee.email, "role": "editor"},
+        headers=_hdr(owner.id),
+    )
+    assert r.status_code == 201, r.text
+    assert team_service.user_team_id(db_session, invitee.id) == team_service.user_team_id(
+        db_session, owner.id
+    )
 
 
 def test_add_member_rejects_user_already_on_a_team(db_session):

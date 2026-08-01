@@ -1,7 +1,8 @@
-"""Team membership + role operations and the idempotent teams backfill (COLLAB-01).
+"""Team membership + role operations (COLLAB-01).
 
-The single place that resolves a user's team and role, mutates membership, and
-grandfathers pre-existing users/resources onto teams. Access-control decisions in
+The single place that resolves a user's team and role, mutates membership, and creates
+teams (stamping the owner's existing team-less resources into the new team). Users are
+solo (team-less) until they create or join a team. Access-control decisions in
 ``backend/middleware/authorization.py`` read from here.
 """
 
@@ -47,60 +48,49 @@ def list_members(db: Session, team_id: str) -> List[TeamMember]:
     return db.query(TeamMember).filter(TeamMember.team_id == team_id).all()
 
 
-# ── personal team (created at registration + backfill) ──────────────────────────
+# ── team creation ───────────────────────────────────────────────────────────────
+
+
+def _stamp_owner_resources(db: Session, owner_id: str, team_id: str) -> None:
+    """Assign the owner's team-less clients/projects to ``team_id`` (their existing
+    solo resources join the team they just created)."""
+    for model in (Client, Project):
+        for row in db.query(model).filter(model.user_id == owner_id, model.team_id.is_(None)).all():
+            row.team_id = team_id
+
+
+def create_team(db: Session, owner: User, name: str, *, commit: bool = True) -> Team:
+    """Create a team owned by ``owner`` and move their team-less resources into it.
+
+    A user belongs to at most one team, so this rejects an owner who already has a
+    membership. Users are otherwise team-less (solo) — their resources use the legacy
+    per-user path — until they create a team here or are invited to one.
+    """
+    if get_membership(db, owner.id) is not None:
+        raise TeamError("you already belong to a team")
+    team = Team(name=name, owner_user_id=owner.id)
+    db.add(team)
+    db.flush()  # assign team.id
+    db.add(TeamMember(team_id=team.id, user_id=owner.id, role=ROLE_OWNER))
+    _stamp_owner_resources(db, owner.id, team.id)
+    if commit:
+        db.commit()
+    return team
 
 
 def ensure_personal_team(db: Session, user: User, *, commit: bool = True) -> Team:
-    """Return the user's team, creating a personal one (they're the owner) if none.
+    """Return the user's team, creating one (they're the owner) if none. Idempotent.
 
-    Idempotent: a user who already has a membership keeps it. Used at registration and
-    by the backfill.
+    A convenience primitive (used by tests and any caller that wants a guaranteed
+    team). Registration deliberately does NOT call this — new users start solo so they
+    remain invitable into someone else's team.
     """
     existing = get_membership(db, user.id)
     if existing is not None:
         team = db.query(Team).filter(Team.id == existing.team_id).first()
         assert team is not None  # membership implies a team
         return team
-
-    team = Team(name=f"{(user.full_name or user.email)}'s Team", owner_user_id=user.id)
-    db.add(team)
-    db.flush()  # assign team.id
-    db.add(TeamMember(team_id=team.id, user_id=user.id, role=ROLE_OWNER))
-    if commit:
-        db.commit()
-    return team
-
-
-def backfill_teams(db: Session) -> int:
-    """Grandfather pre-existing users/resources onto teams (idempotent, every boot).
-
-    ``team_id IS NULL`` / "user has no membership" unambiguously means "legacy" —
-    every new user gets a personal team at registration and every new resource is
-    stamped at create — so this only ever touches un-migrated rows and is safe to run
-    on every startup. Returns the number of users given a new personal team.
-    """
-    created = 0
-    users_without_team = (
-        db.query(User)
-        .outerjoin(TeamMember, TeamMember.user_id == User.id)
-        .filter(TeamMember.id.is_(None))
-        .all()
-    )
-    for user in users_without_team:
-        ensure_personal_team(db, user, commit=False)
-        created += 1
-    if created:
-        db.flush()
-
-    # Stamp legacy clients/projects with their creator's team.
-    for model in (Client, Project):
-        rows = db.query(model).filter(model.team_id.is_(None)).all()
-        for row in rows:
-            team_id = user_team_id(db, row.user_id)
-            if team_id is not None:
-                row.team_id = team_id
-    db.commit()
-    return created
+    return create_team(db, user, f"{(user.full_name or user.email)}'s Team", commit=commit)
 
 
 # ── membership management ───────────────────────────────────────────────────────

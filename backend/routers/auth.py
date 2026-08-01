@@ -703,10 +703,8 @@ async def register_user(
         f"Admin activation required."
     )
 
-    # COLLAB-01: give the new operator their own team (they become its owner).
-    from backend.services import team_service
-
-    team_service.ensure_personal_team(db, user)
+    # COLLAB-01: new users start solo (team-less) so they remain invitable into another
+    # team; their resources use the per-user path until they create or join a team.
 
     # GAP-AUTH-02: email an address-verification link (best-effort, off the request path).
     background_tasks.add_task(

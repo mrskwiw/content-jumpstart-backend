@@ -801,19 +801,10 @@ def init_db():
                         except Exception as e:
                             print(f">> Migration for {table_name}.{col_name} failed: {e}")
 
-    # COLLAB-01: grandfather users/resources onto teams. Idempotent (touches only
-    # rows with no team) so it is safe to run every boot — needs no version gate,
-    # unlike the boolean email_verified backfill. Best-effort: a failure is logged and
-    # retried next boot, and never blocks startup.
-    try:
-        from backend.services import team_service
-
-        with SessionLocal() as _team_session:
-            _created = team_service.backfill_teams(_team_session)
-        if _created:
-            print(f">> COLLAB-01: created personal teams for {_created} pre-existing user(s)")
-    except Exception as e:  # pragma: no cover - defensive; backfill retries next boot
-        print(f">> COLLAB-01 teams backfill skipped/failed (will retry): {e}")
+    # COLLAB-01: no team backfill needed — users start solo (team-less) and their
+    # resources use the per-user legacy path (team_id IS NULL) until they create or join
+    # a team, at which point create_team stamps their existing resources. The team_id
+    # columns are added above; there is nothing to backfill on boot.
 
     # Update schema version to latest after all migrations
     config = load_migration_rules()

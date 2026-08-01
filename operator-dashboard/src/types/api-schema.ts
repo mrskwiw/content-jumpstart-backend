@@ -712,11 +712,33 @@ export interface paths {
         };
         /**
          * Get My Team
-         * @description The caller's team, their role, and all members.
+         * @description The caller's team, role, and members — or ``team: null`` if they are solo.
          */
         get: operations["get_my_team_api_teams_me_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Team Endpoint
+         * @description Create a team (the caller becomes its owner). Rejects a caller already on a team.
+         *
+         *     The caller's existing team-less clients/projects are moved into the new team.
+         */
+        post: operations["create_team_endpoint_api_teams_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5628,6 +5650,11 @@ export interface components {
             /** Cost Usd */
             cost_usd: number;
         };
+        /** CreateTeamRequest */
+        CreateTeamRequest: {
+            /** Name */
+            name: string;
+        };
         /** CredentialCreate */
         CredentialCreate: {
             /** Platform */
@@ -6482,6 +6509,13 @@ export interface components {
             error_rate: number;
             /** Endpoints Tracked */
             endpoints_tracked: number;
+        };
+        /**
+         * MyTeamResponse
+         * @description The caller's team, or ``team: null`` when they are solo (not on a team).
+         */
+        MyTeamResponse: {
+            team?: components["schemas"]["TeamResponse"] | null;
         };
         /**
          * ParsedBriefResponse
@@ -8980,7 +9014,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["MyTeamResponse"];
+                };
+            };
+        };
+    };
+    create_team_endpoint_api_teams_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTeamRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["TeamResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

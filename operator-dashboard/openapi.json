@@ -1053,7 +1053,7 @@
           "Teams"
         ],
         "summary": "Get My Team",
-        "description": "The caller's team, their role, and all members.",
+        "description": "The caller's team, role, and members \u2014 or ``team: null`` if they are solo.",
         "operationId": "get_my_team_api_teams_me_get",
         "responses": {
           "200": {
@@ -1061,7 +1061,54 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "$ref": "#/components/schemas/MyTeamResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/teams": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "Create Team Endpoint",
+        "description": "Create a team (the caller becomes its owner). Rejects a caller already on a team.\n\nThe caller's existing team-less clients/projects are moved into the new team.",
+        "operationId": "create_team_endpoint_api_teams_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTeamRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/TeamResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -12665,6 +12712,19 @@
         "title": "CostTrend",
         "description": "Daily cost data point for trends"
       },
+      "CreateTeamRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateTeamRequest"
+      },
       "CredentialCreate": {
         "properties": {
           "platform": {
@@ -14970,6 +15030,23 @@
         ],
         "title": "MetricsSummary",
         "description": "Overall application metrics"
+      },
+      "MyTeamResponse": {
+        "properties": {
+          "team": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "MyTeamResponse",
+        "description": "The caller's team, or ``team: null`` when they are solo (not on a team)."
       },
       "ParsedBriefResponse": {
         "properties": {
