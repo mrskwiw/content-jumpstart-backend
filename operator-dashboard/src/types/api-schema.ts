@@ -840,6 +840,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/posts/{post_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Post Comments
+         * @description List a post's comments (any member of the post's team).
+         */
+        get: operations["list_post_comments_api_posts__post_id__comments_get"];
+        put?: never;
+        /**
+         * Add Post Comment
+         * @description Add a comment to a post (any member of the post's team).
+         */
+        post: operations["add_post_comment_api_posts__post_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Comment
+         * @description Delete a comment (its author, a team manager, or a superuser).
+         */
+        delete: operations["delete_comment_api_comments__comment_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -5542,6 +5586,24 @@ export interface components {
             /** Key Phrases */
             key_phrases?: string[] | null;
         };
+        /** CommentResponse */
+        CommentResponse: {
+            /** Id */
+            id: string;
+            /** Post Id */
+            post_id: string;
+            /** Author User Id */
+            author_user_id: string;
+            /** Author Email */
+            author_email?: string | null;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * CommunicationCreate
          * @description Input for creating a communication
@@ -5700,6 +5762,11 @@ export interface components {
             date: string;
             /** Cost Usd */
             cost_usd: number;
+        };
+        /** CreateCommentRequest */
+        CreateCommentRequest: {
+            /** Body */
+            body: string;
         };
         /** CreateTeamRequest */
         CreateTeamRequest: {
@@ -9283,6 +9350,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_post_comments_api_posts__post_id__comments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_post_comment_api_posts__post_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_comment_api_comments__comment_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

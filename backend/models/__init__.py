@@ -29,6 +29,7 @@ from .audit_log import AuditLog
 from .deletion_audit_log import DeletionAuditLog
 from .revoked_token import RevokedToken
 from .team import Team, TeamMember
+from .comment import Comment
 from .client_keywords import ClientKeyword
 from .distribution import PlatformCredential, ScheduledPost, PostedContent
 from .analytics import PostMetric
@@ -61,6 +62,7 @@ __all__ = [
     "RevokedToken",
     "Team",
     "TeamMember",
+    "Comment",
     "ClientKeyword",
     "Conversation",
     "Message",
