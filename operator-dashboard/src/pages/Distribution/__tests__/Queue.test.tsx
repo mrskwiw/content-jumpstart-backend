@@ -58,6 +58,33 @@ describe('Distribution Queue — per-client attribution', () => {
     );
   });
 
+  it('resets the client selection after a successful enqueue (no sticky carryover)', async () => {
+    renderWithProviders(<Queue />);
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Acme' })).toBeInTheDocument());
+
+    // First post attributed to a client.
+    fireEvent.change(screen.getByPlaceholderText(/what do you want to post/i), {
+      target: { value: 'First' },
+    });
+    fireEvent.change(screen.getByDisplayValue(/no client/i), { target: { value: 'c1' } });
+    fireEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+    await waitFor(() =>
+      expect(dist.schedule).toHaveBeenCalledWith(expect.objectContaining({ client_id: 'c1' }))
+    );
+
+    // The selector snaps back to "No client" — the next post is account-level by default.
+    await waitFor(() => expect(screen.getByDisplayValue(/no client/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText(/what do you want to post/i), {
+      target: { value: 'Second' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+    await waitFor(() =>
+      expect(dist.schedule).toHaveBeenLastCalledWith(
+        expect.objectContaining({ content: 'Second', client_id: undefined })
+      )
+    );
+  });
+
   it('omits client_id when no client is chosen (account-level)', async () => {
     renderWithProviders(<Queue />);
 

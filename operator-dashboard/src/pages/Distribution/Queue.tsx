@@ -42,6 +42,9 @@ export default function Queue() {
     onSuccess: () => {
       setContent('');
       setMediaUrl('');
+      // Reset the client too (like content/mediaUrl): a sticky selection would silently
+      // misattribute the next post to the previous client. Re-select per post.
+      setClientId('');
       qc.invalidateQueries({ queryKey: ['queue'] });
     },
   });
