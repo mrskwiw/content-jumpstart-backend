@@ -10,6 +10,7 @@ export { projectsApi } from './projects';
 export { runsApi } from './runs';
 export { settingsApi } from './settings';
 export { storiesApi } from './stories';
+export { teamsApi } from './teams';
 export { usersApi } from './users';
 
 // Research API and types
