@@ -376,7 +376,16 @@ export default function Calendar() {
                           return (
                             <div
                               key={event.id}
-                              className={`rounded px-1.5 py-0.5 text-xs font-medium border ${getEventTypeBadge(event.type)}`}
+                              className={`rounded px-1.5 py-0.5 text-xs font-medium border ${
+                                (event.status ?? '').toLowerCase() === 'failed'
+                                  ? 'border-red-300 bg-red-100 text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                  : getEventTypeBadge(event.type)
+                              }`}
+                              title={
+                                (event.status ?? '').toLowerCase() === 'failed'
+                                  ? 'Failed — retrying'
+                                  : undefined
+                              }
                             >
                               <div className="flex items-center gap-1 truncate">
                                 <Icon className="h-3 w-3 flex-shrink-0" />
