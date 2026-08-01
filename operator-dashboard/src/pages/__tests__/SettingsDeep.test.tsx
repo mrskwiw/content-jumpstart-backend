@@ -502,7 +502,10 @@ describe('Settings Page', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/data & privacy/i)).toBeInTheDocument();
-        expect(screen.getByText(/export my data/i)).toBeInTheDocument();
+        // The privacy section's export control was redesigned per role: a superuser sees
+        // "Export All Data (full instance)"; others see an admin-export note — both contain
+        // "export". (Prior assertion `/export my data/i` was stale, hence the red.)
+        expect(screen.getByText(/export/i)).toBeInTheDocument();
         expect(screen.getByText(/delete my account/i)).toBeInTheDocument();
       });
     });
