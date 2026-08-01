@@ -227,11 +227,15 @@ def delete_team_endpoint(
 ):
     """Disband the team (owner only). Resources revert to their creators (solo).
 
-    A persistent/exhausted integrity failure propagates as a 500 (a real server problem
-    stays visible) rather than being reported as a successful or client-retryable delete.
+    If sustained concurrent activity prevents a clean teardown after bounded retries,
+    returns 409 (retryable) rather than a false success — the underlying error is logged
+    server-side for visibility (Decision #214).
     """
     team_id = _require_owner(db, current_user)
-    team_service.delete_team(db, team_id)
+    try:
+        team_service.delete_team(db, team_id)
+    except team_service.TeamError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"status": "success", "message": "Team deleted"}
 
 

@@ -231,18 +231,24 @@ def delete_team(db: Session, team_id: str) -> None:
         except IntegrityError:
             db.rollback()
             # We already cleared every KNOWN reference (clients/projects → NULL, members
-            # deleted), so a surviving IntegrityError is either the expected concurrent-
-            # attachment race (retry re-homes it) or an UNEXPECTED integrity bug. Retry
-            # a bounded number of times for the race; on the last attempt, re-raise the
-            # ORIGINAL error so a persistent problem surfaces as a 500 (visible) rather
-            # than being masked as a retryable client conflict. Never report success.
+            # deleted), so a surviving IntegrityError is almost always the expected
+            # concurrent-attachment race (the retry re-homes it). On exhaustion we CANNOT
+            # distinguish a sustained race from an unexpected constraint bug from the
+            # error alone (BUGS.md Decision #214), so we do both: LOG the full traceback
+            # (a persistent bug stays visible to ops) AND raise a retryable TeamError →
+            # 409 (the correct client signal for the far-more-likely race). Never report
+            # success.
             if attempt == attempts - 1:
                 logging.getLogger(__name__).error(
-                    "delete_team failed after %d attempts (persistent integrity error?) " "team=%s",
+                    "delete_team failed after %d attempts team=%s (sustained race or "
+                    "unexpected integrity error — see traceback)",
                     attempts,
                     team_id,
+                    exc_info=True,
                 )
-                raise
+                raise TeamError(
+                    "could not delete the team due to concurrent activity; please retry"
+                ) from None
             continue
         _invalidate_resource_caches()  # only on a CONFIRMED successful teardown
         return

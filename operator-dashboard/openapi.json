@@ -1125,7 +1125,7 @@
           "Teams"
         ],
         "summary": "Delete Team Endpoint",
-        "description": "Disband the team (owner only). Resources revert to their creators (solo).\n\nA persistent/exhausted integrity failure propagates as a 500 (a real server problem\nstays visible) rather than being reported as a successful or client-retryable delete.",
+        "description": "Disband the team (owner only). Resources revert to their creators (solo).\n\nIf sustained concurrent activity prevents a clean teardown after bounded retries,\nreturns 409 (retryable) rather than a false success \u2014 the underlying error is logged\nserver-side for visibility (Decision #214).",
         "operationId": "delete_team_endpoint_api_teams_delete",
         "responses": {
           "200": {
