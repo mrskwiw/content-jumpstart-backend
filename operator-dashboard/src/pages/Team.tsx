@@ -224,7 +224,12 @@ export default function Team() {
           <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
             {team.members.map((m) => {
               const isSelf = m.user_id === user?.id;
-              const canEditThis = canManage && m.role !== 'owner';
+              // You cannot edit your OWN role here (a static badge, like the owner row):
+              // self-demotion out of management would strip your own controls and is only
+              // recoverable by another manager. Another manager changes your role instead.
+              // The owner is never editable via this select either, so a managing role
+              // always remains and the team can't be left unmanageable (BUGS.md Decision #217).
+              const canEditThis = canManage && m.role !== 'owner' && !isSelf;
               return (
                 <tr key={m.user_id} className="bg-white dark:bg-neutral-900">
                   <td className="px-4 py-3">

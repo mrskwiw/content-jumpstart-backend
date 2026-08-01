@@ -59,6 +59,10 @@ describe('PostReviewPanel', () => {
     const { wrapper } = renderWithProviders();
     render(<PostReviewPanel postId="p1" />, { wrapper });
 
+    // Panel is lazy: no review requests until the reviewer opens it.
+    expect(mockedReview.getApproval).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
+
     await waitFor(() => expect(screen.getByText('Pending review')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /request changes/i })).toBeInTheDocument();
@@ -80,6 +84,7 @@ describe('PostReviewPanel', () => {
     const { wrapper } = renderWithProviders();
     render(<PostReviewPanel postId="p1" />, { wrapper });
 
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
     const submitBtn = await screen.findByRole('button', { name: /submit for review/i });
     fireEvent.click(submitBtn);
 
@@ -101,6 +106,7 @@ describe('PostReviewPanel', () => {
     const { wrapper } = renderWithProviders();
     render(<PostReviewPanel postId="p1" />, { wrapper });
 
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
     const box = await screen.findByPlaceholderText(/leave a comment/i);
     fireEvent.change(box, { target: { value: 'Looks good' } });
     fireEvent.click(screen.getByRole('button', { name: 'Post' }));

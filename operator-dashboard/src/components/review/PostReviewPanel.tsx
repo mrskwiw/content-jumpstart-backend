@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, XCircle, Clock, Send, Trash2, MessageSquare } from 'lucide-react';
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Send,
+  Trash2,
+  MessageSquare,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { reviewApi } from '@/api/review';
 import { teamsApi } from '@/api/teams';
@@ -45,18 +54,30 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [commentBody, setCommentBody] = useState('');
+  // Deferred by default: on a review page that can render hundreds of posts, fetching
+  // approval + comments for every card up front is a network fan-out. The panel only
+  // loads its state when the reviewer opens it (queries are `enabled: expanded`).
+  const [expanded, setExpanded] = useState(false);
 
   const approvalKey = ['approval', postId] as const;
   const commentsKey = ['comments', postId] as const;
 
-  const { data: team } = useQuery({ queryKey: ['team', 'me'], queryFn: () => teamsApi.getMyTeam() });
+  // The team lookup shares one query key across every mounted panel, so React Query
+  // dedupes it to a single request regardless of how many posts are on the page.
+  const { data: team } = useQuery({
+    queryKey: ['team', 'me'],
+    queryFn: () => teamsApi.getMyTeam(),
+    enabled: expanded,
+  });
   const { data: approval } = useQuery<PostApproval | null>({
     queryKey: approvalKey,
     queryFn: () => reviewApi.getApproval(postId),
+    enabled: expanded,
   });
   const { data: comments = [] } = useQuery<PostComment[]>({
     queryKey: commentsKey,
     queryFn: () => reviewApi.listComments(postId),
+    enabled: expanded,
   });
 
   // Solo/legacy users (no team) are the manager of their own content per the backend
@@ -111,9 +132,21 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
   const isPending = submit.isPending || approve.isPending || reject.isPending;
 
   return (
-    <div className="space-y-4 rounded-lg border border-neutral-200 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-800/40">
-      {/* Approval gate */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50/60 dark:border-neutral-700 dark:bg-neutral-800/40">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-1.5 px-4 py-2.5 text-left text-sm font-medium text-neutral-700 hover:bg-neutral-100/60 dark:text-neutral-200 dark:hover:bg-neutral-700/30"
+      >
+        {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        <MessageSquare className="h-4 w-4" /> Review &amp; comments
+      </button>
+
+      {expanded && (
+        <div className="space-y-4 border-t border-neutral-200 p-4 dark:border-neutral-700">
+          {/* Approval gate */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-neutral-700 dark:text-neutral-200">
           Review status
           {badge ? (
@@ -219,7 +252,9 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
             Post
           </button>
         </form>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
