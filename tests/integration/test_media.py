@@ -8,7 +8,7 @@ dry-run, per-user ownership, cancellation, webhook HMAC verification, and manual
 assembly. No real provider is ever contacted.
 """
 
-from backend.models import User
+from backend.models import Client, Deliverable, Project, User
 from backend.utils.auth import create_access_token, get_password_hash
 
 PW = "Zx9!qWmp7Kt#"  # pragma: allowlist secret
@@ -162,6 +162,41 @@ def test_gen_image_pipeline_end_to_end(client, db_session, monkeypatch):
     )
     assert dl.status_code in (302, 307)
     assert ".png" in dl.headers["location"]
+
+
+def test_client_scoped_gen_image_deliverable_is_categorized_as_image(
+    client, db_session, monkeypatch
+):
+    """A client/project-scoped image run must catalog its Deliverable as `image`,
+    not miscategorize it as `audio` (the audio/video-only default)."""
+    _dry_run(monkeypatch)
+    user = _make_user(db_session, "media-imgcli@example.com", "user-mediaimgcli")
+    admin = _make_user(
+        db_session, "media-imgcadm@example.com", "user-mediaimgcadm", is_superuser=True
+    )
+    db_session.add(Client(id="cli-img", user_id=user.id, name="Acme"))
+    db_session.add(Project(id="prj-img", user_id=user.id, client_id="cli-img", name="Visuals"))
+    db_session.commit()
+
+    r = client.post(
+        "/api/media/generate",
+        json={
+            "kind": "gen_image",
+            "spec": {"prompt": "a red bicycle"},
+            "client_id": "cli-img",
+            "project_id": "prj-img",
+            "confirm": True,
+        },
+        headers=_hdr(user),
+    )
+    assert r.status_code == 200, r.text
+    assert client.post("/api/media/process-due", headers=_hdr(admin)).status_code == 200
+
+    deliverable = (
+        db_session.query(Deliverable).filter(Deliverable.client_id == "cli-img").one_or_none()
+    )
+    assert deliverable is not None
+    assert deliverable.format == "image"
 
 
 def test_generate_over_budget_returns_402(client, db_session, monkeypatch):

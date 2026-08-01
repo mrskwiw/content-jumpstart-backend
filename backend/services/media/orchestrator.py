@@ -674,7 +674,16 @@ def _create_deliverable(db: Session, job: MediaJob, asset: MediaAsset) -> None:
     download endpoint). Requires a client_id — Deliverable.client_id is NOT NULL."""
     if not job.client_id:
         return
-    fmt = "video" if (asset.mime or "").startswith("video") else "audio"
+    mime = (asset.mime or "").lower()
+    # Categorize by media family so a client/project-scoped image run isn't cataloged
+    # as an "audio" deliverable (the format field is a free string; downstream serving
+    # is MIME-driven, so "image" is additive and safe).
+    if mime.startswith("image"):
+        fmt = "image"
+    elif mime.startswith("video"):
+        fmt = "video"
+    else:
+        fmt = "audio"
     db.add(
         Deliverable(
             id=_uuid(),
