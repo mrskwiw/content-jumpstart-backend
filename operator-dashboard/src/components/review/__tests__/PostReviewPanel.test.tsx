@@ -113,4 +113,23 @@ describe('PostReviewPanel', () => {
 
     await waitFor(() => expect(mockedReview.addComment).toHaveBeenCalledWith('p1', 'Looks good'));
   });
+
+  it('withholds privileged controls when the team lookup fails (no implicit manager)', async () => {
+    // A failed getMyTeam() must NOT be treated as a solo/legacy manager — approve/
+    // submit controls stay hidden even though the post is unsubmitted/pending.
+    mockedTeams.getMyTeam.mockRejectedValue(new Error('network'));
+    mockedReview.getApproval.mockResolvedValue(null);
+    mockedReview.listComments.mockResolvedValue([]);
+
+    const { wrapper } = renderWithProviders();
+    render(<PostReviewPanel postId="p1" />, { wrapper });
+
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
+    // The panel body renders (approval resolved to "Not submitted")…
+    await screen.findByText(/not submitted/i);
+    // …but with the team lookup failed, no privileged action is offered.
+    expect(screen.queryByRole('button', { name: /submit for review/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /request changes/i })).not.toBeInTheDocument();
+  });
 });

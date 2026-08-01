@@ -64,7 +64,7 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
 
   // The team lookup shares one query key across every mounted panel, so React Query
   // dedupes it to a single request regardless of how many posts are on the page.
-  const { data: team } = useQuery({
+  const { data: team, isSuccess: teamLoaded } = useQuery({
     queryKey: ['team', 'me'],
     queryFn: () => teamsApi.getMyTeam(),
     enabled: expanded,
@@ -80,11 +80,16 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
     enabled: expanded,
   });
 
-  // Solo/legacy users (no team) are the manager of their own content per the backend
-  // creator fallback; otherwise owner/admin manage and viewers are read-only.
-  const myRole = team?.team?.my_role ?? null;
-  const canManage = myRole === null || myRole === 'owner' || myRole === 'admin';
-  const canSubmit = myRole !== 'viewer';
+  // Privileged controls are withheld until the team lookup actually SUCCEEDS: a
+  // `null` role only means genuine solo/legacy (backend creator-fallback manager)
+  // once the request has resolved. While the team query is loading or has errored,
+  // `team` is undefined — treat that as unknown/unauthorized, NOT as a solo manager,
+  // so a slow/failed lookup can't flash approve/reject/submit to an unauthorized user.
+  const myTeam = team?.team ?? null;
+  const myRole = myTeam?.my_role ?? null;
+  const isSolo = teamLoaded && myTeam === null;
+  const canManage = isSolo || myRole === 'owner' || myRole === 'admin';
+  const canSubmit = teamLoaded && myRole !== 'viewer';
 
   const onError = (fallback: string) => (err: unknown) => toast.error(errorDetail(err, fallback));
   const invalidateApproval = () => queryClient.invalidateQueries({ queryKey: approvalKey });
