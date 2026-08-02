@@ -107,7 +107,13 @@ def connect_account(
         body.platform, access_token=body.access_token, account_ref=body.account_ref
     ).verify()
     if not check.success:
-        raise HTTPException(status_code=400, detail=check.error or "Credential verification failed")
+        # A transient/upstream failure (provider timeout, 5xx, rate limit) is NOT the
+        # operator's bad input — return 502 so retries/monitoring don't treat an outage as a
+        # bad-credential error. Only a definitive rejection maps to 400.
+        status = 502 if check.retryable else 400
+        raise HTTPException(
+            status_code=status, detail=check.error or "Credential verification failed"
+        )
     try:
         cred = orchestrator.save_credential(
             db,

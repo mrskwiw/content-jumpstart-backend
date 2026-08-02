@@ -30,6 +30,11 @@ class PublishResult:
     platform_post_id: Optional[str] = None
     platform_url: Optional[str] = None
     error: Optional[str] = None
+    # True when the failure is transient/upstream (network timeout, DNS, provider 5xx/429,
+    # malformed upstream response) rather than a definitive rejection of the input/credential.
+    # Lets callers distinguish "your input is bad" (e.g. HTTP 400) from "the provider is
+    # down, retry later" (e.g. HTTP 502) instead of collapsing both into one status.
+    retryable: bool = False
 
 
 def dry_run_enabled() -> bool:
@@ -462,13 +467,22 @@ class BlueskyPublisher(BasePublisher):
             timeout=_HTTP_TIMEOUT,
         )
         if sess.status_code >= 400:
+            # 5xx / 429 = the PDS is unhealthy or rate-limiting us, not a bad credential →
+            # transient. 4xx (401/400/403) = the handle/app password was rejected → definitive.
+            transient = sess.status_code >= 500 or sess.status_code == 429
             return None, PublishResult(
-                success=False, error=f"Bluesky auth {sess.status_code}: {sess.text[:200]}"
+                success=False,
+                retryable=transient,
+                error=f"Bluesky auth {sess.status_code}: {sess.text[:200]}",
             )
         sd = sess.json() or {}
         jwt, did = sd.get("accessJwt"), sd.get("did")
         if not jwt or not did:
-            return None, PublishResult(success=False, error="Bluesky session missing accessJwt/did")
+            # A 2xx with no session token is an abnormal upstream response, not proof the
+            # credential is wrong → treat as transient so we don't brand valid creds invalid.
+            return None, PublishResult(
+                success=False, retryable=True, error="Bluesky session missing accessJwt/did"
+            )
         return {"base": base, "handle": handle, "jwt": jwt, "did": did}, None
 
     def verify(self) -> PublishResult:
@@ -478,9 +492,9 @@ class BlueskyPublisher(BasePublisher):
         try:
             _session, err = self._authenticate()
             return err or PublishResult(success=True)
-        except Exception as e:  # network / parse
+        except Exception as e:  # network timeout / DNS / parse — the provider, not the input
             logger.warning("Bluesky verify failed: %s", e)
-            return PublishResult(success=False, error=str(e))
+            return PublishResult(success=False, retryable=True, error=str(e))
 
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
         import requests

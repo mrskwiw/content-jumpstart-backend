@@ -84,6 +84,25 @@ def test_connect_bluesky_rejects_bad_credential_before_persisting(client, db_ses
     assert all(c["platform"] != "bluesky" for c in lst)
 
 
+def test_connect_bluesky_transient_failure_is_502_not_400(client, db_session, monkeypatch):
+    """A provider outage during connect verification must NOT be reported as a 400 bad-request
+    (which would blame the operator's input) — it's a transient upstream failure → 502."""
+    import requests
+
+    monkeypatch.delenv("DISTRIBUTION_DRY_RUN", raising=False)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResp(503, text="pds down"))
+    u = _make_user(db_session, "bsky-503@example.com", "user-bsky503")
+    r = client.post(
+        "/api/distribution/credentials",
+        json={"platform": "bluesky", "access_token": "pw", "account_ref": "me.bsky.social"},
+        headers=_hdr(u),
+    )
+    assert r.status_code == 502, r.text
+    # And nothing was persisted on a transient failure either.
+    lst = client.get("/api/distribution/credentials", headers=_hdr(u)).json()
+    assert all(c["platform"] != "bluesky" for c in lst)
+
+
 def test_connect_bluesky_dry_run_skips_network_verify(client, db_session, monkeypatch):
     """In dry-run the connect verifier resolves to the stub (no network) and succeeds, storing
     the handle as the display name so the credential is identifiable."""

@@ -179,6 +179,37 @@ def test_bluesky_verify_rejects_bad_app_password(monkeypatch):
 def test_bluesky_verify_requires_handle():
     r = BlueskyPublisher(access_token="pw", account_ref=None).verify()
     assert not r.success and "handle" in r.error.lower()
+    assert r.retryable is False  # a missing handle is definitively bad input, not transient
+
+
+def test_bluesky_verify_401_is_definitive_not_retryable(monkeypatch):
+    _seq_post(monkeypatch, [_Resp(401, text="bad app password")])
+    r = BlueskyPublisher(access_token="wrong", account_ref="me.bsky.social").verify()
+    assert not r.success and "401" in r.error
+    assert r.retryable is False  # rejected credential → definitive
+
+
+def test_bluesky_verify_5xx_is_retryable(monkeypatch):
+    """A PDS 5xx means the provider is unhealthy, not that the credential is wrong."""
+    _seq_post(monkeypatch, [_Resp(503, text="upstream down")])
+    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+    assert not r.success and "503" in r.error
+    assert r.retryable is True
+
+
+def test_bluesky_verify_network_error_is_retryable(monkeypatch):
+    def boom(*a, **k):
+        raise requests.exceptions.Timeout("connect timeout")
+
+    monkeypatch.setattr(requests, "post", boom)
+    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+    assert not r.success and r.retryable is True
+
+
+def test_bluesky_verify_2xx_without_token_is_retryable(monkeypatch):
+    _seq_post(monkeypatch, [_Resp(200, {})])  # 200 but no accessJwt/did (abnormal upstream)
+    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+    assert not r.success and r.retryable is True
 
 
 def test_base_publisher_verify_is_noop():
