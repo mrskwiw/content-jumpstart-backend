@@ -78,6 +78,22 @@ def _extract_howto_steps(content: str) -> List[str]:
     return steps
 
 
+def _is_procedural_headline(headline: str) -> bool:
+    """Whether the headline explicitly signals procedural / how-to intent.
+
+    A numbered list alone is NOT enough — listicles ("10 Ways to…"), tables of contents, and
+    reference lists all use numbered lines but aren't procedures. Requiring an explicit how-to
+    headline keeps HowTo markup off that common class of posts (misleading/spammy structured
+    data otherwise).
+    """
+    h = headline.strip().lower()
+    return (
+        h.startswith(("how to", "how-to", "steps to", "step by step", "step-by-step"))
+        or "step-by-step guide" in h
+        or "step by step guide" in h
+    )
+
+
 def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
     """schema.org Article JSON-LD for a blog post, as a fenced markdown block (GEO-01).
 
@@ -130,7 +146,9 @@ def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
     if platform != "blog" or not post.content:
         return []
     headline = _first_headline(post.content)
-    if not headline:
+    # Require BOTH an explicit how-to headline AND >=2 numbered steps, so ordinary numbered
+    # lists (listicles / TOCs / references) don't get misclassified as procedures.
+    if not headline or not _is_procedural_headline(headline):
         return []
     steps = _extract_howto_steps(post.content)
     if len(steps) < 2:

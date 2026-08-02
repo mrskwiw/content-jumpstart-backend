@@ -150,6 +150,29 @@ def test_howto_block_emitted_for_numbered_steps():
     assert [s["position"] for s in data["step"]] == [1, 2, 3, 4]
 
 
+def test_howto_block_emitted_for_step_by_step_headline():
+    content = "Step-by-Step: Migrate to Postgres\n\n1. Back up\n2. Dump the schema\n3. Restore\n"
+    block = _blog_howto_jsonld_block(_make_post(content), _make_client())
+    assert block and _jsonld_from("\n".join(block))["@type"] == "HowTo"
+
+
+def test_howto_block_skipped_for_listicle_headline():
+    # A numbered list under a listicle headline is NOT a procedure — must not emit HowTo.
+    listicle = (
+        "10 Ways to Grow Your Audience\n\n"
+        "Top tactics:\n\n"
+        "1. Post consistently\n"
+        "2. Engage with comments\n"
+        "3) Use hashtags\n"
+    )
+    assert _blog_howto_jsonld_block(_make_post(listicle), _make_client()) == []
+
+
+def test_howto_block_skipped_for_reference_list_headline():
+    reference = "A Brief History of SEO\n\nKey milestones:\n\n1. Keyword stuffing\n2. PageRank\n"
+    assert _blog_howto_jsonld_block(_make_post(reference), _make_client()) == []
+
+
 def test_howto_block_skipped_without_steps():
     # Prose with no numbered list → no HowTo (Article still applies separately).
     assert _blog_howto_jsonld_block(_make_post(_BLOG), _make_client()) == []
