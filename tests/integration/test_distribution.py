@@ -252,7 +252,10 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
     operator-set display_name and the account_ref publishers depend on."""
     from backend.services.distribution import orchestrator
 
+    from datetime import datetime, timezone
+
     u = _make_user(db_session, "dist-reconn@example.com", "user-distreconn")
+    expiry = datetime(2026, 6, 1, tzinfo=timezone.utc)
     c1 = orchestrator.save_credential(
         db_session,
         u.id,
@@ -261,6 +264,7 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
         refresh_token="refresh-1",
         account_ref="page-123",
         display_name="Acme FB Page",
+        token_expires_at=expiry,
     )
     original_refresh = c1.refresh_token
     c1.is_active = False  # simulate a revoked/expired credential
@@ -275,6 +279,12 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
     assert c2.account_ref == "page-123"  # preserved — FB/IG publishing needs it
     assert c2.display_name == "Acme FB Page"  # operator name not clobbered
     assert c2.refresh_token == original_refresh  # existing refresh token preserved, not wiped
+    # Expiry preserved (not nulled) — so ensure_fresh_token still treats it as expiring and
+    # can renew via the preserved refresh token instead of assuming a non-expiring token.
+    c2_exp = c2.token_expires_at
+    if c2_exp is not None and c2_exp.tzinfo is None:
+        c2_exp = c2_exp.replace(tzinfo=timezone.utc)
+    assert c2_exp == expiry
 
     # …but a reconnect that DOES supply a refresh token rotates it.
     c3 = orchestrator.save_credential(

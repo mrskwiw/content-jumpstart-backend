@@ -136,7 +136,12 @@ def save_credential(
             cred.account_ref = account_ref
         if display_name is not None:
             cred.display_name = display_name
-        cred.token_expires_at = token_expires_at
+        # Preserve the prior expiry when the reconnect omits one — leaving it None would make
+        # ensure_fresh_token treat the credential as non-expiring and never refresh again,
+        # stranding it after the access token ages out. A stale (past) expiry instead
+        # triggers a safe refresh via the preserved refresh token.
+        if token_expires_at is not None:
+            cred.token_expires_at = token_expires_at
         cred.is_active = True
     else:
         cred = PlatformCredential(
