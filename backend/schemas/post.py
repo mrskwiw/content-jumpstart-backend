@@ -107,6 +107,10 @@ class PostResponse(BaseModel):
 
     # Twitter/X share copy for blog posts
     twitter_share_copy: Optional[str] = Field(default=None, serialization_alias="twitterShareCopy")
+    # Team review/approval state (COLLAB-01): "pending" | "approved" | "rejected", or None when
+    # the post was never submitted for review. Populated by the list endpoint (batched) so the
+    # content review grid can show status per-row without a per-post fetch.
+    approval_status: Optional[str] = Field(default=None, serialization_alias="approvalStatus")
 
     model_config = ConfigDict(
         from_attributes=True,

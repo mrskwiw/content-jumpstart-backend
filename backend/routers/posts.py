@@ -176,10 +176,28 @@ async def list_posts(
         order_direction="desc",
     )
 
+    # Batch-fetch team-review status for the whole page in ONE query (PostApproval.post_id is
+    # unique + indexed) so the content-review grid can show per-row approval status WITHOUT an
+    # N+1 per-post fetch (the per-post review panel stays lazy — Decision #217).
+    from backend.models.post_approval import PostApproval
+
+    items = paginated["items"]
+    post_ids = [p.id for p in items]
+    approval_by_post: Dict[str, str] = {}
+    if post_ids:
+        for row in (
+            db.query(PostApproval.post_id, PostApproval.status)
+            .filter(PostApproval.post_id.in_(post_ids))
+            .all()
+        ):
+            approval_by_post[row[0]] = row[1]
+
     # Convert items to response schema (mode="json" ensures datetime serialization)
-    posts_data = [
-        PostResponse.model_validate(p).model_dump(mode="json") for p in paginated["items"]
-    ]
+    posts_data = []
+    for p in items:
+        item = PostResponse.model_validate(p).model_dump(mode="json")
+        item["approval_status"] = approval_by_post.get(p.id)
+        posts_data.append(item)
 
     # Prepare response with pagination metadata
     response_data = {

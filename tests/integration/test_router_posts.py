@@ -256,9 +256,32 @@ class TestListPosts:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list) or "items" in data
-
         items = data if isinstance(data, list) else data["items"]
         assert len(items) >= 6  # Should see all sample posts
+
+    def test_list_posts_includes_batched_approval_status(
+        self, client, auth_headers_user_a, sample_posts, db_session
+    ):
+        """Each row carries its team-review status (COLLAB-01), batched in one query; a post
+        never submitted for review has approval_status None."""
+        from backend.models.post_approval import PostApproval
+
+        db_session.add(
+            PostApproval(
+                post_id="post-1",
+                status="approved",
+                submitted_by_user_id="user-a-123",
+            )
+        )
+        db_session.commit()
+
+        response = client.get("/api/posts/", headers=auth_headers_user_a)
+        assert response.status_code == 200
+        by_id = {p["id"]: p for p in response.json()["items"]}
+        # The list output is snake_case (manual model_dump), so the key is approval_status.
+        assert by_id["post-1"]["approval_status"] == "approved"
+        # A post never submitted for review has no approval status.
+        assert by_id["post-3"]["approval_status"] is None
 
     def test_list_posts_unauthenticated(self, client):
         """Test listing posts without authentication"""
