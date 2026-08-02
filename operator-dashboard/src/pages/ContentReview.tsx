@@ -54,7 +54,7 @@ export default function ContentReview() {
   const [projectFilter, setProjectFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
-  const [reviewFilter, setReviewFilter] = useState<'all' | 'awaiting'>('all');
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'pending'>('all');
   const [selectedPosts, setSelectedPosts] = useState<string[]>([]);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -178,18 +178,20 @@ export default function ContentReview() {
       });
     }
 
-    // Awaiting-review filter — real team-review state (COLLAB-01), distinct from the mock
-    // quality `status` above. Surfaces exactly the posts a reviewer still needs to decide on.
-    if (reviewFilter === 'awaiting') {
+    // Pending-review filter — real team-review state (COLLAB-01), distinct from the mock
+    // quality `status` above. Scope is precisely `status === 'pending'`: posts an editor has
+    // SUBMITTED and that now await a manager's approve/reject decision. A never-submitted post
+    // (approvalStatus null) is deliberately NOT included — it isn't awaiting a reviewer yet.
+    if (reviewFilter === 'pending') {
       filtered = filtered.filter(post => post.approvalStatus === 'pending');
     }
 
     return filtered;
   }, [postsWithContext, projects, searchQuery, statusFilter, clientFilter, projectFilter, platformFilter, qualityFilter, reviewFilter]);
 
-  // Count of posts awaiting a review decision (same QA-project gating as the grid), for the
+  // Count of posts pending a review decision (same QA-project gating as the grid), for the
   // toggle badge — independent of the currently-applied filters.
-  const awaitingReviewCount = useMemo(
+  const pendingReviewCount = useMemo(
     () =>
       postsWithContext.filter(
         post =>
@@ -340,17 +342,19 @@ export default function ContentReview() {
                   {status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
-              {/* Real team-review filter (COLLAB-01), separate from the quality tabs above. */}
+              {/* Real team-review filter (COLLAB-01), separate from the quality tabs above.
+                  "Pending review" = submitted & awaiting a manager's decision (status pending). */}
               <button
-                onClick={() => setReviewFilter(reviewFilter === 'awaiting' ? 'all' : 'awaiting')}
-                aria-pressed={reviewFilter === 'awaiting'}
+                onClick={() => setReviewFilter(reviewFilter === 'pending' ? 'all' : 'pending')}
+                aria-pressed={reviewFilter === 'pending'}
+                title="Posts submitted for review that await an approve/reject decision"
                 className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                  reviewFilter === 'awaiting'
+                  reviewFilter === 'pending'
                     ? 'bg-amber-500 dark:bg-amber-600 text-white hover:bg-amber-600 dark:hover:bg-amber-700'
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
                 }`}
               >
-                Awaiting review{awaitingReviewCount > 0 ? ` (${awaitingReviewCount})` : ''}
+                Pending review{pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ''}
               </button>
             </div>
           </div>
