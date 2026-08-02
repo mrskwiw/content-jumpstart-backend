@@ -1,5 +1,6 @@
 """Unit tests for the Bluesky publisher (DIST-EXPAND) — AT Protocol app-password flow."""
 
+import pytest
 import requests
 
 from backend.services.distribution.publishers import (
@@ -198,18 +199,39 @@ def test_bluesky_verify_5xx_is_retryable(monkeypatch):
 
 
 def test_bluesky_verify_network_error_is_retryable(monkeypatch):
+    """Known transport failures (timeout/DNS/connection) are the provider, not the input →
+    retryable, not a hard rejection."""
+    for exc in (
+        requests.exceptions.Timeout("connect timeout"),
+        requests.exceptions.ConnectionError("dns failure"),
+    ):
+
+        def boom(*a, _exc=exc, **k):
+            raise _exc
+
+        monkeypatch.setattr(requests, "post", boom)
+        r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+        assert not r.success and r.retryable is True
+
+
+def test_bluesky_verify_2xx_without_token_raises_contract_error(monkeypatch):
+    """A 2xx createSession with no accessJwt/did is a broken contract, not a transient blip —
+    it must surface (raise → 500), not be swallowed into a retryable 502."""
+    _seq_post(monkeypatch, [_Resp(200, {})])
+    with pytest.raises(ValueError, match="accessJwt"):
+        BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+
+
+def test_bluesky_verify_unexpected_exception_propagates(monkeypatch):
+    """An unexpected (non-transport) exception must NOT be masked as a retryable 502 — it
+    propagates so a broken verifier surfaces as a real error."""
+
     def boom(*a, **k):
-        raise requests.exceptions.Timeout("connect timeout")
+        raise RuntimeError("unexpected bug")
 
     monkeypatch.setattr(requests, "post", boom)
-    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
-    assert not r.success and r.retryable is True
-
-
-def test_bluesky_verify_2xx_without_token_is_retryable(monkeypatch):
-    _seq_post(monkeypatch, [_Resp(200, {})])  # 200 but no accessJwt/did (abnormal upstream)
-    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
-    assert not r.success and r.retryable is True
+    with pytest.raises(RuntimeError, match="unexpected bug"):
+        BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
 
 
 def test_base_publisher_verify_is_noop():

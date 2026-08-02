@@ -478,23 +478,34 @@ class BlueskyPublisher(BasePublisher):
         sd = sess.json() or {}
         jwt, did = sd.get("accessJwt"), sd.get("did")
         if not jwt or not did:
-            # A 2xx with no session token is an abnormal upstream response, not proof the
-            # credential is wrong → treat as transient so we don't brand valid creds invalid.
-            return None, PublishResult(
-                success=False, retryable=True, error="Bluesky session missing accessJwt/did"
-            )
+            # A 2xx with no accessJwt/did is a broken contract (AT Protocol schema drift or a
+            # bug), NOT a transient blip — retrying forever would just mask the defect. Raise so
+            # it surfaces (verify → 500; publish → a recorded failure) rather than looking like
+            # either bad input or a retryable outage.
+            logger.error("Bluesky createSession returned 2xx without accessJwt/did: %s", sd)
+            raise ValueError("Bluesky createSession returned 2xx without accessJwt/did")
         return {"base": base, "handle": handle, "jwt": jwt, "did": did}, None
 
     def verify(self) -> PublishResult:
         """Authenticate the handle + app password (createSession) WITHOUT posting, so a bad
         credential is rejected at connect time rather than creating a false "connected" state
-        that only fails at publish. No record is created."""
+        that only fails at publish. No record is created.
+
+        Only *known transport failures* (connection/DNS/timeout) are reported as retryable —
+        the provider is down, not the input. Any other exception (JSON/parse, contract failure,
+        an unexpected bug) is deliberately NOT caught here: it propagates so a broken verifier
+        surfaces as a real error instead of masquerading as a transient outage.
+        """
+        import requests
+
         try:
             _session, err = self._authenticate()
             return err or PublishResult(success=True)
-        except Exception as e:  # network timeout / DNS / parse — the provider, not the input
-            logger.warning("Bluesky verify failed: %s", e)
-            return PublishResult(success=False, retryable=True, error=str(e))
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            logger.warning("Bluesky verify transport error: %s", e)
+            return PublishResult(
+                success=False, retryable=True, error=f"Bluesky verify network error: {e}"
+            )
 
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
         import requests
