@@ -252,7 +252,7 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
     operator-set display_name and the account_ref publishers depend on."""
     from backend.services.distribution import orchestrator
 
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
 
     u = _make_user(db_session, "dist-reconn@example.com", "user-distreconn")
     expiry = datetime(2026, 6, 1, tzinfo=timezone.utc)
@@ -279,12 +279,16 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
     assert c2.account_ref == "page-123"  # preserved — FB/IG publishing needs it
     assert c2.display_name == "Acme FB Page"  # operator name not clobbered
     assert c2.refresh_token == original_refresh  # existing refresh token preserved, not wiped
-    # Expiry preserved (not nulled) — so ensure_fresh_token still treats it as expiring and
-    # can renew via the preserved refresh token instead of assuming a non-expiring token.
+    # Reconnect omitted a new expiry → a short conservative TTL is set (near-future, not None
+    # and not the stale prior deadline) so ensure_fresh_token refreshes it soon via the kept
+    # refresh token rather than treating it as non-expiring.
     c2_exp = c2.token_expires_at
-    if c2_exp is not None and c2_exp.tzinfo is None:
+    assert c2_exp is not None
+    if c2_exp.tzinfo is None:
         c2_exp = c2_exp.replace(tzinfo=timezone.utc)
-    assert c2_exp == expiry
+    now = datetime.now(timezone.utc)
+    assert now < c2_exp <= now + timedelta(hours=1, minutes=1)
+    assert c2_exp != expiry  # not the stale prior deadline
 
     # …but a reconnect that DOES supply a refresh token rotates it.
     c3 = orchestrator.save_credential(
