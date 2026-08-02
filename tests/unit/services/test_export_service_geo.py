@@ -6,6 +6,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from backend.services.export_service import (
+    _blog_faq_jsonld_block,
     _blog_geo_jsonld_block,
     _blog_howto_jsonld_block,
     generate_export_file,
@@ -244,5 +245,132 @@ def test_markdown_export_no_jsonld_for_non_blog_post():
     try:
         text = out_path.read_text(encoding="utf-8")
         assert "GEO Metadata" not in text
+    finally:
+        out_path.unlink(missing_ok=True)
+
+
+# --- FAQPage JSON-LD (GEO-01, completes the Article/HowTo/FAQ triad) --------------------
+
+_FAQ_BLOG = (
+    "Content Marketing FAQ\n\n"
+    "## What is GEO?\n\n"
+    "GEO is Generative Engine Optimization: structuring content so AI answer engines cite it.\n\n"
+    "## How is it different from SEO?\n\n"
+    "SEO targets ranked links; GEO targets being quoted inside AI answers like ChatGPT.\n"
+)
+
+_FAQ_QA_BLOG = (
+    "Pricing Questions\n\n"
+    "Q: Do you offer refunds?\n"
+    "A: Yes, within 30 days of purchase, no questions asked.\n\n"
+    "Q: Can I change plans?\n"
+    "A: Absolutely — upgrade or downgrade anytime from your dashboard.\n"
+)
+
+_FAQ_BOLD_BLOG = (
+    "**Is my data secure?**\n\n"
+    "Yes, everything is encrypted at rest and in transit using industry standards.\n\n"
+    "**Where is it stored?**\n\n"
+    "In SOC 2 compliant data centers within your selected region.\n"
+)
+
+
+def test_faq_block_emitted_for_heading_questions():
+    block = _blog_faq_jsonld_block(_make_post(_FAQ_BLOG), _make_client())
+    assert block
+    data = _jsonld_from("\n".join(block))
+    assert data["@type"] == "FAQPage"
+    names = [q["name"] for q in data["mainEntity"]]
+    assert names == ["What is GEO?", "How is it different from SEO?"]
+    first = data["mainEntity"][0]["acceptedAnswer"]["text"]
+    assert first.startswith("GEO is Generative Engine Optimization")
+
+
+def test_faq_block_emitted_for_q_and_a_prefixes():
+    # "Q:"/"A:" prefixed pairs are an unambiguous FAQ structure; the A: marker is stripped.
+    data = _jsonld_from("\n".join(_blog_faq_jsonld_block(_make_post(_FAQ_QA_BLOG), _make_client())))
+    assert data["@type"] == "FAQPage"
+    assert [q["name"] for q in data["mainEntity"]] == [
+        "Do you offer refunds?",
+        "Can I change plans?",
+    ]
+    assert data["mainEntity"][0]["acceptedAnswer"]["text"] == (
+        "Yes, within 30 days of purchase, no questions asked."
+    )
+
+
+def test_faq_block_emitted_for_bold_questions():
+    data = _jsonld_from(
+        "\n".join(_blog_faq_jsonld_block(_make_post(_FAQ_BOLD_BLOG), _make_client()))
+    )
+    assert data["@type"] == "FAQPage"
+    assert [q["name"] for q in data["mainEntity"]] == [
+        "Is my data secure?",
+        "Where is it stored?",
+    ]
+
+
+def test_faq_block_skipped_for_single_pair():
+    one = "My Post\n\n## What is X?\n\nX is a thing you use.\n"
+    assert _blog_faq_jsonld_block(_make_post(one), _make_client()) == []
+
+
+def test_faq_block_skipped_for_rhetorical_prose_questions():
+    # Questions buried in a paragraph are NOT structural FAQ markers — must not emit FAQPage.
+    prose = (
+        "Why Content Matters\n\n"
+        "Ever wonder why content matters? It builds trust. Does it really work? Yes, it does.\n"
+    )
+    assert _blog_faq_jsonld_block(_make_post(prose), _make_client()) == []
+
+
+def test_faq_block_drops_answerless_cta_question():
+    # A lone answer-less "Ready to buy?" heading contributes no pair, so with only one real
+    # Q/A the block is skipped (≥2 required) — a CTA question never becomes spammy markup.
+    content = (
+        "## What is included?\n\n"
+        "Everything in your plan, billed monthly.\n\n"
+        "## Ready to buy?\n\n"
+        "## Footer\n\n"
+        "Copyright notice.\n"
+    )
+    assert _blog_faq_jsonld_block(_make_post(content), _make_client()) == []
+
+
+def test_faq_block_skipped_for_non_blog():
+    assert _blog_faq_jsonld_block(_make_post(_FAQ_BLOG, platform="linkedin"), _make_client()) == []
+
+
+def test_faq_answer_stops_at_next_section_heading():
+    # The answer must not bleed past a new (non-question) section heading.
+    content = (
+        "## What is GEO?\n\n"
+        "A short definition.\n\n"
+        "## Unrelated Section\n\n"
+        "Body that is not part of any answer.\n\n"
+        "## Does it help?\n\n"
+        "Yes it does, measurably.\n"
+    )
+    data = _jsonld_from("\n".join(_blog_faq_jsonld_block(_make_post(content), _make_client())))
+    assert [q["name"] for q in data["mainEntity"]] == ["What is GEO?", "Does it help?"]
+    assert data["mainEntity"][0]["acceptedAnswer"]["text"] == "A short definition."
+
+
+def test_markdown_export_embeds_faq_and_article_for_qa_blog():
+    out_path, _ = _run(
+        generate_export_file(
+            posts=[_make_post(_FAQ_BLOG)],
+            client=_make_client(),
+            project=_make_project(),
+            format="md",
+            relative_path="Acme Co/faq.md",
+        )
+    )
+    try:
+        text = out_path.read_text(encoding="utf-8")
+        # A Q/A blog carries BOTH Article and FAQPage markup — two script tags.
+        assert "GEO Metadata (schema.org FAQPage JSON-LD)" in text
+        assert "GEO Metadata (schema.org Article JSON-LD)" in text
+        assert text.count(_OPEN) == 2
     finally:
         out_path.unlink(missing_ok=True)

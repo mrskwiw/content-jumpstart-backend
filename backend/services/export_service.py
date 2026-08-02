@@ -16,7 +16,7 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
-from backend.services.geo import article_jsonld, howto_jsonld
+from backend.services.geo import article_jsonld, faq_jsonld, howto_jsonld
 from backend.utils.logger import logger
 
 # An explicit numbered/"Step N" list line — the deterministic signal that a blog post is a
@@ -108,6 +108,68 @@ def _is_procedural_headline(headline: str) -> bool:
     return bool(_PROCEDURAL_HEADLINE_RE.search(headline))
 
 
+# A FAQ "question" line — a STRUCTURAL question marker, not any prose sentence ending in "?".
+# Precision-first (same harm asymmetry as HowTo — a false-positive FAQPage is spammy/misleading
+# structured data with SEO-penalty risk; a false negative just misses the bonus markup, the
+# Article block still applies): we only treat a line as a question when it is a markdown heading,
+# a bold-only line, or an explicit "Q:" prefix — AND (for heading/bold forms) it ends in "?".
+# Rhetorical questions buried in a paragraph are intentionally ignored. See BUGS.md Decision #233.
+_FAQ_HEADING_Q_RE = re.compile(r"^\s*#{1,6}\s+(.*\?)\s*$")
+_FAQ_BOLD_Q_RE = re.compile(r"^\s*(?:\*\*|__)\s*(.*\?)\s*(?:\*\*|__)\s*$")
+_FAQ_Q_PREFIX_RE = re.compile(r"^\s*Q\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
+_FAQ_A_PREFIX_RE = re.compile(r"^\s*A\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
+# Any markdown heading — a non-question heading ends the current answer (a new section starts).
+_ANY_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
+
+
+def _match_faq_question(line: str) -> Optional[str]:
+    """Return the question text if ``line`` is a structural FAQ question marker, else None."""
+    for rx in (_FAQ_HEADING_Q_RE, _FAQ_BOLD_Q_RE):
+        m = rx.match(line)
+        if m:
+            q = m.group(1).strip()
+            return q or None
+    m = _FAQ_Q_PREFIX_RE.match(line)  # "Q:" prefix is an unambiguous marker on its own
+    if m:
+        return m.group(1).strip() or None
+    return None
+
+
+def _extract_faq_pairs(content: str) -> List[Tuple[str, str]]:
+    """Deterministically extract (question, answer) pairs from an explicit FAQ structure.
+
+    A question is a structural marker line (heading / bold-only / ``Q:`` — see the regexes above);
+    its answer is the following non-empty content up to the next question or the next heading
+    (a new section). A leading ``A:`` marker on the first answer line is stripped. Pairs whose
+    answer is empty are dropped, so ``## Ready to start?`` immediately followed by another heading
+    contributes nothing. Fuzzy prose is NOT parsed.
+    """
+    lines = content.splitlines()
+    pairs: List[Tuple[str, str]] = []
+    i, n = 0, len(lines)
+    while i < n:
+        question = _match_faq_question(lines[i])
+        if question is None:
+            i += 1
+            continue
+        i += 1
+        answer_parts: List[str] = []
+        while i < n:
+            # A subsequent question or any (non-question) heading ends this answer.
+            if _match_faq_question(lines[i]) is not None or _ANY_HEADING_RE.match(lines[i]):
+                break
+            stripped = lines[i].strip()
+            if stripped:
+                a = _FAQ_A_PREFIX_RE.match(lines[i])
+                # Strip an "A:" marker only when it opens the answer (first captured line).
+                answer_parts.append(a.group(1).strip() if a and not answer_parts else stripped)
+            i += 1
+        answer = " ".join(answer_parts).strip()
+        if answer:
+            pairs.append((question, answer))
+    return pairs
+
+
 def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
     """schema.org Article JSON-LD for a blog post, as a fenced markdown block (GEO-01).
 
@@ -172,6 +234,30 @@ def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
         "GEO Metadata (schema.org HowTo JSON-LD)",
         "Paste this snippet verbatim into the page `<head>` so AI answer engines can cite "
         "the steps.",
+        _jsonld_script(data),
+    )
+
+
+def _blog_faq_jsonld_block(post: Post, client: Client) -> List[str]:
+    """schema.org FAQPage JSON-LD for a blog post with an explicit Q/A structure (GEO-01).
+
+    FAQPage markup is the third schema type GEO-01 targets (with Article + HowTo): it makes a
+    post's question/answer pairs directly extractable for AI Overviews' question answers. Returns
+    [] for a non-blog post or when fewer than 2 structural Q/A pairs are detected (a lone Q/A is
+    not an FAQ — and requiring ≥2 keeps a single rhetorical CTA heading from being marked up).
+    Complements — does not replace — the Article block.
+    """
+    platform = (post.target_platform or "").lower()
+    if platform != "blog" or not post.content:
+        return []
+    pairs = _extract_faq_pairs(post.content)
+    if len(pairs) < 2:
+        return []
+    data = faq_jsonld(pairs)
+    return _jsonld_markdown_block(
+        "GEO Metadata (schema.org FAQPage JSON-LD)",
+        "Paste this snippet verbatim into the page `<head>` so AI answer engines can cite "
+        "these answers.",
         _jsonld_script(data),
     )
 
@@ -504,9 +590,11 @@ async def _generate_markdown(
             lines.append("")
 
         # GEO / answer-engine schema.org markup for blog posts (no-op otherwise): Article
-        # always, plus HowTo when the post has an explicit numbered-step structure.
+        # always, plus HowTo when the post has an explicit numbered-step structure, plus
+        # FAQPage when it has an explicit Q/A structure. Article/HowTo/FAQ are complementary.
         lines.extend(_blog_geo_jsonld_block(post, client))
         lines.extend(_blog_howto_jsonld_block(post, client))
+        lines.extend(_blog_faq_jsonld_block(post, client))
 
         # Separator
         lines.append("---")
