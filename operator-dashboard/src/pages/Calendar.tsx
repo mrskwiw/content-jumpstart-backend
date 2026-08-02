@@ -81,6 +81,17 @@ function statusBadge(status?: string, isActive?: boolean): { label: string; cls:
   }
 }
 
+// A failed post whose retries are exhausted (isActive===false) is historical, not live work:
+// it still shows on the grid (badged "gave up") but must NOT count as upcoming/actionable
+// (Decision #220) — otherwise operators are told there's work left after the worker gave up.
+function isActionablePost(event: CalendarEvent): boolean {
+  return !(
+    event.type === 'post' &&
+    (event.status ?? '').toLowerCase() === 'failed' &&
+    event.isActive === false
+  );
+}
+
 /** Map a scheduled distribution post onto a calendar 'post' event. The queue schema
  *  exposes no client/project names, so those are left unset (optional). */
 function scheduledPostToEvent(sp: ScheduledPost): CalendarEvent {
@@ -155,6 +166,7 @@ export default function Calendar() {
     sevenDaysLater.setDate(today.getDate() + 7);
 
     return filteredEvents
+      .filter(isActionablePost) // exhausted failures are historical, not upcoming work
       .filter(event => {
         const eventDate = parseISO(event.date);
         return eventDate >= today && eventDate <= sevenDaysLater;
@@ -558,7 +570,7 @@ export default function Calendar() {
                   <span className="text-sm text-neutral-700 dark:text-neutral-300">Scheduled Posts</span>
                 </div>
                 <span className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                  {filteredEvents.filter(e => e.type === 'post').length}
+                  {filteredEvents.filter(e => e.type === 'post' && isActionablePost(e)).length}
                 </span>
               </div>
               <div className="flex items-center justify-between">

@@ -30,6 +30,7 @@ describe('Distribution Queue — per-client attribution', () => {
       status: 'pending',
       scheduled_for: '2026-02-10T00:00:00Z',
       retry_count: 0,
+      is_active: true,
     });
     clients.list.mockResolvedValue([
       { id: 'c1', name: 'Acme', businessDescription: '', createdAt: '2026-01-01T00:00:00Z' },

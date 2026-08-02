@@ -2,7 +2,7 @@
  * Smoke + data tests for Calendar page.
  */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
 import Calendar from '../Calendar';
 import { distributionApi } from '@/api/distribution';
@@ -111,5 +111,11 @@ describe('Calendar Page', () => {
     expect(screen.queryByText('Twitter post')).not.toBeInTheDocument();
     expect(screen.queryByText(/already published/i)).not.toBeInTheDocument();
     expect(mockedQueue).toHaveBeenCalled();
+
+    // The "Scheduled Posts" stat counts only ACTIONABLE posts (pending + retrying), not the
+    // exhausted "gave up" failure — so operators aren't told there's live work the worker
+    // has abandoned. Actionable here = sp1 (pending) + sp3 (retrying) = 2.
+    const statRow = screen.getByText('Scheduled Posts').closest('div.justify-between') as HTMLElement;
+    expect(within(statRow).getByText('2')).toBeInTheDocument();
   });
 });
