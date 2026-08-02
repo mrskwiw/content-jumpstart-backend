@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Alert, AlertDescription } from '@/components/ui/Alert';
 import { distributionApi, PlatformCredential } from '@/api/distribution';
+import { clientsApi } from '@/api/clients';
 
 const PLATFORM_LABELS: Record<string, string> = {
   linkedin: 'LinkedIn',
@@ -25,9 +26,17 @@ export default function Connections() {
 
   const status = useQuery({ queryKey: ['oauth-status'], queryFn: distributionApi.oauthStatus });
   const creds = useQuery({ queryKey: ['credentials'], queryFn: distributionApi.listCredentials });
+  const clients = useQuery({ queryKey: ['clients'], queryFn: () => clientsApi.list() });
+
+  // MULTICLIENT-01: scope a NEW connection to a specific client (empty = account-level,
+  // shared across all clients). The backend already binds this into the signed OAuth state.
+  const [connectClientId, setConnectClientId] = useState('');
+  const clientName = (id?: string | null) =>
+    id ? (clients.data ?? []).find((c) => c.id === id)?.name ?? 'Unknown client' : 'Account-level';
 
   const startConnect = useMutation({
-    mutationFn: (platform: string) => distributionApi.oauthStart(platform),
+    mutationFn: (platform: string) =>
+      distributionApi.oauthStart(platform, connectClientId || undefined),
     onSuccess: (url) => {
       window.location.href = url;
     },
@@ -40,14 +49,10 @@ export default function Connections() {
 
   const platforms = status.data?.all ?? [];
   const configured = new Set(status.data?.configured ?? []);
-  // The OAuth connect flow creates account-level credentials (client_id=null),
-  // and the backend unique constraint is (user_id, client_id, platform) — so
-  // there is at most one credential per platform in this UI's model, and keying
-  // by platform is safe. Per-client (multiple credentials per platform) routing
-  // is a documented follow-up (BUGS.md — multi-client distribution scoping);
-  // when added, index by credential id + client and add a client selector here.
-  const credByPlatform = new Map<string, PlatformCredential>();
-  (creds.data ?? []).forEach((c) => credByPlatform.set(c.platform, c));
+  // A platform can now have multiple credentials — one per client (+ an account-level
+  // one, client_id=null) — under the backend's (user_id, client_id, platform) unique
+  // constraint. So we list credentials flat and label each by its client.
+  const allCreds = creds.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -74,61 +79,105 @@ export default function Connections() {
         </Alert>
       )}
 
+      {/* Scope a new connection to a client (or account-level). */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <label htmlFor="connect-client" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          Connect a new account for:
+        </label>
+        <select
+          id="connect-client"
+          className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+          value={connectClientId}
+          onChange={(e) => setConnectClientId(e.target.value)}
+        >
+          <option value="">Account-level (all clients)</option>
+          {(clients.data ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          Each client can have its own account per platform.
+        </span>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {platforms.map((platform) => {
-          const cred = credByPlatform.get(platform);
           const canConnect = configured.has(platform);
           return (
             <Card key={platform}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{PLATFORM_LABELS[platform] ?? platform}</CardTitle>
-                  {cred ? (
-                    <Badge variant="success">Connected</Badge>
-                  ) : canConnect ? (
-                    <Badge variant="secondary">Available</Badge>
-                  ) : (
-                    <Badge variant="default">Not configured</Badge>
-                  )}
+                  <Badge variant={canConnect ? 'secondary' : 'default'}>
+                    {canConnect ? 'Available' : 'Not configured'}
+                  </Badge>
                 </div>
                 <CardDescription>
-                  {cred
-                    ? cred.display_name ?? 'Account connected'
-                    : canConnect
-                      ? 'Ready to connect'
-                      : 'Set this platform’s app credentials on the server to enable it.'}
+                  {canConnect
+                    ? `Connect for ${clientName(connectClientId || null)}`
+                    : 'Set this platform’s app credentials on the server to enable it.'}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {cred ? (
-                  <>
-                    <AccountRef cred={cred} />
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      loading={remove.isPending}
-                      onClick={() => remove.mutate(cred.id)}
-                    >
-                      Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={!canConnect}
-                    loading={startConnect.isPending && startConnect.variables === platform}
-                    onClick={() => {
-                      setParams({});
-                      startConnect.mutate(platform);
-                    }}
-                  >
-                    Connect
-                  </Button>
-                )}
+              <CardContent>
+                <Button
+                  size="sm"
+                  disabled={!canConnect}
+                  loading={startConnect.isPending && startConnect.variables === platform}
+                  onClick={() => {
+                    setParams({});
+                    startConnect.mutate(platform);
+                  }}
+                >
+                  Connect
+                </Button>
               </CardContent>
             </Card>
           );
         })}
+      </div>
+
+      {/* Existing connections, one row per credential, labeled by client. */}
+      <div>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          Connected accounts ({allCreds.length})
+        </h2>
+        {allCreds.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">No accounts connected yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+            {allCreds.map((cred) => (
+              <div key={cred.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-slate-900 dark:text-slate-100">
+                      {PLATFORM_LABELS[cred.platform] ?? cred.platform}
+                    </span>
+                    <Badge variant={cred.client_id ? 'info' : 'secondary'}>
+                      {clientName(cred.client_id)}
+                    </Badge>
+                    {!cred.is_active && <Badge variant="default">Inactive</Badge>}
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {cred.display_name ?? 'Account connected'}
+                  </p>
+                  <div className="mt-2">
+                    <AccountRef cred={cred} />
+                  </div>
+                </div>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={remove.isPending && remove.variables === cred.id}
+                  onClick={() => remove.mutate(cred.id)}
+                >
+                  Disconnect
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

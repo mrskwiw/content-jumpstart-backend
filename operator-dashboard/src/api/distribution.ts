@@ -35,9 +35,10 @@ export const distributionApi = {
     const { data } = await apiClient.get<OAuthStatus>('/api/distribution/oauth/status');
     return data;
   },
-  async oauthStart(platform: string): Promise<string> {
+  async oauthStart(platform: string, clientId?: string): Promise<string> {
     const { data } = await apiClient.get<{ authorize_url: string }>(
       `/api/distribution/oauth/${platform}/start`,
+      { params: clientId ? { client_id: clientId } : undefined },
     );
     return data.authorize_url;
   },
