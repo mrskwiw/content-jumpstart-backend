@@ -399,12 +399,17 @@ class BlueskyPublisher(BasePublisher):
 
     platform = "bluesky"
 
+    _DEFAULT_HOST = "https://bsky.social"
+
     def _base(self) -> str:
         # The AT Protocol service host. Defaults to bsky.social but is env-configurable so
         # an instance whose accounts live on another/self-hosted PDS can point at it
         # (per-tenant deployment = one PDS per instance). Full per-handle DID discovery is
-        # a future enhancement.
-        host = os.getenv("BLUESKY_PDS_URL", "https://bsky.social").strip().rstrip("/")
+        # a future enhancement. A blank or non-http(s) override is a misconfiguration → fall
+        # back to the default rather than issuing malformed requests on every publish.
+        host = os.getenv("BLUESKY_PDS_URL", "").strip().rstrip("/")
+        if not host.startswith(("http://", "https://")):
+            host = self._DEFAULT_HOST
         return f"{host}/xrpc"
 
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:

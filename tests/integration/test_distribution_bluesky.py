@@ -114,6 +114,23 @@ def test_bluesky_uses_configured_pds_host(monkeypatch):
     assert calls[1][0].startswith("https://pds.example.com/xrpc/")
 
 
+def test_bluesky_blank_or_bad_pds_falls_back_to_default(monkeypatch):
+    """A blank / non-http(s) BLUESKY_PDS_URL must fall back to bsky.social, not produce a
+    malformed host that fails every publish."""
+    for bad in ("", "   ", "not-a-url", "ftp://x"):
+        monkeypatch.setenv("BLUESKY_PDS_URL", bad)
+        calls = _seq_post(
+            monkeypatch,
+            [
+                _Resp(200, {"accessJwt": "j", "did": "did:plc:x"}),
+                _Resp(200, {"uri": "at://did:plc:x/app.bsky.feed.post/rk"}),
+            ],
+        )
+        r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
+        assert r.success, r.error
+        assert calls[0][0].startswith("https://bsky.social/xrpc/")
+
+
 def test_bluesky_supported_but_not_oauth():
     """Bluesky is a supported publish target (credentials + publishing) but is NOT an
     OAuth platform — so it must not appear in the OAuth connect grid."""
