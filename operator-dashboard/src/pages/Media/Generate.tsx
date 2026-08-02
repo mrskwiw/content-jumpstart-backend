@@ -10,6 +10,7 @@ import { mediaApi, Estimate, GenerateBody } from '@/api/media';
 
 // Pipelines that generate from a prompt/script vs. standalone ops on an existing asset.
 const PIPELINES = [
+  { id: 'gen_image', label: 'Image (Flux)' },
   { id: 'talking_head', label: 'Talking-head video (HeyGen)' },
   { id: 'cinematic', label: 'Cinematic b-roll (Kling + stitch)' },
   { id: 'audio_only', label: 'Voiceover only (TTS)' },
@@ -48,6 +49,8 @@ export default function MediaGenerate() {
     } else if (isAudioOp) {
       spec.source_asset_id = sourceAssetId.trim();
       if (choice === 'dub') spec.target_lang = targetLang.trim();
+    } else if (choice === 'gen_image') {
+      spec.prompt = script.trim();
     } else {
       spec.script = script.trim();
     }
@@ -164,13 +167,21 @@ export default function MediaGenerate() {
             ) : (
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">
-                  {choice === 'cinematic' ? 'Voiceover script (optional)' : 'Script'}
+                  {choice === 'cinematic'
+                    ? 'Voiceover script (optional)'
+                    : choice === 'gen_image'
+                      ? 'Image prompt'
+                      : 'Script'}
                 </span>
                 <Textarea
                   rows={4}
                   value={script}
                   onChange={(e) => setScript(e.target.value)}
-                  placeholder="What should it say?"
+                  placeholder={
+                    choice === 'gen_image'
+                      ? 'a golden retriever wearing sunglasses, studio lighting'
+                      : 'What should it say?'
+                  }
                 />
               </label>
             )}
