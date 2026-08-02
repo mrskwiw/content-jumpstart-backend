@@ -106,6 +106,7 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
   // ProjectDetail and can hold up to 500 posts, so a broad invalidation would refetch the
   // entire catalog and fan out to unrelated screens on every single-row decision.
   const patchPostsCache = (status: string) => {
+    // Optimistically patch just the decided row so the badge updates instantly…
     queryClient.setQueriesData<{ items?: Array<{ id: string; approval_status?: string | null }> }>(
       { queryKey: ['posts'] },
       (old) => {
@@ -118,6 +119,11 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
         };
       },
     );
+    // …then revalidate ONLY currently-mounted ['posts'] queries so the active screen reconciles
+    // with the server (covers a not-yet-cached row / GC'd cache / another mounted consumer).
+    // refetchType:'active' avoids the fan-out the old broad invalidate caused — inactive/unmounted
+    // consumers (ClientDetail/ProjectDetail when not open) are not refetched.
+    queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' });
   };
 
   const submit = useMutation({

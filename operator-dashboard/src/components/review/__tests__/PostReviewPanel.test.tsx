@@ -101,7 +101,7 @@ describe('PostReviewPanel', () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => expect(mockedReview.approve).toHaveBeenCalledWith('p1'));
-    // Only the approved row is patched in-place; the other row is untouched…
+    // Only the approved row is patched in-place (instant); the other row is untouched…
     await waitFor(() => {
       const cached = client.getQueryData(['posts']) as {
         items: Array<{ id: string; approval_status?: string | null }>;
@@ -109,7 +109,9 @@ describe('PostReviewPanel', () => {
       expect(cached.items.find((p) => p.id === 'p1')?.approval_status).toBe('approved');
       expect(cached.items.find((p) => p.id === 'p2')?.approval_status).toBeNull();
     });
-    // …and we do NOT broadly invalidate the shared ['posts'] key (no catalog refetch/fan-out).
+    // …and we reconcile ONLY currently-mounted ['posts'] consumers (active-only, no fan-out to
+    // unmounted screens), never the broad refetch-everything invalidation.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['posts'], refetchType: 'active' });
     expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['posts'] });
   });
 
