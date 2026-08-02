@@ -506,6 +506,47 @@ class TestMarkAsDelivered:
         assert d2.proof_url == "https://proof/x"
         assert d2.proof_notes == "sent via email"
 
+    def test_mark_delivered_backfills_missing_proof_but_freezes_set_proof(
+        self, client, auth_headers_user_a, deliverable_for_user_a, db_session
+    ):
+        """Proof is write-once-per-field: an empty field can be populated after delivery,
+        but a value already stored is immutable."""
+        url = f"/api/deliverables/{deliverable_for_user_a.id}/mark-delivered"
+        # First delivery with NO proof — records delivery, proof stays empty.
+        assert client.patch(url, headers=auth_headers_user_a, json={}).status_code == 200
+        db_session.expire_all()
+        d1 = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        assert d1.status == "delivered" and d1.proof_url is None
+
+        # A later correction backfills the still-empty proof.
+        assert (
+            client.patch(
+                url, headers=auth_headers_user_a, json={"proof_url": "https://proof/late"}
+            ).status_code
+            == 200
+        )
+        db_session.expire_all()
+        d2 = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        assert d2.proof_url == "https://proof/late"
+
+        # But once set, it's frozen — a further submit can't change it.
+        client.patch(url, headers=auth_headers_user_a, json={"proof_url": "https://proof/OTHER"})
+        db_session.expire_all()
+        d3 = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        assert d3.proof_url == "https://proof/late"
+
     def test_mark_delivered_unauthorized(
         self, client, auth_headers_user_b, deliverable_for_user_a, enforce_ownership
     ):

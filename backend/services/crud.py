@@ -752,11 +752,23 @@ def mark_deliverable_delivered(
     if not db_deliverable:
         return None
 
+    changed = False
+    # The delivery timestamp is the immutable audit anchor: stamped once, on the first
+    # transition, and never rewritten (a retry/replay/race can't move it).
     if db_deliverable.delivered_at is None:
         db_deliverable.status = "delivered"
         db_deliverable.delivered_at = delivered_at
+        changed = True
+    # Proof is write-once-PER-FIELD: backfilled when still empty (so a first delivery that
+    # omitted proof can be corrected later), but never overwritten once set (so a replay or
+    # tampered resubmit can't rewrite recorded evidence).
+    if proof_url is not None and db_deliverable.proof_url is None:
         db_deliverable.proof_url = proof_url
+        changed = True
+    if proof_notes is not None and db_deliverable.proof_notes is None:
         db_deliverable.proof_notes = proof_notes
+        changed = True
+    if changed:
         db.commit()
         db.refresh(db_deliverable)
     return db_deliverable
