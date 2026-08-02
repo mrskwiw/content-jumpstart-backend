@@ -104,9 +104,10 @@ describe('Calendar Page', () => {
     // …a still-retryable failed post is flagged "retrying"…
     expect(screen.getByText('Facebook post')).toBeInTheDocument();
     expect(screen.getByText(/failed — retrying/i)).toBeInTheDocument();
-    // …an exhausted failed post is flagged "gave up" (distinct from retrying)…
+    // …an exhausted failed post is flagged "gave up" (distinct from retrying) — the label
+    // appears both as the row badge and the sidebar bucket, so allow more than one…
     expect(screen.getByText('Instagram post')).toBeInTheDocument();
-    expect(screen.getByText(/failed — gave up/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/failed — gave up/i).length).toBeGreaterThanOrEqual(1);
     // …but the already-posted row is NOT shown as an upcoming schedule entry.
     expect(screen.queryByText('Twitter post')).not.toBeInTheDocument();
     expect(screen.queryByText(/already published/i)).not.toBeInTheDocument();
@@ -117,5 +118,9 @@ describe('Calendar Page', () => {
     // has abandoned. Actionable here = sp1 (pending) + sp3 (retrying) = 2.
     const statRow = screen.getByText('Scheduled Posts').closest('div.justify-between') as HTMLElement;
     expect(within(statRow).getByText('2')).toBeInTheDocument();
+
+    // …but the exhausted failure is NOT hidden — it surfaces as its own "gave up" bucket so
+    // the abandoned publish state stays visible for cleanup (count = 1, the instagram row).
+    expect(screen.getByTitle(/exhausted their retries/i)).toHaveTextContent('1');
   });
 });

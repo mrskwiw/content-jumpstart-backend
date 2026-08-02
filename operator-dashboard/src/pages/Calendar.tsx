@@ -11,6 +11,7 @@ import {
   Users,
   Filter,
   X,
+  AlertTriangle,
 } from 'lucide-react';
 import { distributionApi, type ScheduledPost } from '@/api/distribution';
 import {
@@ -173,6 +174,14 @@ export default function Calendar() {
       })
       .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
   }, [filteredEvents]);
+
+  // Exhausted failures ("gave up") — kept OUT of the actionable count but surfaced as their
+  // own bucket so an abandoned publish state stays visible for cleanup (Decision #220) rather
+  // than making the dashboard look clean/empty when retries are actually done.
+  const abandonedCount = useMemo(
+    () => filteredEvents.filter(e => e.type === 'post' && !isActionablePost(e)).length,
+    [filteredEvents]
+  );
 
   // Toggle event type filter
   const toggleEventType = (type: EventType) => {
@@ -573,6 +582,20 @@ export default function Calendar() {
                   {filteredEvents.filter(e => e.type === 'post' && isActionablePost(e)).length}
                 </span>
               </div>
+              {abandonedCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <span className="text-sm text-red-700 dark:text-red-300">Failed — gave up</span>
+                  </div>
+                  <span
+                    className="text-sm font-semibold text-red-700 dark:text-red-300"
+                    title="Posts that exhausted their retries — need manual follow-up or cleanup"
+                  >
+                    {abandonedCount}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-red-600 dark:text-red-400" />
