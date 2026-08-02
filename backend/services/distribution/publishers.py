@@ -398,13 +398,28 @@ class BlueskyPublisher(BasePublisher):
     manual ``POST /api/distribution/credentials`` endpoint (there is no OAuth flow)."""
 
     platform = "bluesky"
-    BASE = "https://bsky.social/xrpc"
+
+    def _base(self) -> str:
+        # The AT Protocol service host. Defaults to bsky.social but is env-configurable so
+        # an instance whose accounts live on another/self-hosted PDS can point at it
+        # (per-tenant deployment = one PDS per instance). Full per-handle DID discovery is
+        # a future enhancement.
+        host = os.getenv("BLUESKY_PDS_URL", "https://bsky.social").strip().rstrip("/")
+        return f"{host}/xrpc"
 
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
         import requests
         from datetime import datetime, timezone
 
         try:
+            # Image/video embeds require an uploadBlob + record-embed flow not built yet.
+            # Fail closed rather than silently publishing text-only and reporting success.
+            if media_url:
+                return PublishResult(
+                    success=False,
+                    error="Bluesky media embeds are not supported yet — schedule a text-only post (omit media_url)",
+                )
+            base = self._base()
             handle = self.account_ref
             if not handle:
                 return PublishResult(
@@ -412,7 +427,7 @@ class BlueskyPublisher(BasePublisher):
                     error="Bluesky requires the account handle (set account_ref on the credential)",
                 )
             sess = requests.post(
-                f"{self.BASE}/com.atproto.server.createSession",
+                f"{base}/com.atproto.server.createSession",
                 json={"identifier": handle, "password": self.access_token},
                 timeout=_HTTP_TIMEOUT,
             )
@@ -426,7 +441,7 @@ class BlueskyPublisher(BasePublisher):
                 return PublishResult(success=False, error="Bluesky session missing accessJwt/did")
             created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             rec = requests.post(
-                f"{self.BASE}/com.atproto.repo.createRecord",
+                f"{base}/com.atproto.repo.createRecord",
                 headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"},
                 json={
                     "repo": did,

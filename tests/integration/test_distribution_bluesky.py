@@ -87,6 +87,33 @@ def test_bluesky_session_missing_fields(monkeypatch):
     assert not r.success and "accessJwt" in r.error
 
 
+def test_bluesky_fails_closed_on_media(monkeypatch):
+    """A post with media must fail closed (embeds unimplemented), not silently drop it."""
+    posted = []
+    monkeypatch.setattr(requests, "post", lambda *a, **k: posted.append(a) or _Resp(200, {}))
+    r = BlueskyPublisher(access_token="app-pw", account_ref="me.bsky.social").publish(
+        "with pic", media_url="https://cdn/x.png"
+    )
+    assert not r.success and "media" in r.error.lower()
+    assert posted == []  # no network call attempted
+
+
+def test_bluesky_uses_configured_pds_host(monkeypatch):
+    monkeypatch.setenv("BLUESKY_PDS_URL", "https://pds.example.com")
+    calls = _seq_post(
+        monkeypatch,
+        [
+            _Resp(200, {"accessJwt": "j", "did": "did:plc:x"}),
+            _Resp(200, {"uri": "at://did:plc:x/app.bsky.feed.post/rk"}),
+        ],
+    )
+    r = BlueskyPublisher(access_token="pw", account_ref="me.example.com").publish("hi")
+    assert r.success, r.error
+    # Both AT Protocol calls hit the configured PDS host, not the bsky.social default.
+    assert calls[0][0].startswith("https://pds.example.com/xrpc/")
+    assert calls[1][0].startswith("https://pds.example.com/xrpc/")
+
+
 def test_bluesky_supported_but_not_oauth():
     """Bluesky is a supported publish target (credentials + publishing) but is NOT an
     OAuth platform — so it must not appear in the OAuth connect grid."""
