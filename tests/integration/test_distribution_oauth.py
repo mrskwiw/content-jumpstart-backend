@@ -7,6 +7,8 @@ Covers the env-gated provider config, the authorize-URL start endpoint, and
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from backend.models import User
 from backend.models.distribution import PlatformCredential
 from backend.services.distribution import oauth, orchestrator
@@ -249,6 +251,19 @@ def test_threads_exchange_upgrades_to_long_lived(monkeypatch):
     assert seen["params"]["access_token"] == "SHORT"
 
 
+def test_threads_exchange_failure_fails_closed(monkeypatch):
+    """A failed long-lived exchange must RAISE (fail the connect) rather than persist a
+    short-lived, unrefreshable token that would silently die at publish time."""
+    import requests
+
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+    monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
+    monkeypatch.setattr(requests, "get", lambda url, **kw: _J(503, text="threads down"))
+    with pytest.raises(oauth.OAuthError):
+        oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
+
+
 def test_threads_refresh_uses_th_refresh_token(monkeypatch):
     import requests
 
@@ -296,6 +311,37 @@ def test_threads_ensure_fresh_token_self_refreshes_and_persists(db_session, monk
     reloaded = db_session.query(PlatformCredential).filter_by(id=cred.id).first()
     assert decrypt_value(reloaded.access_token) == "NEW-LONG"
     assert decrypt_value(reloaded.refresh_token) == "NEW-LONG"  # rotated
+
+
+def test_threads_ensure_fresh_token_recovers_without_stored_refresh(db_session, monkeypatch):
+    """A Threads credential with NO stored refresh token still self-refreshes using its access
+    token (th_refresh_token), so a fallback/manual-API credential isn't stranded."""
+    import requests
+
+    u = _make_user(db_session, "threads-noref@example.com", "user-threadsnoref")
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+    cred = orchestrator.save_credential(
+        db_session,
+        u.id,
+        "threads",
+        "OLD-LONG",
+        account_ref="tid",  # no refresh_token passed → stored as None
+        token_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    assert cred.refresh_token is None
+
+    def fake_get(url, **kw):
+        # Refresh must use the access token itself as the th_refresh_token credential.
+        assert kw["params"]["access_token"] == "OLD-LONG"
+        return _J(200, {"access_token": "NEW-LONG", "expires_in": 5184000})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    token = oauth.ensure_fresh_token(db_session, cred)
+    assert token == "NEW-LONG"
+    reloaded = db_session.query(PlatformCredential).filter_by(id=cred.id).first()
+    assert decrypt_value(reloaded.access_token) == "NEW-LONG"
+    assert decrypt_value(reloaded.refresh_token) == "NEW-LONG"  # now populated for next time
 
 
 def test_ensure_fresh_token_noop_when_not_expiring(db_session, monkeypatch):

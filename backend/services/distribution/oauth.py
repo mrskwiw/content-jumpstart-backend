@@ -358,6 +358,11 @@ def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
     Threads has no separate refresh token — the long-lived token is refreshed later using
     itself (th_refresh_token). So we set ``refresh_token`` to the access token, letting the
     generic ``ensure_fresh_token`` worker path drive Threads refresh like any other provider.
+
+    Unlike Facebook, this upgrade is MANDATORY: the whole Threads refresh lifecycle depends
+    on it, so a failure must FAIL CLOSED (raise) rather than silently persisting a short-lived
+    token that can't self-renew and would die at publish time. A failed connect is visible and
+    retryable; a doomed credential is not.
     """
     try:
         resp = requests.get(
@@ -369,14 +374,18 @@ def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
             },
             timeout=_HTTP_TIMEOUT,
         )
-        if resp.status_code < 400:
-            out = _normalize_token(resp.json())
-            out["refresh_token"] = out["access_token"]  # self-refresh credential
-            return out
-        logger.warning("Threads long-lived exchange %s: %s", resp.status_code, resp.text[:200])
     except requests.RequestException as e:
-        logger.warning("Threads long-lived token exchange failed: %s", e)
-    return token  # fall back to the short-lived token
+        raise OAuthError(f"Threads long-lived token exchange failed: {e}") from e
+    if resp.status_code >= 400:
+        raise OAuthError(f"Threads long-lived exchange {resp.status_code}: {resp.text[:300]}")
+    try:
+        out = _normalize_token(resp.json())
+    except ValueError as e:
+        raise OAuthError(
+            f"Threads long-lived exchange response was not JSON: {resp.text[:200]}"
+        ) from e
+    out["refresh_token"] = out["access_token"]  # self-refresh credential
+    return out
 
 
 def _facebook_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
@@ -457,7 +466,9 @@ def ensure_fresh_token(db: Session, cred) -> str:
     provider = PROVIDERS.get(cred.platform)
     if provider is None or not provider.supports_refresh or not provider.is_configured:
         return access
-    if not cred.refresh_token:
+    # Threads self-refreshes with its access token (th_refresh_token), so it needs no separate
+    # refresh token; for every other provider a missing refresh token means we can't refresh.
+    if not cred.refresh_token and cred.platform != "threads":
         return access
 
     # Serialize refresh per credential so two concurrent callers (e.g. a
@@ -497,6 +508,11 @@ def ensure_fresh_token(db: Session, cred) -> str:
         return decrypt_value(locked.access_token) if locked.access_token else access
 
     refresh = decrypt_value(locked.refresh_token) if locked.refresh_token else ""
+    if not refresh and locked.platform == "threads" and locked.access_token:
+        # Threads' refresh credential IS its access token — recover a credential that has no
+        # stored refresh token (a short-lived fallback predating the mandatory long-lived
+        # exchange, or a manual-API credential) rather than letting it silently expire.
+        refresh = decrypt_value(locked.access_token)
     if not refresh:
         if is_pg:
             db.commit()  # release the lock
