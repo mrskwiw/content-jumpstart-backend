@@ -121,10 +121,16 @@ def save_credential(
     enc_access = encrypt_value(access_token)
     enc_refresh = encrypt_value(refresh_token) if refresh_token else None
     if cred:
+        # Refresh/reconnect: rotate tokens + reactivate, but PRESERVE operator-managed
+        # metadata unless a new value is explicitly supplied. The OAuth callback carries no
+        # account_ref and only a generic display_name, so overwriting here would clear the
+        # Facebook/Instagram account_ref publishers need and clobber an operator-set name.
         cred.access_token = enc_access
         cred.refresh_token = enc_refresh
-        cred.account_ref = account_ref
-        cred.display_name = display_name
+        if account_ref is not None:
+            cred.account_ref = account_ref
+        if display_name is not None:
+            cred.display_name = display_name
         cred.token_expires_at = token_expires_at
         cred.is_active = True
     else:
@@ -136,7 +142,7 @@ def save_credential(
             access_token=enc_access,
             refresh_token=enc_refresh,
             account_ref=account_ref,
-            display_name=display_name,
+            display_name=display_name or f"{platform} account",
             token_expires_at=token_expires_at,
             is_active=True,
         )

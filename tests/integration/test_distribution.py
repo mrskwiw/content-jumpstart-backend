@@ -245,3 +245,37 @@ def test_schedule_gates_the_tagged_payload_not_just_authored(db_session, monkeyp
         db_session, u.id, "twitter", content, datetime(2030, 1, 1, tzinfo=timezone.utc)
     )
     assert sp.status == "pending"
+
+
+def test_save_credential_reconnect_preserves_metadata(db_session):
+    """A reconnect (OAuth refresh) rotates tokens + reactivates but preserves the
+    operator-set display_name and the account_ref publishers depend on."""
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "dist-reconn@example.com", "user-distreconn")
+    c1 = orchestrator.save_credential(
+        db_session,
+        u.id,
+        "facebook",
+        "tok-1",
+        account_ref="page-123",
+        display_name="Acme FB Page",
+    )
+    c1.is_active = False  # simulate a revoked/expired credential
+    db_session.commit()
+
+    # Reconnect exactly as the OAuth callback does: new token, no account_ref/display_name.
+    c2 = orchestrator.save_credential(db_session, u.id, "facebook", "tok-2")
+
+    assert c2.id == c1.id  # same row (upsert), not a duplicate
+    assert c2.is_active is True  # reactivated
+    assert c2.account_ref == "page-123"  # preserved — FB/IG publishing needs it
+    assert c2.display_name == "Acme FB Page"  # operator name not clobbered
+
+
+def test_save_credential_new_gets_default_display_name(db_session):
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "dist-defname@example.com", "user-distdefname")
+    c = orchestrator.save_credential(db_session, u.id, "linkedin", "tok")
+    assert c.display_name == "linkedin account"

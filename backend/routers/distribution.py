@@ -283,7 +283,8 @@ def oauth_callback(
         client_id=payload.get("cid"),
         refresh_token=token.get("refresh_token"),
         token_expires_at=token.get("expires_at"),
-        display_name=f"{platform} account",
+        # Don't pass a name here — save_credential defaults it for a NEW credential and
+        # preserves an operator-set name on a reconnect/refresh (account_ref likewise).
     )
     return RedirectResponse(f"{done}?connected={platform}")
 
