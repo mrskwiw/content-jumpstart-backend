@@ -738,25 +738,27 @@ def mark_deliverable_delivered(
     proof_url: Optional[str] = None,
     proof_notes: Optional[str] = None,
 ) -> Optional[Deliverable]:
-    """Mark deliverable as delivered"""
-    db_deliverable = get_deliverable(db, deliverable_id)
+    """Mark a deliverable as delivered — a first-write-wins, immutable audit transition.
+
+    Ownership is already verified by the caller. We lock the row FOR UPDATE so concurrent
+    duplicate PATCHes serialize, then stamp only on the FIRST transition: once
+    ``delivered_at`` is set, the whole record (timestamp AND proof) is frozen and a
+    retry/replay is a no-op. This prevents a corrupted audit trail from races or replays.
+    (FOR UPDATE is a genuine lock on Postgres; a harmless no-op on SQLite test runs.)
+    """
+    db_deliverable = (
+        db.query(Deliverable).filter(Deliverable.id == deliverable_id).with_for_update().first()
+    )
     if not db_deliverable:
         return None
 
-    db_deliverable.status = "delivered"
-    # Idempotent audit trail: stamp the delivery time only on the FIRST transition —
-    # a retry/duplicate PATCH must not overwrite the original timestamp with a later one.
     if db_deliverable.delivered_at is None:
+        db_deliverable.status = "delivered"
         db_deliverable.delivered_at = delivered_at
-    # Only overwrite proof metadata when a value is actually supplied; an omitted field
-    # (None) preserves what's already stored, so a bare retry can't wipe existing proof.
-    if proof_url is not None:
         db_deliverable.proof_url = proof_url
-    if proof_notes is not None:
         db_deliverable.proof_notes = proof_notes
-
-    db.commit()
-    db.refresh(db_deliverable)
+        db.commit()
+        db.refresh(db_deliverable)
     return db_deliverable
 
 

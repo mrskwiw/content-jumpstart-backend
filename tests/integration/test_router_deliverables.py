@@ -483,8 +483,13 @@ class TestMarkAsDelivered:
         if original_ts.tzinfo is None:
             original_ts = original_ts.replace(tzinfo=timezone.utc)
 
-        # Retry with a bare body (no timestamp, no proof) — a duplicate/replayed submit.
-        second = client.patch(url, headers=auth_headers_user_a, json={})
+        # Retry with DIFFERENT proof — a duplicate/replayed/tampered submit. First-write-wins:
+        # the delivery record is immutable, so neither timestamp nor proof changes.
+        second = client.patch(
+            url,
+            headers=auth_headers_user_a,
+            json={"proof_url": "https://proof/TAMPERED", "proof_notes": "changed"},
+        )
         assert second.status_code == 200
         db_session.expire_all()
         d2 = (
@@ -496,7 +501,7 @@ class TestMarkAsDelivered:
         if retry_ts.tzinfo is None:
             retry_ts = retry_ts.replace(tzinfo=timezone.utc)
 
-        # Original timestamp AND proof metadata are preserved.
+        # Original timestamp AND proof metadata are frozen (not the retry's values).
         assert retry_ts == original_ts
         assert d2.proof_url == "https://proof/x"
         assert d2.proof_notes == "sent via email"
