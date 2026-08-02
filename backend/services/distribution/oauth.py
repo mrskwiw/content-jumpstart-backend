@@ -352,6 +352,13 @@ def exchange_code(
     return token
 
 
+# Threads long-lived exchange is the mandatory second hop after the code grant. It is
+# retried a few times on TRANSIENT errors (network, 5xx, 429) so a brief provider blip
+# doesn't waste the user's completed consent, then FAILS CLOSED — see BUGS.md Decision #230.
+_THREADS_EXCHANGE_ATTEMPTS = 3
+_THREADS_EXCHANGE_BACKOFF_SECONDS = 0.5
+
+
 def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
     """Exchange a short-lived Threads token for a long-lived (~60 day) one.
 
@@ -359,33 +366,53 @@ def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
     itself (th_refresh_token). So we set ``refresh_token`` to the access token, letting the
     generic ``ensure_fresh_token`` worker path drive Threads refresh like any other provider.
 
-    Unlike Facebook, this upgrade is MANDATORY: the whole Threads refresh lifecycle depends
-    on it, so a failure must FAIL CLOSED (raise) rather than silently persisting a short-lived
-    token that can't self-renew and would die at publish time. A failed connect is visible and
-    retryable; a doomed credential is not.
+    Unlike Facebook, this upgrade is MANDATORY: the whole Threads refresh lifecycle depends on
+    it. We RETRY a bounded number of times on transient failures (network / 5xx / 429) so a
+    brief blip doesn't waste the user's completed OAuth consent, then FAIL CLOSED (raise) —
+    persisting a short-lived token that can't self-renew would die silently at publish time,
+    whereas a failed connect is visible and immediately retryable. A definitive 4xx (bad
+    request/token) fails immediately since retrying can't help. See BUGS.md Decision #230.
     """
-    try:
-        resp = requests.get(
-            "https://graph.threads.net/access_token",
-            params={
-                "grant_type": "th_exchange_token",
-                "client_secret": provider.client_secret,
-                "access_token": token["access_token"],
-            },
-            timeout=_HTTP_TIMEOUT,
-        )
-    except requests.RequestException as e:
-        raise OAuthError(f"Threads long-lived token exchange failed: {e}") from e
-    if resp.status_code >= 400:
-        raise OAuthError(f"Threads long-lived exchange {resp.status_code}: {resp.text[:300]}")
-    try:
-        out = _normalize_token(resp.json())
-    except ValueError as e:
-        raise OAuthError(
-            f"Threads long-lived exchange response was not JSON: {resp.text[:200]}"
-        ) from e
-    out["refresh_token"] = out["access_token"]  # self-refresh credential
-    return out
+    import time
+
+    last_err: Optional[OAuthError] = None
+    for attempt in range(_THREADS_EXCHANGE_ATTEMPTS):
+        try:
+            resp = requests.get(
+                "https://graph.threads.net/access_token",
+                params={
+                    "grant_type": "th_exchange_token",
+                    "client_secret": provider.client_secret,
+                    "access_token": token["access_token"],
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            last_err = OAuthError(f"Threads long-lived token exchange failed: {e}")
+        else:
+            if resp.status_code < 400:
+                try:
+                    out = _normalize_token(resp.json())
+                except ValueError:
+                    # A 2xx that isn't JSON is an abnormal upstream response — retry, then fail.
+                    last_err = OAuthError(
+                        f"Threads long-lived exchange response was not JSON: {resp.text[:200]}"
+                    )
+                else:
+                    out["refresh_token"] = out["access_token"]  # self-refresh credential
+                    return out
+            elif resp.status_code < 500 and resp.status_code != 429:
+                # Definitive client error — retrying won't help, fail immediately.
+                raise OAuthError(
+                    f"Threads long-lived exchange {resp.status_code}: {resp.text[:300]}"
+                )
+            else:  # 5xx / 429 — transient, retry
+                last_err = OAuthError(
+                    f"Threads long-lived exchange {resp.status_code}: {resp.text[:300]}"
+                )
+        if attempt < _THREADS_EXCHANGE_ATTEMPTS - 1:
+            time.sleep(_THREADS_EXCHANGE_BACKOFF_SECONDS)
+    raise last_err or OAuthError("Threads long-lived exchange failed")
 
 
 def _facebook_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
