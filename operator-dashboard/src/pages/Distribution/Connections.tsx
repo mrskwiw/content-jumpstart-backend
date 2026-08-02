@@ -16,6 +16,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   instagram: 'Instagram',
   tiktok: 'TikTok',
   youtube: 'YouTube',
+  bluesky: 'Bluesky',
 };
 
 export default function Connections() {

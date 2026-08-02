@@ -389,6 +389,65 @@ class YouTubePublisher(BasePublisher):
             return PublishResult(success=False, error=str(e))
 
 
+class BlueskyPublisher(BasePublisher):
+    """Bluesky text post via the AT Protocol (DIST-EXPAND).
+
+    Bluesky uses app-password auth (not OAuth): the credential's ``account_ref`` is the
+    handle/DID and ``access_token`` is an app password. Publish is two calls — exchange the
+    app password for a session, then create a feed post. Credentials are connected via the
+    manual ``POST /api/distribution/credentials`` endpoint (there is no OAuth flow)."""
+
+    platform = "bluesky"
+    BASE = "https://bsky.social/xrpc"
+
+    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+        import requests
+        from datetime import datetime, timezone
+
+        try:
+            handle = self.account_ref
+            if not handle:
+                return PublishResult(
+                    success=False,
+                    error="Bluesky requires the account handle (set account_ref on the credential)",
+                )
+            sess = requests.post(
+                f"{self.BASE}/com.atproto.server.createSession",
+                json={"identifier": handle, "password": self.access_token},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if sess.status_code >= 400:
+                return PublishResult(
+                    success=False, error=f"Bluesky auth {sess.status_code}: {sess.text[:200]}"
+                )
+            sd = sess.json() or {}
+            jwt, did = sd.get("accessJwt"), sd.get("did")
+            if not jwt or not did:
+                return PublishResult(success=False, error="Bluesky session missing accessJwt/did")
+            created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            rec = requests.post(
+                f"{self.BASE}/com.atproto.repo.createRecord",
+                headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"},
+                json={
+                    "repo": did,
+                    "collection": "app.bsky.feed.post",
+                    "record": {"text": content, "createdAt": created_at},
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if rec.status_code >= 400:
+                return PublishResult(
+                    success=False, error=f"Bluesky post {rec.status_code}: {rec.text[:300]}"
+                )
+            uri = (rec.json() or {}).get("uri", "")  # at://did/app.bsky.feed.post/<rkey>
+            rkey = uri.rsplit("/", 1)[-1] if uri else ""
+            url = f"https://bsky.app/profile/{handle}/post/{rkey}" if rkey else None
+            return PublishResult(success=True, platform_post_id=uri, platform_url=url)
+        except Exception as e:  # network / auth / parse
+            logger.warning("Bluesky publish failed: %s", e)
+            return PublishResult(success=False, error=str(e))
+
+
 # Real publishers wired here as they're implemented. A platform absent from this
 # map falls through to NotImplementedPublisher (fail-closed).
 _REAL_PUBLISHERS = {
@@ -398,6 +457,7 @@ _REAL_PUBLISHERS = {
     "instagram": InstagramPublisher,
     "tiktok": TikTokPublisher,
     "youtube": YouTubePublisher,
+    "bluesky": BlueskyPublisher,
 }
 
 

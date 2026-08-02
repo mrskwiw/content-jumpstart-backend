@@ -29,6 +29,7 @@ SUPPORTED_PLATFORMS = (
     "instagram",
     "tiktok",
     "youtube",
+    "bluesky",  # AT Protocol app-password auth (connected via the manual credential API)
     "stub",  # dry-run / demo target — never touches a real network
 )
 

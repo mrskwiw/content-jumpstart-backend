@@ -183,9 +183,12 @@ def update_credential(
 def oauth_status():
     """Which platforms have their OAuth app credentials configured in the
     environment (i.e. can be connected right now)."""
+    # `all` = platforms connectable via THIS OAuth flow. Exclude the stub and any
+    # supported platform that isn't OAuth-based (e.g. Bluesky uses app-password auth and is
+    # connected via the manual credential API), so the OAuth connect grid isn't misleading.
     return {
         "configured": oauth.configured_platforms(),
-        "all": [p for p in SUPPORTED_PLATFORMS if p != "stub"],
+        "all": [p for p in SUPPORTED_PLATFORMS if p != "stub" and p in oauth.PROVIDERS],
     }
 
 
