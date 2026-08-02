@@ -114,11 +114,10 @@ def test_bluesky_uses_configured_pds_host(monkeypatch):
     assert calls[1][0].startswith("https://pds.example.com/xrpc/")
 
 
-def test_bluesky_blank_or_bad_pds_falls_back_to_default(monkeypatch):
-    """A blank / non-http(s) BLUESKY_PDS_URL must fall back to bsky.social, not produce a
-    malformed host that fails every publish."""
-    for bad in ("", "   ", "not-a-url", "ftp://x"):
-        monkeypatch.setenv("BLUESKY_PDS_URL", bad)
+def test_bluesky_unset_pds_uses_default(monkeypatch):
+    """UNSET / blank BLUESKY_PDS_URL → the public bsky.social default (the common case)."""
+    for unset in ("", "   "):
+        monkeypatch.setenv("BLUESKY_PDS_URL", unset)
         calls = _seq_post(
             monkeypatch,
             [
@@ -129,6 +128,18 @@ def test_bluesky_blank_or_bad_pds_falls_back_to_default(monkeypatch):
         r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
         assert r.success, r.error
         assert calls[0][0].startswith("https://bsky.social/xrpc/")
+
+
+def test_bluesky_invalid_pds_fails_closed(monkeypatch):
+    """SET-BUT-INVALID BLUESKY_PDS_URL → fail closed (don't silently publish to the default
+    host, which could be the wrong PDS for the credential)."""
+    posted = []
+    monkeypatch.setattr(requests, "post", lambda *a, **k: posted.append(a) or _Resp(200, {}))
+    for bad in ("not-a-url", "ftp://x", "bsky.social"):
+        monkeypatch.setenv("BLUESKY_PDS_URL", bad)
+        r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
+        assert not r.success and "BLUESKY_PDS_URL" in r.error
+    assert posted == []  # never attempted a network call with a bad host
 
 
 def test_bluesky_supported_but_not_oauth():
