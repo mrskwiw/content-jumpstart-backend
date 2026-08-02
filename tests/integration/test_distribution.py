@@ -279,15 +279,15 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
     assert c2.account_ref == "page-123"  # preserved — FB/IG publishing needs it
     assert c2.display_name == "Acme FB Page"  # operator name not clobbered
     assert c2.refresh_token == original_refresh  # existing refresh token preserved, not wiped
-    # Reconnect omitted a new expiry → a short conservative TTL is set (near-future, not None
-    # and not the stale prior deadline) so ensure_fresh_token refreshes it soon via the kept
-    # refresh token rather than treating it as non-expiring.
+    # Reconnect omitted a new expiry → an already-due sentinel is set (<= now, not None and
+    # not the stale prior deadline) so ensure_fresh_token refreshes it on next use via the
+    # kept refresh token and learns the real expiry before the token is relied on.
     c2_exp = c2.token_expires_at
     assert c2_exp is not None
     if c2_exp.tzinfo is None:
         c2_exp = c2_exp.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
-    assert now < c2_exp <= now + timedelta(hours=1, minutes=1)
+    assert c2_exp <= now + timedelta(seconds=1)  # already due for refresh
     assert c2_exp != expiry  # not the stale prior deadline
 
     # …but a reconnect that DOES supply a refresh token rotates it.

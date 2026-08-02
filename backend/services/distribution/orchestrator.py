@@ -93,12 +93,6 @@ def _uuid() -> str:
 # ── Credentials ───────────────────────────────────────────────────────────────
 
 
-# When a reconnect issues a new access token but no expiry, assume this conservative TTL
-# (typical OAuth access-token lifetime) so the credential refreshes soon rather than being
-# treated as non-expiring or pinned to a stale deadline. See BUGS.md Decision #228.
-_RECONNECT_UNKNOWN_TTL = timedelta(hours=1)
-
-
 def save_credential(
     db: Session,
     user_id: str,
@@ -142,15 +136,16 @@ def save_credential(
             cred.account_ref = account_ref
         if display_name is not None:
             cred.display_name = display_name
-        # The expiry must describe the NEW access token. If the reconnect response omits one
-        # we can't know its lifetime, so assume a short, conservative TTL: ensure_fresh_token
-        # then refreshes it soon (via the preserved refresh token) to learn the real expiry.
-        # This avoids both nulling it (treated as non-expiring → stranded) and pinning the
-        # stale prior deadline (a future value would suppress refreshes for the new token).
+        # The expiry must describe the NEW access token. When the reconnect response omits
+        # one we can't know its lifetime, so mark it already-due: ensure_fresh_token then
+        # refreshes it on the NEXT use (via the preserved refresh token), learning the real
+        # expiry before the token is relied on. This beats every guess — None (treated as
+        # non-expiring → stranded), the stale prior deadline (suppressed refresh), and a
+        # synthetic future TTL (can outlive a shorter real token). A rare provider that also
+        # omits expiry on refresh degrades to a refresh-per-use (an extra call, never a
+        # failure). See BUGS.md Decision #228.
         cred.token_expires_at = (
-            token_expires_at
-            if token_expires_at is not None
-            else datetime.now(timezone.utc) + _RECONNECT_UNKNOWN_TTL
+            token_expires_at if token_expires_at is not None else datetime.now(timezone.utc)
         )
         cred.is_active = True
     else:
