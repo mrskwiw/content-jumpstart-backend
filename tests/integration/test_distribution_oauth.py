@@ -251,67 +251,91 @@ def test_threads_exchange_upgrades_to_long_lived(monkeypatch):
     assert seen["params"]["access_token"] == "SHORT"
 
 
-def test_threads_exchange_persistent_transient_failure_fails_closed(monkeypatch):
-    """A persistent transient (5xx) long-lived exchange failure retries the bounded number of
-    times, then FAILS CLOSED (raise) rather than persisting an unrefreshable short-lived token."""
+def test_threads_exchange_connection_error_retries_then_succeeds(monkeypatch):
+    """A connection error (request provably didn't reach Threads) is safe to replay — the
+    retry absorbs it and the connect completes with a long-lived token."""
     import time
 
     import requests
 
     monkeypatch.setenv("THREADS_APP_ID", "th-id")
     monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
-    monkeypatch.setattr(time, "sleep", lambda _s: None)  # don't actually wait between retries
-    gets = {"n": 0}
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    calls = {"n": 0}
 
     def fake_get(url, **kw):
-        gets["n"] += 1
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise requests.ConnectionError("connection refused")
+        return _J(200, {"access_token": "LONG", "expires_in": 5184000})
+
+    monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
+    monkeypatch.setattr(requests, "get", fake_get)
+    token = oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
+    assert token["access_token"] == "LONG"
+    assert token["refresh_token"] == "LONG"
+    assert calls["n"] == 2  # retried once after the connection error
+
+
+def test_threads_exchange_persistent_connection_error_fails_closed(monkeypatch):
+    """A persistent connection error retries the bounded number of times, then FAILS CLOSED."""
+    import time
+
+    import requests
+
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def fake_get(url, **kw):
+        calls["n"] += 1
+        raise requests.ConnectionError("still down")
+
+    monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
+    monkeypatch.setattr(requests, "get", fake_get)
+    with pytest.raises(oauth.OAuthError):
+        oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
+    assert calls["n"] == oauth._THREADS_EXCHANGE_ATTEMPTS
+
+
+def test_threads_exchange_5xx_fails_closed_without_replay(monkeypatch):
+    """A 5xx reached Threads (it may have acted on the grant) → AMBIGUOUS, must NOT be replayed;
+    fail closed after a single attempt rather than risk minting a second credential."""
+    import requests
+
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+    calls = {"n": 0}
+
+    def fake_get(url, **kw):
+        calls["n"] += 1
         return _J(503, text="threads down")
 
     monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
     monkeypatch.setattr(requests, "get", fake_get)
     with pytest.raises(oauth.OAuthError):
         oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
-    assert gets["n"] == oauth._THREADS_EXCHANGE_ATTEMPTS  # retried, not one-and-done
-
-
-def test_threads_exchange_retries_then_succeeds(monkeypatch):
-    """A transient blip on the long-lived exchange is absorbed by the retry — the connect still
-    completes with a long-lived token instead of failing the user's completed consent."""
-    import time
-
-    import requests
-
-    monkeypatch.setenv("THREADS_APP_ID", "th-id")
-    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
-    monkeypatch.setattr(time, "sleep", lambda _s: None)
-    seq = iter([_J(503, text="blip"), _J(200, {"access_token": "LONG", "expires_in": 5184000})])
-    monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
-    monkeypatch.setattr(requests, "get", lambda url, **kw: next(seq))
-    token = oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
-    assert token["access_token"] == "LONG"
-    assert token["refresh_token"] == "LONG"
+    assert calls["n"] == 1  # server-side error is ambiguous → no replay
 
 
 def test_threads_exchange_definitive_4xx_fails_immediately(monkeypatch):
-    """A definitive 4xx (bad token/request) is NOT retried — retrying can't help, so fail fast."""
-    import time
-
+    """A definitive 4xx (bad token/request) reached Threads and won't be helped by a replay."""
     import requests
 
     monkeypatch.setenv("THREADS_APP_ID", "th-id")
     monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
-    monkeypatch.setattr(time, "sleep", lambda _s: None)
-    gets = {"n": 0}
+    calls = {"n": 0}
 
     def fake_get(url, **kw):
-        gets["n"] += 1
+        calls["n"] += 1
         return _J(400, text="bad token")
 
     monkeypatch.setattr(requests, "post", lambda url, **kw: _J(200, {"access_token": "SHORT"}))
     monkeypatch.setattr(requests, "get", fake_get)
     with pytest.raises(oauth.OAuthError):
         oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
-    assert gets["n"] == 1  # no retry on a definitive client error
+    assert calls["n"] == 1  # no retry on a definitive client error
 
 
 def test_threads_refresh_uses_th_refresh_token(monkeypatch):
