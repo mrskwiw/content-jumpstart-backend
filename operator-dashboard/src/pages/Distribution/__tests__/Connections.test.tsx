@@ -56,23 +56,40 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c2'));
   });
 
-  it('does not start a fresh OAuth for an already-connected platform/client pair', async () => {
+  it('offers Reconnect (not a fresh Connect) for an already-connected scope', async () => {
     const { wrapper } = renderWithProviders();
     render(<Connections />, { wrapper });
 
-    // Select Acme — which already has a LinkedIn credential (cr1).
+    // Select Acme — which already has an active LinkedIn credential (cr1).
     await waitFor(() => expect(screen.getByRole('option', { name: 'Acme' })).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText(/connect a new account for/i), {
       target: { value: 'c1' },
     });
 
-    // The LinkedIn card now shows "Connected" and its button is disabled.
-    await waitFor(() => {
-      const connectedBtn = screen.getByRole('button', { name: 'Connected' });
-      expect(connectedBtn).toBeDisabled();
+    // The LinkedIn card relabels to "Reconnect" and stays enabled (save_credential upserts).
+    const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
+    expect(reconnect).not.toBeDisabled();
+    fireEvent.click(reconnect);
+    await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c1'));
+  });
+
+  it('lets an INACTIVE credential be reconnected (recovery path)', async () => {
+    dist.listCredentials.mockResolvedValue([
+      { id: 'cr1', platform: 'linkedin', client_id: 'c1', display_name: 'LI', is_active: false },
+    ]);
+    const { wrapper } = renderWithProviders();
+    render(<Connections />, { wrapper });
+
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Acme' })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/connect a new account for/i), {
+      target: { value: 'c1' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Connected' }));
-    expect(dist.oauthStart).not.toHaveBeenCalled();
+
+    // Inactive → still reconnectable from this page (no delete-first required).
+    const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
+    expect(reconnect).not.toBeDisabled();
+    fireEvent.click(reconnect);
+    await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c1'));
   });
 
   it('labels each existing credential with its client', async () => {

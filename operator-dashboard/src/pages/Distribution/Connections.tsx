@@ -53,10 +53,12 @@ export default function Connections() {
   // one, client_id=null) — under the backend's (user_id, client_id, platform) unique
   // constraint. So we list credentials flat and label each by its client.
   const allCreds = creds.data ?? [];
-  // A (platform, client) pair that already has a credential must not launch a fresh OAuth
-  // flow (would duplicate or hard-fail against the (user_id, client_id, platform) unique
-  // constraint). Key account-level creds (client_id null) as an empty scope.
-  const connectedKeys = new Set(allCreds.map((c) => `${c.platform}::${c.client_id ?? ''}`));
+  // The credential (if any) for a given platform under the CURRENTLY selected client scope
+  // (account-level creds have client_id null). save_credential is an UPSERT that reuses the
+  // row and reactivates is_active, so re-running OAuth is the intended refresh/reconnect
+  // path — we relabel to "Reconnect" rather than blocking it.
+  const scopeCredFor = (platform: string) =>
+    allCreds.find((c) => c.platform === platform && (c.client_id ?? '') === connectClientId);
 
   return (
     <div className="space-y-6">
@@ -109,38 +111,57 @@ export default function Connections() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {platforms.map((platform) => {
           const canConnect = configured.has(platform);
-          // Already connected for the CURRENTLY selected client scope?
-          const scopeConnected = connectedKeys.has(`${platform}::${connectClientId}`);
+          // Existing credential for the currently selected client scope, if any.
+          const scopeCred = scopeCredFor(platform);
+          const active = scopeCred?.is_active ?? false;
           return (
             <Card key={platform}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{PLATFORM_LABELS[platform] ?? platform}</CardTitle>
                   <Badge
-                    variant={scopeConnected ? 'success' : canConnect ? 'secondary' : 'default'}
+                    variant={
+                      scopeCred
+                        ? active
+                          ? 'success'
+                          : 'default'
+                        : canConnect
+                          ? 'secondary'
+                          : 'default'
+                    }
                   >
-                    {scopeConnected ? 'Connected' : canConnect ? 'Available' : 'Not configured'}
+                    {scopeCred
+                      ? active
+                        ? 'Connected'
+                        : 'Inactive'
+                      : canConnect
+                        ? 'Available'
+                        : 'Not configured'}
                   </Badge>
                 </div>
                 <CardDescription>
                   {!canConnect
                     ? 'Set this platform’s app credentials on the server to enable it.'
-                    : scopeConnected
-                      ? `${clientName(connectClientId || null)} is already connected — see below to manage or disconnect.`
+                    : scopeCred
+                      ? active
+                        ? `${clientName(connectClientId || null)} is connected — re-auth to refresh the token.`
+                        : `${clientName(connectClientId || null)} is inactive — reconnect to restore it.`
                       : `Connect for ${clientName(connectClientId || null)}`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Reconnect is a safe upsert (reuses the row + reactivates) — never blocked,
+                    so an expired/revoked credential can always be recovered from here. */}
                 <Button
                   size="sm"
-                  disabled={!canConnect || scopeConnected}
+                  disabled={!canConnect}
                   loading={startConnect.isPending && startConnect.variables === platform}
                   onClick={() => {
                     setParams({});
                     startConnect.mutate(platform);
                   }}
                 >
-                  {scopeConnected ? 'Connected' : 'Connect'}
+                  {scopeCred ? 'Reconnect' : 'Connect'}
                 </Button>
               </CardContent>
             </Card>
