@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.services.geo import article_jsonld, check_answer_block, faq_jsonld
+from backend.services.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
 
 
 def test_faq_jsonld_shape():
@@ -53,6 +53,37 @@ def test_article_jsonld_with_url_and_publisher():
     assert data["url"] == "https://acme.com/post"
     assert data["mainEntityOfPage"] == {"@type": "WebPage", "@id": "https://acme.com/post"}
     assert data["publisher"] == {"@type": "Organization", "name": "Acme"}
+
+
+def test_howto_jsonld_shape():
+    data = howto_jsonld(name="How to deploy", steps=["Build the image", "Push it", "Roll out"])
+    assert data["@context"] == "https://schema.org"
+    assert data["@type"] == "HowTo"
+    assert data["name"] == "How to deploy"
+    assert [s["position"] for s in data["step"]] == [1, 2, 3]
+    assert data["step"][0] == {"@type": "HowToStep", "position": 1, "text": "Build the image"}
+    assert "description" not in data and "totalTime" not in data
+
+
+def test_howto_jsonld_strips_and_drops_blank_steps():
+    data = howto_jsonld(name="  Make tea  ", steps=["  Boil water  ", "   ", "", "Steep"])
+    assert data["name"] == "Make tea"
+    # Blank/whitespace-only steps are dropped and positions re-number contiguously.
+    assert [s["text"] for s in data["step"]] == ["Boil water", "Steep"]
+    assert [s["position"] for s in data["step"]] == [1, 2]
+
+
+def test_howto_jsonld_optional_description_and_time():
+    data = howto_jsonld(
+        name="H", steps=["one step"], description="  A guide.  ", total_time="PT15M"
+    )
+    assert data["description"] == "A guide."
+    assert data["totalTime"] == "PT15M"
+
+
+def test_howto_jsonld_requires_a_non_empty_step():
+    with pytest.raises(ValueError):
+        howto_jsonld(name="H", steps=["   ", ""])
 
 
 def test_answer_block_ok_in_range():

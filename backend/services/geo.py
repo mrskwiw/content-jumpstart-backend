@@ -64,6 +64,38 @@ def article_jsonld(
     return data
 
 
+def howto_jsonld(
+    *,
+    name: str,
+    steps: Sequence[str],
+    description: str | None = None,
+    total_time: str | None = None,
+) -> dict[str, Any]:
+    """schema.org HowTo JSON-LD from an ordered list of step texts (GEO-01).
+
+    HowTo markup makes step-by-step content eligible for AI Overviews' procedural answers —
+    the third schema type (with FAQPage + Article) GEO-01 targets. Blank/whitespace-only steps
+    are dropped; ``total_time`` is an ISO-8601 duration (e.g. ``"PT15M"``).
+    """
+    cleaned = [s.strip() for s in steps if s and s.strip()]
+    if not cleaned:
+        raise ValueError("howto_jsonld requires at least one non-empty step")
+    data: dict[str, Any] = {
+        "@context": _SCHEMA_CONTEXT,
+        "@type": "HowTo",
+        "name": name.strip(),
+        "step": [
+            {"@type": "HowToStep", "position": i, "text": text}
+            for i, text in enumerate(cleaned, start=1)
+        ],
+    }
+    if description:
+        data["description"] = description.strip()
+    if total_time:
+        data["totalTime"] = total_time.strip()
+    return data
+
+
 @dataclass(frozen=True)
 class AnswerBlockCheck:
     word_count: int
