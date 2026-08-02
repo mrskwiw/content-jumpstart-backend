@@ -77,22 +77,30 @@ def howto_jsonld(
     the third schema type (with FAQPage + Article) GEO-01 targets. Blank/whitespace-only steps
     are dropped; ``total_time`` is an ISO-8601 duration (e.g. ``"PT15M"``).
     """
+    clean_name = name.strip()
+    if not clean_name:
+        # A HowTo requires a name (schema.org) — reject blank/whitespace rather than emit
+        # `"name": ""`, which is malformed markup answer engines silently ignore.
+        raise ValueError("howto_jsonld requires a non-empty name")
     cleaned = [s.strip() for s in steps if s and s.strip()]
     if not cleaned:
         raise ValueError("howto_jsonld requires at least one non-empty step")
     data: dict[str, Any] = {
         "@context": _SCHEMA_CONTEXT,
         "@type": "HowTo",
-        "name": name.strip(),
+        "name": clean_name,
         "step": [
             {"@type": "HowToStep", "position": i, "text": text}
             for i, text in enumerate(cleaned, start=1)
         ],
     }
-    if description:
-        data["description"] = description.strip()
-    if total_time:
-        data["totalTime"] = total_time.strip()
+    # Optional fields are OMITTED when blank/whitespace-only (never emitted as empty strings).
+    clean_description = (description or "").strip()
+    if clean_description:
+        data["description"] = clean_description
+    clean_total_time = (total_time or "").strip()
+    if clean_total_time:
+        data["totalTime"] = clean_total_time
     return data
 
 

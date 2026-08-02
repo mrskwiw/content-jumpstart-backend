@@ -81,6 +81,19 @@ def test_howto_jsonld_optional_description_and_time():
     assert data["totalTime"] == "PT15M"
 
 
+def test_howto_jsonld_omits_blank_optional_metadata():
+    # Whitespace-only description/total_time are omitted, never emitted as empty strings.
+    data = howto_jsonld(name="H", steps=["one step"], description="   ", total_time="  ")
+    assert "description" not in data
+    assert "totalTime" not in data
+
+
+def test_howto_jsonld_rejects_blank_name():
+    # A HowTo requires a name; a whitespace-only name is malformed markup → fail closed.
+    with pytest.raises(ValueError):
+        howto_jsonld(name="   ", steps=["one step"])
+
+
 def test_howto_jsonld_requires_a_non_empty_step():
     with pytest.raises(ValueError):
         howto_jsonld(name="H", steps=["   ", ""])
