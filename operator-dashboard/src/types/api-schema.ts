@@ -6694,11 +6694,8 @@ export interface components {
          * @description Schema for marking deliverable as delivered
          */
         MarkDeliveredRequest: {
-            /**
-             * Delivered At
-             * Format: date-time
-             */
-            delivered_at: string;
+            /** Delivered At */
+            delivered_at?: string | null;
             /** Proof Url */
             proof_url?: string | null;
             /** Proof Notes */

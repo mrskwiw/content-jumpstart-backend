@@ -89,8 +89,11 @@ class DeliverableResponse(BaseModel):
 class MarkDeliveredRequest(BaseModel):
     """Schema for marking deliverable as delivered"""
 
-    delivered_at: datetime = Field(
-        ..., validation_alias=AliasChoices("delivered_at", "deliveredAt")
+    # Optional and IGNORED for the audit timestamp — the server stamps delivery time on
+    # the accepted transition (a client clock can't be trusted for an audit record). Kept
+    # for backward compatibility with clients that still send it.
+    delivered_at: Optional[datetime] = Field(
+        default=None, validation_alias=AliasChoices("delivered_at", "deliveredAt")
     )
     proof_url: Optional[str] = Field(
         default=None, validation_alias=AliasChoices("proof_url", "proofUrl")

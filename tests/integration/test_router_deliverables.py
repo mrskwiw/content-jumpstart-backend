@@ -415,6 +415,51 @@ class TestMarkAsDelivered:
         assert db_deliverable.status == "delivered"
         assert db_deliverable.delivered_at is not None
 
+    def test_mark_delivered_ignores_client_timestamp(
+        self, client, auth_headers_user_a, deliverable_for_user_a, db_session
+    ):
+        """The audit timestamp is server-stamped: a bogus client delivered_at is ignored."""
+        from datetime import datetime, timezone
+
+        before = datetime.now(timezone.utc)
+        response = client.patch(
+            f"/api/deliverables/{deliverable_for_user_a.id}/mark-delivered",
+            headers=auth_headers_user_a,
+            # A skewed/backdated client clock — must NOT drive the audit record.
+            json={"delivered_at": "2000-01-01T00:00:00+00:00"},
+        )
+        assert response.status_code == 200
+
+        db_deliverable = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        stamped = db_deliverable.delivered_at
+        if stamped.tzinfo is None:
+            stamped = stamped.replace(tzinfo=timezone.utc)
+        # Server-now, not the year-2000 value the client sent.
+        assert stamped.year >= before.year
+        assert stamped >= before.replace(microsecond=0)
+
+    def test_mark_delivered_without_timestamp(
+        self, client, auth_headers_user_a, deliverable_for_user_a, db_session
+    ):
+        """delivered_at is now optional — the server stamps it when omitted."""
+        response = client.patch(
+            f"/api/deliverables/{deliverable_for_user_a.id}/mark-delivered",
+            headers=auth_headers_user_a,
+            json={},
+        )
+        assert response.status_code == 200
+        db_deliverable = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        assert db_deliverable.status == "delivered"
+        assert db_deliverable.delivered_at is not None
+
     def test_mark_delivered_unauthorized(
         self, client, auth_headers_user_b, deliverable_for_user_a, enforce_ownership
     ):

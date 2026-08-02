@@ -15517,8 +15517,15 @@
       "MarkDeliveredRequest": {
         "properties": {
           "delivered_at": {
-            "type": "string",
-            "format": "date-time",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Delivered At"
           },
           "proof_url": {
@@ -15545,9 +15552,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "delivered_at"
-        ],
         "title": "MarkDeliveredRequest",
         "description": "Schema for marking deliverable as delivered"
       },

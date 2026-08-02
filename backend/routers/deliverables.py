@@ -105,10 +105,16 @@ async def mark_delivered(
     Authorization: TR-021 - User must own deliverable's project
     """
     # TR-021: deliverable already verified by dependency
+    # Server-authoritative delivery timestamp: stamp now() on the accepted transition and
+    # ignore any client-supplied delivered_at — an operator's browser clock (possibly skewed
+    # or manipulated) must not drive an audit record.
+    from datetime import datetime as _dt
+    from datetime import timezone as _tz
+
     updated_deliverable = crud.mark_deliverable_delivered(
         db,
         deliverable_id,
-        mark_request.delivered_at,
+        _dt.now(_tz.utc),
         mark_request.proof_url,
         mark_request.proof_notes,
     )
