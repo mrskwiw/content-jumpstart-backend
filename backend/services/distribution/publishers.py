@@ -481,8 +481,12 @@ class BlueskyPublisher(BasePublisher):
             # A 2xx with no accessJwt/did is a broken contract (AT Protocol schema drift or a
             # bug), NOT a transient blip — retrying forever would just mask the defect. Raise so
             # it surfaces (verify → 500; publish → a recorded failure) rather than looking like
-            # either bad input or a retryable outage.
-            logger.error("Bluesky createSession returned 2xx without accessJwt/did: %s", sd)
+            # either bad input or a retryable outage. Log only the FIELD NAMES — a malformed
+            # payload can still carry a live accessJwt/refreshJwt, so never log the values.
+            logger.error(
+                "Bluesky createSession returned 2xx but missing accessJwt/did (keys=%s)",
+                sorted(sd.keys()) if isinstance(sd, dict) else type(sd).__name__,
+            )
             raise ValueError("Bluesky createSession returned 2xx without accessJwt/did")
         return {"base": base, "handle": handle, "jwt": jwt, "did": did}, None
 

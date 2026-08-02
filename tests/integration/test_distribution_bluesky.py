@@ -222,6 +222,18 @@ def test_bluesky_verify_2xx_without_token_raises_contract_error(monkeypatch):
         BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
 
 
+def test_bluesky_verify_malformed_2xx_does_not_log_token(monkeypatch, caplog):
+    """A malformed 2xx that still carries a live accessJwt must NOT leak the token into logs —
+    only the field NAMES may be logged for triage."""
+    secret = "live-bearer-jwt-do-not-log"  # pragma: allowlist secret
+    _seq_post(monkeypatch, [_Resp(200, {"accessJwt": secret})])  # has token, missing did
+    with caplog.at_level("ERROR"):
+        with pytest.raises(ValueError, match="accessJwt"):
+            BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+    assert secret not in caplog.text  # the token VALUE never reaches the log
+    assert "accessJwt" in caplog.text  # the key NAME is safe + useful for diagnosing drift
+
+
 def test_bluesky_verify_unexpected_exception_propagates(monkeypatch):
     """An unexpected (non-transport) exception must NOT be masked as a retryable 502 — it
     propagates so a broken verifier surfaces as a real error."""
