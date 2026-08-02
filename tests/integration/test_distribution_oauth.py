@@ -209,6 +209,95 @@ def test_ensure_fresh_token_fails_closed_when_deactivated(db_session, monkeypatc
     assert oauth.ensure_fresh_token(db_session, cred) == ""
 
 
+class _J:
+    """Minimal requests-style response for the Threads token endpoints."""
+
+    def __init__(self, status, payload=None, text=""):
+        self.status_code = status
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+def test_threads_exchange_upgrades_to_long_lived(monkeypatch):
+    """The code exchange must upgrade the short-lived Threads token to a long-lived one and
+    store the access token as its own refresh credential (Threads self-refreshes)."""
+    import requests
+
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+
+    def fake_post(url, **kw):  # token endpoint → short-lived
+        return _J(200, {"access_token": "SHORT", "token_type": "bearer"})
+
+    seen = {}
+
+    def fake_get(url, **kw):  # th_exchange_token → long-lived
+        seen["params"] = kw.get("params")
+        return _J(200, {"access_token": "LONG", "token_type": "bearer", "expires_in": 5184000})
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    token = oauth.exchange_code("threads", "code-1", redirect_uri="https://app.example.com/cb")
+    assert token["access_token"] == "LONG"
+    assert token["refresh_token"] == "LONG"  # self-refresh credential
+    assert "expires_at" in token
+    assert seen["params"]["grant_type"] == "th_exchange_token"
+    assert seen["params"]["access_token"] == "SHORT"
+
+
+def test_threads_refresh_uses_th_refresh_token(monkeypatch):
+    import requests
+
+    seen = {}
+
+    def fake_get(url, **kw):
+        seen["url"] = url
+        seen["params"] = kw.get("params")
+        return _J(200, {"access_token": "REFRESHED", "expires_in": 5184000})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    out = oauth.refresh_access_token("threads", "CURRENT-LONG")
+    assert out["access_token"] == "REFRESHED"
+    assert out["refresh_token"] == "REFRESHED"  # rotated to the new access token
+    assert seen["url"].endswith("/refresh_access_token")
+    assert seen["params"]["grant_type"] == "th_refresh_token"
+    assert seen["params"]["access_token"] == "CURRENT-LONG"
+
+
+def test_threads_ensure_fresh_token_self_refreshes_and_persists(db_session, monkeypatch):
+    """End-to-end: an expiring Threads credential is refreshed via the self-refresh path and
+    both the access token AND its refresh credential are rotated + persisted."""
+    import requests
+
+    u = _make_user(db_session, "threads-refresh@example.com", "user-threadsrefresh")
+    monkeypatch.setenv("THREADS_APP_ID", "th-id")
+    monkeypatch.setenv("THREADS_APP_SECRET", "th-secret")
+    cred = orchestrator.save_credential(
+        db_session,
+        u.id,
+        "threads",
+        "OLD-LONG",
+        refresh_token="OLD-LONG",  # Threads' refresh credential IS the access token
+        account_ref="17841400000",
+        token_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+
+    def fake_get(url, **kw):
+        return _J(200, {"access_token": "NEW-LONG", "expires_in": 5184000})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    token = oauth.ensure_fresh_token(db_session, cred)
+    assert token == "NEW-LONG"
+
+    reloaded = db_session.query(PlatformCredential).filter_by(id=cred.id).first()
+    assert decrypt_value(reloaded.access_token) == "NEW-LONG"
+    assert decrypt_value(reloaded.refresh_token) == "NEW-LONG"  # rotated
+
+
 def test_ensure_fresh_token_noop_when_not_expiring(db_session, monkeypatch):
     u = _make_user(db_session, "oauth-valid@example.com", "user-oauthvalid")
     cred = orchestrator.save_credential(

@@ -233,12 +233,20 @@ function AccountRef({ cred }: { cred: PlatformCredential }) {
     mutationFn: () => distributionApi.patchCredential(cred.id, { account_ref: value }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['credentials'] }),
   });
-  const needsRef = ['facebook', 'instagram'].includes(cred.platform);
-  if (!needsRef) return null;
+  // Platforms that publish to a specific target need an identifier the OAuth callback can't
+  // capture on its own — the operator sets it here after connecting.
+  const REF_LABELS: Record<string, string> = {
+    facebook: 'Page id',
+    instagram: 'IG business account id',
+    threads: 'Threads user id',
+    pinterest: 'Board id',
+  };
+  const refLabel = REF_LABELS[cred.platform];
+  if (!refLabel) return null;
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-        {cred.platform === 'facebook' ? 'Page id' : 'IG business account id'}
+        {refLabel}
       </label>
       <div className="flex gap-2">
         <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="required to publish" />

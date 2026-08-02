@@ -156,9 +156,11 @@ PROVIDERS: Dict[str, OAuthProvider] = {
         client_id_env="THREADS_APP_ID",
         client_secret_env="THREADS_APP_SECRET",  # pragma: allowlist secret
         client_auth="body",
-        # Threads issues short-lived tokens upgraded to long-lived (~60d) ones via a
-        # th_exchange_token grant rather than a standard refresh grant — mirror Meta.
-        supports_refresh=False,
+        # Threads: the code exchange yields a short-lived token, upgraded to a long-lived
+        # (~60d) one via th_exchange_token and kept fresh via th_refresh_token. Both use the
+        # access token itself (no separate refresh token), so exchange_code() upgrades it and
+        # stores the access token as the refresh credential; supports_refresh drives the worker.
+        supports_refresh=True,
     ),
     "pinterest": OAuthProvider(  # nosec B106 - token_url is a public OAuth endpoint, not a secret
         platform="pinterest",
@@ -343,7 +345,38 @@ def exchange_code(
     # long-lived (~60 day) one, since they have no refresh grant.
     if not provider.supports_refresh and platform in ("facebook", "instagram"):
         token = _facebook_long_lived(provider, token)
+    # Threads: upgrade the short-lived token to a long-lived (~60 day) one and store the
+    # access token as its own refresh credential (Threads self-refreshes via th_refresh_token).
+    elif platform == "threads":
+        token = _threads_long_lived(provider, token)
     return token
+
+
+def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
+    """Exchange a short-lived Threads token for a long-lived (~60 day) one.
+
+    Threads has no separate refresh token — the long-lived token is refreshed later using
+    itself (th_refresh_token). So we set ``refresh_token`` to the access token, letting the
+    generic ``ensure_fresh_token`` worker path drive Threads refresh like any other provider.
+    """
+    try:
+        resp = requests.get(
+            "https://graph.threads.net/access_token",
+            params={
+                "grant_type": "th_exchange_token",
+                "client_secret": provider.client_secret,
+                "access_token": token["access_token"],
+            },
+            timeout=_HTTP_TIMEOUT,
+        )
+        if resp.status_code < 400:
+            out = _normalize_token(resp.json())
+            out["refresh_token"] = out["access_token"]  # self-refresh credential
+            return out
+        logger.warning("Threads long-lived exchange %s: %s", resp.status_code, resp.text[:200])
+    except requests.RequestException as e:
+        logger.warning("Threads long-lived token exchange failed: %s", e)
+    return token  # fall back to the short-lived token
 
 
 def _facebook_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
@@ -371,8 +404,32 @@ def refresh_access_token(platform: str, refresh_token: str) -> Dict:
     provider = get_provider(platform)
     if not provider.supports_refresh:
         raise OAuthError(f"{platform} does not support refresh-token grants")
+    # Threads doesn't use a standard refresh grant — its long-lived token is refreshed with
+    # itself via th_refresh_token. `refresh_token` here is the stored access token.
+    if platform == "threads":
+        return _threads_refresh(refresh_token)
     data = {"grant_type": "refresh_token", "refresh_token": refresh_token}
     return _normalize_token(_post_token(provider, data))
+
+
+def _threads_refresh(access_token: str) -> Dict:
+    """Refresh a long-lived Threads token via th_refresh_token (uses the token itself)."""
+    try:
+        resp = requests.get(
+            "https://graph.threads.net/refresh_access_token",
+            params={"grant_type": "th_refresh_token", "access_token": access_token},
+            timeout=_HTTP_TIMEOUT,
+        )
+    except requests.RequestException as e:
+        raise OAuthError(f"threads token refresh failed: {e}") from e
+    if resp.status_code >= 400:
+        raise OAuthError(f"threads refresh {resp.status_code}: {resp.text[:300]}")
+    try:
+        out = _normalize_token(resp.json())
+    except ValueError as e:
+        raise OAuthError(f"threads refresh response was not JSON: {resp.text[:200]}") from e
+    out["refresh_token"] = out["access_token"]  # keep the self-refresh credential rotated
+    return out
 
 
 def ensure_fresh_token(db: Session, cred) -> str:

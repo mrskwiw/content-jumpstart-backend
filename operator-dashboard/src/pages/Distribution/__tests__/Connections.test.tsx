@@ -150,6 +150,20 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     expect(bskyConnect).not.toBeDisabled(); // both provided
   });
 
+  it('exposes an account_ref editor for Threads/Pinterest credentials', async () => {
+    dist.listCredentials.mockResolvedValue([
+      { id: 'th1', platform: 'threads', client_id: null, display_name: 'Threads', is_active: true },
+      { id: 'pi1', platform: 'pinterest', client_id: null, display_name: 'Pins', is_active: true },
+    ]);
+    const { wrapper } = renderWithProviders();
+    render(<Connections />, { wrapper });
+
+    // Both new platforms need a per-account identifier the OAuth callback can't capture, so
+    // the connection list must surface the editor (else they'd be connectable but unpublishable).
+    await waitFor(() => expect(screen.getByText('Threads user id')).toBeInTheDocument());
+    expect(screen.getByText('Board id')).toBeInTheDocument();
+  });
+
   it('labels each existing credential with its client', async () => {
     const { wrapper } = renderWithProviders();
     render(<Connections />, { wrapper });
