@@ -20,6 +20,7 @@ import { postsApi } from '@/api/posts';
 import { projectsApi } from '@/api/projects';
 import { clientsApi } from '@/api/clients';
 import PostReviewPanel from '@/components/review/PostReviewPanel';
+import { approvalBadge } from '@/pages/contentReviewHelpers';
 import type { PostDraft, Project, Client } from '@/types/domain';
 import type { PaginatedResponse } from '@/types/pagination';
 
@@ -45,20 +46,6 @@ interface PostWithContext {
   isEditing?: boolean;
 }
 
-// A compact badge for a post's team-review state, or null when it was never submitted.
-export function approvalBadge(status?: string | null): { label: string; cls: string } | null {
-  switch (status) {
-    case 'approved':
-      return { label: 'Review: approved', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' };
-    case 'pending':
-      return { label: 'Review: pending', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' };
-    case 'rejected':
-      return { label: 'Review: rejected', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
-    default:
-      return null;
-  }
-}
-
 export default function ContentReview() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,6 +54,7 @@ export default function ContentReview() {
   const [projectFilter, setProjectFilter] = useState('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>('all');
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'awaiting'>('all');
   const [selectedPosts, setSelectedPosts] = useState<string[]>([]);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
@@ -190,8 +178,26 @@ export default function ContentReview() {
       });
     }
 
+    // Awaiting-review filter — real team-review state (COLLAB-01), distinct from the mock
+    // quality `status` above. Surfaces exactly the posts a reviewer still needs to decide on.
+    if (reviewFilter === 'awaiting') {
+      filtered = filtered.filter(post => post.approvalStatus === 'pending');
+    }
+
     return filtered;
-  }, [postsWithContext, projects, searchQuery, statusFilter, clientFilter, projectFilter, platformFilter, qualityFilter]);
+  }, [postsWithContext, projects, searchQuery, statusFilter, clientFilter, projectFilter, platformFilter, qualityFilter, reviewFilter]);
+
+  // Count of posts awaiting a review decision (same QA-project gating as the grid), for the
+  // toggle badge — independent of the currently-applied filters.
+  const awaitingReviewCount = useMemo(
+    () =>
+      postsWithContext.filter(
+        post =>
+          post.approvalStatus === 'pending' &&
+          projects.find(p => p.id === post.projectId)?.status === 'qa',
+      ).length,
+    [postsWithContext, projects],
+  );
 
   // Get unique values for filters
   const uniqueClients = useMemo(() =>
@@ -334,6 +340,18 @@ export default function ContentReview() {
                   {status.charAt(0).toUpperCase() + status.slice(1)}
                 </button>
               ))}
+              {/* Real team-review filter (COLLAB-01), separate from the quality tabs above. */}
+              <button
+                onClick={() => setReviewFilter(reviewFilter === 'awaiting' ? 'all' : 'awaiting')}
+                aria-pressed={reviewFilter === 'awaiting'}
+                className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                  reviewFilter === 'awaiting'
+                    ? 'bg-amber-500 dark:bg-amber-600 text-white hover:bg-amber-600 dark:hover:bg-amber-700'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                }`}
+              >
+                Awaiting review{awaitingReviewCount > 0 ? ` (${awaitingReviewCount})` : ''}
+              </button>
             </div>
           </div>
 

@@ -4,7 +4,8 @@
 import { describe, it, expect } from 'vitest';
 import { screen } from '@testing-library/react';
 import { renderWithProviders } from '@/__tests__/setup/test-utils';
-import ContentReview, { approvalBadge } from '../ContentReview';
+import ContentReview from '../ContentReview';
+import { approvalBadge } from '../contentReviewHelpers';
 
 describe('ContentReview Page', () => {
   it('should render content review page', () => {
@@ -17,6 +18,11 @@ describe('ContentReview Page', () => {
   it('should render page container', () => {
     const { container } = renderWithProviders(<ContentReview />);
     expect(container).toBeInTheDocument();
+  });
+
+  it('offers an "Awaiting review" filter toggle (COLLAB-01)', () => {
+    renderWithProviders(<ContentReview />);
+    expect(screen.getByRole('button', { name: /awaiting review/i })).toBeInTheDocument();
   });
 });
 
