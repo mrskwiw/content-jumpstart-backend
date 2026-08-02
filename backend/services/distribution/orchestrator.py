@@ -126,7 +126,12 @@ def save_credential(
         # account_ref and only a generic display_name, so overwriting here would clear the
         # Facebook/Instagram account_ref publishers need and clobber an operator-set name.
         cred.access_token = enc_access
-        cred.refresh_token = enc_refresh
+        # Preserve the existing refresh token when the reconnect response omits one — many
+        # providers only issue a refresh token on first consent, so overwriting with None
+        # would strand the credential once the access token expires (ensure_fresh_token
+        # could no longer renew it).
+        if enc_refresh is not None:
+            cred.refresh_token = enc_refresh
         if account_ref is not None:
             cred.account_ref = account_ref
         if display_name is not None:

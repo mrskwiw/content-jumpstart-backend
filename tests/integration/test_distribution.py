@@ -258,19 +258,29 @@ def test_save_credential_reconnect_preserves_metadata(db_session):
         u.id,
         "facebook",
         "tok-1",
+        refresh_token="refresh-1",
         account_ref="page-123",
         display_name="Acme FB Page",
     )
+    original_refresh = c1.refresh_token
     c1.is_active = False  # simulate a revoked/expired credential
     db_session.commit()
 
-    # Reconnect exactly as the OAuth callback does: new token, no account_ref/display_name.
+    # Reconnect exactly as the OAuth callback often does: new access token, but the
+    # provider re-issues NO refresh token and carries no account_ref/display_name.
     c2 = orchestrator.save_credential(db_session, u.id, "facebook", "tok-2")
 
     assert c2.id == c1.id  # same row (upsert), not a duplicate
     assert c2.is_active is True  # reactivated
     assert c2.account_ref == "page-123"  # preserved — FB/IG publishing needs it
     assert c2.display_name == "Acme FB Page"  # operator name not clobbered
+    assert c2.refresh_token == original_refresh  # existing refresh token preserved, not wiped
+
+    # …but a reconnect that DOES supply a refresh token rotates it.
+    c3 = orchestrator.save_credential(
+        db_session, u.id, "facebook", "tok-3", refresh_token="refresh-2"
+    )
+    assert c3.refresh_token != original_refresh
 
 
 def test_save_credential_new_gets_default_display_name(db_session):
