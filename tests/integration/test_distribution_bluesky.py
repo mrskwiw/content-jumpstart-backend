@@ -115,31 +115,47 @@ def test_bluesky_uses_configured_pds_host(monkeypatch):
 
 
 def test_bluesky_unset_pds_uses_default(monkeypatch):
-    """UNSET / blank BLUESKY_PDS_URL → the public bsky.social default (the common case)."""
-    for unset in ("", "   "):
-        monkeypatch.setenv("BLUESKY_PDS_URL", unset)
-        calls = _seq_post(
-            monkeypatch,
-            [
-                _Resp(200, {"accessJwt": "j", "did": "did:plc:x"}),
-                _Resp(200, {"uri": "at://did:plc:x/app.bsky.feed.post/rk"}),
-            ],
-        )
-        r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
-        assert r.success, r.error
-        assert calls[0][0].startswith("https://bsky.social/xrpc/")
+    """TRULY UNSET BLUESKY_PDS_URL → the public bsky.social default (the common case)."""
+    monkeypatch.delenv("BLUESKY_PDS_URL", raising=False)
+    calls = _seq_post(
+        monkeypatch,
+        [
+            _Resp(200, {"accessJwt": "j", "did": "did:plc:x"}),
+            _Resp(200, {"uri": "at://did:plc:x/app.bsky.feed.post/rk"}),
+        ],
+    )
+    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
+    assert r.success, r.error
+    assert calls[0][0].startswith("https://bsky.social/xrpc/")
 
 
-def test_bluesky_invalid_pds_fails_closed(monkeypatch):
-    """SET-BUT-INVALID BLUESKY_PDS_URL → fail closed (don't silently publish to the default
-    host, which could be the wrong PDS for the credential)."""
+def test_bluesky_uppercase_scheme_accepted(monkeypatch):
+    """URL schemes are case-insensitive (RFC 3986) — an uppercase scheme is valid and the
+    host is normalized to lowercase, not rejected."""
+    monkeypatch.setenv("BLUESKY_PDS_URL", "HTTPS://pds.example.com")
+    calls = _seq_post(
+        monkeypatch,
+        [
+            _Resp(200, {"accessJwt": "j", "did": "did:plc:x"}),
+            _Resp(200, {"uri": "at://did:plc:x/app.bsky.feed.post/rk"}),
+        ],
+    )
+    r = BlueskyPublisher(access_token="pw", account_ref="me.example.com").publish("hi")
+    assert r.success, r.error
+    assert calls[0][0].startswith("https://pds.example.com/xrpc/")
+
+
+def test_bluesky_invalid_or_blank_pds_fails_closed(monkeypatch):
+    """PRESENT-BUT-BLANK or non-http(s) BLUESKY_PDS_URL → fail closed. A blank value is a
+    misconfiguration (templated-but-empty), not an opt-out, so it must not silently publish
+    to the default host with the wrong credentials."""
     posted = []
     monkeypatch.setattr(requests, "post", lambda *a, **k: posted.append(a) or _Resp(200, {}))
-    for bad in ("not-a-url", "ftp://x", "bsky.social"):
+    for bad in ("", "   ", "not-a-url", "ftp://x", "bsky.social"):
         monkeypatch.setenv("BLUESKY_PDS_URL", bad)
         r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").publish("hi")
         assert not r.success and "BLUESKY_PDS_URL" in r.error
-    assert posted == []  # never attempted a network call with a bad host
+    assert posted == []  # never attempted a network call with a bad/blank host
 
 
 def test_bluesky_supported_but_not_oauth():

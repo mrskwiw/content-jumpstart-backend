@@ -404,17 +404,21 @@ class BlueskyPublisher(BasePublisher):
     def _base(self) -> Optional[str]:
         # The AT Protocol service host, env-configurable so an instance whose accounts live
         # on another/self-hosted PDS can point at it (per-tenant deployment = one PDS per
-        # instance). UNSET → default bsky.social. SET-BUT-INVALID (not an http(s) URL) →
-        # None, so publish() fails closed: silently defaulting a mistyped host could publish
-        # to the wrong PDS with the wrong credentials. Full per-handle DID discovery is a
-        # future enhancement.
-        raw = os.getenv("BLUESKY_PDS_URL", "").strip()
-        if not raw:
+        # instance). Exhaustive semantics:
+        #   • TRULY UNSET (var absent)               → default bsky.social (the common case)
+        #   • PRESENT-BUT-BLANK / not an http(s) URL → None, so publish() fails closed.
+        # A blank value is a misconfiguration (templated-but-empty), NOT an opt-out — silently
+        # defaulting it could publish to the wrong PDS with the wrong credentials. os.getenv
+        # returns None only when the var is absent, so blank ("" / whitespace) is distinguished
+        # from unset here. Scheme match is case-insensitive (URL schemes are, per RFC 3986) and
+        # normalized to lowercase. Full per-handle DID discovery is a future enhancement.
+        raw = os.getenv("BLUESKY_PDS_URL")
+        if raw is None:
             return f"{self._DEFAULT_HOST}/xrpc"
-        host = raw.rstrip("/")
-        if not host.startswith(("http://", "https://")):
+        scheme, sep, rest = raw.strip().rstrip("/").partition("://")
+        if sep != "://" or scheme.lower() not in ("http", "https") or not rest:
             return None
-        return f"{host}/xrpc"
+        return f"{scheme.lower()}://{rest}/xrpc"
 
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
         import requests
