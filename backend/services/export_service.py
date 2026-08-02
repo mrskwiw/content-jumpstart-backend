@@ -111,44 +111,67 @@ def _is_procedural_headline(headline: str) -> bool:
 # A FAQ "question" line — a STRUCTURAL question marker, not any prose sentence ending in "?".
 # Precision-first (same harm asymmetry as HowTo — a false-positive FAQPage is spammy/misleading
 # structured data with SEO-penalty risk; a false negative just misses the bonus markup, the
-# Article block still applies): we only treat a line as a question when it is a markdown heading,
-# a bold-only line, or an explicit "Q:" prefix — AND (for heading/bold forms) it ends in "?".
-# Rhetorical questions buried in a paragraph are intentionally ignored. See BUGS.md Decision #233.
+# Article block still applies): heading/bold questions ending in "?" are admitted ONLY inside a
+# post that has an explicit FAQ section marker (so an ordinary article whose sections happen to be
+# phrased as questions — "Why does this matter?" — is NOT misread as an FAQ). A "Q:" prefix is an
+# unambiguous FAQ marker on its own and is always honored. See BUGS.md Decision #233.
 _FAQ_HEADING_Q_RE = re.compile(r"^\s*#{1,6}\s+(.*\?)\s*$")
 _FAQ_BOLD_Q_RE = re.compile(r"^\s*(?:\*\*|__)\s*(.*\?)\s*(?:\*\*|__)\s*$")
 _FAQ_Q_PREFIX_RE = re.compile(r"^\s*Q\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
 _FAQ_A_PREFIX_RE = re.compile(r"^\s*A\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
 # Any markdown heading — a non-question heading ends the current answer (a new section starts).
 _ANY_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
+# An explicit "FAQ" / "Frequently Asked Questions" section marker: a heading of that name, or a
+# standalone (optionally bold) title line. This is the section-level gate that authorizes treating
+# question-phrased headings as FAQ entries — the FAQ analog of HowTo's procedural-headline gate.
+_FAQ_SECTION_HEADING_RE = re.compile(
+    r"^\s*#{1,6}\s*(?:frequently\s+asked\s+questions|faqs?)\b", re.IGNORECASE
+)
 
 
-def _match_faq_question(line: str) -> Optional[str]:
-    """Return the question text if ``line`` is a structural FAQ question marker, else None."""
-    for rx in (_FAQ_HEADING_Q_RE, _FAQ_BOLD_Q_RE):
-        m = rx.match(line)
-        if m:
-            q = m.group(1).strip()
-            return q or None
+def _has_faq_section(content: str) -> bool:
+    """Whether the post explicitly labels an FAQ section (heading or standalone title line)."""
+    for raw in content.splitlines():
+        if _FAQ_SECTION_HEADING_RE.match(raw):
+            return True
+        stripped = raw.strip().strip("*_").strip()  # a bold/plain standalone "FAQ" title line
+        if stripped.lower() in ("faq", "faqs", "frequently asked questions"):
+            return True
+    return False
+
+
+def _match_faq_question(line: str, *, allow_heading: bool) -> Optional[str]:
+    """Return the question text if ``line`` is a structural FAQ question marker, else None.
+
+    Heading/bold ``?`` forms are only treated as questions when ``allow_heading`` is True (i.e. the
+    post has an explicit FAQ section); the ``Q:`` prefix is unambiguous and always honored.
+    """
+    if allow_heading:
+        for rx in (_FAQ_HEADING_Q_RE, _FAQ_BOLD_Q_RE):
+            m = rx.match(line)
+            if m:
+                return m.group(1).strip() or None
     m = _FAQ_Q_PREFIX_RE.match(line)  # "Q:" prefix is an unambiguous marker on its own
     if m:
         return m.group(1).strip() or None
     return None
 
 
-def _extract_faq_pairs(content: str) -> List[Tuple[str, str]]:
+def _extract_faq_pairs(content: str, *, allow_heading_questions: bool) -> List[Tuple[str, str]]:
     """Deterministically extract (question, answer) pairs from an explicit FAQ structure.
 
-    A question is a structural marker line (heading / bold-only / ``Q:`` — see the regexes above);
-    its answer is the following non-empty content up to the next question or the next heading
-    (a new section). A leading ``A:`` marker on the first answer line is stripped. Pairs whose
-    answer is empty are dropped, so ``## Ready to start?`` immediately followed by another heading
-    contributes nothing. Fuzzy prose is NOT parsed.
+    A question is a structural marker line (``Q:`` always; heading / bold-only only when
+    ``allow_heading_questions`` — i.e. an explicit FAQ section is present). Its answer is the
+    following non-empty content up to the next question or the next heading (a new section). A
+    leading ``A:`` marker on the first answer line is stripped. Pairs whose answer is empty are
+    dropped, so ``## Ready to start?`` immediately followed by another heading contributes nothing.
+    Fuzzy prose is NOT parsed.
     """
     lines = content.splitlines()
     pairs: List[Tuple[str, str]] = []
     i, n = 0, len(lines)
     while i < n:
-        question = _match_faq_question(lines[i])
+        question = _match_faq_question(lines[i], allow_heading=allow_heading_questions)
         if question is None:
             i += 1
             continue
@@ -156,7 +179,9 @@ def _extract_faq_pairs(content: str) -> List[Tuple[str, str]]:
         answer_parts: List[str] = []
         while i < n:
             # A subsequent question or any (non-question) heading ends this answer.
-            if _match_faq_question(lines[i]) is not None or _ANY_HEADING_RE.match(lines[i]):
+            if _match_faq_question(
+                lines[i], allow_heading=allow_heading_questions
+            ) is not None or _ANY_HEADING_RE.match(lines[i]):
                 break
             stripped = lines[i].strip()
             if stripped:
@@ -245,12 +270,14 @@ def _blog_faq_jsonld_block(post: Post, client: Client) -> List[str]:
     post's question/answer pairs directly extractable for AI Overviews' question answers. Returns
     [] for a non-blog post or when fewer than 2 structural Q/A pairs are detected (a lone Q/A is
     not an FAQ — and requiring ≥2 keeps a single rhetorical CTA heading from being marked up).
-    Complements — does not replace — the Article block.
+    Heading/bold question forms are honored ONLY inside an explicit FAQ section, so an ordinary
+    article with question-phrased section headers isn't misclassified (Decision #233); ``Q:``
+    pairs are always honored. Complements — does not replace — the Article block.
     """
     platform = (post.target_platform or "").lower()
     if platform != "blog" or not post.content:
         return []
-    pairs = _extract_faq_pairs(post.content)
+    pairs = _extract_faq_pairs(post.content, allow_heading_questions=_has_faq_section(post.content))
     if len(pairs) < 2:
         return []
     data = faq_jsonld(pairs)

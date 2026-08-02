@@ -251,14 +251,18 @@ def test_markdown_export_no_jsonld_for_non_blog_post():
 
 # --- FAQPage JSON-LD (GEO-01, completes the Article/HowTo/FAQ triad) --------------------
 
+# Heading-question FAQ: honored because an explicit "Frequently Asked Questions" section is present.
 _FAQ_BLOG = (
-    "Content Marketing FAQ\n\n"
+    "GEO Explained\n\n"
+    "Intro paragraph about answer engines.\n\n"
+    "## Frequently Asked Questions\n\n"
     "## What is GEO?\n\n"
     "GEO is Generative Engine Optimization: structuring content so AI answer engines cite it.\n\n"
     "## How is it different from SEO?\n\n"
     "SEO targets ranked links; GEO targets being quoted inside AI answers like ChatGPT.\n"
 )
 
+# "Q:"/"A:" pairs are an unambiguous FAQ marker — honored WITHOUT any FAQ section heading.
 _FAQ_QA_BLOG = (
     "Pricing Questions\n\n"
     "Q: Do you offer refunds?\n"
@@ -268,6 +272,8 @@ _FAQ_QA_BLOG = (
 )
 
 _FAQ_BOLD_BLOG = (
+    "Security Overview\n\n"
+    "## FAQ\n\n"
     "**Is my data secure?**\n\n"
     "Yes, everything is encrypted at rest and in transit using industry standards.\n\n"
     "**Where is it stored?**\n\n"
@@ -311,8 +317,21 @@ def test_faq_block_emitted_for_bold_questions():
 
 
 def test_faq_block_skipped_for_single_pair():
-    one = "My Post\n\n## What is X?\n\nX is a thing you use.\n"
+    one = "My Post\n\n## FAQ\n\n## What is X?\n\nX is a thing you use.\n"
     assert _blog_faq_jsonld_block(_make_post(one), _make_client()) == []
+
+
+def test_faq_block_skipped_for_narrative_question_headings_without_faq_section():
+    # THE precision boundary (Decision #233): an ordinary article whose sections are phrased as
+    # questions — but with NO explicit FAQ section and no Q:/A: markers — must NOT emit FAQPage.
+    narrative = (
+        "The Future of Marketing\n\n"
+        "## Why does this matter?\n\n"
+        "Because attention is scarce and trust compounds over time.\n\n"
+        "## What comes next?\n\n"
+        "Brands that adapt their voice to AI answer engines will win the decade.\n"
+    )
+    assert _blog_faq_jsonld_block(_make_post(narrative), _make_client()) == []
 
 
 def test_faq_block_skipped_for_rhetorical_prose_questions():
@@ -325,9 +344,11 @@ def test_faq_block_skipped_for_rhetorical_prose_questions():
 
 
 def test_faq_block_drops_answerless_cta_question():
-    # A lone answer-less "Ready to buy?" heading contributes no pair, so with only one real
-    # Q/A the block is skipped (≥2 required) — a CTA question never becomes spammy markup.
+    # Under an explicit FAQ section, a lone answer-less "Ready to buy?" heading contributes no
+    # pair, so with only one real Q/A the block is skipped (≥2 required) — a CTA question never
+    # becomes spammy markup.
     content = (
+        "## FAQ\n\n"
         "## What is included?\n\n"
         "Everything in your plan, billed monthly.\n\n"
         "## Ready to buy?\n\n"
@@ -344,6 +365,7 @@ def test_faq_block_skipped_for_non_blog():
 def test_faq_answer_stops_at_next_section_heading():
     # The answer must not bleed past a new (non-question) section heading.
     content = (
+        "## FAQ\n\n"
         "## What is GEO?\n\n"
         "A short definition.\n\n"
         "## Unrelated Section\n\n"
