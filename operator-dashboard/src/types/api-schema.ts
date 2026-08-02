@@ -6924,8 +6924,6 @@ export interface components {
             costUsd?: number | null;
             /** Twittersharecopy */
             twitterShareCopy?: string | null;
-            /** Approvalstatus */
-            approvalStatus?: string | null;
         };
         /**
          * PostSummary

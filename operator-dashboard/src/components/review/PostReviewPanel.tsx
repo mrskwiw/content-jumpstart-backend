@@ -98,7 +98,13 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
   const canSubmit = teamLoaded && myRole !== 'viewer';
 
   const onError = (fallback: string) => (err: unknown) => toast.error(errorDetail(err, fallback));
-  const invalidateApproval = () => queryClient.invalidateQueries({ queryKey: approvalKey });
+  const invalidateApproval = () => {
+    queryClient.invalidateQueries({ queryKey: approvalKey });
+    // The content-review grid embeds each post's approval status from the batched ['posts']
+    // list (COLLAB-01), so refresh it too — otherwise the row badge goes stale after an
+    // approve/reject/submit until a hard reload.
+    queryClient.invalidateQueries({ queryKey: ['posts'] });
+  };
 
   const submit = useMutation({
     mutationFn: () => reviewApi.submitForApproval(postId),

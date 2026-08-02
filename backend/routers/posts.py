@@ -192,7 +192,10 @@ async def list_posts(
         ):
             approval_by_post[row[0]] = row[1]
 
-    # Convert items to response schema (mode="json" ensures datetime serialization)
+    # Convert items to response schema (mode="json" ensures datetime serialization), then
+    # augment with the batched approval_status. This is a LIST-ONLY field (the endpoint returns
+    # an untyped dict) — deliberately NOT on the shared PostResponse, so the single-post
+    # endpoints don't advertise an approval field they don't populate.
     posts_data = []
     for p in items:
         item = PostResponse.model_validate(p).model_dump(mode="json")

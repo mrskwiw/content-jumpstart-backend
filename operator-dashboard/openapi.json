@@ -16105,17 +16105,6 @@
               }
             ],
             "title": "Twittersharecopy"
-          },
-          "approvalStatus": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approvalstatus"
           }
         },
         "type": "object",

@@ -69,6 +69,40 @@ describe('PostReviewPanel', () => {
     expect(screen.getByText('Tighten the hook')).toBeInTheDocument();
   });
 
+  it('refreshes the posts grid after approving (so the row badge is not stale)', async () => {
+    mockedReview.getApproval.mockResolvedValue({
+      post_id: 'p1',
+      status: 'pending',
+      submitted_by_user_id: 'u-ed',
+      decided_by_user_id: null,
+      decided_at: null,
+      note: null,
+    });
+    mockedReview.listComments.mockResolvedValue([]);
+    mockedReview.approve.mockResolvedValue({
+      post_id: 'p1',
+      status: 'approved',
+      submitted_by_user_id: 'u-ed',
+      decided_by_user_id: 'u-admin',
+      decided_at: '2026-08-02T00:00:00Z',
+      note: null,
+    });
+
+    const { wrapper, client } = renderWithProviders();
+    const invalidateSpy = jest.spyOn(client, 'invalidateQueries');
+    render(<PostReviewPanel postId="p1" />, { wrapper });
+
+    fireEvent.click(screen.getByRole('button', { name: /review & comments/i }));
+    const approveBtn = await screen.findByRole('button', { name: /approve/i });
+    fireEvent.click(approveBtn);
+
+    await waitFor(() => expect(mockedReview.approve).toHaveBeenCalledWith('p1'));
+    // The grid embeds approval_status from ['posts'], so it must be invalidated on approval.
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['posts'] })
+    );
+  });
+
   it('submits a not-yet-submitted post for review', async () => {
     mockedReview.getApproval.mockResolvedValue(null);
     mockedReview.listComments.mockResolvedValue([]);
