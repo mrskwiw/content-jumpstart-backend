@@ -744,9 +744,16 @@ def mark_deliverable_delivered(
         return None
 
     db_deliverable.status = "delivered"
-    db_deliverable.delivered_at = delivered_at
-    db_deliverable.proof_url = proof_url
-    db_deliverable.proof_notes = proof_notes
+    # Idempotent audit trail: stamp the delivery time only on the FIRST transition —
+    # a retry/duplicate PATCH must not overwrite the original timestamp with a later one.
+    if db_deliverable.delivered_at is None:
+        db_deliverable.delivered_at = delivered_at
+    # Only overwrite proof metadata when a value is actually supplied; an omitted field
+    # (None) preserves what's already stored, so a bare retry can't wipe existing proof.
+    if proof_url is not None:
+        db_deliverable.proof_url = proof_url
+    if proof_notes is not None:
+        db_deliverable.proof_notes = proof_notes
 
     db.commit()
     db.refresh(db_deliverable)

@@ -460,6 +460,47 @@ class TestMarkAsDelivered:
         assert db_deliverable.status == "delivered"
         assert db_deliverable.delivered_at is not None
 
+    def test_mark_delivered_is_idempotent_on_retry(
+        self, client, auth_headers_user_a, deliverable_for_user_a, db_session
+    ):
+        """A retry must not rewrite the original delivery time or wipe proof metadata."""
+        from datetime import timezone
+
+        url = f"/api/deliverables/{deliverable_for_user_a.id}/mark-delivered"
+        first = client.patch(
+            url,
+            headers=auth_headers_user_a,
+            json={"proof_url": "https://proof/x", "proof_notes": "sent via email"},
+        )
+        assert first.status_code == 200
+        db_session.expire_all()
+        d1 = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        original_ts = d1.delivered_at
+        if original_ts.tzinfo is None:
+            original_ts = original_ts.replace(tzinfo=timezone.utc)
+
+        # Retry with a bare body (no timestamp, no proof) — a duplicate/replayed submit.
+        second = client.patch(url, headers=auth_headers_user_a, json={})
+        assert second.status_code == 200
+        db_session.expire_all()
+        d2 = (
+            db_session.query(Deliverable)
+            .filter(Deliverable.id == deliverable_for_user_a.id)
+            .first()
+        )
+        retry_ts = d2.delivered_at
+        if retry_ts.tzinfo is None:
+            retry_ts = retry_ts.replace(tzinfo=timezone.utc)
+
+        # Original timestamp AND proof metadata are preserved.
+        assert retry_ts == original_ts
+        assert d2.proof_url == "https://proof/x"
+        assert d2.proof_notes == "sent via email"
+
     def test_mark_delivered_unauthorized(
         self, client, auth_headers_user_b, deliverable_for_user_a, enforce_ownership
     ):
