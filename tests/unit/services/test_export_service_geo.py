@@ -5,7 +5,11 @@ import json
 from datetime import datetime
 from unittest.mock import MagicMock
 
-from backend.services.export_service import _blog_geo_jsonld_block, generate_export_file
+from backend.services.export_service import (
+    _blog_geo_jsonld_block,
+    _blog_howto_jsonld_block,
+    generate_export_file,
+)
 
 
 def _run(coro):
@@ -116,6 +120,68 @@ def test_markdown_export_embeds_jsonld_for_blog_post():
         assert _OPEN in text
         assert _jsonld_from(text)["@type"] == "Article"
         assert size > 0
+    finally:
+        out_path.unlink(missing_ok=True)
+
+
+_HOWTO_BLOG = (
+    "How to Deploy with Zero Downtime\n\n"
+    "Follow these steps:\n\n"
+    "1. Build the container image\n"
+    "2. Push it to the registry\n"
+    "3) Roll out with a health check\n"
+    "Step 4: Verify metrics\n"
+)
+
+
+def test_howto_block_emitted_for_numbered_steps():
+    block = _blog_howto_jsonld_block(_make_post(_HOWTO_BLOG), _make_client())
+    assert block
+    data = _jsonld_from("\n".join(block))
+    assert data["@type"] == "HowTo"
+    assert data["name"] == "How to Deploy with Zero Downtime"
+    # All four marker styles (1. / 2. / 3) / Step 4:) parsed, in order, marker stripped.
+    assert [s["text"] for s in data["step"]] == [
+        "Build the container image",
+        "Push it to the registry",
+        "Roll out with a health check",
+        "Verify metrics",
+    ]
+    assert [s["position"] for s in data["step"]] == [1, 2, 3, 4]
+
+
+def test_howto_block_skipped_without_steps():
+    # Prose with no numbered list → no HowTo (Article still applies separately).
+    assert _blog_howto_jsonld_block(_make_post(_BLOG), _make_client()) == []
+
+
+def test_howto_block_skipped_with_single_step():
+    one = "My Guide\n\n1. Just do this one thing\n"
+    assert _blog_howto_jsonld_block(_make_post(one), _make_client()) == []
+
+
+def test_howto_block_skipped_for_non_blog():
+    assert (
+        _blog_howto_jsonld_block(_make_post(_HOWTO_BLOG, platform="linkedin"), _make_client()) == []
+    )
+
+
+def test_markdown_export_embeds_howto_for_stepwise_blog():
+    out_path, _ = _run(
+        generate_export_file(
+            posts=[_make_post(_HOWTO_BLOG)],
+            client=_make_client(),
+            project=_make_project(),
+            format="md",
+            relative_path="Acme Co/howto.md",
+        )
+    )
+    try:
+        text = out_path.read_text(encoding="utf-8")
+        # A stepwise blog carries BOTH Article and HowTo markup — two script tags.
+        assert "GEO Metadata (schema.org HowTo JSON-LD)" in text
+        assert "GEO Metadata (schema.org Article JSON-LD)" in text
+        assert text.count(_OPEN) == 2
     finally:
         out_path.unlink(missing_ok=True)
 

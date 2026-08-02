@@ -5,6 +5,7 @@ Handles TXT, Markdown, DOCX, and CSV export generation from database posts.
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -15,8 +16,12 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
-from backend.services.geo import article_jsonld
+from backend.services.geo import article_jsonld, howto_jsonld
 from backend.utils.logger import logger
+
+# An explicit numbered/"Step N" list line — the deterministic signal that a blog post is a
+# how-to (fuzzy prose is intentionally NOT parsed). Captures the step text after the marker.
+_HOWTO_STEP_RE = re.compile(r"^\s*(?:\d+[.)]|step\s+\d+[:.)]?)\s+(.+)$", re.IGNORECASE)
 
 # Flat-table columns for the CSV deliverable, in operator order. Raw platform slug
 # (not the display name) keeps the file friendly to scheduler/spreadsheet re-import.
@@ -33,6 +38,46 @@ _PLATFORM_DISPLAY_NAMES: dict = {
 }
 
 
+def _first_headline(content: str) -> str:
+    """First non-empty content line, stripped of markdown heading/quote marks, capped at 110."""
+    for raw in content.splitlines():
+        stripped = raw.lstrip("#>*- ").strip()
+        if stripped:
+            return stripped[:110]
+    return ""
+
+
+def _jsonld_script(data: dict) -> str:
+    """Serialize JSON-LD as a ready-to-paste ``<script type="application/ld+json">`` element.
+
+    JSON-LD is only recognised by search / answer engines inside that script element in the
+    page ``<head>``. HTML-significant chars are escaped so client-controlled content containing
+    ``</script>`` can't break out of the element once pasted into a live page — still valid
+    JSON-LD (parsers decode the ``\\uXXXX`` escapes). The standard safe-JSON-in-<script> transform.
+    """
+    json_text = json.dumps(data, indent=2, ensure_ascii=False)
+    json_text = json_text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    return '<script type="application/ld+json">\n' + json_text + "\n</script>"
+
+
+def _jsonld_markdown_block(heading: str, note: str, script: str) -> List[str]:
+    """A fenced-HTML markdown section wrapping a ready-to-paste JSON-LD ``<script>`` snippet."""
+    return ["#### " + heading, "", "*" + note + "*", "", "```html", script, "```", ""]
+
+
+def _extract_howto_steps(content: str) -> List[str]:
+    """Deterministically extract ordered how-to steps from explicit numbered-list lines
+    (``1. …`` / ``2) …`` / ``Step 3: …``) in document order. Fuzzy prose is NOT parsed."""
+    steps: List[str] = []
+    for raw in content.splitlines():
+        m = _HOWTO_STEP_RE.match(raw)
+        if m:
+            text = m.group(1).strip()
+            if text:
+                steps.append(text)
+    return steps
+
+
 def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
     """schema.org Article JSON-LD for a blog post, as a fenced markdown block (GEO-01).
 
@@ -45,13 +90,7 @@ def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
     if platform != "blog" or not post.content:
         return []
 
-    # Headline = first non-empty content line, stripped of markdown heading/quote marks.
-    headline = ""
-    for raw in post.content.splitlines():
-        stripped = raw.lstrip("#>*- ").strip()
-        if stripped:
-            headline = stripped[:110]
-            break
+    headline = _first_headline(post.content)
     if not headline:
         return []
 
@@ -72,27 +111,37 @@ def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
         date_published=published,
         publisher=client.name,
     )
-    # Emit a ready-to-paste <script type="application/ld+json"> tag, not a bare JSON
-    # block — JSON-LD is only recognised by search / answer engines inside that
-    # script element in the page <head>. The operator copies the snippet verbatim.
-    json_text = json.dumps(data, indent=2, ensure_ascii=False)
-    # Escape HTML-significant chars so client-controlled content containing
-    # "</script>" (in the headline/description) cannot break out of the script
-    # element once pasted into a live page. Still valid JSON-LD — parsers decode
-    # the \uXXXX escapes. This is the standard safe-JSON-in-<script> transform.
-    json_text = json_text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    script = '<script type="application/ld+json">\n' + json_text + "\n</script>"
-    return [
-        "#### GEO Metadata (schema.org Article JSON-LD)",
-        "",
-        "*Paste this snippet verbatim into the page `<head>` so AI answer engines "
-        "can cite this article.*",
-        "",
-        "```html",
-        script,
-        "```",
-        "",
-    ]
+    return _jsonld_markdown_block(
+        "GEO Metadata (schema.org Article JSON-LD)",
+        "Paste this snippet verbatim into the page `<head>` so AI answer engines "
+        "can cite this article.",
+        _jsonld_script(data),
+    )
+
+
+def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
+    """schema.org HowTo JSON-LD for a blog post with an explicit numbered-step structure
+    (GEO-01) — makes step-by-step content eligible for AI Overviews' procedural answers.
+
+    Returns [] for a non-blog post, no derivable headline, or fewer than 2 detected steps (a
+    single step isn't a procedure). Complements — does not replace — the Article block.
+    """
+    platform = (post.target_platform or "").lower()
+    if platform != "blog" or not post.content:
+        return []
+    headline = _first_headline(post.content)
+    if not headline:
+        return []
+    steps = _extract_howto_steps(post.content)
+    if len(steps) < 2:
+        return []
+    data = howto_jsonld(name=headline, steps=steps)
+    return _jsonld_markdown_block(
+        "GEO Metadata (schema.org HowTo JSON-LD)",
+        "Paste this snippet verbatim into the page `<head>` so AI answer engines can cite "
+        "the steps.",
+        _jsonld_script(data),
+    )
 
 
 def _safe_project_name(project: Optional["Project"], client: Optional["Client"]) -> str:
@@ -422,8 +471,10 @@ async def _generate_markdown(
             lines.append("```")
             lines.append("")
 
-        # GEO / answer-engine schema.org markup for blog posts (no-op otherwise)
+        # GEO / answer-engine schema.org markup for blog posts (no-op otherwise): Article
+        # always, plus HowTo when the post has an explicit numbered-step structure.
         lines.extend(_blog_geo_jsonld_block(post, client))
+        lines.extend(_blog_howto_jsonld_block(post, client))
 
         # Separator
         lines.append("---")
