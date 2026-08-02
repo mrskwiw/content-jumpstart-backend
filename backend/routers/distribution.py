@@ -78,7 +78,20 @@ class ScheduledPostOut(BaseModel):
     platform_url: Optional[str] = None
     error_message: Optional[str] = None
     retry_count: int
+    # Server-computed: whether the worker will still act on this post (pending, or a failed
+    # post still under the retry cap AND within the retry window). A failed post with
+    # is_active=False has exhausted retries — lets the calendar distinguish "will retry" from
+    # "gave up" without reimplementing the retry policy. See Decision #220.
+    is_active: bool = True
     model_config = ConfigDict(from_attributes=True)
+
+
+def _post_out(sp: ScheduledPost) -> ScheduledPostOut:
+    """Serialize a ScheduledPost, stamping the server-computed ``is_active`` (the retry policy
+    lives only in the orchestrator)."""
+    out = ScheduledPostOut.model_validate(sp)
+    out.is_active = orchestrator.scheduled_post_is_active(sp)
+    return out
 
 
 # ── Credentials ───────────────────────────────────────────────────────────────
@@ -354,7 +367,7 @@ def schedule(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return sp
+    return _post_out(sp)
 
 
 @router.get("/queue", response_model=List[ScheduledPostOut])
@@ -369,7 +382,8 @@ def list_queue(
         q = q.filter(ScheduledPost.status == status)
     if project_id:
         q = q.filter(ScheduledPost.project_id == project_id)
-    return q.order_by(ScheduledPost.scheduled_for.asc()).limit(200).all()
+    rows = q.order_by(ScheduledPost.scheduled_for.asc()).limit(200).all()
+    return [_post_out(sp) for sp in rows]
 
 
 @router.post("/publish/{scheduled_post_id}", response_model=ScheduledPostOut)
@@ -390,7 +404,7 @@ def publish_now(
         raise HTTPException(status_code=404, detail="Scheduled post not found")
     if sp.status == "posted":
         raise HTTPException(status_code=409, detail="Already posted")
-    return orchestrator.publish_now(db, sp)
+    return _post_out(orchestrator.publish_now(db, sp))
 
 
 @router.post("/process-due")

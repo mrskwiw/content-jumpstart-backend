@@ -41,7 +41,7 @@ describe('Calendar Page', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('shows pending + retryable-failed posts (flagged) but hides terminal posted rows', async () => {
+  it('shows pending + failed posts (retrying vs gave up) but hides terminal posted rows', async () => {
     mockedQueue.mockResolvedValue([
       {
         id: 'sp1',
@@ -53,6 +53,7 @@ describe('Calendar Page', () => {
         platform_url: null,
         error_message: null,
         retry_count: 0,
+        is_active: true,
       },
       {
         id: 'sp2',
@@ -64,6 +65,7 @@ describe('Calendar Page', () => {
         platform_url: 'https://x.com/x/1',
         error_message: null,
         retry_count: 0,
+        is_active: false,
       },
       {
         id: 'sp3',
@@ -75,6 +77,19 @@ describe('Calendar Page', () => {
         platform_url: null,
         error_message: 'rate limited',
         retry_count: 1,
+        is_active: true, // still under the retry cap/window → retrying
+      },
+      {
+        id: 'sp4',
+        platform: 'instagram',
+        content: 'Post that exhausted its retries',
+        status: 'failed',
+        scheduled_for: '2026-02-13T12:00:00Z',
+        posted_at: null,
+        platform_url: null,
+        error_message: 'still failing',
+        retry_count: 3,
+        is_active: false, // retries exhausted → gave up
       },
     ]);
 
@@ -86,9 +101,12 @@ describe('Calendar Page', () => {
     // The pending post appears…
     await waitFor(() => expect(screen.getByText('Linkedin post')).toBeInTheDocument());
     expect(screen.getByText(/launch announcement/i)).toBeInTheDocument();
-    // …the failed post stays visible (still retrying) and is flagged distinctly…
+    // …a still-retryable failed post is flagged "retrying"…
     expect(screen.getByText('Facebook post')).toBeInTheDocument();
     expect(screen.getByText(/failed — retrying/i)).toBeInTheDocument();
+    // …an exhausted failed post is flagged "gave up" (distinct from retrying)…
+    expect(screen.getByText('Instagram post')).toBeInTheDocument();
+    expect(screen.getByText(/failed — gave up/i)).toBeInTheDocument();
     // …but the already-posted row is NOT shown as an upcoming schedule entry.
     expect(screen.queryByText('Twitter post')).not.toBeInTheDocument();
     expect(screen.queryByText(/already published/i)).not.toBeInTheDocument();

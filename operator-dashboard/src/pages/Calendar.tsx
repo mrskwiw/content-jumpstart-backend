@@ -42,6 +42,9 @@ interface CalendarEvent {
   description?: string;
   time?: string;
   status?: string;
+  // Server-computed (Decision #220): whether the worker will still act on this post. A failed
+  // post with isActive=false has exhausted its retries — distinguishes "retrying" from "gave up".
+  isActive?: boolean;
 }
 
 // Only *truly terminal* states are dropped: a posted or canceled job is done and must
@@ -54,13 +57,20 @@ const TERMINAL_POST_STATUSES = new Set(['posted', 'canceled', 'cancelled']);
 
 // A short, distinct label for a non-routine post status so failed/in-flight rows don't
 // look like ordinary healthy upcoming posts. `pending` is the normal case → no badge.
-function statusBadge(status?: string): { label: string; cls: string } | null {
+// A failed post is split by the server-computed isActive: still-retrying vs retries-exhausted
+// ("gave up"), so an exhausted row reads as terminal rather than falsely "retrying" forever.
+function statusBadge(status?: string, isActive?: boolean): { label: string; cls: string } | null {
   switch ((status ?? '').toLowerCase()) {
     case 'failed':
-      return {
-        label: 'Failed — retrying',
-        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-      };
+      return isActive === false
+        ? {
+            label: 'Failed — gave up',
+            cls: 'bg-red-200 text-red-900 dark:bg-red-950/50 dark:text-red-200',
+          }
+        : {
+            label: 'Failed — retrying',
+            cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+          };
     case 'posting':
       return {
         label: 'Posting',
@@ -90,6 +100,7 @@ function scheduledPostToEvent(sp: ScheduledPost): CalendarEvent {
     description: excerpt || undefined,
     time,
     status: sp.status,
+    isActive: sp.is_active,
   };
 }
 
@@ -378,12 +389,16 @@ export default function Calendar() {
                               key={event.id}
                               className={`rounded px-1.5 py-0.5 text-xs font-medium border ${
                                 (event.status ?? '').toLowerCase() === 'failed'
-                                  ? 'border-red-300 bg-red-100 text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                  ? event.isActive === false
+                                    ? 'border-red-400 bg-red-200 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200'
+                                    : 'border-red-300 bg-red-100 text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300'
                                   : getEventTypeBadge(event.type)
                               }`}
                               title={
                                 (event.status ?? '').toLowerCase() === 'failed'
-                                  ? 'Failed — retrying'
+                                  ? event.isActive === false
+                                    ? 'Failed — retries exhausted'
+                                    : 'Failed — retrying'
                                   : undefined
                               }
                             >
@@ -451,7 +466,7 @@ export default function Calendar() {
                               <div className="flex items-center gap-2">
                                 <h4 className="font-medium text-neutral-900 dark:text-neutral-100">{event.title}</h4>
                                 {(() => {
-                                  const b = statusBadge(event.status);
+                                  const b = statusBadge(event.status, event.isActive);
                                   return b ? (
                                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${b.cls}`}>
                                       {b.label}

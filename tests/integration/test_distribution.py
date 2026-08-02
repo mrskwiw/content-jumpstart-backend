@@ -199,6 +199,55 @@ def test_no_credential_fails_closed(client, db_session):
     assert "no active credential" in (body["error_message"] or "").lower()
 
 
+def test_scheduled_post_is_active_policy():
+    """The is_active predicate must match process_due's retry selection exactly (Decision #220)."""
+    from datetime import datetime, timedelta, timezone
+
+    from backend.models.distribution import ScheduledPost
+    from backend.services.distribution import orchestrator as orch
+
+    now = datetime.now(timezone.utc)
+
+    def sp(status, retry_count=0, scheduled_for=None):
+        return ScheduledPost(
+            status=status, retry_count=retry_count, scheduled_for=scheduled_for or now
+        )
+
+    assert orch.scheduled_post_is_active(sp("pending")) is True
+    assert orch.scheduled_post_is_active(sp("posted")) is False
+    # failed + under the cap + within the 24h window → still retryable.
+    assert orch.scheduled_post_is_active(sp("failed", 1, now - timedelta(hours=1))) is True
+    # failed but the retry cap is hit → exhausted.
+    assert orch.scheduled_post_is_active(sp("failed", orch.MAX_RETRIES, now)) is False
+    # failed but past the 24h retry window → exhausted (even under the cap).
+    assert orch.scheduled_post_is_active(sp("failed", 0, now - timedelta(hours=25))) is False
+
+
+def test_queue_exposes_is_active_and_reflects_exhaustion(client, db_session):
+    """/api/distribution/queue rows carry a server-computed is_active so the calendar can tell
+    'will retry' from 'gave up' without reimplementing the retry policy."""
+    from backend.models.distribution import ScheduledPost
+    from backend.services.distribution import orchestrator as orch
+
+    u = _make_user(db_session, "dist-active@example.com", "user-distactive")
+    client.post(
+        "/api/distribution/schedule",
+        json={"platform": "stub", "content": "soon", "scheduled_for": "2020-01-01T00:00:00Z"},
+        headers=_hdr(u),
+    )
+    q = client.get("/api/distribution/queue", headers=_hdr(u)).json()
+    assert len(q) == 1
+    assert q[0]["is_active"] is True  # pending → active
+
+    # Exhaust it (failed at the retry cap) → the same row now reports inactive.
+    sp = db_session.query(ScheduledPost).filter(ScheduledPost.user_id == u.id).first()
+    sp.status = "failed"
+    sp.retry_count = orch.MAX_RETRIES
+    db_session.commit()
+    q2 = client.get("/api/distribution/queue", headers=_hdr(u)).json()
+    assert q2[0]["is_active"] is False
+
+
 def test_queue_and_publish_scoped_to_owner(client, db_session):
     a = _make_user(db_session, "dist-a@example.com", "user-dista")
     b = _make_user(db_session, "dist-b@example.com", "user-distb")

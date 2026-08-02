@@ -360,6 +360,39 @@ def _due_query(db: Session, statuses):
     return q
 
 
+#: How long after its scheduled time a failed post remains eligible for retry.
+RETRY_WINDOW = timedelta(hours=24)
+
+
+def scheduled_post_is_active(sp: ScheduledPost, now: Optional[datetime] = None) -> bool:
+    """Whether the worker will still act on this scheduled post (Decision #220).
+
+    The single source of truth for the retry policy so the frontend/calendar can distinguish
+    "will still be attempted" from "gave up" WITHOUT reimplementing it. Kept exactly in sync
+    with ``process_due``'s selection:
+      * ``pending``  → active (awaiting its scheduled time)
+      * ``posted``   → inactive (terminal success)
+      * ``failed``   → active only if still retryable — under the retry cap AND within the
+        retry window (``scheduled_for >= now - RETRY_WINDOW``); otherwise exhausted.
+      * anything else → inactive (terminal/unknown).
+
+    No ``next_attempt_at`` is exposed: the worker retries on its next tick with no per-post
+    backoff schedule, so any such timestamp would be fabricated/misleading.
+    """
+    if sp.status == "pending":
+        return True
+    if sp.status == "failed":
+        now = now or _now()
+        scheduled_for = sp.scheduled_for
+        if scheduled_for is None:
+            return False
+        if scheduled_for.tzinfo is None:  # normalize a naive (e.g. SQLite) timestamp to UTC
+            scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
+        within_window = scheduled_for >= now - RETRY_WINDOW
+        return sp.retry_count < MAX_RETRIES and within_window
+    return False
+
+
 def process_due(db: Session, limit: int = 25) -> dict:
     """Publish pending posts whose time has come, and retry recent failures.
 
@@ -380,8 +413,8 @@ def process_due(db: Session, limit: int = 25) -> dict:
         summary["processed"] += 1
         summary["published" if sp.status == "posted" else "failed"] += 1
 
-    # Retry recent failures under the retry cap.
-    cutoff = now - timedelta(hours=24)
+    # Retry recent failures under the retry cap (same window as scheduled_post_is_active).
+    cutoff = now - RETRY_WINDOW
     failed: List[ScheduledPost] = (
         _due_query(db, ["failed"])
         .filter(ScheduledPost.retry_count < MAX_RETRIES, ScheduledPost.scheduled_for >= cutoff)

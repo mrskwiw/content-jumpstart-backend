@@ -19,6 +19,9 @@ export interface ScheduledPost {
   platform_url?: string | null;
   error_message?: string | null;
   retry_count: number;
+  // Server-computed: whether the worker will still act on this post. A failed post with
+  // is_active=false has exhausted its retries (retry cap or 24h window). See Decision #220.
+  is_active: boolean;
 }
 
 export interface OAuthStatus {

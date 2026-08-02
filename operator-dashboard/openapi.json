@@ -18460,6 +18460,11 @@
           "retry_count": {
             "type": "integer",
             "title": "Retry Count"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
           }
         },
         "type": "object",

@@ -7798,6 +7798,11 @@ export interface components {
             error_message?: string | null;
             /** Retry Count */
             retry_count: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
         };
         /**
          * SearchHistoryResponse
