@@ -96,6 +96,18 @@ def connect_account(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    # Prove a manually-entered credential authenticates BEFORE persisting it, so a bad
+    # handle / app password is rejected now (400) instead of creating a false "connected"
+    # state that only surfaces at publish time. OAuth platforms no-op (already validated by
+    # their consent handshake); Bluesky (app-password) does a real createSession round-trip;
+    # dry-run resolves to the stub verifier (no network). Unimplemented platforms fail closed.
+    from backend.services.distribution.publishers import get_publisher
+
+    check = get_publisher(
+        body.platform, access_token=body.access_token, account_ref=body.account_ref
+    ).verify()
+    if not check.success:
+        raise HTTPException(status_code=400, detail=check.error or "Credential verification failed")
     try:
         cred = orchestrator.save_credential(
             db,

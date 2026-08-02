@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { Alert, AlertDescription } from '@/components/ui/Alert';
 import { distributionApi, PlatformCredential } from '@/api/distribution';
 import { clientsApi } from '@/api/clients';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 const PLATFORM_LABELS: Record<string, string> = {
   linkedin: 'LinkedIn',
@@ -264,6 +265,10 @@ function BlueskyConnect({ clientId, clientLabel }: { clientId: string; clientLab
         platform: 'bluesky',
         access_token: appPassword.trim(),
         account_ref: handle.trim(),
+        // Store the handle as the display name so the credential is identifiable in the
+        // list (which renders display_name); account_ref carries the same handle for the
+        // publisher. The backend verifies the app password before persisting.
+        display_name: handle.trim(),
         client_id: clientId || undefined,
       }),
     onSuccess: () => {
@@ -327,7 +332,10 @@ function BlueskyConnect({ clientId, clientLabel }: { clientId: string; clientLab
         </div>
         {connect.isError && (
           <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-            Couldn’t connect — check the handle and app password and try again.
+            {getApiErrorMessage(
+              connect.error,
+              'Couldn’t connect — check the handle and app password and try again.',
+            )}
           </p>
         )}
         {connect.isSuccess && (

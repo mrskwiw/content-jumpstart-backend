@@ -127,6 +127,7 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
         platform: 'bluesky',
         access_token: 'abcd-efgh-ijkl-mnop',
         account_ref: 'me.bsky.social',
+        display_name: 'me.bsky.social',
         client_id: 'c2',
       }),
     );

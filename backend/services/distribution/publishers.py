@@ -48,6 +48,16 @@ class BasePublisher:
     ) -> PublishResult:  # pragma: no cover
         raise NotImplementedError
 
+    def verify(self) -> PublishResult:
+        """Prove a manually-entered credential works BEFORE it's persisted.
+
+        Default: assume valid. OAuth platforms are validated by their consent handshake,
+        so there's nothing to round-trip at manual-connect time. Publishers with
+        app-password / manual auth (e.g. Bluesky) override this to actually authenticate,
+        so a bad credential is rejected at connect time instead of failing at publish.
+        """
+        return PublishResult(success=True)
+
 
 class StubPublisher(BasePublisher):
     """Deterministic no-network publisher for dry-run/demo/tests."""
@@ -81,6 +91,10 @@ class NotImplementedPublisher(BasePublisher):
                 f"credential to exercise the flow."
             ),
         )
+
+    def verify(self) -> PublishResult:
+        # Fail closed: don't let a credential be stored for a platform we can't publish to.
+        return self.publish("")
 
 
 class LinkedInPublisher(BasePublisher):
@@ -420,6 +434,54 @@ class BlueskyPublisher(BasePublisher):
             return None
         return f"{scheme.lower()}://{rest}/xrpc"
 
+    def _authenticate(self):
+        """Open an AT Protocol session (createSession) without posting anything.
+
+        Returns ``(session, None)`` on success — session is a dict with ``base``, ``handle``,
+        ``jwt``, ``did`` — or ``(None, PublishResult)`` carrying the failure for the caller to
+        return. Shared by :meth:`publish` and :meth:`verify` so both reject a bad host / missing
+        handle / bad app password identically.
+        """
+        import requests
+
+        base = self._base()
+        if base is None:
+            return None, PublishResult(
+                success=False,
+                error="BLUESKY_PDS_URL is set but is not a valid http(s) URL — fix the instance config",
+            )
+        handle = self.account_ref
+        if not handle:
+            return None, PublishResult(
+                success=False,
+                error="Bluesky requires the account handle (set account_ref on the credential)",
+            )
+        sess = requests.post(
+            f"{base}/com.atproto.server.createSession",
+            json={"identifier": handle, "password": self.access_token},
+            timeout=_HTTP_TIMEOUT,
+        )
+        if sess.status_code >= 400:
+            return None, PublishResult(
+                success=False, error=f"Bluesky auth {sess.status_code}: {sess.text[:200]}"
+            )
+        sd = sess.json() or {}
+        jwt, did = sd.get("accessJwt"), sd.get("did")
+        if not jwt or not did:
+            return None, PublishResult(success=False, error="Bluesky session missing accessJwt/did")
+        return {"base": base, "handle": handle, "jwt": jwt, "did": did}, None
+
+    def verify(self) -> PublishResult:
+        """Authenticate the handle + app password (createSession) WITHOUT posting, so a bad
+        credential is rejected at connect time rather than creating a false "connected" state
+        that only fails at publish. No record is created."""
+        try:
+            _session, err = self._authenticate()
+            return err or PublishResult(success=True)
+        except Exception as e:  # network / parse
+            logger.warning("Bluesky verify failed: %s", e)
+            return PublishResult(success=False, error=str(e))
+
     def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
         import requests
         from datetime import datetime, timezone
@@ -432,31 +494,15 @@ class BlueskyPublisher(BasePublisher):
                     success=False,
                     error="Bluesky media embeds are not supported yet — schedule a text-only post (omit media_url)",
                 )
-            base = self._base()
-            if base is None:
-                return PublishResult(
-                    success=False,
-                    error="BLUESKY_PDS_URL is set but is not a valid http(s) URL — fix the instance config",
-                )
-            handle = self.account_ref
-            if not handle:
-                return PublishResult(
-                    success=False,
-                    error="Bluesky requires the account handle (set account_ref on the credential)",
-                )
-            sess = requests.post(
-                f"{base}/com.atproto.server.createSession",
-                json={"identifier": handle, "password": self.access_token},
-                timeout=_HTTP_TIMEOUT,
+            session, err = self._authenticate()
+            if err:
+                return err
+            base, handle, jwt, did = (
+                session["base"],
+                session["handle"],
+                session["jwt"],
+                session["did"],
             )
-            if sess.status_code >= 400:
-                return PublishResult(
-                    success=False, error=f"Bluesky auth {sess.status_code}: {sess.text[:200]}"
-                )
-            sd = sess.json() or {}
-            jwt, did = sd.get("accessJwt"), sd.get("did")
-            if not jwt or not did:
-                return PublishResult(success=False, error="Bluesky session missing accessJwt/did")
             created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             rec = requests.post(
                 f"{base}/com.atproto.repo.createRecord",

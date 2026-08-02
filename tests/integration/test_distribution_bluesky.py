@@ -158,6 +158,38 @@ def test_bluesky_invalid_or_blank_pds_fails_closed(monkeypatch):
     assert posted == []  # never attempted a network call with a bad/blank host
 
 
+def test_bluesky_verify_success_without_posting(monkeypatch):
+    """verify() authenticates (createSession) but must NOT create a record."""
+    calls = _seq_post(monkeypatch, [_Resp(200, {"accessJwt": "j", "did": "did:plc:x"})])
+    r = BlueskyPublisher(access_token="pw", account_ref="me.bsky.social").verify()
+    assert r.success, r.error
+    # Exactly one call — the session — and never createRecord.
+    assert len(calls) == 1
+    assert calls[0][0].endswith("com.atproto.server.createSession")
+
+
+def test_bluesky_verify_rejects_bad_app_password(monkeypatch):
+    """A bad app password fails verify() (so connect can reject it) — no record attempted."""
+    calls = _seq_post(monkeypatch, [_Resp(401, text="bad app password")])
+    r = BlueskyPublisher(access_token="wrong", account_ref="me.bsky.social").verify()
+    assert not r.success and "401" in r.error
+    assert len(calls) == 1  # session attempt only, no createRecord
+
+
+def test_bluesky_verify_requires_handle():
+    r = BlueskyPublisher(access_token="pw", account_ref=None).verify()
+    assert not r.success and "handle" in r.error.lower()
+
+
+def test_base_publisher_verify_is_noop():
+    """OAuth platforms have nothing to round-trip at manual-connect time → verify passes."""
+    from backend.services.distribution.publishers import BasePublisher, NotImplementedPublisher
+
+    assert BasePublisher(access_token="t").verify().success
+    # Unimplemented platforms fail closed so a credential can't be stored for them.
+    assert not NotImplementedPublisher("threads", access_token="t").verify().success
+
+
 def test_bluesky_supported_but_not_oauth():
     """Bluesky is a supported publish target (credentials + publishing) but is NOT an
     OAuth platform — so it must not appear in the OAuth connect grid."""

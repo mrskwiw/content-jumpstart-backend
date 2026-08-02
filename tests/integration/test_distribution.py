@@ -53,6 +53,56 @@ def test_connect_list_and_delete_credential(client, db_session):
     assert d.status_code == 200
 
 
+class _FakeResp:
+    def __init__(self, status, payload=None, text=""):
+        self.status_code = status
+        self._payload = payload or {}
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+def test_connect_bluesky_rejects_bad_credential_before_persisting(client, db_session, monkeypatch):
+    """Bluesky (app-password) is verified via a real createSession before persisting — a bad
+    app password is rejected at connect time (400) and nothing is stored, rather than creating
+    a false 'connected' state that only fails at publish."""
+    import requests
+
+    monkeypatch.delenv("DISTRIBUTION_DRY_RUN", raising=False)  # force the real verifier
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResp(401, text="bad app password"))
+    u = _make_user(db_session, "bsky-bad@example.com", "user-bskybad")
+    r = client.post(
+        "/api/distribution/credentials",
+        json={"platform": "bluesky", "access_token": "wrong", "account_ref": "me.bsky.social"},
+        headers=_hdr(u),
+    )
+    assert r.status_code == 400, r.text
+    assert "401" in r.json()["detail"]
+    # Nothing persisted.
+    lst = client.get("/api/distribution/credentials", headers=_hdr(u)).json()
+    assert all(c["platform"] != "bluesky" for c in lst)
+
+
+def test_connect_bluesky_dry_run_skips_network_verify(client, db_session, monkeypatch):
+    """In dry-run the connect verifier resolves to the stub (no network) and succeeds, storing
+    the handle as the display name so the credential is identifiable."""
+    monkeypatch.setenv("DISTRIBUTION_DRY_RUN", "true")
+    u = _make_user(db_session, "bsky-dry@example.com", "user-bskydry")
+    r = client.post(
+        "/api/distribution/credentials",
+        json={
+            "platform": "bluesky",
+            "access_token": "pw",
+            "account_ref": "me.bsky.social",
+            "display_name": "me.bsky.social",
+        },
+        headers=_hdr(u),
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["display_name"] == "me.bsky.social"
+
+
 def test_schedule_and_publish_now_via_stub(client, db_session):
     u = _make_user(db_session, "dist-pub@example.com", "user-distpub")
     r = client.post(
