@@ -556,6 +556,110 @@ class BlueskyPublisher(BasePublisher):
             return PublishResult(success=False, error=str(e))
 
 
+class ThreadsPublisher(BasePublisher):
+    """Publish to Meta Threads via the two-step Graph content-publishing flow.
+
+    `account_ref` must be the Threads user id and `access_token` a Threads user token.
+    Text-only posts use `media_type=TEXT`; attaching a public `media_url` posts an image
+    (`media_type=IMAGE`). Publishing is: create a media container, then publish it.
+    """
+
+    platform = "threads"
+    GRAPH = "https://graph.threads.net/v1.0"
+
+    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+        import requests
+
+        if not self.account_ref:
+            return PublishResult(
+                success=False, error="Threads requires account_ref (the Threads user id)."
+            )
+        try:
+            # 1) Create a media container — TEXT by default, IMAGE when a media_url is given.
+            container = {"text": content, "access_token": self.access_token}
+            if media_url:
+                container["media_type"] = "IMAGE"
+                container["image_url"] = media_url
+            else:
+                container["media_type"] = "TEXT"
+            create = requests.post(
+                f"{self.GRAPH}/{self.account_ref}/threads",
+                data=container,
+                timeout=_HTTP_TIMEOUT,
+            )
+            if create.status_code >= 400:
+                return PublishResult(
+                    success=False,
+                    error=f"Threads container {create.status_code}: {create.text[:300]}",
+                )
+            creation_id = (create.json() or {}).get("id")
+            if not creation_id:
+                return PublishResult(success=False, error="Threads container returned no id")
+            # 2) Publish the container.
+            publish = requests.post(
+                f"{self.GRAPH}/{self.account_ref}/threads_publish",
+                data={"creation_id": creation_id, "access_token": self.access_token},
+                timeout=_HTTP_TIMEOUT,
+            )
+            if publish.status_code < 400:
+                pid = (publish.json() or {}).get("id", "")
+                return PublishResult(success=True, platform_post_id=pid, platform_url=None)
+            return PublishResult(
+                success=False, error=f"Threads publish {publish.status_code}: {publish.text[:300]}"
+            )
+        except Exception as e:  # noqa: BLE001 - surface any failure as a result
+            logger.warning("Threads publish failed: %s", e)
+            return PublishResult(success=False, error=str(e))
+
+
+class PinterestPublisher(BasePublisher):
+    """Create a Pinterest pin via the v5 API (POST /v5/pins).
+
+    `account_ref` must be the destination board id and `access_token` an OAuth token.
+    Pinterest pins are image-first, so a public `media_url` (image URL) is mandatory.
+    """
+
+    platform = "pinterest"
+    BASE_URL = "https://api.pinterest.com/v5"
+
+    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+        import requests
+
+        if not self.account_ref:
+            return PublishResult(
+                success=False, error="Pinterest requires account_ref (the board id)."
+            )
+        if not media_url:
+            return PublishResult(
+                success=False,
+                error="Pinterest requires an image — attach a public media_url to the post.",
+            )
+        try:
+            resp = requests.post(
+                f"{self.BASE_URL}/pins",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "board_id": self.account_ref,
+                    "description": content,
+                    "media_source": {"source_type": "image_url", "url": media_url},
+                },
+                timeout=_HTTP_TIMEOUT,
+            )
+            if resp.status_code < 400:
+                pin_id = (resp.json() or {}).get("id", "")
+                url = f"https://www.pinterest.com/pin/{pin_id}/" if pin_id else None
+                return PublishResult(success=True, platform_post_id=pin_id, platform_url=url)
+            return PublishResult(
+                success=False, error=f"Pinterest {resp.status_code}: {resp.text[:300]}"
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Pinterest publish failed: %s", e)
+            return PublishResult(success=False, error=str(e))
+
+
 # Real publishers wired here as they're implemented. A platform absent from this
 # map falls through to NotImplementedPublisher (fail-closed).
 _REAL_PUBLISHERS = {
@@ -566,6 +670,8 @@ _REAL_PUBLISHERS = {
     "tiktok": TikTokPublisher,
     "youtube": YouTubePublisher,
     "bluesky": BlueskyPublisher,
+    "threads": ThreadsPublisher,
+    "pinterest": PinterestPublisher,
 }
 
 

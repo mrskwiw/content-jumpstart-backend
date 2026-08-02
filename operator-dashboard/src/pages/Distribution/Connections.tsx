@@ -18,6 +18,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   tiktok: 'TikTok',
   youtube: 'YouTube',
   bluesky: 'Bluesky',
+  threads: 'Threads',
+  pinterest: 'Pinterest',
 };
 
 export default function Connections() {

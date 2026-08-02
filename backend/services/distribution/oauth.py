@@ -148,6 +148,27 @@ PROVIDERS: Dict[str, OAuthProvider] = {
         client_auth="body",
         extra_authorize_params={"access_type": "offline", "prompt": "consent"},
     ),
+    "threads": OAuthProvider(  # nosec B106 - token_url is a public OAuth endpoint, not a secret
+        platform="threads",
+        authorize_url="https://threads.net/oauth/authorize",
+        token_url="https://graph.threads.net/oauth/access_token",
+        scopes=["threads_basic", "threads_content_publish"],
+        client_id_env="THREADS_APP_ID",
+        client_secret_env="THREADS_APP_SECRET",  # pragma: allowlist secret
+        client_auth="body",
+        # Threads issues short-lived tokens upgraded to long-lived (~60d) ones via a
+        # th_exchange_token grant rather than a standard refresh grant — mirror Meta.
+        supports_refresh=False,
+    ),
+    "pinterest": OAuthProvider(  # nosec B106 - token_url is a public OAuth endpoint, not a secret
+        platform="pinterest",
+        authorize_url="https://www.pinterest.com/oauth/",
+        token_url="https://api.pinterest.com/v5/oauth/token",
+        scopes=["boards:read", "pins:read", "pins:write"],
+        client_id_env="PINTEREST_APP_ID",
+        client_secret_env="PINTEREST_APP_SECRET",  # pragma: allowlist secret
+        client_auth="basic",  # Pinterest v5 token endpoint uses HTTP Basic app auth
+    ),
 }
 
 

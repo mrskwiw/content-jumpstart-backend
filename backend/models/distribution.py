@@ -30,6 +30,8 @@ SUPPORTED_PLATFORMS = (
     "tiktok",
     "youtube",
     "bluesky",  # AT Protocol app-password auth (connected via the manual credential API)
+    "threads",  # Meta Threads API (OAuth) — two-step container publish, text or image
+    "pinterest",  # Pinterest API v5 (OAuth) — image-required pins
     "stub",  # dry-run / demo target — never touches a real network
 )
 
