@@ -156,6 +156,20 @@ def test_howto_block_emitted_for_step_by_step_headline():
     assert block and _jsonld_from("\n".join(block))["@type"] == "HowTo"
 
 
+def test_howto_block_emitted_for_varied_procedural_headlines():
+    # Common procedural forms beyond the "How to …" prefix should still qualify.
+    steps = "\n\n1. First\n2. Second\n"
+    for title in (
+        "Tutorial: Setting up CI",
+        "Postgres Migration in 3 Steps",
+        "7 Steps to a Faster Site",
+        "Deploy Postgres: A Step-by-Step Walkthrough",
+    ):
+        block = _blog_howto_jsonld_block(_make_post(title + steps), _make_client())
+        assert block, f"expected HowTo for procedural title: {title!r}"
+        assert _jsonld_from("\n".join(block))["@type"] == "HowTo"
+
+
 def test_howto_block_skipped_for_listicle_headline():
     # A numbered list under a listicle headline is NOT a procedure — must not emit HowTo.
     listicle = (
@@ -171,6 +185,14 @@ def test_howto_block_skipped_for_listicle_headline():
 def test_howto_block_skipped_for_reference_list_headline():
     reference = "A Brief History of SEO\n\nKey milestones:\n\n1. Keyword stuffing\n2. PageRank\n"
     assert _blog_howto_jsonld_block(_make_post(reference), _make_client()) == []
+
+
+def test_howto_block_skipped_for_bare_guide_overview():
+    # Precision boundary: a bare "Guide to …" overview is NOT procedural (no steps/how-to/
+    # tutorial signal), so numbered items must NOT trigger HowTo. Erring toward precision:
+    # a missed how-to is harmless, a mislabeled overview is spammy structured data.
+    overview = "A Guide to Marketing Strategy\n\nThemes:\n\n1. Positioning\n2. Channels\n"
+    assert _blog_howto_jsonld_block(_make_post(overview), _make_client()) == []
 
 
 def test_howto_block_skipped_without_steps():

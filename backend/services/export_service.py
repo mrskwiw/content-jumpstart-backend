@@ -78,20 +78,34 @@ def _extract_howto_steps(content: str) -> List[str]:
     return steps
 
 
+# Headline forms that UNAMBIGUOUSLY signal a procedure. Deliberately errs toward precision:
+# a false positive (tagging a listicle/reference as a HowTo) is harmful — misleading/spammy
+# structured data with SEO-penalty risk — whereas a false negative (a how-to that just misses
+# the bonus markup; the Article block still applies) is harmless. So these patterns admit clear
+# procedural forms but NOT bare "guide" ("A Guide to Marketing" is an overview, not steps) or
+# "N ways to …"/"top N …" listicles. See BUGS.md Decision #232.
+_PROCEDURAL_HEADLINE_RE = re.compile(
+    r"""
+      (^\s*how[\s-]?to\b)                            # "How to X" / "How-to X"
+    | (\bstep[\s-]by[\s-]step\b)                     # "Step-by-Step …" / "a step-by-step …"
+    | (^\s*tutorial\b)                               # "Tutorial: …"
+    | (\bwalkthrough\b)                              # "… Walkthrough"
+    | (\bin\s+\d+\s+(?:easy\s+|simple\s+)?steps\b)   # "… in 3 steps" / "in 5 easy steps"
+    | (\b\d+\s+steps\s+to\b)                         # "7 Steps to …"
+    | (^\s*steps?\s+to\b)                            # "Steps to …"
+    | (\bhow[\s-]?to\s+guide\b)                      # "… how-to guide"
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
 def _is_procedural_headline(headline: str) -> bool:
-    """Whether the headline explicitly signals procedural / how-to intent.
+    """Whether the headline explicitly signals procedural / how-to intent (see the regex above).
 
     A numbered list alone is NOT enough — listicles ("10 Ways to…"), tables of contents, and
-    reference lists all use numbered lines but aren't procedures. Requiring an explicit how-to
-    headline keeps HowTo markup off that common class of posts (misleading/spammy structured
-    data otherwise).
+    reference lists all use numbered lines but aren't procedures.
     """
-    h = headline.strip().lower()
-    return (
-        h.startswith(("how to", "how-to", "steps to", "step by step", "step-by-step"))
-        or "step-by-step guide" in h
-        or "step by step guide" in h
-    )
+    return bool(_PROCEDURAL_HEADLINE_RE.search(headline))
 
 
 def _blog_geo_jsonld_block(post: Post, client: Client) -> List[str]:
