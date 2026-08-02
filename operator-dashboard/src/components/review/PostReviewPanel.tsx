@@ -98,34 +98,51 @@ export default function PostReviewPanel({ postId }: { postId: string }) {
   const canSubmit = teamLoaded && myRole !== 'viewer';
 
   const onError = (fallback: string) => (err: unknown) => toast.error(errorDetail(err, fallback));
-  const invalidateApproval = () => {
-    queryClient.invalidateQueries({ queryKey: approvalKey });
-    // The content-review grid embeds each post's approval status from the batched ['posts']
-    // list (COLLAB-01), so refresh it too — otherwise the row badge goes stale after an
-    // approve/reject/submit until a hard reload.
-    queryClient.invalidateQueries({ queryKey: ['posts'] });
+  const invalidateApproval = () => queryClient.invalidateQueries({ queryKey: approvalKey });
+
+  // The content-review grid embeds each post's approval status from the batched ['posts'] list
+  // (COLLAB-01). After a review decision, PATCH just this post's row in-place instead of
+  // invalidating the whole ['posts'] key — that key is shared by ContentReview/ClientDetail/
+  // ProjectDetail and can hold up to 500 posts, so a broad invalidation would refetch the
+  // entire catalog and fan out to unrelated screens on every single-row decision.
+  const patchPostsCache = (status: string) => {
+    queryClient.setQueriesData<{ items?: Array<{ id: string; approval_status?: string | null }> }>(
+      { queryKey: ['posts'] },
+      (old) => {
+        if (!old?.items) return old;
+        return {
+          ...old,
+          items: old.items.map((p) =>
+            p.id === postId ? { ...p, approval_status: status } : p,
+          ),
+        };
+      },
+    );
   };
 
   const submit = useMutation({
     mutationFn: () => reviewApi.submitForApproval(postId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidateApproval();
+      patchPostsCache(result.status);
       toast.success('Submitted for review');
     },
     onError: onError('Failed to submit for review'),
   });
   const approve = useMutation({
     mutationFn: () => reviewApi.approve(postId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidateApproval();
+      patchPostsCache(result.status);
       toast.success('Post approved');
     },
     onError: onError('Failed to approve'),
   });
   const reject = useMutation({
     mutationFn: () => reviewApi.reject(postId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidateApproval();
+      patchPostsCache(result.status);
       toast.success('Changes requested');
     },
     onError: onError('Failed to reject'),

@@ -69,7 +69,7 @@ describe('PostReviewPanel', () => {
     expect(screen.getByText('Tighten the hook')).toBeInTheDocument();
   });
 
-  it('refreshes the posts grid after approving (so the row badge is not stale)', async () => {
+  it('patches the affected row in the posts cache after approving (no catalog refetch)', async () => {
     mockedReview.getApproval.mockResolvedValue({
       post_id: 'p1',
       status: 'pending',
@@ -89,6 +89,10 @@ describe('PostReviewPanel', () => {
     });
 
     const { wrapper, client } = renderWithProviders();
+    // Seed a cached posts list containing the row whose badge should update.
+    client.setQueryData(['posts'], {
+      items: [{ id: 'p1', approval_status: null }, { id: 'p2', approval_status: null }],
+    });
     const invalidateSpy = jest.spyOn(client, 'invalidateQueries');
     render(<PostReviewPanel postId="p1" />, { wrapper });
 
@@ -97,10 +101,16 @@ describe('PostReviewPanel', () => {
     fireEvent.click(approveBtn);
 
     await waitFor(() => expect(mockedReview.approve).toHaveBeenCalledWith('p1'));
-    // The grid embeds approval_status from ['posts'], so it must be invalidated on approval.
-    await waitFor(() =>
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['posts'] })
-    );
+    // Only the approved row is patched in-place; the other row is untouched…
+    await waitFor(() => {
+      const cached = client.getQueryData(['posts']) as {
+        items: Array<{ id: string; approval_status?: string | null }>;
+      };
+      expect(cached.items.find((p) => p.id === 'p1')?.approval_status).toBe('approved');
+      expect(cached.items.find((p) => p.id === 'p2')?.approval_status).toBeNull();
+    });
+    // …and we do NOT broadly invalidate the shared ['posts'] key (no catalog refetch/fan-out).
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['posts'] });
   });
 
   it('submits a not-yet-submitted post for review', async () => {

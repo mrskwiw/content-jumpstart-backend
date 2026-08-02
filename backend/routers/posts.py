@@ -11,7 +11,7 @@ from backend.middleware.authorization import (
     filter_user_posts,
 )  # TR-021: Authorization
 from backend.schemas.atomize import AtomizeRequest, AtomizeResponse
-from backend.schemas.post import PostResponse, PostUpdate
+from backend.schemas.post import PostListItem, PostResponse, PostUpdate
 from backend.services import crud
 from backend.services.atomize import pull_quotes, to_thread
 from sqlalchemy.orm import Session
@@ -192,13 +192,13 @@ async def list_posts(
         ):
             approval_by_post[row[0]] = row[1]
 
-    # Convert items to response schema (mode="json" ensures datetime serialization), then
-    # augment with the batched approval_status. This is a LIST-ONLY field (the endpoint returns
-    # an untyped dict) — deliberately NOT on the shared PostResponse, so the single-post
-    # endpoints don't advertise an approval field they don't populate.
+    # Serialize via PostListItem — the list-only schema that carries approval_status (a typed
+    # home for the field, kept OFF the shared PostResponse so single-post endpoints don't
+    # advertise an approval field they never fill). model_dump(mode="json") stays snake_case for
+    # byte-compat with existing list consumers.
     posts_data = []
     for p in items:
-        item = PostResponse.model_validate(p).model_dump(mode="json")
+        item = PostListItem.model_validate(p).model_dump(mode="json")
         item["approval_status"] = approval_by_post.get(p.id)
         posts_data.append(item)
 

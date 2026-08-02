@@ -123,3 +123,18 @@ class PostResponse(BaseModel):
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
         return value.isoformat()
+
+
+class PostListItem(PostResponse):
+    """A post as returned by the LIST endpoint, augmented with team-review state.
+
+    ``approval_status`` ("pending" | "approved" | "rejected", or None when never submitted for
+    review) lives ONLY here, not on the shared ``PostResponse`` — the single-post endpoints don't
+    populate it, so advertising it there would be a false "never submitted" signal. Keeping it on
+    a dedicated list schema gives the field a typed home (so a future refactor can't silently drop
+    it) while confining it to the one code path that fills it. The list endpoint serializes with
+    ``model_dump(mode="json")`` (snake_case, no ``by_alias``) to stay byte-compatible with the
+    existing list consumers — do NOT switch the list to a ``response_model`` (that flips the whole
+    payload to camelCase and breaks every current reader). See BUGS.md Decision #231."""
+
+    approval_status: Optional[str] = Field(default=None, serialization_alias="approvalStatus")
