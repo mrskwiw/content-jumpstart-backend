@@ -120,31 +120,28 @@ _FAQ_BOLD_Q_RE = re.compile(r"^\s*(?:\*\*|__)\s*(.*\?)\s*(?:\*\*|__)\s*$")
 _FAQ_Q_PREFIX_RE = re.compile(r"^\s*Q\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
 _FAQ_A_PREFIX_RE = re.compile(r"^\s*A\s*[:.)]\s+(.+?)\s*$", re.IGNORECASE)
 # Any markdown heading — a non-question heading ends the current answer (a new section starts).
-_ANY_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
-# An explicit "FAQ" / "Frequently Asked Questions" section marker: a heading of that name, or a
-# standalone (optionally bold) title line. This is the section-level gate that authorizes treating
-# question-phrased headings as FAQ entries — the FAQ analog of HowTo's procedural-headline gate.
+_HEADING_RE = re.compile(r"^\s*(#{1,6})\s+")
+# An explicit "FAQ" / "Frequently Asked Questions" section HEADING. This is the section-level gate
+# that authorizes treating question-phrased headings as FAQ entries — the FAQ analog of HowTo's
+# procedural-headline gate. Detection is SECTION-SCOPED (Decision #233): only question headings
+# that fall INSIDE this section count, so an FAQ footer can't retroactively mark up unrelated
+# question-phrased headers elsewhere in the article.
 _FAQ_SECTION_HEADING_RE = re.compile(
     r"^\s*#{1,6}\s*(?:frequently\s+asked\s+questions|faqs?)\b", re.IGNORECASE
 )
 
 
-def _has_faq_section(content: str) -> bool:
-    """Whether the post explicitly labels an FAQ section (heading or standalone title line)."""
-    for raw in content.splitlines():
-        if _FAQ_SECTION_HEADING_RE.match(raw):
-            return True
-        stripped = raw.strip().strip("*_").strip()  # a bold/plain standalone "FAQ" title line
-        if stripped.lower() in ("faq", "faqs", "frequently asked questions"):
-            return True
-    return False
+def _heading_level(line: str) -> Optional[int]:
+    """Markdown heading depth (number of ``#``) for ``line``, or None if it isn't a heading."""
+    m = _HEADING_RE.match(line)
+    return len(m.group(1)) if m else None
 
 
 def _match_faq_question(line: str, *, allow_heading: bool) -> Optional[str]:
     """Return the question text if ``line`` is a structural FAQ question marker, else None.
 
-    Heading/bold ``?`` forms are only treated as questions when ``allow_heading`` is True (i.e. the
-    post has an explicit FAQ section); the ``Q:`` prefix is unambiguous and always honored.
+    Heading/bold ``?`` forms are only treated as questions when ``allow_heading`` is True (i.e. we
+    are inside an explicit FAQ section); the ``Q:`` prefix is unambiguous and always honored.
     """
     if allow_heading:
         for rx in (_FAQ_HEADING_Q_RE, _FAQ_BOLD_Q_RE):
@@ -157,35 +154,61 @@ def _match_faq_question(line: str, *, allow_heading: bool) -> Optional[str]:
     return None
 
 
-def _extract_faq_pairs(content: str, *, allow_heading_questions: bool) -> List[Tuple[str, str]]:
+def _extract_faq_pairs(content: str) -> List[Tuple[str, str]]:
     """Deterministically extract (question, answer) pairs from an explicit FAQ structure.
 
-    A question is a structural marker line (``Q:`` always; heading / bold-only only when
-    ``allow_heading_questions`` — i.e. an explicit FAQ section is present). Its answer is the
-    following non-empty content up to the next question or the next heading (a new section). A
-    leading ``A:`` marker on the first answer line is stripped. Pairs whose answer is empty are
-    dropped, so ``## Ready to start?`` immediately followed by another heading contributes nothing.
-    Fuzzy prose is NOT parsed.
+    Detection is SECTION-SCOPED: heading/bold ``?`` questions count ONLY while inside an explicit
+    FAQ section (opened by ``## FAQ`` / ``## Frequently Asked Questions``, closed by the next
+    non-question heading at the same or a higher level). ``Q:`` pairs are unambiguous and honored
+    anywhere. An answer is the following non-empty content up to the next question or heading; a
+    leading ``A:`` marker on the first answer line is stripped. Answer-less questions are dropped
+    (``## Ready to start?`` then another heading contributes nothing). Fuzzy prose is NOT parsed.
     """
     lines = content.splitlines()
     pairs: List[Tuple[str, str]] = []
     i, n = 0, len(lines)
+    faq_level: Optional[int] = None  # heading depth that opened the current FAQ section, else None
     while i < n:
-        question = _match_faq_question(lines[i], allow_heading=allow_heading_questions)
+        line = lines[i]
+
+        # Enter an FAQ section on its heading.
+        if _FAQ_SECTION_HEADING_RE.match(line):
+            faq_level = _heading_level(line)
+            i += 1
+            continue
+
+        # Inside a section, a non-question heading at the same/higher level closes it.
+        level = _heading_level(line)
+        if (
+            faq_level is not None
+            and level is not None
+            and level <= faq_level
+            and _match_faq_question(line, allow_heading=True) is None
+        ):
+            faq_level = None
+            i += 1
+            continue
+
+        in_section = faq_level is not None
+        question = _match_faq_question(line, allow_heading=in_section)
         if question is None:
             i += 1
             continue
+
         i += 1
         answer_parts: List[str] = []
         while i < n:
-            # A subsequent question or any (non-question) heading ends this answer.
-            if _match_faq_question(
-                lines[i], allow_heading=allow_heading_questions
-            ) is not None or _ANY_HEADING_RE.match(lines[i]):
+            nxt = lines[i]
+            # A subsequent question, an FAQ-section heading, or any heading ends this answer.
+            if (
+                _FAQ_SECTION_HEADING_RE.match(nxt)
+                or _match_faq_question(nxt, allow_heading=in_section) is not None
+                or _HEADING_RE.match(nxt)
+            ):
                 break
-            stripped = lines[i].strip()
+            stripped = nxt.strip()
             if stripped:
-                a = _FAQ_A_PREFIX_RE.match(lines[i])
+                a = _FAQ_A_PREFIX_RE.match(nxt)
                 # Strip an "A:" marker only when it opens the answer (first captured line).
                 answer_parts.append(a.group(1).strip() if a and not answer_parts else stripped)
             i += 1
@@ -277,7 +300,7 @@ def _blog_faq_jsonld_block(post: Post, client: Client) -> List[str]:
     platform = (post.target_platform or "").lower()
     if platform != "blog" or not post.content:
         return []
-    pairs = _extract_faq_pairs(post.content, allow_heading_questions=_has_faq_section(post.content))
+    pairs = _extract_faq_pairs(post.content)
     if len(pairs) < 2:
         return []
     data = faq_jsonld(pairs)

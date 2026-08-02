@@ -334,6 +334,42 @@ def test_faq_block_skipped_for_narrative_question_headings_without_faq_section()
     assert _blog_faq_jsonld_block(_make_post(narrative), _make_client()) == []
 
 
+def test_faq_only_marks_questions_inside_the_faq_section():
+    # Section-scoped (Decision #233): a post with narrative question headings BEFORE a real FAQ
+    # section must mark up ONLY the in-section questions, never the earlier narrative headers.
+    content = (
+        "The Future of Marketing\n\n"
+        "## Why does this matter?\n\n"
+        "Because attention is scarce and trust compounds over time.\n\n"
+        "## What comes next?\n\n"
+        "Brands adapt or fade.\n\n"
+        "## Frequently Asked Questions\n\n"
+        "## Is it expensive?\n\n"
+        "No — it reuses your existing content pipeline.\n\n"
+        "## How long does setup take?\n\n"
+        "About an afternoon for a first campaign.\n"
+    )
+    data = _jsonld_from("\n".join(_blog_faq_jsonld_block(_make_post(content), _make_client())))
+    names = [q["name"] for q in data["mainEntity"]]
+    # Only the two in-section questions — the narrative headers are excluded.
+    assert names == ["Is it expensive?", "How long does setup take?"]
+
+
+def test_faq_section_closes_at_same_level_non_question_heading():
+    # A non-question heading at the FAQ section's level closes it: later question headings in a
+    # DIFFERENT section are not part of the FAQ and must not be marked up.
+    content = (
+        "## FAQ\n\n"
+        "## What is included?\n\n"
+        "Everything in your plan.\n\n"
+        "## Testimonials\n\n"  # same level, non-question → closes the FAQ section
+        "## Why do customers love us?\n\n"  # now OUTSIDE the FAQ section → ignored
+        "Because it works.\n"
+    )
+    # Only one in-section pair remains → below the ≥2 threshold → no block at all.
+    assert _blog_faq_jsonld_block(_make_post(content), _make_client()) == []
+
+
 def test_faq_block_skipped_for_rhetorical_prose_questions():
     # Questions buried in a paragraph are NOT structural FAQ markers — must not emit FAQPage.
     prose = (
@@ -362,13 +398,14 @@ def test_faq_block_skipped_for_non_blog():
     assert _blog_faq_jsonld_block(_make_post(_FAQ_BLOG, platform="linkedin"), _make_client()) == []
 
 
-def test_faq_answer_stops_at_next_section_heading():
-    # The answer must not bleed past a new (non-question) section heading.
+def test_faq_answer_stops_at_heading_but_deeper_subheading_keeps_section_open():
+    # The answer must not bleed past a heading; a DEEPER (level-3) non-question sub-heading ends
+    # the answer but does NOT close the FAQ section, so the following level-2 question still counts.
     content = (
         "## FAQ\n\n"
         "## What is GEO?\n\n"
         "A short definition.\n\n"
-        "## Unrelated Section\n\n"
+        "### Aside\n\n"
         "Body that is not part of any answer.\n\n"
         "## Does it help?\n\n"
         "Yes it does, measurably.\n"
