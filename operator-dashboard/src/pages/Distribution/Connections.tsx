@@ -53,6 +53,10 @@ export default function Connections() {
   // one, client_id=null) — under the backend's (user_id, client_id, platform) unique
   // constraint. So we list credentials flat and label each by its client.
   const allCreds = creds.data ?? [];
+  // A (platform, client) pair that already has a credential must not launch a fresh OAuth
+  // flow (would duplicate or hard-fail against the (user_id, client_id, platform) unique
+  // constraint). Key account-level creds (client_id null) as an empty scope.
+  const connectedKeys = new Set(allCreds.map((c) => `${c.platform}::${c.client_id ?? ''}`));
 
   return (
     <div className="space-y-6">
@@ -105,32 +109,38 @@ export default function Connections() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {platforms.map((platform) => {
           const canConnect = configured.has(platform);
+          // Already connected for the CURRENTLY selected client scope?
+          const scopeConnected = connectedKeys.has(`${platform}::${connectClientId}`);
           return (
             <Card key={platform}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{PLATFORM_LABELS[platform] ?? platform}</CardTitle>
-                  <Badge variant={canConnect ? 'secondary' : 'default'}>
-                    {canConnect ? 'Available' : 'Not configured'}
+                  <Badge
+                    variant={scopeConnected ? 'success' : canConnect ? 'secondary' : 'default'}
+                  >
+                    {scopeConnected ? 'Connected' : canConnect ? 'Available' : 'Not configured'}
                   </Badge>
                 </div>
                 <CardDescription>
-                  {canConnect
-                    ? `Connect for ${clientName(connectClientId || null)}`
-                    : 'Set this platform’s app credentials on the server to enable it.'}
+                  {!canConnect
+                    ? 'Set this platform’s app credentials on the server to enable it.'
+                    : scopeConnected
+                      ? `${clientName(connectClientId || null)} is already connected — see below to manage or disconnect.`
+                      : `Connect for ${clientName(connectClientId || null)}`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <Button
                   size="sm"
-                  disabled={!canConnect}
+                  disabled={!canConnect || scopeConnected}
                   loading={startConnect.isPending && startConnect.variables === platform}
                   onClick={() => {
                     setParams({});
                     startConnect.mutate(platform);
                   }}
                 >
-                  Connect
+                  {scopeConnected ? 'Connected' : 'Connect'}
                 </Button>
               </CardContent>
             </Card>

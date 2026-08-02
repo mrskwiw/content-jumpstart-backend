@@ -34,6 +34,7 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     dist.oauthStart.mockResolvedValue('https://oauth/authorize');
     clients.list.mockResolvedValue([
       { id: 'c1', name: 'Acme', businessDescription: '', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 'c2', name: 'Globex', businessDescription: '', createdAt: '2026-01-01T00:00:00Z' },
     ] as never);
   });
 
@@ -41,10 +42,10 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     const { wrapper } = renderWithProviders();
     render(<Connections />, { wrapper });
 
-    // Pick a client for the new connection.
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Acme' })).toBeInTheDocument());
+    // Pick Globex — which has NO existing LinkedIn credential, so Connect is available.
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText(/connect a new account for/i), {
-      target: { value: 'c1' },
+      target: { value: 'c2' },
     });
 
     // Click the (only enabled) Connect button — LinkedIn is configured.
@@ -52,7 +53,26 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     const enabled = connectBtns.find((b) => !(b as HTMLButtonElement).disabled)!;
     fireEvent.click(enabled);
 
-    await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c1'));
+    await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c2'));
+  });
+
+  it('does not start a fresh OAuth for an already-connected platform/client pair', async () => {
+    const { wrapper } = renderWithProviders();
+    render(<Connections />, { wrapper });
+
+    // Select Acme — which already has a LinkedIn credential (cr1).
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Acme' })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/connect a new account for/i), {
+      target: { value: 'c1' },
+    });
+
+    // The LinkedIn card now shows "Connected" and its button is disabled.
+    await waitFor(() => {
+      const connectedBtn = screen.getByRole('button', { name: 'Connected' });
+      expect(connectedBtn).toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connected' }));
+    expect(dist.oauthStart).not.toHaveBeenCalled();
   });
 
   it('labels each existing credential with its client', async () => {
