@@ -170,6 +170,10 @@ export default function Connections() {
         })}
       </div>
 
+      {/* Bluesky uses AT Protocol app-password auth (no OAuth), so it's connected here
+          via the manual credential API rather than the OAuth grid above. */}
+      <BlueskyConnect clientId={connectClientId} clientLabel={clientName(connectClientId || null)} />
+
       {/* Existing connections, one row per credential, labeled by client. */}
       <div>
         <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -240,5 +244,98 @@ function AccountRef({ cred }: { cred: PlatformCredential }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Bluesky (AT Protocol) authenticates with a handle + app password, not OAuth, so it
+ * can't use the OAuth connect grid. Store the app password as the credential's access
+ * token and the handle as its account_ref, scoped to the currently selected client.
+ * save_credential is an upsert, so re-submitting rotates the app password for that scope.
+ */
+function BlueskyConnect({ clientId, clientLabel }: { clientId: string; clientLabel: string }) {
+  const qc = useQueryClient();
+  const [handle, setHandle] = useState('');
+  const [appPassword, setAppPassword] = useState('');
+
+  const connect = useMutation({
+    mutationFn: () =>
+      distributionApi.connect({
+        platform: 'bluesky',
+        access_token: appPassword.trim(),
+        account_ref: handle.trim(),
+        client_id: clientId || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['credentials'] });
+      setHandle('');
+      setAppPassword('');
+    },
+  });
+
+  // Handle + app password are both required; the app password must be an app-specific
+  // password (Settings → App passwords in Bluesky), never the account password.
+  const canSubmit = handle.trim().length > 0 && appPassword.trim().length > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>{PLATFORM_LABELS.bluesky}</CardTitle>
+          <Badge variant="secondary">App password</Badge>
+        </div>
+        <CardDescription>
+          Connect for {clientLabel}. Bluesky uses an app password, not OAuth — create one in
+          Bluesky under Settings → App passwords, then paste your handle and that password here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <div className="space-y-1">
+            <label htmlFor="bsky-handle" className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              Handle
+            </label>
+            <Input
+              id="bsky-handle"
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="you.bsky.social"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="bsky-app-pw" className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              App password
+            </label>
+            <Input
+              id="bsky-app-pw"
+              type="password"
+              value={appPassword}
+              onChange={(e) => setAppPassword(e.target.value)}
+              placeholder="xxxx-xxxx-xxxx-xxxx"
+              autoComplete="off"
+            />
+          </div>
+          <Button
+            size="sm"
+            disabled={!canSubmit}
+            loading={connect.isPending}
+            onClick={() => connect.mutate()}
+          >
+            Connect
+          </Button>
+        </div>
+        {connect.isError && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+            Couldn’t connect — check the handle and app password and try again.
+          </p>
+        )}
+        {connect.isSuccess && (
+          <p className="mt-2 text-xs text-green-600 dark:text-green-400">
+            Bluesky connected for {clientLabel}.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

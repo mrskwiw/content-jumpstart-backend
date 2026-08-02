@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Connections from '@/pages/Distribution/Connections';
 import { distributionApi } from '@/api/distribution';
 import { clientsApi } from '@/api/clients';
@@ -11,6 +11,7 @@ jest.mock('@/api/distribution', () => ({
     oauthStart: jest.fn(),
     deleteCredential: jest.fn(),
     patchCredential: jest.fn(),
+    connect: jest.fn(),
   },
 }));
 jest.mock('@/api/clients', () => ({ clientsApi: { list: jest.fn() } }));
@@ -90,6 +91,62 @@ describe('Distribution Connections — per-client OAuth (MULTICLIENT-01)', () =>
     expect(reconnect).not.toBeDisabled();
     fireEvent.click(reconnect);
     await waitFor(() => expect(dist.oauthStart).toHaveBeenCalledWith('linkedin', 'c1'));
+  });
+
+  it('connects Bluesky via app password, scoped to the selected client', async () => {
+    dist.connect.mockResolvedValue({
+      id: 'bs1',
+      platform: 'bluesky',
+      client_id: 'c2',
+      account_ref: 'me.bsky.social',
+      is_active: true,
+    });
+    const { wrapper } = renderWithProviders();
+    render(<Connections />, { wrapper });
+
+    // Scope the new connection to Globex.
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Globex' })).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/connect a new account for/i), {
+      target: { value: 'c2' },
+    });
+
+    // Fill the Bluesky app-password form and submit.
+    fireEvent.change(screen.getByLabelText(/handle/i), {
+      target: { value: 'me.bsky.social' },
+    });
+    fireEvent.change(screen.getByLabelText(/app password/i), {
+      target: { value: 'abcd-efgh-ijkl-mnop' },
+    });
+    // Target the Bluesky card's own Connect button (scoped to its input grid) so we don't
+    // accidentally click an OAuth-grid Connect that's also enabled at this scope.
+    const grid = screen.getByLabelText(/app password/i).closest('div.grid') as HTMLElement;
+    fireEvent.click(within(grid).getByRole('button', { name: 'Connect' }));
+
+    await waitFor(() =>
+      expect(dist.connect).toHaveBeenCalledWith({
+        platform: 'bluesky',
+        access_token: 'abcd-efgh-ijkl-mnop',
+        account_ref: 'me.bsky.social',
+        client_id: 'c2',
+      }),
+    );
+  });
+
+  it('disables the Bluesky Connect until handle + app password are provided', async () => {
+    const { wrapper } = renderWithProviders();
+    render(<Connections />, { wrapper });
+
+    // Scope to the Bluesky card's grid (contains both inputs + its Connect button) so the
+    // assertion is about the Bluesky button specifically, not the OAuth-grid Connects.
+    await waitFor(() => expect(screen.getByLabelText(/app password/i)).toBeInTheDocument());
+    const grid = screen.getByLabelText(/app password/i).closest('div.grid') as HTMLElement;
+    const bskyConnect = within(grid).getByRole('button', { name: 'Connect' });
+
+    expect(bskyConnect).toBeDisabled(); // both fields empty
+    fireEvent.change(screen.getByLabelText(/handle/i), { target: { value: 'me.bsky.social' } });
+    expect(bskyConnect).toBeDisabled(); // handle only — still incomplete
+    fireEvent.change(screen.getByLabelText(/app password/i), { target: { value: 'pw' } });
+    expect(bskyConnect).not.toBeDisabled(); // both provided
   });
 
   it('labels each existing credential with its client', async () => {
