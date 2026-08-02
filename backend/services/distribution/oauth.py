@@ -371,13 +371,15 @@ def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
     self-renew and would die silently at publish time — a failed connect is visible and
     retryable, a doomed credential is not.
 
-    Retries are limited to failures that PROVABLY happened before the request reached Threads
-    (connection errors / connect-timeouts), so a brief network blip doesn't waste the user's
-    completed consent. We do NOT retry ambiguous outcomes (5xx, 429, read-timeout, malformed
-    2xx) or definitive ones (4xx): the exchange has a side effect, and replaying a request the
-    server may already have processed could mint a second credential or fail terminally after
-    the grant was consumed. The single-use OAuth *code* grant is never retried at all (it runs
-    once in exchange_code via _post_token). See BUGS.md Decision #230.
+    Retries are limited to a CONNECT-TIMEOUT — the only failure that proves the request was
+    never transmitted (the connection never established), so replay is safe — so a brief blip
+    doesn't waste the user's completed consent. Every other outcome fails closed WITHOUT replay:
+    a broader connection error (a post-send socket/SSL/proxy drop), a read-timeout, a 5xx/429,
+    or a malformed 2xx are all AMBIGUOUS (Threads may already have processed the exchange), and
+    a 4xx is definitive. Replaying a possibly-processed, side-effectful exchange could mint a
+    second credential or fail terminally after the grant was consumed. The single-use OAuth
+    *code* grant is never retried at all (it runs once in exchange_code via _post_token).
+    See BUGS.md Decision #230 (availability-vs-replay-safety call: replay-safety wins).
     """
     import time
 
@@ -393,16 +395,15 @@ def _threads_long_lived(provider: OAuthProvider, token: Dict) -> Dict:
                 },
                 timeout=_HTTP_TIMEOUT,
             )
-        except requests.ConnectionError as e:
-            # The connection never established (DNS/refused/reset) or timed out while
-            # connecting — the request provably did NOT reach Threads, so it's safe to retry
-            # without replaying a possibly-processed exchange. (ConnectTimeout is a subclass.)
+        except requests.exceptions.ConnectTimeout as e:
+            # Timed out establishing the connection → the request was never transmitted, so it
+            # is safe to retry without replaying a possibly-processed exchange.
             last_err = OAuthError(f"Threads long-lived token exchange failed: {e}")
             if attempt < _THREADS_EXCHANGE_ATTEMPTS - 1:
                 time.sleep(_THREADS_EXCHANGE_BACKOFF_SECONDS)
             continue
         except requests.RequestException as e:
-            # Any other transport failure (e.g. a read-timeout after the request was sent) is
+            # Any other transport failure (post-send connection/SSL drop, read-timeout) is
             # AMBIGUOUS — Threads may have processed it — so do NOT replay; fail closed.
             raise OAuthError(f"Threads long-lived token exchange failed: {e}") from e
         if resp.status_code < 400:
