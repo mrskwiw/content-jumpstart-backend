@@ -123,4 +123,31 @@ describe('Calendar Page', () => {
     // the abandoned publish state stays visible for cleanup (count = 1, the instagram row).
     expect(screen.getByTitle(/exhausted their retries/i)).toHaveTextContent('1');
   });
+
+  it('keeps the gave-up cleanup bucket visible even when the Posts filter is toggled off', async () => {
+    mockedQueue.mockResolvedValue([
+      {
+        id: 'sp1',
+        platform: 'instagram',
+        content: 'Post that exhausted its retries',
+        status: 'failed',
+        scheduled_for: '2026-02-13T12:00:00Z',
+        posted_at: null,
+        platform_url: null,
+        error_message: 'still failing',
+        retry_count: 3,
+        is_active: false,
+      },
+    ]);
+
+    renderWithProviders(<Calendar />);
+    await waitFor(() =>
+      expect(screen.getByTitle(/exhausted their retries/i)).toHaveTextContent('1')
+    );
+
+    // Toggle the 'post' event-type filter OFF — the cleanup signal is a persistent alert, not
+    // a filtered view, so it must NOT vanish (it's computed from the unfiltered event set).
+    fireEvent.click(screen.getByText('Posts'));
+    expect(screen.getByTitle(/exhausted their retries/i)).toHaveTextContent('1');
+  });
 });

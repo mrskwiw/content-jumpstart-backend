@@ -177,10 +177,12 @@ export default function Calendar() {
 
   // Exhausted failures ("gave up") — kept OUT of the actionable count but surfaced as their
   // own bucket so an abandoned publish state stays visible for cleanup (Decision #220) rather
-  // than making the dashboard look clean/empty when retries are actually done.
+  // than making the dashboard look clean/empty when retries are actually done. Deliberately
+  // computed from the UNFILTERED events (not filteredEvents) so this cleanup signal doesn't
+  // vanish when the operator toggles the 'post' event-type filter off.
   const abandonedCount = useMemo(
-    () => filteredEvents.filter(e => e.type === 'post' && !isActionablePost(e)).length,
-    [filteredEvents]
+    () => events.filter(e => e.type === 'post' && !isActionablePost(e)).length,
+    [events]
   );
 
   // Toggle event type filter
