@@ -16,7 +16,7 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
-from backend.services.geo import article_jsonld, faq_jsonld, howto_jsonld
+from backend.services.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
 from backend.utils.logger import logger
 
 # An explicit numbered/"Step N" list line — the deterministic signal that a blog post is a
@@ -284,6 +284,65 @@ def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
         "the steps.",
         _jsonld_script(data),
     )
+
+
+def _opening_answer_block(content: str) -> str:
+    """The first prose paragraph AFTER the headline — the AEO "answer block" candidate.
+
+    AI answer engines preferentially extract a short, self-contained answer positioned right
+    below the title. Returns that paragraph (lines joined) or "" if none is found. Headings and
+    the headline itself are skipped; the paragraph ends at the first blank line or heading.
+    """
+    lines = content.splitlines()
+    n = len(lines)
+    i = 0
+    while i < n and not lines[i].strip():  # skip leading blanks
+        i += 1
+    if i < n:  # skip the headline line itself
+        i += 1
+    while i < n and not lines[i].strip():  # skip blanks after the headline
+        i += 1
+    para: List[str] = []
+    while i < n:
+        line = lines[i]
+        if not line.strip() or _HEADING_RE.match(line):  # paragraph ends at a blank / new heading
+            break
+        para.append(line.strip())
+        i += 1
+    return " ".join(para).strip()
+
+
+def _blog_answer_block_advisory(post: Post, client: Client) -> List[str]:
+    """Advisory GEO hint on the blog post's opening answer block length (GEO-01).
+
+    Uses ``check_answer_block`` to tell operators whether the first paragraph is the ~40–60-word
+    self-contained answer AI engines prefer to extract. Advisory only — never gates delivery, and
+    a no-op for non-blog posts or when no opening paragraph can be found.
+    """
+    platform = (post.target_platform or "").lower()
+    if platform != "blog" or not post.content:
+        return []
+    opening = _opening_answer_block(post.content)
+    if not opening:
+        return []
+    result = check_answer_block(opening)
+    words = result.word_count
+    if result.ok:
+        note = (
+            f"✅ Your opening answer block is {words} words — inside the 40–60-word range "
+            "AI answer engines prefer to extract."
+        )
+    elif words < 40:
+        note = (
+            f"⚠ Your opening answer block is {words} words — under 40. Expand the first paragraph "
+            "into a self-contained ~40–60-word answer so AI answer engines can quote it directly."
+        )
+    else:
+        note = (
+            f"⚠ Your opening answer block is {words} words — over 60. Tighten the first paragraph "
+            "to a self-contained ~40–60-word answer for cleaner AI-answer extraction."
+        )
+    return ["#### GEO Answer Block (advisory)", "", "*" + note + "*", ""]
 
 
 def _blog_faq_jsonld_block(post: Post, client: Client) -> List[str]:
@@ -645,6 +704,9 @@ async def _generate_markdown(
         lines.extend(_blog_geo_jsonld_block(post, client))
         lines.extend(_blog_howto_jsonld_block(post, client))
         lines.extend(_blog_faq_jsonld_block(post, client))
+        # Advisory (not structured data): flag whether the opening answer block is the
+        # ~40-60-word length AI answer engines prefer to extract.
+        lines.extend(_blog_answer_block_advisory(post, client))
 
         # Separator
         lines.append("---")

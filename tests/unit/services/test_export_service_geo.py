@@ -6,6 +6,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from backend.services.export_service import (
+    _blog_answer_block_advisory,
     _blog_faq_jsonld_block,
     _blog_geo_jsonld_block,
     _blog_howto_jsonld_block,
@@ -413,6 +414,81 @@ def test_faq_answer_stops_at_heading_but_deeper_subheading_keeps_section_open():
     data = _jsonld_from("\n".join(_blog_faq_jsonld_block(_make_post(content), _make_client())))
     assert [q["name"] for q in data["mainEntity"]] == ["What is GEO?", "Does it help?"]
     assert data["mainEntity"][0]["acceptedAnswer"]["text"] == "A short definition."
+
+
+# --- Answer-block advisory (GEO-01 check_answer_block wired into blog exports) --------
+
+
+def _blog_with_opening(word_count: int) -> str:
+    """A blog post whose opening paragraph (after the title) has exactly ``word_count`` words."""
+    body = " ".join(f"word{i}" for i in range(word_count))
+    return f"My Blog Title\n\n{body}\n"
+
+
+def test_answer_block_advisory_ok_for_in_range_opening():
+    block = _blog_answer_block_advisory(_make_post(_blog_with_opening(50)), _make_client())
+    joined = "\n".join(block)
+    assert "GEO Answer Block (advisory)" in joined
+    assert "50 words" in joined
+    assert "✅" in joined
+
+
+def test_answer_block_advisory_flags_too_short():
+    joined = "\n".join(
+        _blog_answer_block_advisory(_make_post(_blog_with_opening(20)), _make_client())
+    )
+    assert "20 words" in joined
+    assert "under 40" in joined
+    assert "⚠" in joined
+
+
+def test_answer_block_advisory_flags_too_long():
+    joined = "\n".join(
+        _blog_answer_block_advisory(_make_post(_blog_with_opening(80)), _make_client())
+    )
+    assert "80 words" in joined
+    assert "over 60" in joined
+    assert "⚠" in joined
+
+
+def test_answer_block_advisory_skips_non_blog():
+    post = _make_post(_blog_with_opening(50), platform="linkedin")
+    assert _blog_answer_block_advisory(post, _make_client()) == []
+
+
+def test_answer_block_advisory_skips_when_no_opening_paragraph():
+    # Title only, or a heading straight after the title → no prose answer block → no advisory.
+    assert _blog_answer_block_advisory(_make_post("Just A Title\n"), _make_client()) == []
+    assert (
+        _blog_answer_block_advisory(_make_post("Title\n\n## Section\n\nBody.\n"), _make_client())
+        == []
+    )
+
+
+def test_answer_block_advisory_is_advisory_not_gating():
+    # It's a hint block, never a <script>/structured-data or a pass/fail gate.
+    joined = "\n".join(
+        _blog_answer_block_advisory(_make_post(_blog_with_opening(20)), _make_client())
+    )
+    assert _OPEN not in joined  # not JSON-LD
+
+
+def test_markdown_export_includes_answer_block_advisory_for_blog():
+    out_path, _ = _run(
+        generate_export_file(
+            posts=[_make_post(_blog_with_opening(50))],
+            client=_make_client(),
+            project=_make_project(),
+            format="md",
+            relative_path="Acme Co/answerblock.md",
+        )
+    )
+    try:
+        text = out_path.read_text(encoding="utf-8")
+        assert "GEO Answer Block (advisory)" in text
+        assert "50 words" in text
+    finally:
+        out_path.unlink(missing_ok=True)
 
 
 def test_markdown_export_embeds_faq_and_article_for_qa_blog():
