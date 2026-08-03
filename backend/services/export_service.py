@@ -286,22 +286,37 @@ def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
     )
 
 
-def _opening_answer_block(content: str) -> str:
-    """The first prose paragraph AFTER the headline — the AEO "answer block" candidate.
+def _looks_like_headline(line: str) -> bool:
+    """Whether ``line`` reads as a title (skippable) rather than the lead answer paragraph.
 
-    AI answer engines preferentially extract a short, self-contained answer positioned right
-    below the title. Returns that paragraph (lines joined) or "" if none is found. Headings and
-    the headline itself are skipped; the paragraph ends at the first blank line or heading.
+    A markdown heading, or a short line with no sentence-ending punctuation. This keeps
+    ``_opening_answer_block`` from blindly skipping a genuine lead paragraph on posts that open
+    with prose instead of a dedicated headline (otherwise the answer-block check would evaluate
+    the wrong paragraph, or nothing).
+    """
+    stripped = line.strip()
+    if _HEADING_RE.match(line):
+        return True
+    return len(stripped.split()) <= 12 and not stripped.endswith((".", "!", "?", ":", ";"))
+
+
+def _opening_answer_block(content: str) -> str:
+    """The lead prose paragraph — the AEO "answer block" candidate.
+
+    AI answer engines preferentially extract a short, self-contained answer positioned near the
+    top. The candidate is the first prose paragraph; a leading title line is skipped ONLY when it
+    reads like a headline (``_looks_like_headline``), so a post that opens directly with prose is
+    still evaluated correctly. Returns "" if no prose paragraph is found (→ no advisory).
     """
     lines = content.splitlines()
     n = len(lines)
     i = 0
     while i < n and not lines[i].strip():  # skip leading blanks
         i += 1
-    if i < n:  # skip the headline line itself
+    if i < n and _looks_like_headline(lines[i]):  # skip the headline line only if it looks like one
         i += 1
-    while i < n and not lines[i].strip():  # skip blanks after the headline
-        i += 1
+        while i < n and not lines[i].strip():  # skip blanks after the headline
+            i += 1
     para: List[str] = []
     while i < n:
         line = lines[i]

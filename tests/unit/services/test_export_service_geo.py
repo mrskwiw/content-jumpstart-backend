@@ -451,6 +451,15 @@ def test_answer_block_advisory_flags_too_long():
     assert "⚠" in joined
 
 
+def test_answer_block_advisory_evaluates_lead_prose_when_no_title():
+    # A post that opens directly with a long prose paragraph (no separate headline) must be
+    # evaluated as the answer block itself, not blindly skipped as if line 1 were a title.
+    body = " ".join(f"word{i}" for i in range(50)) + "."  # 50-word sentence (ends with a period)
+    joined = "\n".join(_blog_answer_block_advisory(_make_post(body + "\n"), _make_client()))
+    assert "50 words" in joined
+    assert "✅" in joined
+
+
 def test_answer_block_advisory_skips_non_blog():
     post = _make_post(_blog_with_opening(50), platform="linkedin")
     assert _blog_answer_block_advisory(post, _make_client()) == []
