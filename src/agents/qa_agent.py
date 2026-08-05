@@ -3,6 +3,7 @@
 from typing import List, Optional
 
 from ..analysis.content_intelligence import assess_post
+from ..analysis.geo import check_answer_block, opening_answer_block
 from ..config.template_rules import ClientType
 from ..models.post import Post
 from ..models.qa_report import QAReport
@@ -161,6 +162,9 @@ class QAAgent:
         # Advisory pre-publish engagement prediction (does not affect pass/fail)
         engagement_prediction = self._predict_engagement_summary(posts)
 
+        # Advisory GEO answer-block readiness across blog posts (does not affect pass/fail)
+        answer_block_geo = self._answer_block_summary(posts)
+
         # Create report
         report = QAReport(
             client_name=client_name,
@@ -175,6 +179,7 @@ class QAAgent:
             seo_validation=seo_results if not seo_results.get("skipped", False) else None,
             citation_validation=citation_results if citation_results["posts_flagged"] > 0 else None,
             engagement_prediction=engagement_prediction,
+            answer_block_geo=answer_block_geo,
             total_issues=len(all_issues),
             all_issues=all_issues,
         )
@@ -227,6 +232,30 @@ class QAAgent:
             "weak_floor": self._ENGAGEMENT_WEAK_FLOOR,
             "total": len(scores),
         }
+
+    def _answer_block_summary(self, posts: "List[Post]") -> Optional[dict]:
+        """Advisory GEO answer-block readiness across the batch's BLOG posts (GEO-01).
+
+        For each blog post, checks whether the opening paragraph is the ~40-60-word
+        self-contained answer AI answer engines prefer to extract (``check_answer_block``).
+        Answer blocks are blog-specific — social posts have none — so this returns None when
+        the batch has no blog posts. Purely informational: surfaced in the QA report, never
+        gates pass/fail (mirrors the engagement prediction). A missing/empty opening counts as
+        "not well-formed".
+        """
+        total = 0
+        ok = 0
+        for post in posts:
+            platform = post.target_platform.value if post.target_platform else ""
+            if platform != "blog" or not post.content:
+                continue
+            total += 1
+            opening = opening_answer_block(post.content)
+            if opening and check_answer_block(opening).ok:
+                ok += 1
+        if total == 0:
+            return None
+        return {"total": total, "ok_count": ok, "weak_count": total - ok}
 
     def _check_stat_conflicts(self, posts: "List[Post]") -> "List[str]":
         """Detect contradictory percentage claims on the same topic (Bug #143).

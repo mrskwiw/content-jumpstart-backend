@@ -16,7 +16,13 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
-from src.analysis.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
+from src.analysis.geo import (
+    article_jsonld,
+    check_answer_block,
+    faq_jsonld,
+    howto_jsonld,
+    opening_answer_block,
+)
 from backend.utils.logger import logger
 
 # An explicit numbered/"Step N" list line — the deterministic signal that a blog post is a
@@ -286,47 +292,6 @@ def _blog_howto_jsonld_block(post: Post, client: Client) -> List[str]:
     )
 
 
-def _looks_like_headline(line: str) -> bool:
-    """Whether ``line`` reads as a title (skippable) rather than the lead answer paragraph.
-
-    A markdown heading, or a short line with no sentence-ending punctuation. This keeps
-    ``_opening_answer_block`` from blindly skipping a genuine lead paragraph on posts that open
-    with prose instead of a dedicated headline (otherwise the answer-block check would evaluate
-    the wrong paragraph, or nothing).
-    """
-    stripped = line.strip()
-    if _HEADING_RE.match(line):
-        return True
-    return len(stripped.split()) <= 12 and not stripped.endswith((".", "!", "?", ":", ";"))
-
-
-def _opening_answer_block(content: str) -> str:
-    """The lead prose paragraph — the AEO "answer block" candidate.
-
-    AI answer engines preferentially extract a short, self-contained answer positioned near the
-    top. The candidate is the first prose paragraph; a leading title line is skipped ONLY when it
-    reads like a headline (``_looks_like_headline``), so a post that opens directly with prose is
-    still evaluated correctly. Returns "" if no prose paragraph is found (→ no advisory).
-    """
-    lines = content.splitlines()
-    n = len(lines)
-    i = 0
-    while i < n and not lines[i].strip():  # skip leading blanks
-        i += 1
-    if i < n and _looks_like_headline(lines[i]):  # skip the headline line only if it looks like one
-        i += 1
-        while i < n and not lines[i].strip():  # skip blanks after the headline
-            i += 1
-    para: List[str] = []
-    while i < n:
-        line = lines[i]
-        if not line.strip() or _HEADING_RE.match(line):  # paragraph ends at a blank / new heading
-            break
-        para.append(line.strip())
-        i += 1
-    return " ".join(para).strip()
-
-
 def _blog_answer_block_advisory(post: Post, client: Client) -> List[str]:
     """Advisory GEO hint on the blog post's opening answer block length (GEO-01).
 
@@ -337,7 +302,7 @@ def _blog_answer_block_advisory(post: Post, client: Client) -> List[str]:
     platform = (post.target_platform or "").lower()
     if platform != "blog" or not post.content:
         return []
-    opening = _opening_answer_block(post.content)
+    opening = opening_answer_block(post.content)
     if not opening:
         return []
     result = check_answer_block(opening)

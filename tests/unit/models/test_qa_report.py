@@ -239,6 +239,31 @@ class TestQAReport:
         assert passing_qa_report.engagement_prediction is None
         assert "Predicted Engagement" not in passing_qa_report.to_markdown()
 
+    def test_to_markdown_renders_answer_block_geo(self, passing_qa_report):
+        """The advisory GEO answer-block section renders its counts when present."""
+        passing_qa_report.answer_block_geo = {"total": 10, "ok_count": 7, "weak_count": 3}
+        markdown = passing_qa_report.to_markdown()
+
+        assert "## GEO Answer Blocks (advisory)" in markdown
+        assert "**Well-formed openings:** 7 of 10 blog posts" in markdown
+        assert "**Needs attention:** 3 blog posts" in markdown
+
+    def test_to_markdown_answer_block_geo_omits_needs_attention_when_all_ok(
+        self, passing_qa_report
+    ):
+        """The 'needs attention' line is omitted when every blog opening is well-formed."""
+        passing_qa_report.answer_block_geo = {"total": 4, "ok_count": 4, "weak_count": 0}
+        markdown = passing_qa_report.to_markdown()
+
+        assert "## GEO Answer Blocks (advisory)" in markdown
+        assert "**Well-formed openings:** 4 of 4 blog posts" in markdown
+        assert "Needs attention" not in markdown
+
+    def test_to_markdown_omits_answer_block_geo_when_absent(self, passing_qa_report):
+        """No GEO answer-block section when the field is None (default)."""
+        assert passing_qa_report.answer_block_geo is None
+        assert "GEO Answer Blocks" not in passing_qa_report.to_markdown()
+
     def test_to_markdown_failing_report(self, failing_qa_report):
         """Test markdown generation for failing report"""
         markdown = failing_qa_report.to_markdown()

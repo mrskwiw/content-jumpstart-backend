@@ -9,11 +9,15 @@ deterministic building blocks: JSON-LD generators + an answer-block length gate.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 _SCHEMA_CONTEXT = "https://schema.org"
+
+# A markdown heading line (used to skip titles / find paragraph boundaries in answer-block extraction).
+_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
 
 # AI Overviews favour a self-contained ~40-60 word answer near the top.
 _ANSWER_MIN_WORDS = 40
@@ -121,3 +125,44 @@ def check_answer_block(
     if n > max_words:
         return AnswerBlockCheck(n, False, f"too long ({n} > {max_words} words)")
     return AnswerBlockCheck(n, True, "ok")
+
+
+def _looks_like_headline(line: str) -> bool:
+    """Whether ``line`` reads as a title (skippable) rather than the lead answer paragraph.
+
+    A markdown heading, or a short line with no sentence-ending punctuation. This keeps
+    ``opening_answer_block`` from blindly skipping a genuine lead paragraph on content that opens
+    with prose instead of a dedicated headline (otherwise the answer-block check would evaluate
+    the wrong paragraph, or nothing). See BUGS.md Decision #234.
+    """
+    stripped = line.strip()
+    if _HEADING_RE.match(line):
+        return True
+    return len(stripped.split()) <= 12 and not stripped.endswith((".", "!", "?", ":", ";"))
+
+
+def opening_answer_block(content: str) -> str:
+    """The lead prose paragraph of ``content`` — the AEO "answer block" candidate.
+
+    AI answer engines preferentially extract a short, self-contained answer positioned near the
+    top. The candidate is the first prose paragraph; a leading title line is skipped ONLY when it
+    reads like a headline (``_looks_like_headline``), so content that opens directly with prose is
+    still evaluated correctly. Returns "" if no prose paragraph is found.
+    """
+    lines = content.splitlines()
+    n = len(lines)
+    i = 0
+    while i < n and not lines[i].strip():  # skip leading blanks
+        i += 1
+    if i < n and _looks_like_headline(lines[i]):  # skip the headline line only if it looks like one
+        i += 1
+        while i < n and not lines[i].strip():  # skip blanks after the headline
+            i += 1
+    para: list[str] = []
+    while i < n:
+        line = lines[i]
+        if not line.strip() or _HEADING_RE.match(line):  # paragraph ends at a blank / new heading
+            break
+        para.append(line.strip())
+        i += 1
+    return " ".join(para).strip()

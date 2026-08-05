@@ -2,7 +2,13 @@
 
 import pytest
 
-from src.analysis.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
+from src.analysis.geo import (
+    article_jsonld,
+    check_answer_block,
+    faq_jsonld,
+    howto_jsonld,
+    opening_answer_block,
+)
 
 
 def test_faq_jsonld_shape():
@@ -118,3 +124,31 @@ def test_answer_block_too_long():
 def test_answer_block_custom_range():
     r = check_answer_block("five words go right here", min_words=3, max_words=6)
     assert r.ok is True
+
+
+def test_opening_answer_block_skips_title_line():
+    # A short title line (no terminal punctuation) is skipped; the lead paragraph is returned.
+    assert opening_answer_block("My Title\n\nThe lead paragraph answer.") == (
+        "The lead paragraph answer."
+    )
+
+
+def test_opening_answer_block_skips_markdown_heading():
+    assert opening_answer_block("# Heading\n\nBody paragraph here.") == "Body paragraph here."
+
+
+def test_opening_answer_block_keeps_lead_prose_when_no_title():
+    # A long first line (>12 words, ends with a period) is prose, not a title → not skipped.
+    prose = "This opening sentence is clearly the lead paragraph and not a short title at all here."
+    assert opening_answer_block(prose) == prose
+
+
+def test_opening_answer_block_stops_at_blank_and_heading():
+    # The paragraph ends at the first blank line; later paragraphs are not absorbed.
+    content = "Title\n\nFirst paragraph line one\nline two\n\nSecond paragraph"
+    assert opening_answer_block(content) == "First paragraph line one line two"
+
+
+def test_opening_answer_block_empty_when_no_prose():
+    assert opening_answer_block("Just A Title\n") == ""
+    assert opening_answer_block("# Title\n\n## Section\n\nbody") == ""

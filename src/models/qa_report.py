@@ -41,6 +41,10 @@ class QAReport(BaseModel):
         None,
         description="Predicted-engagement summary (advisory pre-publish signal; does not affect pass/fail)",
     )
+    answer_block_geo: Optional[Dict[str, Any]] = Field(
+        None,
+        description="GEO answer-block readiness across blog posts (advisory; does not affect pass/fail)",
+    )
 
     # Summary
     total_issues: int = Field(0, description="Total number of issues found")
@@ -223,6 +227,27 @@ class QAReport(BaseModel):
             lines.append(
                 "*Heuristic pre-publish estimate (hook, length fit, CTA, genericity) — "
                 "not a guarantee of performance.*"
+            )
+            lines.append("")
+
+        # GEO Answer Blocks (advisory — blog answer-engine readiness, no pass/fail impact)
+        if self.answer_block_geo:
+            ab = self.answer_block_geo
+            lines.append("## GEO Answer Blocks (advisory)")
+            lines.append("")
+            lines.append(
+                f"**Well-formed openings:** {ab['ok_count']} of {ab['total']} blog posts "
+                "(a self-contained ~40–60-word opening answer)"
+            )
+            if ab["weak_count"]:
+                lines.append(
+                    f"**Needs attention:** {ab['weak_count']} blog posts "
+                    "(opening isn't a ~40–60-word answer block)"
+                )
+            lines.append("")
+            lines.append(
+                "*AI answer engines preferentially cite a short, self-contained opening answer — "
+                "a GEO signal, not a pass/fail gate.*"
             )
             lines.append("")
 

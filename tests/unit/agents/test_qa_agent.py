@@ -774,3 +774,62 @@ class TestEngagementPrediction:
         report = agent.validate_posts(self._posts(2), "Test Client")
         assert "engagement_prediction" in report.model_dump()
         assert report.engagement_prediction["total"] == 2
+
+
+class TestAnswerBlockGeo:
+    """GEO-01 check_answer_block wired into the QA report as an advisory blog signal."""
+
+    def _blog_post(self, opening_words, i=0):
+        # "My Blog Title" reads as a headline (short, no terminal punctuation) → skipped; the
+        # body paragraph (opening_words tokens) becomes the evaluated answer block.
+        body = " ".join(f"word{j}" for j in range(opening_words)) + "."
+        return Post(
+            content=f"My Blog Title\n\n{body}",
+            template_id=i + 1,
+            template_name=f"T{i + 1}",
+            client_name="Test Client",
+            target_platform="blog",
+        )
+
+    def _social_post(self, i=0):
+        return Post(
+            content=f"Social post {i} with a hook and a close.",
+            template_id=i + 1,
+            template_name=f"T{i + 1}",
+            client_name="Test Client",
+            target_platform="linkedin",
+        )
+
+    def test_summary_none_for_empty_batch(self):
+        assert QAAgent()._answer_block_summary([]) is None
+
+    def test_summary_none_when_no_blog_posts(self):
+        # Answer blocks are blog-specific — a purely social batch yields no summary.
+        assert QAAgent()._answer_block_summary([self._social_post(0), self._social_post(1)]) is None
+
+    def test_summary_counts_well_formed_vs_weak(self):
+        posts = [
+            self._blog_post(50, 0),  # in range → ok
+            self._blog_post(20, 1),  # too short → weak
+            self._blog_post(80, 2),  # too long → weak
+            self._social_post(3),  # ignored (not a blog post)
+        ]
+        summary = QAAgent()._answer_block_summary(posts)
+        assert summary == {"total": 3, "ok_count": 1, "weak_count": 2}
+
+    def test_validate_posts_populates_and_renders(self):
+        agent = QAAgent()
+        report = agent.validate_posts(
+            [self._blog_post(50, 0), self._blog_post(20, 1)], "Test Client"
+        )
+        assert report.answer_block_geo == {"total": 2, "ok_count": 1, "weak_count": 1}
+        assert "GEO Answer Blocks (advisory)" in report.to_markdown()
+
+    def test_absent_for_social_only_batch_in_serialized_report(self):
+        # No blog posts → field stays None; the report still serializes and passes/fails on
+        # the validators alone (advisory, never gating).
+        agent = QAAgent()
+        report = agent.validate_posts([self._social_post(0)], "Test Client")
+        assert "answer_block_geo" in report.model_dump()
+        assert report.answer_block_geo is None
+        assert "GEO Answer Blocks" not in report.to_markdown()
