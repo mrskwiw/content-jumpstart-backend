@@ -18,6 +18,10 @@ _SCHEMA_CONTEXT = "https://schema.org"
 
 # A markdown heading line (used to skip titles / find paragraph boundaries in answer-block extraction).
 _HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
+# A non-prose opener: a bullet/numbered list item or a blockquote. An answer block must be a
+# self-contained PROSE paragraph — AI answer engines extract paragraphs, not list/quote structure —
+# so a lead that starts with one of these is not a valid answer block.
+_NON_PROSE_RE = re.compile(r"^\s*([-*+]\s|\d+[.)]\s|>)")
 
 # AI Overviews favour a self-contained ~40-60 word answer near the top.
 _ANSWER_MIN_WORDS = 40
@@ -144,10 +148,11 @@ def _looks_like_headline(line: str) -> bool:
 def opening_answer_block(content: str) -> str:
     """The lead prose paragraph of ``content`` — the AEO "answer block" candidate.
 
-    AI answer engines preferentially extract a short, self-contained answer positioned near the
-    top. The candidate is the first prose paragraph; a leading title line is skipped ONLY when it
-    reads like a headline (``_looks_like_headline``), so content that opens directly with prose is
-    still evaluated correctly. Returns "" if no prose paragraph is found.
+    AI answer engines preferentially extract a short, self-contained PROSE answer positioned near
+    the top. The candidate is the first prose paragraph; a leading title line is skipped ONLY when
+    it reads like a headline (``_looks_like_headline``), so content that opens directly with prose
+    is still evaluated correctly. Returns "" when no prose paragraph is found — including when the
+    lead is a list or blockquote (``_NON_PROSE_RE``), which is not an extractable answer block.
     """
     lines = content.splitlines()
     n = len(lines)
@@ -158,6 +163,10 @@ def opening_answer_block(content: str) -> str:
         i += 1
         while i < n and not lines[i].strip():  # skip blanks after the headline
             i += 1
+    if i >= n or _NON_PROSE_RE.match(
+        lines[i]
+    ):  # a list/blockquote lead is not a prose answer block
+        return ""
     para: list[str] = []
     while i < n:
         line = lines[i]

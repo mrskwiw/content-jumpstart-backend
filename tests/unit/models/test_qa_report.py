@@ -264,6 +264,13 @@ class TestQAReport:
         assert passing_qa_report.answer_block_geo is None
         assert "GEO Answer Blocks" not in passing_qa_report.to_markdown()
 
+    def test_to_markdown_answer_block_geo_defensive_on_partial_payload(self, passing_qa_report):
+        """A truthy-but-incomplete payload (e.g. a legacy/deserialized report) must not crash
+        rendering — the section is safely omitted rather than raising KeyError."""
+        passing_qa_report.answer_block_geo = {"ok_count": 3}  # missing total/weak_count
+        markdown = passing_qa_report.to_markdown()  # must not raise
+        assert "GEO Answer Blocks" not in markdown
+
     def test_to_markdown_failing_report(self, failing_qa_report):
         """Test markdown generation for failing report"""
         markdown = failing_qa_report.to_markdown()

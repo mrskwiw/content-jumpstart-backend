@@ -152,3 +152,14 @@ def test_opening_answer_block_stops_at_blank_and_heading():
 def test_opening_answer_block_empty_when_no_prose():
     assert opening_answer_block("Just A Title\n") == ""
     assert opening_answer_block("# Title\n\n## Section\n\nbody") == ""
+
+
+def test_opening_answer_block_rejects_list_and_blockquote_leads():
+    # A lead bullet list / numbered list / blockquote is structure, not a self-contained prose
+    # answer block — AI answer engines extract paragraphs, so these must NOT count.
+    bullets = "My Title\n\n- first point\n- second point\n- third point"
+    numbered = "My Title\n\n1. first step\n2. second step"
+    quote = "My Title\n\n> a pulled quote, not a paragraph answer"
+    assert opening_answer_block(bullets) == ""
+    assert opening_answer_block(numbered) == ""
+    assert opening_answer_block(quote) == ""
