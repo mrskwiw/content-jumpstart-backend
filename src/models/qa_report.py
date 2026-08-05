@@ -231,31 +231,28 @@ class QAReport(BaseModel):
             lines.append("")
 
         # GEO Answer Blocks (advisory — blog answer-engine readiness, no pass/fail impact).
-        # Rendered defensively with .get(): a truthy-but-incomplete payload (e.g. a deserialized
-        # legacy report) omits the section rather than crashing this user-visible formatting path.
-        if self.answer_block_geo:
-            ab = self.answer_block_geo
-            total = ab.get("total", 0)
-            if total:
-                ok_count = ab.get("ok_count", 0)
-                weak_count = ab.get("weak_count", 0)
-                lines.append("## GEO Answer Blocks (advisory)")
-                lines.append("")
+        # Render ONLY a complete payload: an incomplete one (e.g. a deserialized legacy report)
+        # is omitted rather than crashing this user-visible path OR silently misreporting missing
+        # counts as zero (which would falsely claim "no weak openings" in a QA artifact).
+        ab = self.answer_block_geo
+        if ab and {"total", "ok_count", "weak_count"} <= ab.keys() and ab["total"]:
+            lines.append("## GEO Answer Blocks (advisory)")
+            lines.append("")
+            lines.append(
+                f"**Well-formed openings:** {ab['ok_count']} of {ab['total']} blog posts "
+                "(a self-contained ~40–60-word opening answer)"
+            )
+            if ab["weak_count"]:
                 lines.append(
-                    f"**Well-formed openings:** {ok_count} of {total} blog posts "
-                    "(a self-contained ~40–60-word opening answer)"
+                    f"**Needs attention:** {ab['weak_count']} blog posts "
+                    "(opening isn't a ~40–60-word answer block)"
                 )
-                if weak_count:
-                    lines.append(
-                        f"**Needs attention:** {weak_count} blog posts "
-                        "(opening isn't a ~40–60-word answer block)"
-                    )
-                lines.append("")
-                lines.append(
-                    "*AI answer engines preferentially cite a short, self-contained opening "
-                    "answer — a GEO signal, not a pass/fail gate.*"
-                )
-                lines.append("")
+            lines.append("")
+            lines.append(
+                "*AI answer engines preferentially cite a short, self-contained opening "
+                "answer — a GEO signal, not a pass/fail gate.*"
+            )
+            lines.append("")
 
         # Recommendations
         if self.total_issues > 0:
