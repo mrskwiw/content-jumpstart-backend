@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.services.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
+from src.analysis.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
 
 
 def test_faq_jsonld_shape():

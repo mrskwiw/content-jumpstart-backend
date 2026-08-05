@@ -16,7 +16,7 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
-from backend.services.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
+from src.analysis.geo import article_jsonld, check_answer_block, faq_jsonld, howto_jsonld
 from backend.utils.logger import logger
 
 # An explicit numbered/"Step N" list line — the deterministic signal that a blog post is a
