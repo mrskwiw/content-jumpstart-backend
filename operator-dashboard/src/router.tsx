@@ -11,6 +11,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 const Login = lazyWithRetry(() => import('@/pages/Login'));
 const ForgotPassword = lazyWithRetry(() => import('@/pages/ForgotPassword'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/ResetPassword'));
+const VerifyEmail = lazyWithRetry(() => import('@/pages/VerifyEmail'));
 const PortfolioNotice = lazyWithRetry(() => import('@/pages/PortfolioNotice'));
 const Overview = lazyWithRetry(() => import('@/pages/Overview'));
 const Projects = lazyWithRetry(() => import('@/pages/Projects'));
@@ -107,6 +108,10 @@ export const router = createBrowserRouter([
   {
     path: '/reset-password',
     element: withSuspense(ResetPassword),
+  },
+  {
+    path: '/verify-email',
+    element: withSuspense(VerifyEmail),
   },
   {
     path: '/portfolio-notice',

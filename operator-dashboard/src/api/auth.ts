@@ -93,6 +93,20 @@ export const authApi = {
     return data;
   },
 
+  verifyEmail: async (token: string): Promise<{ status: string; message: string }> => {
+    // Confirms an account's email from the emailed link token (GAP-AUTH-02).
+    // Idempotent on the backend — verifying an already-verified account succeeds.
+    const { data } = await apiClient.post('/api/auth/verify-email', { token });
+    return data;
+  },
+
+  resendVerification: async (email: string): Promise<{ status: string; message: string }> => {
+    // Always resolves with a generic message — the backend never reveals whether the
+    // email maps to an unverified account (no user enumeration).
+    const { data } = await apiClient.post('/api/auth/resend-verification', { email });
+    return data;
+  },
+
   logout: async (): Promise<void> => {
     // Call logout endpoint if backend has one
     // await apiClient.post('/api/auth/logout');

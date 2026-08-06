@@ -2,6 +2,7 @@ export const ROUTES = {
   LOGIN: '/login',
   FORGOT_PASSWORD: '/forgot-password',
   RESET_PASSWORD: '/reset-password',
+  VERIFY_EMAIL: '/verify-email',
   PORTFOLIO_NOTICE: '/portfolio-notice',
   DASHBOARD: '/dashboard',
   WIZARD: '/dashboard/wizard',
