@@ -1317,6 +1317,6 @@ def test_sync_and_async_produce_same_post_count(
             randomize=False,
         )
 
-    async_posts = asyncio.get_event_loop().run_until_complete(run_async())
+    async_posts = asyncio.run(run_async())
 
     assert len(sync_posts) == len(async_posts) == 5

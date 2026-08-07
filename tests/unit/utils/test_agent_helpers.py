@@ -255,9 +255,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(return_value="async response")
 
-        result = asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", extract_json=False)
-        )
+        result = asyncio.run(call_claude_api_async(mock_client, "prompt", extract_json=False))
 
         assert result == "async response"
 
@@ -266,9 +264,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(return_value=json.dumps({"x": 42}))
 
-        result = asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", extract_json=True)
-        )
+        result = asyncio.run(call_claude_api_async(mock_client, "prompt", extract_json=True))
 
         assert result == {"x": 42}
 
@@ -277,9 +273,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(side_effect=Exception("boom"))
 
-        result = asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", extract_json=False)
-        )
+        result = asyncio.run(call_claude_api_async(mock_client, "prompt", extract_json=False))
 
         assert result == ""
 
@@ -288,9 +282,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(side_effect=Exception("boom"))
 
-        result = asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", extract_json=True)
-        )
+        result = asyncio.run(call_claude_api_async(mock_client, "prompt", extract_json=True))
 
         assert result == {}
 
@@ -299,7 +291,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(side_effect=RuntimeError("fail"))
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             call_claude_api_async(mock_client, "prompt", fallback_on_error={"async_err": True})
         )
 
@@ -310,9 +302,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(return_value="ok")
 
-        asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", system_prompt="Be concise.")
-        )
+        asyncio.run(call_claude_api_async(mock_client, "prompt", system_prompt="Be concise."))
 
         call_kwargs = mock_client.create_message_async.call_args[1]
         assert call_kwargs["system"] == "Be concise."
@@ -322,7 +312,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(return_value="ok")
 
-        asyncio.get_event_loop().run_until_complete(call_claude_api_async(mock_client, "prompt"))
+        asyncio.run(call_claude_api_async(mock_client, "prompt"))
 
         call_kwargs = mock_client.create_message_async.call_args[1]
         assert "system" not in call_kwargs
@@ -333,9 +323,7 @@ class TestCallClaudeApiAsync:
         mock_client.create_message_async = AsyncMock(side_effect=RuntimeError("oops"))
 
         with patch("src.utils.agent_helpers.logger") as mock_logger:
-            asyncio.get_event_loop().run_until_complete(
-                call_claude_api_async(mock_client, "prompt", fallback_on_error="fallback")
-            )
+            asyncio.run(call_claude_api_async(mock_client, "prompt", fallback_on_error="fallback"))
 
         mock_logger.error.assert_called_once()
 
@@ -344,9 +332,7 @@ class TestCallClaudeApiAsync:
         mock_client = Mock()
         mock_client.create_message_async = AsyncMock(return_value="ok")
 
-        asyncio.get_event_loop().run_until_complete(
-            call_claude_api_async(mock_client, "prompt", max_tokens=2000, temperature=0.1)
-        )
+        asyncio.run(call_claude_api_async(mock_client, "prompt", max_tokens=2000, temperature=0.1))
 
         call_kwargs = mock_client.create_message_async.call_args[1]
         assert call_kwargs["max_tokens"] == 2000
