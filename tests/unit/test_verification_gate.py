@@ -9,9 +9,9 @@ import pytest
 
 from backend.config import settings
 from backend.services.verification_gate import (
+    check_startup_configuration,
     email_delivery_available,
     email_verification_enforced,
-    warn_if_unenforceable,
 )
 
 _TRANSPORT_ENV = ("RESEND_API_KEY", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD")
@@ -73,16 +73,24 @@ class TestDeliveryAvailability:
         assert email_delivery_available() is False
 
 
-class TestBootWarning:
-    def test_warns_when_enforced_without_a_transport(self, clean_transport):
-        clean_transport.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
-        assert warn_if_unenforceable() is True
+class TestStartupGuard:
+    """Decision #236 — the enforced-but-undeliverable pairing must not deploy at all."""
 
-    def test_silent_when_a_transport_exists(self, clean_transport):
+    def test_refuses_to_boot_when_enforced_without_a_transport(self, clean_transport):
+        clean_transport.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+        with pytest.raises(RuntimeError, match="REQUIRE_EMAIL_VERIFICATION"):
+            check_startup_configuration(debug_mode=False)
+
+    def test_debug_mode_logs_and_continues(self, clean_transport):
+        # Refusing to start would just block local work; the misconfiguration is loud.
+        clean_transport.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+        assert check_startup_configuration(debug_mode=True) is True
+
+    def test_passes_when_a_transport_exists(self, clean_transport):
         clean_transport.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
         clean_transport.setenv("RESEND_API_KEY", "key")
-        assert warn_if_unenforceable() is False
+        assert check_startup_configuration(debug_mode=False) is False
 
-    def test_silent_when_the_gate_is_off(self, clean_transport):
+    def test_passes_when_the_gate_is_off(self, clean_transport):
         clean_transport.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", False)
-        assert warn_if_unenforceable() is False
+        assert check_startup_configuration(debug_mode=False) is False

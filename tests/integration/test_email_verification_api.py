@@ -125,7 +125,7 @@ def test_a_missing_email_transport_does_not_open_authentication(
     db_session, client, gate_on, monkeypatch
 ):
     # An unconfigured mailer is the likeliest rollout mistake; it must not disable the
-    # gate. (Boot logs a loud error instead — see warn_if_unenforceable.)
+    # gate. (Boot refuses to start such a deployment instead — see check_startup_configuration.)
     for key in ("RESEND_API_KEY", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("EMAIL_PROVIDER", "auto")
