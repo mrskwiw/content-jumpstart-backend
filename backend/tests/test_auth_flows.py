@@ -15,6 +15,20 @@ from backend.middleware.auth_dependency import HTTPBearerWith401, get_current_us
 from backend.utils import auth as auth_utils
 
 
+def _no_revocations_db():
+    """Session double for `is_token_revoked`: no jti blacklist row, no per-user cutoff.
+
+    Lets the real revocation check run (it is part of the dependency's contract) instead
+    of stubbing it out; the revocation logic itself is covered in
+    tests/unit/test_session_revocation_service.py.
+    """
+    return SimpleNamespace(
+        query=lambda model: SimpleNamespace(
+            filter=lambda *args, **kwargs: SimpleNamespace(first=lambda: None)
+        )
+    )
+
+
 class FakeSecretManager:
     def __init__(self, primary_secret: str, active_secrets: list[str] | None = None):
         self.primary_secret = primary_secret
@@ -104,35 +118,68 @@ class TestAuthDependency:
 
     @pytest.mark.asyncio
     async def test_get_current_user_success(self, monkeypatch):
-        # The double carries every field the dependency reads on the happy path: a token
-        # without "pv" is checked against password_changed_at (GAP-AUTH-03) and
-        # email_verified is read when the verification gate is on (GAP-AUTH-02). Both
-        # checks were added after this test was written, which is what broke it.
+        # Production-shaped token: login mints {"sub", "pv"}, and the dependency checks
+        # the pv fingerprint (GAP-AUTH-03), revocation (GAP-AUTH-03) and email_verified
+        # (GAP-AUTH-02). All three were added after this test was written, which is what
+        # broke it — so the happy path exercises the real thing rather than stubs.
+        hashed = auth_utils.get_password_hash("correct-horse-battery")
         user = SimpleNamespace(
             email="user@example.com",
             is_active=True,
+            hashed_password=hashed,
             password_changed_at=None,
             email_verified=True,
         )
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="token")
-        db = SimpleNamespace()
 
         monkeypatch.setattr(
             "backend.middleware.auth_dependency.decode_token",
-            lambda token: {"sub": "user-1", "type": "access"},
+            lambda token: {
+                "sub": "user-1",
+                "type": "access",
+                "pv": auth_utils.password_fingerprint(hashed),
+            },
         )
         monkeypatch.setattr(
             "backend.middleware.auth_dependency.crud.get_user", lambda db_obj, user_id: user
         )
-        # Revocation needs a real session; it has its own tests
-        # (tests/unit/test_session_revocation_service.py).
-        monkeypatch.setattr(
-            "backend.middleware.auth_dependency.is_token_revoked", lambda db_obj, payload: False
-        )
 
-        result = await get_current_user(credentials=credentials, db=db)
+        # Real is_token_revoked, answering "no cutoff for this subject".
+        result = await get_current_user(credentials=credentials, db=_no_revocations_db())
 
         assert result is user
+
+    @pytest.mark.asyncio
+    async def test_get_current_user_rejects_a_token_bound_to_an_old_password(self, monkeypatch):
+        # The pv claim is a fingerprint of the password hash: change the password and
+        # every token minted against the old one dies (GAP-AUTH-03).
+        user = SimpleNamespace(
+            email="user@example.com",
+            is_active=True,
+            hashed_password=auth_utils.get_password_hash("the-new-password"),
+            password_changed_at=None,
+            email_verified=True,
+        )
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="token")
+
+        monkeypatch.setattr(
+            "backend.middleware.auth_dependency.decode_token",
+            lambda token: {
+                "sub": "user-1",
+                "type": "access",
+                "pv": auth_utils.password_fingerprint(
+                    auth_utils.get_password_hash("the-old-password")
+                ),
+            },
+        )
+        monkeypatch.setattr(
+            "backend.middleware.auth_dependency.crud.get_user", lambda db_obj, user_id: user
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await get_current_user(credentials=credentials, db=_no_revocations_db())
+
+        assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_rejects_a_stale_password_token(self, monkeypatch):

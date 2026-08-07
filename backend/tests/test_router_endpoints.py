@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from backend.routers import metrics as metrics_router
 from backend.routers import pricing as pricing_router
 from backend.routers import privacy as privacy_router
+from backend.models import Client
 
 
 class TestPricingRouter:
@@ -183,19 +184,34 @@ def _user(uid=1, superuser=False):
 
 
 def _client_db(owner_id=1, client_id="abc", exists=True):
-    """Minimal Session double for `_require_client_access`.
+    """Session double for `_require_client_access`, the privacy handlers' IDOR guard.
 
-    The privacy handlers authorize before delegating: they load the client and compare
-    its owner to the caller (this is the IDOR guard). These are unit tests of the
-    delegation, so the double answers that one query — `exists=False` models a client id
-    that isn't there.
+    It answers the one query the guard makes, but only for the row that was actually
+    asked for: it checks that the query targets `Client` and reads the id out of the
+    filter predicate, returning the stored row only on a match. A permissive stub that
+    returned the same client whatever was queried would keep passing if the router
+    stopped filtering by id — i.e. it would leave the guard untested.
     """
-    client = SimpleNamespace(id=client_id, user_id=owner_id) if exists else None
-    return SimpleNamespace(
-        query=lambda model: SimpleNamespace(
-            filter=lambda *args, **kwargs: SimpleNamespace(first=lambda: client)
-        )
-    )
+    stored = SimpleNamespace(id=client_id, user_id=owner_id) if exists else None
+
+    def _query(model):
+        assert model is Client, f"privacy guard queried {model!r}, expected Client"
+
+        def _filter(predicate, *rest):
+            # `Client.id == <value>` — pull the bound value off the comparison.
+            requested = predicate.right.value
+            # (identity fails here — SQLAlchemy hands back an annotated copy of the column)
+            column = predicate.left
+            assert (column.name, column.table.name) == (
+                "id",
+                Client.__tablename__,
+            ), f"privacy guard filtered on {column!r}, expected clients.id"
+            matched = stored if (stored is not None and requested == stored.id) else None
+            return SimpleNamespace(first=lambda: matched)
+
+        return SimpleNamespace(filter=_filter)
+
+    return SimpleNamespace(query=_query)
 
 
 class TestPrivacyRouter:
