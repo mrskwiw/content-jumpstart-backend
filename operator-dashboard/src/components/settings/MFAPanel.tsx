@@ -256,7 +256,7 @@ export function MFAPanel() {
   const [mode, setMode] = useState<'idle' | 'disabling' | 'regenerating'>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const { data: status, isLoading } = useQuery({
+  const { data: status, isLoading, isError } = useQuery({
     queryKey: ['mfa', 'status'],
     queryFn: mfaApi.status,
   });
@@ -272,11 +272,18 @@ export function MFAPanel() {
     onError: (err) => setError(errorMessage(err, 'Could not start two-factor setup')),
   });
 
-  if (isLoading) {
-    return <p className="text-sm text-neutral-500 dark:text-neutral-400">Loading two-factor status…</p>;
-  }
-
   const enabled = status?.mfa_enabled === true;
+
+  // The section label is always rendered — a settings row that collapses to "Loading…"
+  // hides what the section even is, and only the state below it actually depends on the
+  // request. Everything past this point is gated on having a status.
+  const subtitle = isLoading
+    ? 'Checking…'
+    : isError
+      ? "Couldn't load two-factor status — retry in a moment."
+      : enabled
+        ? `Enabled · ${status?.remaining_backup_codes ?? 0} backup codes left`
+        : 'Not enabled — sign-in uses your password only';
 
   return (
     <div className="space-y-3">
@@ -285,11 +292,7 @@ export function MFAPanel() {
           <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
             Two-factor authentication
           </p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            {enabled
-              ? `Enabled · ${status?.remaining_backup_codes ?? 0} backup codes left`
-              : 'Not enabled — sign-in uses your password only'}
-          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">{subtitle}</p>
         </div>
         <span
           className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -298,7 +301,7 @@ export function MFAPanel() {
               : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
           }`}
         >
-          {enabled ? 'On' : 'Off'}
+          {isLoading || isError ? '—' : enabled ? 'On' : 'Off'}
         </span>
       </div>
 
@@ -318,7 +321,9 @@ export function MFAPanel() {
         />
       )}
 
-      {!enrollment && !enabled && (
+      {/* Actions need a known state — offering "set up" while the status is still
+          loading would also offer it to someone who already has MFA on. */}
+      {status && !enrollment && !enabled && (
         <button
           type="button"
           onClick={() => startEnrollment.mutate()}

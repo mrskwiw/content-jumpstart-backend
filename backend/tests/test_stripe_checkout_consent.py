@@ -41,11 +41,13 @@ async def test_checkout_records_consent_and_proceeds():
     db.query.return_value.filter.return_value.first.return_value = MagicMock()  # package exists
     user = MagicMock(id="u1", email="u@x.com")
 
-    with patch("backend.services.audit_service.log_action") as log_action, patch(
-        "backend.services.audit_service.get_client_ip", return_value="1.2.3.4"
-    ), patch(
-        "backend.routers.stripe_checkout.stripe_service.create_checkout_session",
-        return_value={"checkout_url": "https://stripe/x", "session_id": "cs_1"},
+    with (
+        patch("backend.services.audit_service.log_action") as log_action,
+        patch("backend.services.audit_service.get_client_ip", return_value="1.2.3.4"),
+        patch(
+            "backend.routers.stripe_checkout.stripe_service.create_checkout_session",
+            return_value={"checkout_url": "https://stripe/x", "session_id": "cs_1"},
+        ),
     ):
         resp = await _endpoint(MagicMock(), _body(True), db, user)
 
@@ -69,11 +71,13 @@ async def test_checkout_fails_closed_when_consent_cannot_be_recorded():
         stripe_calls["n"] += 1
         return {"checkout_url": "x", "session_id": "y"}
 
-    with patch(
-        "backend.services.audit_service.log_action", side_effect=RuntimeError("db down")
-    ), patch("backend.services.audit_service.get_client_ip", return_value="1.2.3.4"), patch(
-        "backend.routers.stripe_checkout.stripe_service.create_checkout_session",
-        side_effect=_stripe,
+    with (
+        patch("backend.services.audit_service.log_action", side_effect=RuntimeError("db down")),
+        patch("backend.services.audit_service.get_client_ip", return_value="1.2.3.4"),
+        patch(
+            "backend.routers.stripe_checkout.stripe_service.create_checkout_session",
+            side_effect=_stripe,
+        ),
     ):
         with pytest.raises(HTTPException) as ei:
             await _endpoint(MagicMock(), _body(True), db, user)

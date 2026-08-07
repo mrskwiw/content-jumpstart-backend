@@ -59,7 +59,10 @@ export default function Dashboard() {
   });
 
   const clientCount = clients.data?.length ?? 0;
-  const projectCount = projects.data?.total ?? projects.data?.items?.length ?? 0;
+  // The total lives in the pagination metadata, not on the response root — reading it
+  // off the root always fell through to the page length, under-reporting once the
+  // project count exceeds one page.
+  const projectCount = projects.data?.metadata?.total ?? projects.data?.items?.length ?? 0;
   const creditBalance = credits.data?.balance ?? 0;
   const spend30d = costs.data?.totalCostUsd ?? 0;
 

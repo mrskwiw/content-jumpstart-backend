@@ -74,7 +74,13 @@ describe('Dashboard Page', () => {
 
   it('should render live stat values from the API', async () => {
     (clientsApi.list as jest.Mock).mockResolvedValue([{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }]);
-    (projectsApi.list as jest.Mock).mockResolvedValue({ items: [], total: 7, page_size: 20 });
+    // Real shape: projectsApi.list() returns PaginatedResponse — the count lives in
+    // `metadata.total`, not on the root. The page deliberately holds fewer items than
+    // the total, so a regression that falls back to items.length would show 2, not 7.
+    (projectsApi.list as jest.Mock).mockResolvedValue({
+      items: [{ id: 'p1' }, { id: 'p2' }],
+      metadata: { total: 7, page_size: 20, has_next: true, has_previous: false },
+    });
     (creditsApi.getBalance as jest.Mock).mockResolvedValue({ balance: 1250 });
     (costsApi.getUserCostSummary as jest.Mock).mockResolvedValue({ totalCostUsd: 42.5 });
 

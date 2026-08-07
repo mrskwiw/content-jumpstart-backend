@@ -63,7 +63,7 @@ export const engagementApi = {
     );
     // Normalize at the boundary so a partial/schema-skewed 200 (e.g. version skew during
     // a partial deploy) degrades gracefully instead of crashing the render path.
-    const t = data?.totals ?? {};
+    const t: Partial<BusinessSummary['totals']> = data?.totals ?? {};
     return {
       days: typeof data?.days === 'number' ? data.days : days,
       totals: {
