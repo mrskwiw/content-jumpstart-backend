@@ -202,6 +202,17 @@ def test_execution_order_raises_on_circular_dependency():
             prereqs.get_execution_order(["_fake_a", "_fake_b"])
     finally:
         prereqs.dependencies = original
+        # `prereqs.dependencies` IS the module-level TOOL_DEPENDENCIES dict, so the two
+        # inserts above mutate global state. Rebinding the instance attribute leaves the
+        # global carrying _fake_a/_fake_b, which later broke
+        # tests/unit/test_research_prerequisites.py::test_all_tools_defined — a failure
+        # that only appeared in a full-suite run and passed in isolation. Restore the
+        # global too. (The unit-test twin of this case, in
+        # tests/unit/services/test_research_prerequisites_parallel.py, already does this.)
+        import backend.services.research_prerequisites as prereqs_module
+
+        prereqs_module.TOOL_DEPENDENCIES.clear()
+        prereqs_module.TOOL_DEPENDENCIES.update(original)
 
 
 def test_prerequisite_system_directly():
