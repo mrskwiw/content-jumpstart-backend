@@ -358,6 +358,12 @@ def reset_user_password(
     )
 
 
+class MFAPolicyRequest(BaseModel):
+    """Whether the target account is required to keep MFA on (BUGS #172)."""
+
+    required: bool
+
+
 class RevokeTokenRequest(BaseModel):
     """Blacklist one specific compromised token by its jti (GAP-AUTH-03)."""
 
@@ -398,6 +404,61 @@ def revoke_user_sessions_endpoint(
     )
     logger.info(f"Admin {admin.email} revoked all sessions for user {user.email}")
     return {"status": "success", "message": f"All sessions revoked for {user.email}"}
+
+
+@router.post("/users/{user_id}/mfa-policy", status_code=status.HTTP_200_OK)
+def set_mfa_policy(
+    user_id: str,
+    body: MFAPolicyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin: lock (or release) an account's MFA, i.e. set `users.mfa_enforced` (BUGS #172).
+
+    This is the only writer of that flag. Enrollment used to set it implicitly for
+    superusers, which punished anyone who volunteered for MFA by making it permanent;
+    the policy is an operator decision, so an operator makes it.
+
+    What the flag means today: a locked account cannot turn MFA off (`/api/mfa/disable`
+    returns 403). It does NOT force an un-enrolled account to enroll — login-time
+    enforcement (`should_enforce_mfa`) is still off and needs a forced-enrollment UI
+    before it can be turned on. Audit-logged.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"User not found: {user_id}"
+        )
+
+    if body.required and not user.mfa_enabled:
+        # Locking an account that has nothing enrolled would be a no-op the operator
+        # would misread as "this account is protected now".
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User has not enrolled in MFA yet, so it cannot be required for them",
+        )
+
+    user.mfa_enforced = bool(body.required)
+    audit_service.log_action(
+        db,
+        user_id=admin.id,
+        user_email=admin.email,
+        action=("Required MFA for user" if body.required else "Released MFA requirement"),
+        action_type="security",
+        resource_type="user",
+        resource_id=user_id,
+        resource_name=user.email,
+        ip_address=audit_service.get_client_ip(request),
+    )
+    db.commit()
+
+    logger.info(f"Admin {admin.email} set mfa_enforced={user.mfa_enforced} for user {user.email}")
+    return {
+        "status": "success",
+        "user_id": user_id,
+        "mfa_enforced": bool(user.mfa_enforced),
+    }
 
 
 @router.post("/revoke-token", status_code=status.HTTP_200_OK)

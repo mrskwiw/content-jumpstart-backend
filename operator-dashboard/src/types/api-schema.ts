@@ -627,6 +627,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users/{user_id}/mfa-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Mfa Policy
+         * @description Admin: lock (or release) an account's MFA, i.e. set `users.mfa_enforced` (BUGS #172).
+         *
+         *     This is the only writer of that flag. Enrollment used to set it implicitly for
+         *     superusers, which punished anyone who volunteered for MFA by making it permanent;
+         *     the policy is an operator decision, so an operator makes it.
+         *
+         *     What the flag means today: a locked account cannot turn MFA off (`/api/mfa/disable`
+         *     returns 403). It does NOT force an un-enrolled account to enroll — login-time
+         *     enforcement (`should_enforce_mfa`) is still off and needs a forced-enrollment UI
+         *     before it can be turned on. Audit-logged.
+         */
+        post: operations["set_mfa_policy_api_admin_users__user_id__mfa_policy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/revoke-token": {
         parameters: {
             query?: never;
@@ -6813,6 +6842,14 @@ export interface components {
             /** Message */
             message: string;
         };
+        /**
+         * MFAPolicyRequest
+         * @description Whether the target account is required to keep MFA on (BUGS #172).
+         */
+        MFAPolicyRequest: {
+            /** Required */
+            required: boolean;
+        };
         /** MFAStatusResponse */
         MFAStatusResponse: {
             /** Mfa Enabled */
@@ -9319,6 +9356,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_mfa_policy_api_admin_users__user_id__mfa_policy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MFAPolicyRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -945,6 +945,62 @@
         }
       }
     },
+    "/api/admin/users/{user_id}/mfa-policy": {
+      "post": {
+        "tags": [
+          "Admin - User Management"
+        ],
+        "summary": "Set Mfa Policy",
+        "description": "Admin: lock (or release) an account's MFA, i.e. set `users.mfa_enforced` (BUGS #172).\n\nThis is the only writer of that flag. Enrollment used to set it implicitly for\nsuperusers, which punished anyone who volunteered for MFA by making it permanent;\nthe policy is an operator decision, so an operator makes it.\n\nWhat the flag means today: a locked account cannot turn MFA off (`/api/mfa/disable`\nreturns 403). It does NOT force an un-enrolled account to enroll \u2014 login-time\nenforcement (`should_enforce_mfa`) is still off and needs a forced-enrollment UI\nbefore it can be turned on. Audit-logged.",
+        "operationId": "set_mfa_policy_api_admin_users__user_id__mfa_policy_post",
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MFAPolicyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/revoke-token": {
       "post": {
         "tags": [
@@ -15769,6 +15825,20 @@
           "message"
         ],
         "title": "MFAEnrollResponse"
+      },
+      "MFAPolicyRequest": {
+        "properties": {
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "required"
+        ],
+        "title": "MFAPolicyRequest",
+        "description": "Whether the target account is required to keep MFA on (BUGS #172)."
       },
       "MFAStatusResponse": {
         "properties": {

@@ -210,6 +210,55 @@ def test_disable_requires_password_and_a_live_second_factor(db_session, client):
     assert _login(client, "mfa9@example.com").status_code == 200
 
 
+def test_admin_can_require_mfa_and_the_user_then_cannot_disable_it(db_session, client):
+    # `mfa_enforced` has exactly one writer: an operator. (Enrollment used to set it for
+    # superusers, which made volunteering for MFA irreversible.)
+    admin = _mk_user(db_session, uid="mfa-adm", email="mfaadmin@example.com", superuser=True)
+    user = _mk_user(db_session, uid="mfa-12", email="mfa12@example.com")
+
+    # Requiring MFA on an account with nothing enrolled would be a no-op that reads as
+    # protection, so it's refused.
+    premature = client.post(
+        "/api/admin/users/mfa-12/mfa-policy", json={"required": True}, headers=_auth(admin)
+    )
+    assert premature.status_code == 400
+
+    secret, _ = _enrolled(db_session, user)
+    lock = client.post(
+        "/api/admin/users/mfa-12/mfa-policy", json={"required": True}, headers=_auth(admin)
+    )
+    assert lock.status_code == 200, lock.text
+    db_session.refresh(user)
+    assert user.mfa_enforced is True
+
+    refused = client.post(
+        "/api/mfa/disable",
+        json={"password": _PW, "code": pyotp.TOTP(secret).now()},
+        headers=_auth(user),
+    )
+    assert refused.status_code == 403
+
+    # ...and the operator can release it again.
+    release = client.post(
+        "/api/admin/users/mfa-12/mfa-policy", json={"required": False}, headers=_auth(admin)
+    )
+    assert release.status_code == 200
+    db_session.refresh(user)
+    assert user.mfa_enforced is False
+
+
+def test_mfa_policy_endpoint_is_admin_only(db_session, client):
+    target = _mk_user(db_session, uid="mfa-13", email="mfa13@example.com")
+    _enrolled(db_session, target)
+    nonadmin = _mk_user(db_session, uid="mfa-14", email="mfa14@example.com")
+    resp = client.post(
+        "/api/admin/users/mfa-13/mfa-policy", json={"required": True}, headers=_auth(nonadmin)
+    )
+    assert resp.status_code == 403
+    db_session.refresh(target)
+    assert target.mfa_enforced is False
+
+
 def test_disable_is_refused_under_an_operator_policy(db_session, client):
     user = _mk_user(db_session, uid="mfa-10", email="mfa10@example.com")
     secret, _ = _enrolled(db_session, user)
