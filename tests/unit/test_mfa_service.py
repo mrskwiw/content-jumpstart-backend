@@ -2,7 +2,6 @@
 
 import json
 import re
-import pytest
 from unittest.mock import MagicMock
 
 import pyotp
@@ -153,6 +152,50 @@ class TestVerifyBackupCode:
         # Codes are uppercase; pass lowercase
         is_valid, _ = MFAService.verify_backup_code(user, codes[0].lower())
         assert is_valid is True
+
+
+class TestVerifyCredential:
+    """BUGS #172 — the shared second-factor check used by login and MFA management."""
+
+    def test_accepts_a_valid_totp_code(self):
+        secret = MFAService.generate_secret()
+        user = _make_user()
+        user.mfa_secret = secret
+        assert MFAService.verify_credential(user, pyotp.TOTP(secret).now()) is True
+
+    def test_accepts_and_consumes_a_backup_code(self):
+        codes, hashed_json = MFAService.generate_backup_codes()
+        user = _make_user(mfa_backup_codes=hashed_json)
+        user.mfa_secret = MFAService.generate_secret()
+
+        assert MFAService.verify_credential(user, codes[0]) is True
+        # Consumed in-place: one fewer code, and the same code no longer works.
+        assert len(json.loads(user.mfa_backup_codes)) == MFAService.BACKUP_CODE_COUNT - 1
+        assert MFAService.verify_credential(user, codes[0]) is False
+
+    def test_tolerates_user_typing_habits(self):
+        codes, hashed_json = MFAService.generate_backup_codes()
+        user = _make_user(mfa_backup_codes=hashed_json)
+        user.mfa_secret = MFAService.generate_secret()
+        # Lowercase, spaced and hyphenated renderings of the same code.
+        assert MFAService.verify_credential(user, f" {codes[0].lower()} ") is True
+
+    def test_rejects_wrong_and_empty_codes(self):
+        codes, hashed_json = MFAService.generate_backup_codes()
+        user = _make_user(mfa_backup_codes=hashed_json)
+        user.mfa_secret = MFAService.generate_secret()
+
+        assert MFAService.verify_credential(user, "000000") is False
+        assert MFAService.verify_credential(user, "NOTACODE") is False
+        assert MFAService.verify_credential(user, "") is False
+        # A rejected attempt spends nothing.
+        assert len(json.loads(user.mfa_backup_codes)) == MFAService.BACKUP_CODE_COUNT
+
+    def test_backup_code_works_when_no_secret_is_set(self):
+        codes, hashed_json = MFAService.generate_backup_codes()
+        user = _make_user(mfa_backup_codes=hashed_json)
+        user.mfa_secret = None
+        assert MFAService.verify_credential(user, codes[1]) is True
 
 
 class TestShouldEnforceMfa:

@@ -461,6 +461,194 @@
         }
       }
     },
+    "/api/mfa/enroll": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "summary": "Enroll Mfa",
+        "operationId": "enroll_mfa_api_mfa_enroll_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MFAEnrollResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/mfa/verify": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "summary": "Verify Mfa Token",
+        "operationId": "verify_mfa_token_api_mfa_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MFAVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/mfa/disable": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "summary": "Disable Mfa",
+        "description": "Turn MFA off for the caller's own account (BUGS #172).\n\nRe-authentication is deliberately double: the account password (so a hijacked\nsession alone can't strip the second factor) AND a live second factor (so someone\nwho only knows the password can't either). Accounts under an operator MFA policy\n(`mfa_enforced`) cannot self-disable \u2014 that is checked first, so a refused request\nnever burns one of the user's backup codes.",
+        "operationId": "disable_mfa_api_mfa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MFADisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/mfa/backup-codes/regenerate": {
+      "post": {
+        "tags": [
+          "MFA"
+        ],
+        "summary": "Regenerate Backup Codes",
+        "description": "Issue a fresh set of backup codes, invalidating the old ones (BUGS #172).\n\nRequires a live TOTP code: the codes are a standing bypass of the second factor,\nso minting new ones has to prove possession of the authenticator. Returns the\nplaintext codes once \u2014 only their hashes are stored.",
+        "operationId": "regenerate_backup_codes_api_mfa_backup_codes_regenerate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MFAVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MFABackupCodesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
+    "/api/mfa/status": {
+      "get": {
+        "tags": [
+          "MFA"
+        ],
+        "summary": "Get Mfa Status",
+        "operationId": "get_mfa_status_api_mfa_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MFAStatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/admin/users/{user_id}/activate": {
       "post": {
         "tags": [
@@ -15513,6 +15701,113 @@
         "type": "object",
         "title": "LogoutRequest",
         "description": "Schema for server-side logout (GAP-AUTH-03).\n\n``refresh_token`` is optional \u2014 when supplied it is blacklisted alongside the\ncaller's current access token so a stored refresh token can't outlive logout."
+      },
+      "MFABackupCodesResponse": {
+        "properties": {
+          "backup_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Backup Codes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "backup_codes"
+        ],
+        "title": "MFABackupCodesResponse"
+      },
+      "MFADisableRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 16,
+            "minLength": 6,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password",
+          "code"
+        ],
+        "title": "MFADisableRequest"
+      },
+      "MFAEnrollResponse": {
+        "properties": {
+          "secret": {
+            "type": "string",
+            "title": "Secret"
+          },
+          "qr_code": {
+            "type": "string",
+            "title": "Qr Code"
+          },
+          "backup_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Backup Codes"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "secret",
+          "qr_code",
+          "backup_codes",
+          "message"
+        ],
+        "title": "MFAEnrollResponse"
+      },
+      "MFAStatusResponse": {
+        "properties": {
+          "mfa_enabled": {
+            "type": "boolean",
+            "title": "Mfa Enabled"
+          },
+          "mfa_enforced": {
+            "type": "boolean",
+            "title": "Mfa Enforced"
+          },
+          "remaining_backup_codes": {
+            "type": "integer",
+            "title": "Remaining Backup Codes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mfa_enabled",
+          "mfa_enforced",
+          "remaining_backup_codes"
+        ],
+        "title": "MFAStatusResponse"
+      },
+      "MFAVerifyRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 6,
+            "minLength": 6,
+            "pattern": "^[0-9]{6}$",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "MFAVerifyRequest"
       },
       "MarkDeliveredRequest": {
         "properties": {

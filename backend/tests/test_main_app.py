@@ -212,6 +212,10 @@ def test_lifespan_updates_existing_admin_users(monkeypatch):
         hashed_password="old-hash",
         is_superuser=True,
         is_active=False,
+        # GAP-AUTH-02: a force-reseed is the break-glass recovery path, so it also clears
+        # the email-verification gate on the account it repairs.
+        email_verified=False,
+        email_verified_at=None,
     )
     session = _FakeSession(
         user_count=1,
@@ -251,6 +255,9 @@ def test_lifespan_updates_existing_admin_users(monkeypatch):
     assert existing_admin.hashed_password != "old-hash"
     assert existing_admin.is_superuser is False
     assert existing_admin.is_active is True
+    # ...including the verification gate, so a reseeded admin can actually sign in.
+    assert existing_admin.email_verified is True
+    assert existing_admin.email_verified_at is not None
 
 
 def test_lifespan_skips_seed_when_users_exist(monkeypatch):

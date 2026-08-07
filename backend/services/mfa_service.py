@@ -166,6 +166,35 @@ class MFAService:
             return False, None
 
     @staticmethod
+    def verify_credential(user: User, code: str) -> bool:
+        """Verify a second factor: a TOTP code, else a one-time backup code.
+
+        Backup codes exist for the case the authenticator is gone, so every place that
+        challenges for a second factor accepts either. A matching backup code is
+        CONSUMED here (removed from the user's stored list) — the caller owns the
+        transaction and must commit for the consumption to stick.
+
+        Args:
+            user: the account being challenged
+            code: whatever the user typed (TOTP digits or a backup code)
+
+        Returns:
+            True if the code authenticated the user.
+        """
+        if not code:
+            return False
+
+        candidate = code.strip().replace(" ", "").replace("-", "").upper()
+        if user.mfa_secret and MFAService.verify_totp(user.mfa_secret, candidate):
+            return True
+
+        is_valid, remaining = MFAService.verify_backup_code(user, candidate)
+        if is_valid:
+            user.mfa_backup_codes = remaining
+            return True
+        return False
+
+    @staticmethod
     def should_enforce_mfa(user: User) -> bool:
         """MFA enforcement disabled by operator decision. See BUGS.md #172."""
         return False

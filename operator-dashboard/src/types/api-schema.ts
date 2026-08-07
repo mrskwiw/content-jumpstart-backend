@@ -331,6 +331,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mfa/enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enroll Mfa */
+        post: operations["enroll_mfa_api_mfa_enroll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Mfa Token */
+        post: operations["verify_mfa_token_api_mfa_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mfa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Mfa
+         * @description Turn MFA off for the caller's own account (BUGS #172).
+         *
+         *     Re-authentication is deliberately double: the account password (so a hijacked
+         *     session alone can't strip the second factor) AND a live second factor (so someone
+         *     who only knows the password can't either). Accounts under an operator MFA policy
+         *     (`mfa_enforced`) cannot self-disable — that is checked first, so a refused request
+         *     never burns one of the user's backup codes.
+         */
+        post: operations["disable_mfa_api_mfa_disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mfa/backup-codes/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Backup Codes
+         * @description Issue a fresh set of backup codes, invalidating the old ones (BUGS #172).
+         *
+         *     Requires a live TOTP code: the codes are a standing bypass of the second factor,
+         *     so minting new ones has to prove possession of the authenticator. Returns the
+         *     plaintext codes once — only their hashes are stored.
+         */
+        post: operations["regenerate_backup_codes_api_mfa_backup_codes_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mfa/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mfa Status */
+        get: operations["get_mfa_status_api_mfa_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{user_id}/activate": {
         parameters: {
             query?: never;
@@ -6689,6 +6790,43 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** MFABackupCodesResponse */
+        MFABackupCodesResponse: {
+            /** Backup Codes */
+            backup_codes: string[];
+        };
+        /** MFADisableRequest */
+        MFADisableRequest: {
+            /** Password */
+            password: string;
+            /** Code */
+            code: string;
+        };
+        /** MFAEnrollResponse */
+        MFAEnrollResponse: {
+            /** Secret */
+            secret: string;
+            /** Qr Code */
+            qr_code: string;
+            /** Backup Codes */
+            backup_codes: string[];
+            /** Message */
+            message: string;
+        };
+        /** MFAStatusResponse */
+        MFAStatusResponse: {
+            /** Mfa Enabled */
+            mfa_enabled: boolean;
+            /** Mfa Enforced */
+            mfa_enforced: boolean;
+            /** Remaining Backup Codes */
+            remaining_backup_codes: number;
+        };
+        /** MFAVerifyRequest */
+        MFAVerifyRequest: {
+            /** Token */
+            token: string;
+        };
         /**
          * MarkDeliveredRequest
          * @description Schema for marking deliverable as delivered
@@ -8869,6 +9007,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enroll_mfa_api_mfa_enroll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MFAEnrollResponse"];
+                };
+            };
+        };
+    };
+    verify_mfa_token_api_mfa_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MFAVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_mfa_api_mfa_disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MFADisableRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_backup_codes_api_mfa_backup_codes_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MFAVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MFABackupCodesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mfa_status_api_mfa_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MFAStatusResponse"];
                 };
             };
         };

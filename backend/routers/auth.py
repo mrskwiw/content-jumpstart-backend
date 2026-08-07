@@ -29,6 +29,7 @@ from backend.services.session_revocation_service import (
     revoke_jti,
     revoke_user_sessions,
 )
+from backend.services.mfa_service import mfa_service
 from backend.services.verification_gate import email_verification_enforced
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
@@ -136,8 +137,25 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Please verify your email address before signing in.",
         )
 
-    # MFA disabled by operator decision — password-only login for all accounts.
-    # Re-enable by restoring should_enforce_mfa() and the TOTP block. See BUGS.md #172.
+    # BUGS #172: second factor for accounts that enrolled in MFA. Opt-in — an account
+    # that never enrolled is unaffected (mfa_enabled defaults False), so no one can be
+    # locked out by this. "MFA code required" is the signal the login form switches on
+    # to render the code step; keep the string in sync with the frontend.
+    if user.mfa_enabled:
+        if not login_data.totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="MFA code required",
+            )
+        if not mfa_service.verify_credential(user, login_data.totp_code):
+            logger.warning(f"AUTH: invalid MFA code for {user.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA code",
+            )
+        # verify_credential consumes a backup code in-session; persist that before the
+        # tokens are minted so a replayed code can't be spent twice.
+        db.commit()
 
     # Create tokens (bind to current password version for session revocation)
     token_data = {"sub": user.id, "pv": password_fingerprint(user.hashed_password)}

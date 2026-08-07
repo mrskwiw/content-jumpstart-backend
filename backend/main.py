@@ -49,6 +49,7 @@ from backend.routers import (
     generator,
     health,
     media,
+    mfa,
     posts,
     privacy,
     pricing,
@@ -739,6 +740,9 @@ else:
 # Include API routers
 # These MUST be registered before any catch-all routes
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# BUGS #172: the MFA router existed but was never mounted, so enrollment was
+# unreachable — which is why MFA shipped disabled. Enrollment is opt-in per account.
+app.include_router(mfa.router, prefix="/api/mfa", tags=["MFA"])
 app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - User Management"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(comments.router, prefix="/api", tags=["Comments"])

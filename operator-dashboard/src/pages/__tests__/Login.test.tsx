@@ -121,6 +121,44 @@ describe('Login Page', () => {
     expect(screen.queryByRole('button', { name: /resend verification email/i })).toBeNull();
   });
 
+  it('switches to the code step and can send a backup code instead (BUGS #172)', async () => {
+    // The backend answers "MFA code required" (401) when an enrolled account signs in
+    // without a second factor.
+    authState.login.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 401, data: { detail: 'MFA code required' } },
+    });
+
+    const user = userEvent.setup();
+    renderWithRouter(<Login />);
+
+    await user.type(screen.getByPlaceholderText(/you@example.com/i), 'mfa@example.com');
+    await user.type(screen.getByPlaceholderText(/••••••••/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    const totp = await screen.findByPlaceholderText('000000');
+    // The TOTP field is digits-only, which would silently eat an 8-char backup code.
+    await user.type(totp, 'ABC123');
+    expect(totp).toHaveValue('123');
+
+    await user.click(screen.getByRole('button', { name: /use a backup code/i }));
+
+    const backup = screen.getByPlaceholderText('XXXXXXXX');
+    await user.type(backup, 'aaaa1111');
+    expect(backup).toHaveValue('AAAA1111'); // codes are stored uppercase
+
+    authState.login.mockResolvedValue(undefined);
+    await user.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(authState.login).toHaveBeenLastCalledWith({
+        email: 'mfa@example.com',
+        password: 'password123',
+        totp_code: 'AAAA1111',
+      })
+    );
+  });
+
   it('should validate required fields', async () => {
     const user = userEvent.setup();
     renderWithRouter(<Login />);

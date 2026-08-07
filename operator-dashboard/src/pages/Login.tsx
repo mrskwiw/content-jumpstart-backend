@@ -13,6 +13,7 @@ export default function Login() {
   const [totpCode, setTotpCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [useBackupCode, setUseBackupCode] = useState(false);
   const [error, setError] = useState('');
   // GAP-AUTH-02: sign-in was refused because the address is unverified — the error is
   // actionable, so pair it with a route into the resend flow instead of a dead end.
@@ -144,25 +145,51 @@ export default function Login() {
               </>
             ) : (
               <div>
-                <Input
-                  id="totp"
-                  type="text"
-                  label="Authenticator code"
-                  required
-                  autoFocus
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
-                />
-                <button
-                  type="button"
-                  className="mt-2 text-xs text-neutral-500 dark:text-neutral-400 hover:underline"
-                  onClick={() => { setMfaRequired(false); setError(''); }}
-                >
-                  Back to sign in
-                </button>
+                {/* Backup codes are the way in when the authenticator is gone, so the
+                    code step has to accept them — they're 8 alphanumeric characters,
+                    which the digits-only TOTP field would silently eat. */}
+                {useBackupCode ? (
+                  <Input
+                    id="backup-code"
+                    type="text"
+                    label="Backup code"
+                    required
+                    autoFocus
+                    maxLength={16}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.toUpperCase())}
+                    placeholder="XXXXXXXX"
+                  />
+                ) : (
+                  <Input
+                    id="totp"
+                    type="text"
+                    label="Authenticator code"
+                    required
+                    autoFocus
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                  />
+                )}
+                <div className="mt-2 flex justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => { setMfaRequired(false); setUseBackupCode(false); setError(''); }}
+                  >
+                    Back to sign in
+                  </button>
+                  <button
+                    type="button"
+                    className="hover:underline"
+                    onClick={() => { setUseBackupCode(!useBackupCode); setTotpCode(''); setError(''); }}
+                  >
+                    {useBackupCode ? 'Use authenticator code' : 'Use a backup code'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

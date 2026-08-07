@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { authApi } from '@/api/auth';
 import { exportInstanceData, downloadJson } from '@/api/privacyApi';
+import { MFAPanel } from './MFAPanel';
 
 /** Extract a human-readable message from an axios-style error. */
 function errorMessage(err: unknown, fallback: string): string {
@@ -119,12 +120,9 @@ export function SecurityTab() {
         <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">Password & Authentication</h3>
         <div className="space-y-3">
           <button onClick={() => setShowChangePassword(true)} className="w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">Change Password</button>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-neutral-700 dark:text-neutral-300">Two-factor authentication</span>
-            <label className="relative inline-flex cursor-pointer items-center">
-              <input type="checkbox" className="peer sr-only" />
-              <div className="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 dark:border-neutral-600 after:bg-white dark:after:bg-neutral-300 after:transition-all after:content-[''] peer-checked:bg-primary-600 dark:peer-checked:bg-primary-500 peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
-            </label>
+          {/* BUGS #172: real TOTP enrollment, replacing a toggle that was wired to nothing. */}
+          <div className="border-t border-neutral-200 dark:border-neutral-700 pt-3">
+            <MFAPanel />
           </div>
         </div>
       </div>
