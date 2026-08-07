@@ -443,12 +443,11 @@ def set_mfa_policy(
         )
 
     user.mfa_enforced = bool(body.required)
-    # Commit the policy change BEFORE the audit entry. `log_action` commits and, on
-    # failure, rolls back the whole session while suppressing the error — so writing the
-    # audit first would let an audit failure silently discard this change and still
-    # return 200. The audit row is best-effort; the security change is not.
-    db.commit()
-
+    # The policy change and its audit record land in ONE transaction: log_action commits
+    # the caller's session, so the pending mutation above is committed with the audit row
+    # or not at all. raise_on_error makes the audit load-bearing (the flag is a security
+    # control — it must not change unrecorded), and a failure becomes a 500 with nothing
+    # persisted instead of either half happening quietly. See BUGS.md Decision #237.
     audit_service.log_action(
         db,
         user_id=admin.id,
@@ -459,6 +458,7 @@ def set_mfa_policy(
         resource_id=user_id,
         resource_name=user.email,
         ip_address=audit_service.get_client_ip(request),
+        raise_on_error=True,
     )
 
     logger.info(f"Admin {admin.email} set mfa_enforced={user.mfa_enforced} for user {user.email}")

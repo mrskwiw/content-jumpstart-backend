@@ -247,10 +247,10 @@ def test_admin_can_require_mfa_and_the_user_then_cannot_disable_it(db_session, c
     assert user.mfa_enforced is False
 
 
-def test_mfa_policy_survives_an_audit_write_failure(db_session, client, monkeypatch):
-    # audit_service.log_action commits the shared session and rolls it back if the audit
-    # row fails (suppressing the error), so writing the audit before the policy commit
-    # would silently discard the policy change and still answer 200.
+def test_mfa_policy_and_its_audit_record_are_atomic(db_session, client, monkeypatch):
+    # Decision #237: the flag is a security control, so it must never change without an
+    # audit record — and an audit failure must never be reported as success. log_action
+    # commits the shared session, so both land together or neither does.
     admin = _mk_user(db_session, uid="mfa-adm2", email="mfaadmin2@example.com", superuser=True)
     user = _mk_user(db_session, uid="mfa-15", email="mfa15@example.com")
     _enrolled(db_session, user)
@@ -259,17 +259,40 @@ def test_mfa_policy_survives_an_audit_write_failure(db_session, client, monkeypa
 
     def _failing_log_action(db, **kwargs):
         db.rollback()  # what log_action does internally when the write fails
+        raise RuntimeError("audit write failed")
 
     monkeypatch.setattr(audit_service, "log_action", _failing_log_action)
 
     resp = client.post(
         "/api/admin/users/mfa-15/mfa-policy", json={"required": True}, headers=_auth(admin)
     )
-    assert resp.status_code == 200, resp.text
+    # The failure surfaces as a server error — never as a success the operator would trust.
+    assert resp.status_code >= 500
 
     db_session.expire_all()
     reloaded = db_session.query(User).filter(User.id == "mfa-15").one()
-    assert reloaded.mfa_enforced is True  # the 200 told the truth
+    assert reloaded.mfa_enforced is False  # unrecorded change did not persist
+
+
+def test_mfa_policy_writes_an_audit_record(db_session, client):
+    from backend.models import AuditLog
+
+    admin = _mk_user(db_session, uid="mfa-adm3", email="mfaadmin3@example.com", superuser=True)
+    user = _mk_user(db_session, uid="mfa-16", email="mfa16@example.com")
+    _enrolled(db_session, user)
+
+    resp = client.post(
+        "/api/admin/users/mfa-16/mfa-policy", json={"required": True}, headers=_auth(admin)
+    )
+    assert resp.status_code == 200, resp.text
+
+    entry = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.resource_id == "mfa-16", AuditLog.action_type == "security")
+        .one()
+    )
+    assert entry.action == "Required MFA for user"
+    assert entry.user_email == "mfaadmin3@example.com"
 
 
 def test_mfa_policy_endpoint_is_admin_only(db_session, client):
