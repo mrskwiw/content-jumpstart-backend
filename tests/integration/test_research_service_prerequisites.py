@@ -13,9 +13,17 @@ from backend.models import Client, Project, ResearchResult
 
 @pytest.fixture
 def mock_db():
-    """Create mock database session"""
+    """Create mock database session.
+
+    `.first()` returns None by default — the service reads the latest ResearchResult row
+    and indexes it (`latest[0]`), so an auto-created Mock there raises "'Mock' object is
+    not subscriptable" rather than exercising anything. None means "no prior run", which
+    is the state these prerequisite tests are actually set up for; individual tests
+    override it when they need a row.
+    """
     db = Mock()
     db.query = Mock()
+    db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
     db.add = Mock()
     db.commit = Mock()
     db.refresh = Mock()

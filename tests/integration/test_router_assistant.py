@@ -80,11 +80,10 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [
-            MagicMock(text="I can help you with that! Here's what you need to do...")
-        ]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = (
+            "I can help you with that! Here's what you need to do..."
+        )
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -129,9 +128,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Based on our previous conversation...")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "Based on our previous conversation..."
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -192,9 +190,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="New response to be cached")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "New response to be cached"
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -226,9 +223,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Here's information about the system")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "Here's information about the system"
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -263,9 +259,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Here's how...")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "Here's how..."
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -332,9 +327,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Wizard-specific help")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "Wizard-specific help"
         mock_get_client.return_value = mock_client
 
         response = client.post(
@@ -363,9 +357,8 @@ class TestChatWithAssistant:
 
         # Mock Claude API client
         mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="General help")]
-        mock_client.create_message.return_value = mock_response
+        # create_message returns the response TEXT, not an Anthropic response object.
+        mock_client.create_message.return_value = "General help"
         mock_get_client.return_value = mock_client
 
         response = client.post(
