@@ -156,8 +156,16 @@ class TestDatabaseMigrator:
 
             assert can_migrate
             assert "v2" in reason
-            # Current app schema is v6; accept v4, v5, or v6 as the target version
-            assert "v4" in reason or "v5" in reason or "v6" in reason
+            # Read the target version from the schema mapping rather than enumerating
+            # versions here — the hardcoded "v4/v5/v6" list silently went stale every
+            # time the schema advanced (it was v6 when the schema was already v8).
+            import json
+            from pathlib import Path as _Path
+
+            mapping = json.loads(
+                (_Path(__file__).parents[2] / "backend/migrations/schema_mapping.json").read_text()
+            )
+            assert f"v{mapping['current_version']}" in reason
 
     def test_cannot_migrate_backwards(self):
         """Should not allow migration when backup is newer than current schema."""

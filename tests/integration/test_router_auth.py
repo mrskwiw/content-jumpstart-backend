@@ -389,8 +389,16 @@ class TestPasswordSecurity:
         )
 
         data = response.json()
-        assert "password" not in str(data).lower() or "hashed" in str(data).lower()
-        # Ensure no plaintext password in response
+
+        # Check for an actual leak, not the substring "password": the response legitimately
+        # carries `mustChangePassword` (S-01.4f), which made the old blanket substring
+        # assertion fail on a boolean flag while proving nothing about secrecy.
+        blob = str(data)
+        assert "testpass123" not in blob  # the plaintext we just sent
+        assert "$2b$" not in blob and "$2a$" not in blob  # a bcrypt hash
+        user = data["user"]
+        leaky = [k for k in user if "password" in k.lower() and k != "mustChangePassword"]
+        assert not leaky, f"user payload exposes password-ish fields: {leaky}"
 
     def test_password_hash_different_for_same_password(self, db_session):
         """Test that same password hashes to different values (salted)"""
