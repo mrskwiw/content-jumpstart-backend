@@ -177,6 +177,27 @@ class TestMetricsRouter:
         assert 'http_requests_total{endpoint="GET /api/clients"} 1' in result
 
 
+def _user(uid=1, superuser=False):
+    """Caller stand-in for the privacy handlers' authorization check."""
+    return SimpleNamespace(id=uid, is_superuser=superuser)
+
+
+def _client_db(owner_id=1, client_id="abc", exists=True):
+    """Minimal Session double for `_require_client_access`.
+
+    The privacy handlers authorize before delegating: they load the client and compare
+    its owner to the caller (this is the IDOR guard). These are unit tests of the
+    delegation, so the double answers that one query — `exists=False` models a client id
+    that isn't there.
+    """
+    client = SimpleNamespace(id=client_id, user_id=owner_id) if exists else None
+    return SimpleNamespace(
+        query=lambda model: SimpleNamespace(
+            filter=lambda *args, **kwargs: SimpleNamespace(first=lambda: client)
+        )
+    )
+
+
 class TestPrivacyRouter:
     def test_delete_client(self, monkeypatch):
         monkeypatch.setattr(
@@ -188,8 +209,8 @@ class TestPrivacyRouter:
         result = privacy_router.delete_client(
             client_id="abc",
             cascade=True,
-            db=SimpleNamespace(),
-            current_user=SimpleNamespace(id=1),
+            db=_client_db(),
+            current_user=_user(),
         )
 
         assert result["client_id"] == "abc"
@@ -206,8 +227,8 @@ class TestPrivacyRouter:
             privacy_router.delete_client(
                 client_id="abc",
                 cascade=True,
-                db=SimpleNamespace(),
-                current_user=SimpleNamespace(id=1),
+                db=_client_db(),
+                current_user=_user(),
             )
 
         assert exc.value.status_code == 404
@@ -221,8 +242,8 @@ class TestPrivacyRouter:
 
         result = privacy_router.anonymize_client(
             client_id="abc",
-            db=SimpleNamespace(),
-            current_user=SimpleNamespace(id=1),
+            db=_client_db(),
+            current_user=_user(),
         )
 
         assert result["anonymized"] is True
@@ -237,8 +258,8 @@ class TestPrivacyRouter:
         with pytest.raises(HTTPException) as exc:
             privacy_router.anonymize_client(
                 client_id="abc",
-                db=SimpleNamespace(),
-                current_user=SimpleNamespace(id=1),
+                db=_client_db(),
+                current_user=_user(),
             )
 
         assert exc.value.status_code == 404
@@ -252,8 +273,8 @@ class TestPrivacyRouter:
 
         result = privacy_router.export_client(
             client_id="abc",
-            db=SimpleNamespace(),
-            current_user=SimpleNamespace(id=1),
+            db=_client_db(),
+            current_user=_user(),
         )
 
         assert result["exported"] is True
@@ -268,8 +289,8 @@ class TestPrivacyRouter:
         with pytest.raises(HTTPException) as exc:
             privacy_router.export_client(
                 client_id="abc",
-                db=SimpleNamespace(),
-                current_user=SimpleNamespace(id=1),
+                db=_client_db(),
+                current_user=_user(),
             )
 
         assert exc.value.status_code == 404
@@ -283,8 +304,8 @@ class TestPrivacyRouter:
 
         result = privacy_router.restore_client(
             client_id="abc",
-            db=SimpleNamespace(),
-            current_user=SimpleNamespace(id=1),
+            db=_client_db(),
+            current_user=_user(),
         )
 
         assert result["restored"] is True
@@ -299,8 +320,64 @@ class TestPrivacyRouter:
         with pytest.raises(HTTPException) as exc:
             privacy_router.restore_client(
                 client_id="abc",
-                db=SimpleNamespace(),
-                current_user=SimpleNamespace(id=1),
+                db=_client_db(),
+                current_user=_user(),
             )
 
         assert exc.value.status_code == 404
+
+    # The authorization guard itself. These tests exist because the handlers' unit
+    # tests silently rotted when `_require_client_access` was added: a bare
+    # SimpleNamespace() session has no .query, so every case above failed on the guard
+    # rather than on the behaviour it was checking.
+    def test_unknown_client_is_404(self, monkeypatch):
+        called = []
+        monkeypatch.setattr(
+            privacy_router.data_privacy_service,
+            "soft_delete_client",
+            lambda client_id, db, cascade: called.append(client_id),
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            privacy_router.delete_client(
+                client_id="nope",
+                cascade=False,
+                db=_client_db(exists=False),
+                current_user=_user(),
+            )
+
+        assert exc.value.status_code == 404
+        assert called == []  # refused before the service ran
+
+    def test_another_users_client_is_403(self, monkeypatch):
+        called = []
+        monkeypatch.setattr(
+            privacy_router.data_privacy_service,
+            "export_client_data",
+            lambda client_id, db: called.append(client_id),
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            privacy_router.export_client(
+                client_id="abc",
+                db=_client_db(owner_id=999),
+                current_user=_user(uid=1),
+            )
+
+        assert exc.value.status_code == 403
+        assert called == []  # no data left the building
+
+    def test_superuser_may_act_on_another_users_client(self, monkeypatch):
+        monkeypatch.setattr(
+            privacy_router.data_privacy_service,
+            "export_client_data",
+            lambda client_id, db: {"client_id": client_id, "exported": True},
+        )
+
+        result = privacy_router.export_client(
+            client_id="abc",
+            db=_client_db(owner_id=999),
+            current_user=_user(uid=1, superuser=True),
+        )
+
+        assert result["exported"] is True

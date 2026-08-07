@@ -104,7 +104,16 @@ class TestAuthDependency:
 
     @pytest.mark.asyncio
     async def test_get_current_user_success(self, monkeypatch):
-        user = SimpleNamespace(email="user@example.com", is_active=True)
+        # The double carries every field the dependency reads on the happy path: a token
+        # without "pv" is checked against password_changed_at (GAP-AUTH-03) and
+        # email_verified is read when the verification gate is on (GAP-AUTH-02). Both
+        # checks were added after this test was written, which is what broke it.
+        user = SimpleNamespace(
+            email="user@example.com",
+            is_active=True,
+            password_changed_at=None,
+            email_verified=True,
+        )
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="token")
         db = SimpleNamespace()
 
@@ -115,10 +124,42 @@ class TestAuthDependency:
         monkeypatch.setattr(
             "backend.middleware.auth_dependency.crud.get_user", lambda db_obj, user_id: user
         )
+        # Revocation needs a real session; it has its own tests
+        # (tests/unit/test_session_revocation_service.py).
+        monkeypatch.setattr(
+            "backend.middleware.auth_dependency.is_token_revoked", lambda db_obj, payload: False
+        )
 
         result = await get_current_user(credentials=credentials, db=db)
 
         assert result is user
+
+    @pytest.mark.asyncio
+    async def test_get_current_user_rejects_a_stale_password_token(self, monkeypatch):
+        # A legacy token (no "pv") cannot prove it postdates a password change, so it is
+        # rejected once the password has ever changed (GAP-AUTH-03).
+        from datetime import datetime, timezone
+
+        user = SimpleNamespace(
+            email="user@example.com",
+            is_active=True,
+            password_changed_at=datetime.now(timezone.utc),
+            email_verified=True,
+        )
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="token")
+
+        monkeypatch.setattr(
+            "backend.middleware.auth_dependency.decode_token",
+            lambda token: {"sub": "user-1", "type": "access"},
+        )
+        monkeypatch.setattr(
+            "backend.middleware.auth_dependency.crud.get_user", lambda db_obj, user_id: user
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await get_current_user(credentials=credentials, db=SimpleNamespace())
+
+        assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self, monkeypatch):
