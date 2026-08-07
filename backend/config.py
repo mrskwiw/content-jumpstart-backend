@@ -83,9 +83,14 @@ class Settings(BaseSettings):
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
     # Email-verification link lifetime (GAP-AUTH-02). 24h by default.
     EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES: int = 1440
-    # When True, login is blocked (403) until the user's email is verified. Default
-    # False so verification is additive/reversible — tracked + surfaced but not enforced.
-    REQUIRE_EMAIL_VERIFICATION: bool = False
+    # When True, login (and every authenticated request) is blocked with 403 until the
+    # user's email is verified. Enabled by default now that the self-service verify /
+    # resend pages exist (GAP-AUTH-02 end-to-end). Accounts that predate the feature were
+    # grandfathered to verified by the schema migration, and operator-provisioned accounts
+    # (admin-seed, admin-created) are stamped verified at creation, so only self-registered
+    # addresses are actually gated. Set REQUIRE_EMAIL_VERIFICATION=false to opt an instance
+    # back out without a code change.
+    REQUIRE_EMAIL_VERIFICATION: bool = True
 
     # Super Admin Configuration
     # Comma-separated list of email addresses for super admins (original system administrators)

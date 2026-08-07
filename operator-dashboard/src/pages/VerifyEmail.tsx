@@ -19,11 +19,21 @@ export default function VerifyEmail() {
   const token = searchParams.get('token') ?? '';
   const navigate = useNavigate();
 
+  // `?email=` (no token) means Login sent the user here after refusing an unverified
+  // sign-in — not a broken link, so say what actually happened.
+  const emailParam = searchParams.get('email') ?? '';
   const [status, setStatus] = useState<Status>(token ? 'verifying' : 'error');
-  const [error, setError] = useState(token ? '' : 'This verification link is missing or malformed.');
+  const [error, setError] = useState(() => {
+    if (token) return '';
+    return emailParam
+      ? 'Your email address needs to be verified before you can sign in.'
+      : 'This verification link is missing or malformed.';
+  });
 
-  // Resend sub-form state
-  const [email, setEmail] = useState('');
+  // Resend sub-form state. Login sends the address along (`?email=`) when it refuses an
+  // unverified sign-in, so the user doesn't retype it; the resend response is generic
+  // either way, so a prefilled address discloses nothing.
+  const [email, setEmail] = useState(emailParam);
   const [resendSubmitted, setResendSubmitted] = useState(false);
   const [resendError, setResendError] = useState('');
   const [resending, setResending] = useState(false);

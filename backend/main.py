@@ -237,6 +237,8 @@ async def lifespan(app: FastAPI):
             else:
                 print(">> Using DEFAULT_USER_PASSWORD from environment")
 
+            from datetime import datetime, timezone
+
             created_count = 0
             updated_count = 0
             for user_data in admin_users_config:
@@ -245,19 +247,27 @@ async def lifespan(app: FastAPI):
 
                 if existing_user:
                     # Update existing user's password and superuser status
-                    from datetime import datetime, timezone
-
                     existing_user.hashed_password = get_password_hash(default_password)
                     # Revoke pre-existing sessions when the admin password is reset.
                     existing_user.password_changed_at = datetime.now(timezone.utc)
                     existing_user.is_superuser = user_data["is_superuser"]
                     existing_user.is_active = True
+                    # GAP-AUTH-02: a force-reseed is the operator's break-glass recovery
+                    # path, so it must also clear the verification gate — otherwise an
+                    # unverified admin stays locked out no matter how often it runs.
+                    if not existing_user.email_verified:
+                        existing_user.email_verified = True
+                        existing_user.email_verified_at = datetime.now(timezone.utc)
                     updated_count += 1
                     print(
                         f">> Updated admin: {user_data['email']} (superuser={user_data['is_superuser']})"
                     )
                 else:
-                    # Create new user; grant debug credits in dev/debug mode
+                    # Create new user; grant debug credits in dev/debug mode.
+                    # GAP-AUTH-02: seeded admins are operator-provisioned (the address
+                    # comes from instance env vars, not a signup form) and no verification
+                    # email is sent on this path, so they start verified — otherwise a
+                    # fresh instance would have no account able to log in at all.
                     user = User(
                         id=f"user-{uuid.uuid4().hex[:12]}",
                         email=user_data["email"],
@@ -265,6 +275,8 @@ async def lifespan(app: FastAPI):
                         full_name=user_data["full_name"],
                         is_active=True,
                         is_superuser=user_data["is_superuser"],
+                        email_verified=True,
+                        email_verified_at=datetime.now(timezone.utc),
                         credit_balance=(
                             app_settings.DEBUG_CREDITS if app_settings.DEBUG_MODE else 1000
                         ),

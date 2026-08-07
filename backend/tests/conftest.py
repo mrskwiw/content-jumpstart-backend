@@ -23,6 +23,11 @@ for path in (project_root, backend_dir):
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-for-integration-tests")
 os.environ.setdefault("SECRET_KEY", "x" * 32)
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+# GAP-AUTH-02: production defaults REQUIRE_EMAIL_VERIFICATION=True, which gates every
+# authenticated request. Test fixtures create users straight through the ORM (unverified
+# by column default) and then log in for real, so the gate is off by default here and the
+# tests that are ABOUT the gate turn it on explicitly (see test_email_verification_api.py).
+os.environ.setdefault("REQUIRE_EMAIL_VERIFICATION", "false")
 
 # Keep pytest temp files inside a pre-created repo directory so Windows ACLs do not block tmp_path.
 temp_root = project_root / "backend" / "data" / ".pytest-temp"

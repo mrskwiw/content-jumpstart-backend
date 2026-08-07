@@ -1,7 +1,10 @@
 """GAP-AUTH-02 — email verification HTTP flow (register email, verify, resend, gate)."""
 
+import pytest
+
 from backend.config import settings
 from backend.models import User
+from backend.services.verification_gate import email_delivery_available
 from backend.utils.auth import (
     create_access_token,
     create_email_verification_token,
@@ -9,6 +12,20 @@ from backend.utils.auth import (
 )
 
 _PW = "StrongPassw0rd!"
+
+
+@pytest.fixture
+def gate_on(monkeypatch):
+    """Enforce the verification gate: operator intent ON *and* a usable mail transport.
+
+    Both halves are required — `email_verification_enforced()` stands down when the
+    instance can't send email, so setting only the flag would silently test nothing.
+    """
+    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+    monkeypatch.setenv("RESEND_API_KEY", "test-transport-key")
+    email_delivery_available.cache_clear()
+    yield
+    email_delivery_available.cache_clear()
 
 
 def _mk_user(db_session, *, uid, email, verified=False, active=True):
@@ -83,16 +100,26 @@ def test_resend_verification_generic_response(db_session, client):
         )
 
 
-def test_login_gate_off_by_default_allows_unverified(db_session, client):
+def test_shipped_default_enforces_verification():
+    # The gate ships ON. The test environment opts out via REQUIRE_EMAIL_VERIFICATION=false
+    # (see tests/conftest.py) because fixtures create users straight through the ORM, so
+    # assert the field default itself rather than the env-resolved singleton.
+    from backend.config import Settings
+
+    assert Settings.model_fields["REQUIRE_EMAIL_VERIFICATION"].default is True
+
+
+def test_login_gate_can_be_disabled_per_instance(db_session, client, monkeypatch):
+    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", False)
     _mk_user(db_session, uid="user-ev6", email="ev6@example.com", verified=False)
-    # Default REQUIRE_EMAIL_VERIFICATION is False → unverified user can still log in.
+    # With the gate off, an unverified user still signs in (the escape hatch for an
+    # instance that can't send mail yet).
     r = client.post("/api/auth/login", json={"email": "ev6@example.com", "password": _PW})
     assert r.status_code == 200, r.text
     assert r.json()["user"]["emailVerified"] is False
 
 
-def test_login_gate_blocks_unverified_when_enabled(db_session, client, monkeypatch):
-    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+def test_login_gate_blocks_unverified_when_enabled(db_session, client, gate_on):
     _mk_user(db_session, uid="user-ev7", email="ev7@example.com", verified=False)
     r = client.post("/api/auth/login", json={"email": "ev7@example.com", "password": _PW})
     assert r.status_code == 403
@@ -102,10 +129,28 @@ def test_login_gate_blocks_unverified_when_enabled(db_session, client, monkeypat
     assert ok.status_code == 200, ok.text
 
 
-def test_gate_enforced_on_every_authenticated_request(db_session, client, monkeypatch):
+def test_gate_stands_down_when_the_instance_cannot_send_email(db_session, client, monkeypatch):
+    # Fail-safe: enforcement blocks every authenticated request, so an instance with no
+    # outbound transport must not demand a link it can never send — that would lock out
+    # every unverified account with no recovery short of database access.
+    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.delenv("SMTP_USER", raising=False)
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    monkeypatch.setenv("EMAIL_PROVIDER", "auto")
+    email_delivery_available.cache_clear()
+    try:
+        _mk_user(db_session, uid="user-ev11", email="ev11@example.com", verified=False)
+        r = client.post("/api/auth/login", json={"email": "ev11@example.com", "password": _PW})
+        assert r.status_code == 200, r.text
+    finally:
+        email_delivery_available.cache_clear()
+
+
+def test_gate_enforced_on_every_authenticated_request(db_session, client, gate_on):
     # The gate lives in the shared auth dependency, so an already-issued token (e.g.
     # from /register) can't bypass verification — every authenticated request is gated.
-    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
     unverified = _mk_user(db_session, uid="user-ev9", email="ev9@example.com", verified=False)
     token = create_access_token(data={"sub": unverified.id})
     r = client.post("/api/auth/logout-all", json={}, headers={"Authorization": f"Bearer {token}"})

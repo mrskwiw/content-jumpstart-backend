@@ -31,3 +31,8 @@ if str(project_root) not in sys.path:
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-anthropic-for-testing-only")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-min-32-chars")
+# GAP-AUTH-02: production defaults REQUIRE_EMAIL_VERIFICATION=True, which gates every
+# authenticated request. Test fixtures create users straight through the ORM (unverified
+# by column default) and then log in for real, so the gate is off by default here and the
+# tests that are ABOUT the gate turn it on explicitly (see test_email_verification_api.py).
+os.environ.setdefault("REQUIRE_EMAIL_VERIFICATION", "false")

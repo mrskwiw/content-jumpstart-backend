@@ -11,6 +11,23 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+/**
+ * True when a request was refused because the account's email is unverified
+ * (GAP-AUTH-02, `REQUIRE_EMAIL_VERIFICATION`).
+ *
+ * The backend answers 403 with "Please verify your email address before signing in."
+ * (login) or "...to continue." (every other authenticated request). Matching the shared
+ * phrase keeps this working across origins — a machine-readable header would be stripped
+ * from JS on a cross-origin API deployment unless explicitly exposed. The phrase is
+ * pinned by a backend test (tests/integration/test_email_verification_api.py).
+ */
+export function isEmailUnverifiedError(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 403) return false;
+  const data = (error.response?.data || {}) as ApiErrorResponse;
+  const detail = data.detail || data.message || '';
+  return detail.toLowerCase().includes('verify your email');
+}
+
 export function getAuthErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status;

@@ -29,6 +29,7 @@ from backend.services.session_revocation_service import (
     revoke_jti,
     revoke_user_sessions,
 )
+from backend.services.verification_gate import email_verification_enforced
 from backend.utils.password_policy import password_policy
 from backend.utils.auth import (
     create_access_token,
@@ -126,9 +127,10 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             detail="Inactive user",
         )
 
-    # GAP-AUTH-02: optionally block login until the email is verified (default off, so
-    # verification is additive — tracked/surfaced but not enforced unless configured).
-    if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+    # GAP-AUTH-02: block login until the email is verified. Enforced by default, but the
+    # resolved gate stands down on an instance with no outbound email transport (it can't
+    # demand a link it can't send) — see services/verification_gate.py.
+    if email_verification_enforced() and not user.email_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Please verify your email address before signing in.",

@@ -545,6 +545,51 @@ class TestCreateUser:
         assert data["isActive"] is True
         assert data["isSuperuser"] is False
 
+    def test_created_user_starts_verified_and_can_sign_in_with_gate_on(
+        self, client, admin_headers, db_session, monkeypatch
+    ):
+        """GAP-AUTH-02: admin-created accounts are operator-vouched, so they start
+        verified — this path sends no verification email, so an unverified account
+        would be permanently locked out once the gate is enforced."""
+        from backend.config import settings
+
+        response = client.post(
+            "/api/admin/users",
+            headers=admin_headers,
+            json={
+                "email": "vouched@example.com",
+                "password": "NewPass123!",  # pragma: allowlist secret
+                "full_name": "Vouched User",
+                "is_superuser": False,
+            },
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["emailVerified"] is True
+
+        created = db_session.query(User).filter(User.email == "vouched@example.com").one()
+        assert created.email_verified is True
+        assert created.email_verified_at is not None
+
+        # ...and the account is actually usable with verification enforced (intent ON
+        # plus a resolvable transport — the gate stands down without one).
+        from backend.services.verification_gate import email_delivery_available
+
+        monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
+        monkeypatch.setenv("RESEND_API_KEY", "test-transport-key")
+        email_delivery_available.cache_clear()
+        try:
+            login = client.post(
+                "/api/auth/login",
+                json={
+                    "email": "vouched@example.com",
+                    "password": "NewPass123!",  # pragma: allowlist secret
+                },
+            )
+            assert login.status_code == 200, login.text
+        finally:
+            # The transport answer is process-cached; don't leak it to other tests.
+            email_delivery_available.cache_clear()
+
     def test_create_admin_user(self, client, admin_headers):
         """Test admin can create a new admin user."""
         response = client.post(

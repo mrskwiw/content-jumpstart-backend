@@ -573,6 +573,8 @@ async def create_user(
         403: Not an admin
         400: Email already registered
     """
+    from datetime import datetime, timezone
+
     logger.info(f"Admin {admin.email} creating new user: {user_data.email}")
 
     # Check if email already exists
@@ -584,7 +586,11 @@ async def create_user(
             detail="Email already registered",
         )
 
-    # Create new user
+    # Create new user.
+    # GAP-AUTH-02: an admin typed this address and set the password out of band, so the
+    # account is operator-vouched and starts verified. There is no invite/verification
+    # email on this path, so leaving it unverified would lock the user out entirely once
+    # REQUIRE_EMAIL_VERIFICATION is on (the gate runs on every authenticated request).
     new_user = User(
         id=f"user-{uuid.uuid4().hex[:12]}",
         email=user_data.email,
@@ -592,6 +598,8 @@ async def create_user(
         full_name=user_data.full_name,
         is_active=True,
         is_superuser=user_data.is_superuser,
+        email_verified=True,
+        email_verified_at=datetime.now(timezone.utc),
     )
 
     db.add(new_user)
@@ -611,6 +619,7 @@ async def create_user(
         is_superuser=new_user.is_superuser,
         created_at=new_user.created_at,
         updated_at=new_user.updated_at,
+        email_verified=bool(new_user.email_verified),
     )
 
 

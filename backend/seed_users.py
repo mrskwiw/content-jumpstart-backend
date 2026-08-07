@@ -2,6 +2,7 @@
 Seed initial users into the database.
 """
 
+from datetime import datetime, timezone
 from typing import List
 import uuid
 import os
@@ -27,11 +28,16 @@ def seed_users(emails: List[str], password: str) -> None:
                 print(f"Skipping {email}: already exists")
                 continue
 
+            # GAP-AUTH-02: operator-seeded accounts start verified — this script has no
+            # way to send (or confirm) a verification email, and REQUIRE_EMAIL_VERIFICATION
+            # would otherwise lock every seeded user out of the app.
             user = User(
                 id=f"user-{uuid.uuid4().hex[:12]}",
                 email=email,
                 hashed_password=hashed,
                 full_name=email.split("@")[0],
+                email_verified=True,
+                email_verified_at=datetime.now(timezone.utc),
             )
             db.add(user)
             created += 1

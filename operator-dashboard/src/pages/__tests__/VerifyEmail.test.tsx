@@ -57,6 +57,16 @@ describe('VerifyEmail Page', () => {
     expect(mockedVerify).not.toHaveBeenCalled();
   });
 
+  it('prefills the resend form and explains the block when Login sends an email param', async () => {
+    at('/verify-email?email=blocked%40example.com');
+
+    // Not a broken link — the sign-in gate sent them here, so the copy says so.
+    expect(await screen.findByText(/needs to be verified before you can sign in/i)).toBeInTheDocument();
+    expect(screen.queryByText(/missing or malformed/i)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/you@example.com/i)).toHaveValue('blocked@example.com');
+    expect(mockedVerify).not.toHaveBeenCalled();
+  });
+
   it('resends a verification link with a generic, no-enumeration confirmation', async () => {
     mockedResend.mockResolvedValue({ status: 'success', message: 'sent' });
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAuthErrorMessage } from '@/utils/errorMessages';
+import { getAuthErrorMessage, isEmailUnverifiedError } from '@/utils/errorMessages';
 import { Button, Input, Alert, AlertDescription } from '@/components/ui';
 import { ROUTES } from '@/config/routes';
 
@@ -14,6 +14,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [error, setError] = useState('');
+  // GAP-AUTH-02: sign-in was refused because the address is unverified — the error is
+  // actionable, so pair it with a route into the resend flow instead of a dead end.
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -28,6 +31,7 @@ export default function Login() {
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
     setIsLoading(true);
 
     try {
@@ -44,6 +48,7 @@ export default function Login() {
         setTotpCode('');
       } else {
         setError(getAuthErrorMessage(err));
+        setNeedsVerification(isEmailUnverifiedError(err));
         console.error('Login failed', err);
       }
     } finally {
@@ -69,7 +74,20 @@ export default function Login() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <Alert variant="danger">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {error}
+                {needsVerification && (
+                  <button
+                    type="button"
+                    className="mt-2 block underline font-medium"
+                    onClick={() =>
+                      navigate(`${ROUTES.VERIFY_EMAIL}?email=${encodeURIComponent(email)}`)
+                    }
+                  >
+                    Resend verification email
+                  </button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

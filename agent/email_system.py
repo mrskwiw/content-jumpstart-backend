@@ -360,6 +360,14 @@ The Content Jumpstart Team
             return "smtp"
         return "log"
 
+    def can_deliver(self) -> bool:
+        """True when a real outbound transport is configured (not log-only mode).
+
+        Callers that make delivery a precondition (e.g. the email-verification gate)
+        use this to avoid demanding an email this instance can never actually send.
+        """
+        return self._resolve_provider() != "log"
+
     def _from_header(self, message: EmailMessage) -> str:
         """Build the `Name <addr>` From header (global override wins)."""
         addr = self.from_override or message.from_email

@@ -80,6 +80,47 @@ describe('Login Page', () => {
     });
   });
 
+  it('offers a resend route when sign-in is blocked on an unverified email', async () => {
+    // GAP-AUTH-02: the backend refuses with 403 once REQUIRE_EMAIL_VERIFICATION is on.
+    authState.login.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 403,
+        data: { detail: 'Please verify your email address before signing in.' },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithRouter(<Login />);
+
+    await user.type(screen.getByPlaceholderText(/you@example.com/i), 'blocked@example.com');
+    await user.type(screen.getByPlaceholderText(/••••••••/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    const resend = await screen.findByRole('button', { name: /resend verification email/i });
+    expect(screen.getByText(/please verify your email address/i)).toBeInTheDocument();
+
+    await user.click(resend);
+    expect(navigateMock).toHaveBeenCalledWith('/verify-email?email=blocked%40example.com');
+  });
+
+  it('does not offer the resend route on an ordinary 403', async () => {
+    authState.login.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 403, data: { detail: 'Inactive user' } },
+    });
+
+    const user = userEvent.setup();
+    renderWithRouter(<Login />);
+
+    await user.type(screen.getByPlaceholderText(/you@example.com/i), 'test@example.com');
+    await user.type(screen.getByPlaceholderText(/••••••••/i), 'password123');
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }));
+
+    await waitFor(() => expect(screen.getByText(/inactive user/i)).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /resend verification email/i })).toBeNull();
+  });
+
   it('should validate required fields', async () => {
     const user = userEvent.setup();
     renderWithRouter(<Login />);
