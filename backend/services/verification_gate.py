@@ -1,66 +1,54 @@
-"""GAP-AUTH-02 — the effective email-verification gate.
+"""GAP-AUTH-02 — the email-verification gate.
 
-`settings.REQUIRE_EMAIL_VERIFICATION` is the operator's intent; this module resolves it
-into what the instance may actually enforce. Enforcement blocks *every* authenticated
-request, so demanding a verification email on an instance with no outbound transport
-would lock out every unverified account with no recovery short of database access —
-across a fleet of per-customer instances that is a bricking hazard, not an edge case.
+`settings.REQUIRE_EMAIL_VERIFICATION` is authoritative: if it is on, unverified accounts
+are refused, full stop. An earlier revision also stood the gate down on instances with no
+outbound email transport, to avoid bricking a fleet instance that couldn't send the link.
+That was wrong — it let the most likely rollout misconfiguration silently disable an auth
+control. The lockout hazard is handled where it actually lives instead: accounts that
+predate the feature were grandfathered verified, and operator-provisioned accounts
+(admin-seed, admin-created) are stamped verified at creation, so only self-registered
+addresses are ever gated. What remains is `warn_if_unenforceable()`, a loud boot-time
+check so an operator who enables the gate without a transport hears about it.
 """
-
-from functools import lru_cache
 
 from backend.config import settings
 from backend.utils.logger import logger
 
 
-@lru_cache(maxsize=1)
 def email_delivery_available() -> bool:
     """Whether this instance has a real outbound email transport (Resend or SMTP).
 
-    Transport selection is environment-driven and therefore constant for the process
-    lifetime, so the answer is cached — which also keeps the warning below to one line
-    per boot instead of one per request. Call `email_delivery_available.cache_clear()`
-    after changing the transport environment (tests do).
+    Configuration only — `EmailSystem` resolves its transport from the environment, so
+    this makes no network call and says nothing about provider health.
     """
     try:
         from agent.email_system import EmailSystem
 
-        available = EmailSystem().can_deliver()
-    except Exception:  # pragma: no cover - defensive; never fail a request on this
-        logger.exception("Could not resolve the email transport; treating it as unavailable")
+        return EmailSystem().can_deliver()
+    except Exception:  # pragma: no cover - defensive; a broken import is not a verdict
+        logger.exception("Could not resolve the email transport")
         return False
-
-    if not available:
-        logger.warning(
-            "EMAIL: no outbound transport configured (RESEND_API_KEY / SMTP_USER+SMTP_PASSWORD "
-            "unset, or EMAIL_PROVIDER=log) — verification emails are log-only."
-        )
-    return available
-
-
-# Set once the "configured but unenforceable" warning has been emitted; the gate is
-# consulted on every authenticated request and this must not become per-request spam.
-_warned_unenforceable = False
 
 
 def email_verification_enforced() -> bool:
-    """True when unverified accounts should be refused (403).
+    """True when unverified accounts should be refused (403)."""
+    return bool(settings.REQUIRE_EMAIL_VERIFICATION)
 
-    Fail-safe by design: an instance that cannot send a verification email does not get
-    to require one. Configure a transport to turn the gate on.
+
+def warn_if_unenforceable() -> bool:
+    """Boot-time check: the gate is on but this instance cannot send the link.
+
+    Called once from the app lifespan. Returns True when it warned, so the caller (and
+    tests) can assert on it. It never changes enforcement — an operator who genuinely
+    can't send email opts out explicitly with REQUIRE_EMAIL_VERIFICATION=false.
     """
-    global _warned_unenforceable
+    if not email_verification_enforced() or email_delivery_available():
+        return False
 
-    if not settings.REQUIRE_EMAIL_VERIFICATION:
-        return False
-    if not email_delivery_available():
-        if _warned_unenforceable:
-            return False
-        _warned_unenforceable = True
-        logger.warning(
-            "AUTH: REQUIRE_EMAIL_VERIFICATION is set but this instance cannot send email — "
-            "the verification gate is NOT being enforced. Configure RESEND_API_KEY or "
-            "SMTP_USER/SMTP_PASSWORD to enforce it."
-        )
-        return False
+    logger.error(
+        "AUTH: REQUIRE_EMAIL_VERIFICATION is on but this instance has NO outbound email "
+        "transport (RESEND_API_KEY / SMTP_USER+SMTP_PASSWORD unset, or EMAIL_PROVIDER=log). "
+        "Verification links cannot be delivered, so self-registered accounts will be unable "
+        "to sign in. Configure a transport, or set REQUIRE_EMAIL_VERIFICATION=false."
+    )
     return True

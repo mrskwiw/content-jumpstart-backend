@@ -145,6 +145,13 @@ async def lifespan(app: FastAPI):
     migrate_qa_score()
     migrate_deletion_audit_log()
 
+    # GAP-AUTH-02: enforcement never stands itself down, so say it loudly at boot if this
+    # instance requires verification it has no transport to deliver.
+    from backend.services.verification_gate import warn_if_unenforceable
+
+    if warn_if_unenforceable():
+        print(">> WARNING: email verification is enforced but no email transport is configured")
+
     # Auto-seed admin users if database is empty or forced reset
     from backend.database import SessionLocal
     from backend.models.user import User

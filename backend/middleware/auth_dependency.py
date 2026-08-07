@@ -235,4 +235,14 @@ async def get_current_user_for_mfa_setup(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # GAP-AUTH-02: this dependency is an alternate front door, so it carries the same
+    # verification gate as get_current_user — "every authenticated request" has to mean
+    # every one, or an unverified account could still mutate its MFA state.
+    if email_verification_enforced() and not user.email_verified:
+        _logger.warning(f"MFA-enroll auth: unverified email blocked for {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address to continue.",
+        )
+
     return user

@@ -16,16 +16,8 @@ _PW = "StrongPassw0rd!"
 
 @pytest.fixture
 def gate_on(monkeypatch):
-    """Enforce the verification gate: operator intent ON *and* a usable mail transport.
-
-    Both halves are required — `email_verification_enforced()` stands down when the
-    instance can't send email, so setting only the flag would silently test nothing.
-    """
+    """Enforce the verification gate. The setting is the whole story — deliberately so."""
     monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
-    monkeypatch.setenv("RESEND_API_KEY", "test-transport-key")
-    email_delivery_available.cache_clear()
-    yield
-    email_delivery_available.cache_clear()
 
 
 def _mk_user(db_session, *, uid, email, verified=False, active=True):
@@ -129,23 +121,19 @@ def test_login_gate_blocks_unverified_when_enabled(db_session, client, gate_on):
     assert ok.status_code == 200, ok.text
 
 
-def test_gate_stands_down_when_the_instance_cannot_send_email(db_session, client, monkeypatch):
-    # Fail-safe: enforcement blocks every authenticated request, so an instance with no
-    # outbound transport must not demand a link it can never send — that would lock out
-    # every unverified account with no recovery short of database access.
-    monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
-    monkeypatch.delenv("RESEND_API_KEY", raising=False)
-    monkeypatch.delenv("SMTP_USER", raising=False)
-    monkeypatch.delenv("SMTP_USERNAME", raising=False)
-    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+def test_a_missing_email_transport_does_not_open_authentication(
+    db_session, client, gate_on, monkeypatch
+):
+    # An unconfigured mailer is the likeliest rollout mistake; it must not disable the
+    # gate. (Boot logs a loud error instead — see warn_if_unenforceable.)
+    for key in ("RESEND_API_KEY", "SMTP_USER", "SMTP_USERNAME", "SMTP_PASSWORD"):
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("EMAIL_PROVIDER", "auto")
-    email_delivery_available.cache_clear()
-    try:
-        _mk_user(db_session, uid="user-ev11", email="ev11@example.com", verified=False)
-        r = client.post("/api/auth/login", json={"email": "ev11@example.com", "password": _PW})
-        assert r.status_code == 200, r.text
-    finally:
-        email_delivery_available.cache_clear()
+    assert email_delivery_available() is False
+
+    _mk_user(db_session, uid="user-ev11", email="ev11@example.com", verified=False)
+    r = client.post("/api/auth/login", json={"email": "ev11@example.com", "password": _PW})
+    assert r.status_code == 403
 
 
 def test_gate_enforced_on_every_authenticated_request(db_session, client, gate_on):
@@ -160,6 +148,22 @@ def test_gate_enforced_on_every_authenticated_request(db_session, client, gate_o
     vtoken = create_access_token(data={"sub": verified.id})
     ok = client.post("/api/auth/logout-all", json={}, headers={"Authorization": f"Bearer {vtoken}"})
     assert ok.status_code == 200
+
+
+def test_gate_covers_the_mfa_setup_dependency(db_session, client, gate_on):
+    # get_current_user_for_mfa_setup is a second front door (it also accepts limited
+    # "mfa_setup" tokens), so it carries the same gate — otherwise an unverified account
+    # could still mutate its MFA state on /mfa/enroll and /mfa/verify.
+    unverified = _mk_user(db_session, uid="user-ev12", email="ev12@example.com", verified=False)
+    headers = {"Authorization": f"Bearer {create_access_token(data={'sub': unverified.id})}"}
+    assert client.post("/api/mfa/enroll", headers=headers).status_code == 403
+    assert (
+        client.post("/api/mfa/verify", json={"token": "123456"}, headers=headers).status_code == 403
+    )
+
+    verified = _mk_user(db_session, uid="user-ev13", email="ev13@example.com", verified=True)
+    ok_headers = {"Authorization": f"Bearer {create_access_token(data={'sub': verified.id})}"}
+    assert client.post("/api/mfa/enroll", headers=ok_headers).status_code == 200
 
 
 def test_grandfather_backfill_on_alter():

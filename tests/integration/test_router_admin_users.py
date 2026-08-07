@@ -570,25 +570,16 @@ class TestCreateUser:
         assert created.email_verified is True
         assert created.email_verified_at is not None
 
-        # ...and the account is actually usable with verification enforced (intent ON
-        # plus a resolvable transport — the gate stands down without one).
-        from backend.services.verification_gate import email_delivery_available
-
+        # ...and the account is actually usable with verification enforced.
         monkeypatch.setattr(settings, "REQUIRE_EMAIL_VERIFICATION", True)
-        monkeypatch.setenv("RESEND_API_KEY", "test-transport-key")
-        email_delivery_available.cache_clear()
-        try:
-            login = client.post(
-                "/api/auth/login",
-                json={
-                    "email": "vouched@example.com",
-                    "password": "NewPass123!",  # pragma: allowlist secret
-                },
-            )
-            assert login.status_code == 200, login.text
-        finally:
-            # The transport answer is process-cached; don't leak it to other tests.
-            email_delivery_available.cache_clear()
+        login = client.post(
+            "/api/auth/login",
+            json={
+                "email": "vouched@example.com",
+                "password": "NewPass123!",  # pragma: allowlist secret
+            },
+        )
+        assert login.status_code == 200, login.text
 
     def test_create_admin_user(self, client, admin_headers):
         """Test admin can create a new admin user."""
