@@ -433,13 +433,22 @@ def set_mfa_policy(
 
     if body.required and not user.mfa_enabled:
         # Locking an account that has nothing enrolled would be a no-op the operator
-        # would misread as "this account is protected now".
+        # would misread as "this account is protected now": nothing forces enrollment at
+        # login yet. Review pushed back that this blocks re-imposing MFA on someone who
+        # just disabled it — true, and the honest answer is that the control for that
+        # (forced enrollment) does not exist; recording an inert flag would not create it.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User has not enrolled in MFA yet, so it cannot be required for them",
         )
 
     user.mfa_enforced = bool(body.required)
+    # Commit the policy change BEFORE the audit entry. `log_action` commits and, on
+    # failure, rolls back the whole session while suppressing the error — so writing the
+    # audit first would let an audit failure silently discard this change and still
+    # return 200. The audit row is best-effort; the security change is not.
+    db.commit()
+
     audit_service.log_action(
         db,
         user_id=admin.id,
@@ -451,7 +460,6 @@ def set_mfa_policy(
         resource_name=user.email,
         ip_address=audit_service.get_client_ip(request),
     )
-    db.commit()
 
     logger.info(f"Admin {admin.email} set mfa_enforced={user.mfa_enforced} for user {user.email}")
     return {
