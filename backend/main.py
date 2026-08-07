@@ -103,6 +103,16 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print(">> Starting Content Jumpstart API...")
+
+    # GAP-AUTH-02 preflight (Decision #236): refuse to serve an instance that requires
+    # email verification it has no transport to deliver. Runs FIRST — before init_db(),
+    # migrations or seeding — so a rejected deploy leaves the database untouched rather
+    # than half-advanced. Tolerated in DEBUG_MODE.
+    from backend.services.verification_gate import check_startup_configuration
+
+    if check_startup_configuration(debug_mode=app_settings.DEBUG_MODE):
+        print(">> WARNING: email verification is enforced but no email transport is configured")
+
     print(
         f">> Rate Limits: {app_settings.RATE_LIMIT_REQUESTS_PER_MINUTE} req/min, {app_settings.RATE_LIMIT_TOKENS_PER_MINUTE} tokens/min"
     )
@@ -144,14 +154,6 @@ async def lifespan(app: FastAPI):
 
     migrate_qa_score()
     migrate_deletion_audit_log()
-
-    # GAP-AUTH-02: refuse to serve an instance that requires email verification it has no
-    # transport to deliver — the misconfiguration is undeployable rather than silently
-    # breaking one way or the other (Decision #236). Tolerated in DEBUG_MODE.
-    from backend.services.verification_gate import check_startup_configuration
-
-    if check_startup_configuration(debug_mode=app_settings.DEBUG_MODE):
-        print(">> WARNING: email verification is enforced but no email transport is configured")
 
     # Auto-seed admin users if database is empty or forced reset
     from backend.database import SessionLocal
