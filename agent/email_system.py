@@ -102,6 +102,15 @@ class EmailSystem:
         self.from_name = os.getenv("EMAIL_FROM_NAME", "Content Jumpstart")
         # Optional global sender override (else per-message from_email is used).
         self.from_override = os.getenv("EMAIL_FROM")
+        # Optional global Reply-To default. Needed when EMAIL_FROM points at a
+        # `noreply@` on a *different* verified domain than the product's own (we
+        # send from a domain Resend has verified, which need not be the domain
+        # the recipient signed up on). Without this, a reply to a verification or
+        # billing email goes nowhere. Unlike from_override this is a DEFAULT, not
+        # an override: a message that sets its own reply_to is being deliberately
+        # specific and wins. The sender cannot be delegated that way — an
+        # unverified From is rejected by the provider — hence the asymmetry.
+        self.reply_to_default = os.getenv("EMAIL_REPLY_TO")
 
         self.templates = self._load_templates()
         self.message_id_counter = 0
@@ -373,6 +382,10 @@ The Content Jumpstart Team
         addr = self.from_override or message.from_email
         return f"{self.from_name} <{addr}>"
 
+    def _reply_to(self, message: EmailMessage) -> Optional[str]:
+        """Resolve Reply-To: the message's own value, else the EMAIL_REPLY_TO default."""
+        return message.reply_to or self.reply_to_default
+
     def send_email(self, message: EmailMessage) -> tuple[bool, Optional[str]]:
         """Send an email message via the resolved transport.
 
@@ -456,8 +469,9 @@ The Content Jumpstart Team
         }
         if message.body_html:
             payload["html"] = message.body_html
-        if message.reply_to:
-            payload["reply_to"] = message.reply_to
+        reply_to = self._reply_to(message)
+        if reply_to:
+            payload["reply_to"] = reply_to
         attachments = self._build_resend_attachments(message.attachments)
         if attachments:
             payload["attachments"] = attachments
@@ -551,8 +565,9 @@ The Content Jumpstart Team
             msg["To"] = message.to_email
             msg["Subject"] = message.subject
 
-            if message.reply_to:
-                msg["Reply-To"] = message.reply_to
+            reply_to = self._reply_to(message)
+            if reply_to:
+                msg["Reply-To"] = reply_to
 
             # Add body
             msg.attach(MIMEText(message.body_text, "plain"))

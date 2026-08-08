@@ -114,6 +114,60 @@ def test_resend_includes_html_and_reply_to(clean_env):
     assert payload["reply_to"] == "r@example.com"
 
 
+def test_reply_to_default_applies_when_message_sets_none(clean_env):
+    # We send from a noreply@ on whichever domain Resend has verified, which need not
+    # be the domain the recipient signed up on. Without a Reply-To default, a reply to
+    # a verification or billing email would go nowhere.
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    clean_env.setenv("EMAIL_REPLY_TO", "hello@content-jumpstart.com")
+    es = EmailSystem()
+    with patch("requests.post", return_value=_ok_response()) as post:
+        es.send_email(_msg())
+
+    assert post.call_args.kwargs["json"]["reply_to"] == "hello@content-jumpstart.com"
+
+
+def test_message_reply_to_wins_over_the_default(clean_env):
+    # A message that sets its own reply_to is being deliberately specific, so it wins.
+    # (Deliberately the opposite of EMAIL_FROM, which must be able to force the sender:
+    # an unverified From is rejected by the provider outright.)
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    clean_env.setenv("EMAIL_REPLY_TO", "hello@content-jumpstart.com")
+    es = EmailSystem()
+    with patch("requests.post", return_value=_ok_response()) as post:
+        es.send_email(_msg(reply_to="specific@example.com"))
+
+    assert post.call_args.kwargs["json"]["reply_to"] == "specific@example.com"
+
+
+def test_no_reply_to_key_when_neither_is_set(clean_env):
+    # Absent both, the key must be omitted entirely rather than sent as null/empty.
+    clean_env.setenv("RESEND_API_KEY", "re_x")
+    es = EmailSystem()
+    with patch("requests.post", return_value=_ok_response()) as post:
+        es.send_email(_msg())
+
+    assert "reply_to" not in post.call_args.kwargs["json"]
+
+
+def test_smtp_reply_to_default_applies(clean_env):
+    # The SMTP path must honour the same default — otherwise the header silently
+    # differs by transport.
+    clean_env.setenv("EMAIL_PROVIDER", "smtp")
+    clean_env.setenv("SMTP_USER", "u")
+    clean_env.setenv("SMTP_PASSWORD", "p")
+    clean_env.setenv("EMAIL_REPLY_TO", "hello@content-jumpstart.com")
+    es = EmailSystem()
+    with patch("smtplib.SMTP") as smtp:
+        es.send_email(_msg())
+
+    sent = smtp.return_value.__enter__.return_value.send_message.call_args
+    if sent is None:  # some versions call sendmail/send_message unwrapped
+        sent = smtp.return_value.send_message.call_args
+    assert sent is not None, "SMTP transport did not send a message"
+    assert sent.args[0]["Reply-To"] == "hello@content-jumpstart.com"
+
+
 def test_resend_attachments_are_base64(clean_env, tmp_path):
     clean_env.setenv("RESEND_API_KEY", "re_x")
     f = tmp_path / "report.txt"
