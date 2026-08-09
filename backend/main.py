@@ -30,6 +30,7 @@ from backend.utils.http_rate_limiter import (
     lenient_limiter,
 )
 from backend.routers import (
+    account,
     admin_users,
     assistant,
     audit,
@@ -753,6 +754,9 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 # BUGS #172: the MFA router existed but was never mounted, so enrollment was
 # unreachable — which is why MFA shipped disabled. Enrollment is opt-in per account.
 app.include_router(mfa.router, prefix="/api/mfa", tags=["MFA"])
+# Prefix lives in the router. On the expired-account allowlist by design — it is what
+# a locked-out client calls to learn why, so gating it would be circular.
+app.include_router(account.router, tags=["Account"])
 app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - User Management"])
 app.include_router(teams.router, prefix="/api/teams", tags=["Teams"])
 app.include_router(comments.router, prefix="/api", tags=["Comments"])

@@ -39,6 +39,23 @@ class ApiClient {
       async (error) => {
         const originalRequest = error.config;
 
+        // Entitlement gate: the backend answers 402 `account_expired` on EVERY
+        // endpoint an expired account is not allowed to reach, so catching it here
+        // — rather than per-page — is what makes the redirect hold no matter which
+        // request happens to fire first. Keyed on `code`, not the prose, and not on
+        // 402 alone (a future billing error could reuse the status).
+        if (error.response?.status === 402) {
+          const detail = error.response?.data?.detail;
+          if (detail?.code === 'account_expired') {
+            const target = detail.subscribe_path || '/subscribe';
+            // Guard against a redirect loop if /subscribe itself ever 402s.
+            if (window.location.pathname !== target) {
+              window.location.href = target;
+            }
+            return Promise.reject(error);
+          }
+        }
+
         // Don't intercept 401 errors for login/refresh endpoints - let them bubble up
         const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh');
 

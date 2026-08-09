@@ -13,6 +13,7 @@ const ForgotPassword = lazyWithRetry(() => import('@/pages/ForgotPassword'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/ResetPassword'));
 const VerifyEmail = lazyWithRetry(() => import('@/pages/VerifyEmail'));
 const PortfolioNotice = lazyWithRetry(() => import('@/pages/PortfolioNotice'));
+const Subscribe = lazyWithRetry(() => import('@/pages/Subscribe'));
 const Overview = lazyWithRetry(() => import('@/pages/Overview'));
 const Projects = lazyWithRetry(() => import('@/pages/Projects'));
 const ProjectDetail = lazyWithRetry(() => import('@/pages/ProjectDetail'));
@@ -116,6 +117,13 @@ export const router = createBrowserRouter([
   {
     path: '/portfolio-notice',
     element: withSuspense(PortfolioNotice),
+  },
+  {
+    // Sits OUTSIDE ProtectedRoute/AppLayout on purpose: the layout's own queries
+    // would each 402 and bounce the user straight back here. It authenticates via
+    // the allowlisted /api/account/status call instead.
+    path: '/subscribe',
+    element: withSuspense(Subscribe),
   },
   {
     path: '/dashboard',

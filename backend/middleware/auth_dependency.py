@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
+from backend.services.account_state import AccountExpiredError, require_access
 from backend.services.session_revocation_service import is_token_revoked
 from backend.services.verification_gate import email_verification_enforced
 from backend.utils.auth import decode_token, password_fingerprint
@@ -44,6 +45,7 @@ security = HTTPBearerWith401()
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
@@ -152,6 +154,26 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Please verify your email address to continue.",
         )
+
+    # Entitlement gate: an expired account (trial ended, or subscription lapsed)
+    # reaches nothing but the handful of paths needed to sign out, export its data,
+    # or subscribe. Enforced here rather than per-router so a NEW endpoint is gated
+    # by default — an opt-in gate fails open through whatever route nobody
+    # remembered to annotate. 402 is machine-readable for the client redirect;
+    # `code` is what the frontend keys on, not the prose.
+    try:
+        require_access(db, request.url.path)
+    except AccountExpiredError as exc:
+        logger.info(f"AUTH: Expired account blocked {user.email} on {request.url.path}")
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "account_expired",
+                "state": exc.state,
+                "message": "Your subscription has ended. Subscribe to restore access.",
+                "subscribe_path": "/subscribe",
+            },
+        ) from exc
 
     logger.debug(f"AUTH: Successfully authenticated user: {user.email}")
     return user

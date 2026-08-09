@@ -649,6 +649,34 @@
         ]
       }
     },
+    "/api/account/status": {
+      "get": {
+        "tags": [
+          "Account",
+          "Account"
+        ],
+        "summary": "Get Account Status",
+        "description": "Current entitlement state + the plans available to restore access.",
+        "operationId": "get_account_status_api_account_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearerWith401": []
+          }
+        ]
+      }
+    },
     "/api/admin/users/{user_id}/activate": {
       "post": {
         "tags": [
@@ -11219,6 +11247,49 @@
   },
   "components": {
     "schemas": {
+      "AccountStatus": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired"
+          },
+          "spend_blocked": {
+            "type": "boolean",
+            "title": "Spend Blocked"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/PlanOption"
+            },
+            "type": "array",
+            "title": "Plans"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "expired",
+          "spend_blocked",
+          "plan_id",
+          "plans"
+        ],
+        "title": "AccountStatus"
+      },
       "AddMemberRequest": {
         "properties": {
           "email": {
@@ -16254,6 +16325,39 @@
           "status"
         ],
         "title": "PaymentStatusResponse"
+      },
+      "PlanOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "price_usd_month": {
+            "type": "integer",
+            "title": "Price Usd Month"
+          },
+          "monthly_credits": {
+            "type": "integer",
+            "title": "Monthly Credits"
+          },
+          "annual_price_usd": {
+            "type": "integer",
+            "title": "Annual Price Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "price_usd_month",
+          "monthly_credits",
+          "annual_price_usd"
+        ],
+        "title": "PlanOption"
       },
       "Platform-Input": {
         "type": "string",
