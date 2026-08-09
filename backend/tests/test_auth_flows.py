@@ -29,6 +29,16 @@ def _no_revocations_db():
     )
 
 
+def _request(path: str = "/api/clients", method: str = "GET"):
+    """Minimal Request double for the dependency's entitlement gate.
+
+    The gate needs the path + method to consult its allowlist. A non-allowlisted
+    path is used by default so these tests exercise the same route a real product
+    call would take.
+    """
+    return SimpleNamespace(url=SimpleNamespace(path=path), method=method)
+
+
 class FakeSecretManager:
     def __init__(self, primary_secret: str, active_secrets: list[str] | None = None):
         self.primary_secret = primary_secret
@@ -145,7 +155,9 @@ class TestAuthDependency:
         )
 
         # Real is_token_revoked, answering "no cutoff for this subject".
-        result = await get_current_user(credentials=credentials, db=_no_revocations_db())
+        result = await get_current_user(
+            _request(), credentials=credentials, db=_no_revocations_db()
+        )
 
         assert result is user
 
@@ -177,7 +189,7 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=_no_revocations_db())
+            await get_current_user(_request(), credentials=credentials, db=_no_revocations_db())
 
         assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -204,7 +216,7 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=SimpleNamespace())
+            await get_current_user(_request(), credentials=credentials, db=SimpleNamespace())
 
         assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -216,7 +228,7 @@ class TestAuthDependency:
         monkeypatch.setattr("backend.middleware.auth_dependency.decode_token", lambda token: None)
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=db)
+            await get_current_user(_request(), credentials=credentials, db=db)
 
         assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
         assert exc.value.detail == "Invalid authentication credentials"
@@ -232,7 +244,7 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=db)
+            await get_current_user(_request(), credentials=credentials, db=db)
 
         assert exc.value.detail == "Invalid token type"
 
@@ -246,7 +258,7 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=db)
+            await get_current_user(_request(), credentials=credentials, db=db)
 
         assert exc.value.detail == "Invalid token payload"
 
@@ -264,7 +276,7 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=db)
+            await get_current_user(_request(), credentials=credentials, db=db)
 
         assert exc.value.detail == "User not found"
 
@@ -283,6 +295,6 @@ class TestAuthDependency:
         )
 
         with pytest.raises(HTTPException) as exc:
-            await get_current_user(credentials=credentials, db=db)
+            await get_current_user(_request(), credentials=credentials, db=db)
 
         assert exc.value.detail == "Inactive user"

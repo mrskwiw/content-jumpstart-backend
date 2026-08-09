@@ -162,7 +162,7 @@ async def get_current_user(
     # remembered to annotate. 402 is machine-readable for the client redirect;
     # `code` is what the frontend keys on, not the prose.
     try:
-        require_access(db, request.url.path)
+        require_access(db, request.url.path, request.method)
     except AccountExpiredError as exc:
         logger.info(f"AUTH: Expired account blocked {user.email} on {request.url.path}")
         raise HTTPException(

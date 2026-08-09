@@ -1,17 +1,23 @@
-"""Expired-account entitlement gate.
+"""Entitlement gate — when the subscribe notice appears, and what stays reachable.
 
-The gate closes the whole app to an account with no live entitlement, so the risk
-is not "does it block" but "does it block the wrong things" — an expired customer
-who cannot sign out, export their data, or subscribe is trapped, and a gate that
-fails open on some route defeats the point. Both directions are asserted here.
+Two independent triggers, because the two products end differently:
+  * trial        → bounded by TIME (30 days), whatever credits remain
+  * subscription → bounded by CREDITS (already-purchased credit is the customer's
+                   property and stays spendable after the subscription lapses)
+
+The risk is not "does it block" but "does it block the wrong things": an account
+that cannot subscribe, sign out, or export its data is trapped, and a gate that
+misses a route defeats the point. Both directions are asserted.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
+from backend.services import account_state as acct
 from backend.services.account_state import (
-    EXPIRED_STATES,
     AccountExpiredError,
     path_allowed_while_expired,
     require_access,
@@ -19,22 +25,109 @@ from backend.services.account_state import (
 
 
 class _FakeDb:
-    """Stands in for the session; only the instance-config read matters."""
+    """Stands in for the session; every read the gate makes is monkeypatched."""
 
 
 @pytest.fixture
-def expired(monkeypatch):
-    monkeypatch.setattr("backend.services.account_state.account_state", lambda db: "expired")
+def db():
     return _FakeDb()
+
+
+def _state(monkeypatch, state):
+    monkeypatch.setattr(acct, "account_state", lambda db: state)
+
+
+def _credits(monkeypatch, amount):
+    monkeypatch.setattr(acct, "account_credits", lambda db: amount)
+
+
+def _trial_ends(monkeypatch, delta_days):
+    when = datetime.now(UTC) + timedelta(days=delta_days)
+    monkeypatch.setattr(acct, "trial_ends_at", lambda db: when)
+
+
+# ── trigger 1: a trial ends on TIME, regardless of leftover credits ──────────
+
+
+def test_trial_inside_the_window_is_not_gated(monkeypatch, db):
+    _state(monkeypatch, "trial")
+    _trial_ends(monkeypatch, +5)
+    require_access(db, "/api/clients")
+
+
+def test_trial_past_the_window_is_gated_even_with_credits_left(monkeypatch, db):
+    # The grant was to evaluate the product for 30 days, not a balance to draw
+    # down forever. Time wins over balance here.
+    _state(monkeypatch, "trial")
+    _trial_ends(monkeypatch, -1)
+    _credits(monkeypatch, 2_500)
+    with pytest.raises(AccountExpiredError):
+        require_access(db, "/api/clients")
+
+
+def test_trial_with_no_recorded_end_date_fails_OPEN_and_warns(monkeypatch, db, caplog):
+    # A trial with no end date is OUR provisioning bug. Locking out a customer we
+    # invited to try the product is the worse of the two errors — but it must be
+    # loud, not silent, or an unbounded free trial goes unnoticed.
+    import logging
+
+    _state(monkeypatch, "trial")
+    monkeypatch.setattr(acct, "trial_ends_at", lambda db: None)
+
+    with caplog.at_level(logging.WARNING, logger=acct.logger.name):
+        require_access(db, "/api/clients")  # must not raise
+
+    assert any(
+        "trial_ends_at" in r.getMessage() for r in caplog.records
+    ), "the misconfiguration must be logged, not swallowed"
+
+
+# ── trigger 2: a lapsed subscription ends on CREDITS ─────────────────────────
+
+
+def test_expired_with_credits_remaining_is_NOT_gated(monkeypatch, db):
+    # Credits already paid for are the customer's property. Cutting them off at
+    # subscription lapse would be confiscating purchased credit.
+    _state(monkeypatch, "expired")
+    _credits(monkeypatch, 400)
+    require_access(db, "/api/clients")
+    require_access(db, "/api/generator/run")  # including spend paths
+
+
+def test_expired_with_zero_credits_is_gated(monkeypatch, db):
+    _state(monkeypatch, "expired")
+    _credits(monkeypatch, 0)
+    with pytest.raises(AccountExpiredError):
+        require_access(db, "/api/clients")
+
+
+def test_expired_with_negative_balance_is_gated(monkeypatch, db):
+    _state(monkeypatch, "expired")
+    _credits(monkeypatch, -10)
+    with pytest.raises(AccountExpiredError):
+        require_access(db, "/api/clients")
+
+
+# ── states that must NOT be gated here ───────────────────────────────────────
+
+
+@pytest.mark.parametrize("state", ["active", "past_due", "suspended"])
+def test_live_subscription_states_are_never_gated(monkeypatch, db, state):
+    # past_due/suspended are billing problems on a LIVE subscription: spending is
+    # blocked at the credit chokepoint (S-01.4d), access is deliberately preserved.
+    _state(monkeypatch, state)
+    _credits(monkeypatch, 0)
+    require_access(db, "/api/clients")
+
+
+# ── what the gate closes ─────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def live(monkeypatch):
-    monkeypatch.setattr("backend.services.account_state.account_state", lambda db: "active")
+def gated(monkeypatch):
+    _state(monkeypatch, "expired")
+    _credits(monkeypatch, 0)
     return _FakeDb()
-
-
-# ── the gate closes ──────────────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -42,28 +135,24 @@ def live(monkeypatch):
     [
         "/api/clients",
         "/api/projects/1",
-        "/api/posts",
         "/api/generator/run",
         "/api/research/audience",
         "/api/media/generate",
         "/api/distribution/queue",
-        "/api/teams/me",
-        "/api/admin/users",  # even admin: the account itself has no entitlement
+        "/api/admin/users",  # even admin: the ACCOUNT has no entitlement
     ],
 )
-def test_expired_account_is_blocked_everywhere(expired, path):
+def test_gated_account_is_blocked(gated, path):
     with pytest.raises(AccountExpiredError):
-        require_access(expired, path)
+        require_access(gated, path)
 
 
-def test_an_unknown_future_endpoint_is_blocked_by_default(expired):
-    # The whole reason the gate is central: a new router must be gated without
-    # anyone remembering to annotate it.
+def test_a_future_endpoint_is_blocked_by_default(gated):
     with pytest.raises(AccountExpiredError):
-        require_access(expired, "/api/some-feature-invented-next-quarter")
+        require_access(gated, "/api/some-feature-invented-next-quarter")
 
 
-# ── the gate must NOT trap the customer ──────────────────────────────────────
+# ── what must stay reachable ─────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
@@ -72,37 +161,43 @@ def test_an_unknown_future_endpoint_is_blocked_by_default(expired):
         "/api/auth/me",
         "/api/auth/logout",
         "/api/auth/refresh",
-        "/api/auth/change-password",
-        "/api/mfa/verify",  # an MFA-enforced account must still finish auth
-        "/api/account/status",  # the subscribe page's own data
-        "/api/stripe/checkout",  # the way out
-        "/api/privacy/export",  # their content is theirs; expiry withdraws service
+        "/api/mfa/verify",
+        "/api/account/status",
+        "/api/stripe/checkout",
     ],
 )
-def test_escape_hatches_stay_open_while_expired(expired, path):
-    require_access(expired, path)  # must not raise
+def test_escape_hatches_stay_open(gated, path):
+    require_access(gated, path)
 
 
-def test_allowlist_predicate_matches_the_gate():
-    assert path_allowed_while_expired("/api/auth/me")
-    assert path_allowed_while_expired("/api/account/status")
-    assert not path_allowed_while_expired("/api/clients")
-    # Prefix matching must not be fooled by a path that merely contains an allowed one.
-    assert not path_allowed_while_expired("/api/clients/api/auth/")
+def test_gdpr_export_and_erasure_stay_open(gated):
+    # Withholding data because someone stopped paying is hostile; blocking erasure
+    # would let a billing state override a statutory right.
+    require_access(gated, "/api/privacy/account/export", "GET")
+    require_access(gated, "/api/privacy/instance/export", "GET")
+    require_access(gated, "/api/privacy/account", "DELETE")
 
 
-# ── live accounts are unaffected ─────────────────────────────────────────────
+def test_settings_are_readable_but_not_writable(gated):
+    # The page renders so the account stays legible; operational config cannot be
+    # changed while there is no entitlement to operate.
+    require_access(gated, "/api/settings/integrations/status", "GET")
+    require_access(gated, "/api/settings/web-search", "GET")
+    for method in ("POST", "PUT", "PATCH", "DELETE"):
+        with pytest.raises(AccountExpiredError):
+            require_access(gated, "/api/settings/web-search", method)
 
 
-@pytest.mark.parametrize("path", ["/api/clients", "/api/generator/run", "/api/posts"])
-def test_live_account_passes(live, path):
-    require_access(live, path)
+# ── allowlist mechanics ──────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("state", ["active", "trial", "past_due", "suspended"])
-def test_only_expired_closes_access(monkeypatch, state):
-    # past_due/suspended are BILLING problems on a live subscription: spending is
-    # blocked elsewhere (require_spendable), but access is deliberately preserved.
-    monkeypatch.setattr("backend.services.account_state.account_state", lambda db: state)
-    require_access(_FakeDb(), "/api/clients")
-    assert state not in EXPIRED_STATES
+def test_method_awareness():
+    assert path_allowed_while_expired("/api/settings/web-search", "GET")
+    assert not path_allowed_while_expired("/api/settings/web-search", "POST")
+    assert path_allowed_while_expired("/api/auth/logout", "POST")  # any method
+    assert path_allowed_while_expired("/api/settings", "get")  # case-insensitive
+
+
+def test_prefix_matching_is_not_fooled_by_a_containing_path():
+    assert not path_allowed_while_expired("/api/clients/api/auth/", "GET")
+    assert not path_allowed_while_expired("/api/clients", "GET")

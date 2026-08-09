@@ -27,8 +27,11 @@ interface PlanOption {
 
 interface AccountStatus {
   state: string;
-  expired: boolean;
+  gated: boolean;
+  gate_reason: 'trial_ended' | 'credits_exhausted' | null;
   spend_blocked: boolean;
+  credits_remaining: number;
+  trial_ends_at: string | null;
   plan_id: string | null;
   plans: PlanOption[];
 }
@@ -50,20 +53,45 @@ export default function Subscribe() {
     retry: 1,
   });
 
-  const expired = data?.expired ?? true;
+  const gated = data?.gated ?? true;
+
+  // The two triggers need different words: a trial that ran out of TIME and a
+  // lapsed subscription that ran out of CREDITS are not the same situation, and
+  // "your subscription has ended" is simply false for the first one.
+  const heading =
+    data?.gate_reason === 'trial_ended'
+      ? 'Your free trial has ended'
+      : data?.gate_reason === 'credits_exhausted'
+        ? 'You have used all your credits'
+        : gated
+          ? 'Choose a plan to continue'
+          : 'Your subscription';
+
+  const blurb =
+    data?.gate_reason === 'trial_ended'
+      ? 'Your 30 days are up. Nothing has been charged and nothing has been deleted — choose a plan to pick up exactly where you left off.'
+      : data?.gate_reason === 'credits_exhausted'
+        ? 'Your subscription has ended and the credits you had left are now used up. Your work is safe; choose a plan to start generating again.'
+        : gated
+          ? 'Choose a plan to continue. Your work is safe and nothing has been deleted.'
+          : 'Your account is active. You can change your plan here at any time.';
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 px-4 py-12">
       <div className="mx-auto max-w-4xl">
         <header className="mb-10 text-center">
           <h1 className="text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-            {expired ? 'Your subscription has ended' : 'Your subscription'}
+            {heading}
           </h1>
-          <p className="mt-3 text-neutral-600 dark:text-neutral-400">
-            {expired
-              ? 'Your work is safe and nothing has been deleted. Choose a plan to pick up where you left off.'
-              : 'Your account is active. You can change your plan here at any time.'}
-          </p>
+          <p className="mt-3 text-neutral-600 dark:text-neutral-400">{blurb}</p>
+          {/* Credits outlive a lapsed subscription, so a non-zero balance here is
+              worth stating — it is the customer's, and it explains why they still
+              had access after the subscription ended. */}
+          {!gated && (data?.credits_remaining ?? 0) > 0 && (
+            <p className="mt-2 font-mono text-sm text-neutral-500">
+              {data!.credits_remaining.toLocaleString('en-US')} credits remaining
+            </p>
+          )}
           {isError && (
             <p className="mt-3 text-sm text-error-600">
               We could not load your account status. The options below are still correct —
@@ -138,7 +166,7 @@ export default function Subscribe() {
           <a className="underline" href="/api/privacy/export">
             Export your data
           </a>
-          {!expired && (
+          {!gated && (
             <button type="button" className="underline" onClick={() => navigate('/dashboard')}>
               Back to dashboard
             </button>

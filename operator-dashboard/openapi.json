@@ -11253,13 +11253,39 @@
             "type": "string",
             "title": "State"
           },
-          "expired": {
+          "gated": {
             "type": "boolean",
-            "title": "Expired"
+            "title": "Gated"
+          },
+          "gate_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gate Reason"
           },
           "spend_blocked": {
             "type": "boolean",
             "title": "Spend Blocked"
+          },
+          "credits_remaining": {
+            "type": "integer",
+            "title": "Credits Remaining"
+          },
+          "trial_ends_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trial Ends At"
           },
           "plan_id": {
             "anyOf": [
@@ -11283,8 +11309,11 @@
         "type": "object",
         "required": [
           "state",
-          "expired",
+          "gated",
+          "gate_reason",
           "spend_blocked",
+          "credits_remaining",
+          "trial_ends_at",
           "plan_id",
           "plans"
         ],
