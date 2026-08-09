@@ -178,6 +178,35 @@ def test_gdpr_export_and_erasure_stay_open(gated):
     require_access(gated, "/api/privacy/account", "DELETE")
 
 
+def test_buying_credits_stays_open(gated):
+    # THE trap this gate could most easily become: the commonest way to get gated
+    # is running out of credits, so gating the endpoint that SELLS credits would
+    # make the lockout unescapable.
+    require_access(gated, "/api/credits/purchase", "POST")
+    require_access(gated, "/api/credits/balance", "GET")
+    require_access(gated, "/api/credits/packages", "GET")
+    require_access(gated, "/api/credits/summary", "GET")
+    require_access(gated, "/api/credits/estimate", "POST")
+
+
+def test_subscription_checkout_stays_open(gated):
+    require_access(gated, "/api/stripe/checkout", "POST")
+    require_access(gated, "/api/stripe/portal", "POST")
+    require_access(gated, "/api/stripe/payment-status/sess_123", "GET")
+
+
+def test_admin_credit_minting_stays_SHUT(gated):
+    # Otherwise an admin on a gated account grants themselves credits and walks
+    # straight back in — the gate defeating itself. Deny beats the broad allow.
+    with pytest.raises(AccountExpiredError):
+        require_access(gated, "/api/credits/admin/adjust", "POST")
+
+
+def test_deny_rules_beat_allow_prefixes():
+    assert path_allowed_while_expired("/api/credits/purchase", "POST")
+    assert not path_allowed_while_expired("/api/credits/admin/adjust", "POST")
+
+
 def test_settings_are_readable_but_not_writable(gated):
     # The page renders so the account stays legible; operational config cannot be
     # changed while there is no entitlement to operate.

@@ -55,6 +55,10 @@ _TRIAL_DAYS = 30
 #   settings — READ-ONLY. The page renders so the account stays legible (what
 #             plan, what's connected), but operational config cannot be changed
 #             while there is no entitlement to operate.
+#   credits — balance, packages, and PURCHASE. Non-negotiable: the commonest way
+#             to become gated is running out of credits, so gating the endpoint
+#             that sells credits would make the lockout unescapable. See the deny
+#             list below for the one credits path that stays shut.
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _EXPIRED_ALLOWED: tuple[tuple[str, frozenset[str] | None], ...] = (
     ("/api/auth/", None),
@@ -62,8 +66,15 @@ _EXPIRED_ALLOWED: tuple[tuple[str, frozenset[str] | None], ...] = (
     ("/api/account/", None),
     ("/api/stripe/", None),
     ("/api/privacy", None),
+    ("/api/credits", frozenset({"GET", "HEAD", "OPTIONS", "POST"})),
     ("/api/settings", _SAFE_METHODS),
 )
+
+# Checked BEFORE the allowlist, so a broad prefix cannot accidentally open a
+# narrow hole. ``/api/credits/admin/adjust`` mints credits directly: reachable
+# from a gated account it would let an admin grant themselves back in, which is
+# the gate defeating itself.
+_EXPIRED_DENIED_PREFIXES = ("/api/credits/admin",)
 
 
 class AccountSuspendedError(Exception):
@@ -175,7 +186,13 @@ def is_expired(db: Session) -> bool:
 
 
 def path_allowed_while_expired(path: str, method: str = "GET") -> bool:
-    """Whether ``path``/``method`` stays reachable on a gated account."""
+    """Whether ``path``/``method`` stays reachable on a gated account.
+
+    Deny rules are evaluated first so a broad allow-prefix cannot re-open a path
+    that was deliberately shut.
+    """
+    if any(path.startswith(prefix) for prefix in _EXPIRED_DENIED_PREFIXES):
+        return False
     upper = method.upper()
     for prefix, methods in _EXPIRED_ALLOWED:
         if path.startswith(prefix):
