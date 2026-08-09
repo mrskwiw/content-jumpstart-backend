@@ -49,7 +49,7 @@ const money = (n: number) => `$${n.toLocaleString('en-US')}`;
 
 export default function Subscribe() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [annual, setAnnual] = useState(false);
 
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -77,21 +77,37 @@ export default function Subscribe() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [dataError, setDataError] = useState<string | null>(null);
 
+  // Two DISTINCT exports, not one with a flag (they are separate services with
+  // different scopes and different auth):
+  //   account  — GDPR Art. 15 subject access. The caller's own record plus the
+  //              whole content tree they created. Any user.
+  //   instance — the entire instance database as one bundle, for migrating off
+  //              the platform. Superuser only.
+  const download = async (endpoint: string, filename: string) => {
+    setDataError(null);
+    // Must go through apiClient, not a plain <a href>: these need the bearer
+    // token, which a browser navigation would not send.
+    const { data: payload } = await apiClient.get(endpoint);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportData = useMutation({
-    mutationFn: async () => {
-      setDataError(null);
-      // Must go through apiClient, not a plain <a href>: the export needs the
-      // bearer token, which a browser navigation would not send.
-      const { data: payload } = await apiClient.get('/api/privacy/account/export');
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'content-jumpstart-account-export.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    },
+    mutationFn: () =>
+      download('/api/privacy/account/export', 'content-jumpstart-my-data.json'),
     onError: () => setDataError('Could not prepare your export. Please contact support.'),
+  });
+
+  const exportInstance = useMutation({
+    mutationFn: () =>
+      download('/api/privacy/instance/export', 'content-jumpstart-instance-export.json'),
+    onError: () =>
+      setDataError('Could not prepare the instance export. Please contact support.'),
   });
 
   const deleteAccount = useMutation({
@@ -347,6 +363,20 @@ export default function Subscribe() {
             >
               {exportData.isPending ? 'Preparing…' : 'Download my data'}
             </button>
+            {/* A separate service with a wider scope and superuser-only auth — the
+                bundle you take when migrating off the platform, not the subject-
+                access export above. Hidden for non-admins because the endpoint
+                would 403 for them. */}
+            {user?.isSuperuser && (
+              <button
+                type="button"
+                onClick={() => exportInstance.mutate()}
+                disabled={exportInstance.isPending}
+                className="rounded border border-neutral-300 dark:border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                {exportInstance.isPending ? 'Preparing…' : 'Download the full instance'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
