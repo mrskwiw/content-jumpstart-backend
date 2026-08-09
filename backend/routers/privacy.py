@@ -40,6 +40,13 @@ def export_instance(
 
     Superuser-only. Secret columns (password hashes, MFA secrets, encrypted
     setting values) are redacted. Intended for a customer migrating elsewhere.
+
+    NOT the same as ``GET /account/export`` below, which is one user's GDPR
+    subject-access export. Neither is `export_service.py` (DOCX/PDF deliverables).
+    See project/CLAUDE.md → "Export means three unrelated things".
+
+    ⚠ Serialises the whole DB into one response; needs streaming before instances
+    get large.
     """
     return data_privacy_service.export_full_instance(db)
 
@@ -52,6 +59,11 @@ def export_my_account(
     """
     Export all data associated with the authenticated user's own account
     (GDPR Article 15 / CCPA Right to Know). Secrets are redacted.
+
+    Wider than it sounds: includes the full content tree the user created
+    (clients, projects, posts, briefs, runs, deliverables), not just their user
+    row. Narrower than ``GET /instance/export`` above, which is the whole-instance
+    migration bundle and is superuser-only.
     """
     return data_privacy_service.export_user_data(current_user.id, db)
 

@@ -140,6 +140,20 @@ Key services:
 - `backend/services/research_context_builder.py` — injects research JSON into generation prompts
 - `backend/services/crud.py` — shared SQLAlchemy CRUD layer
 
+### "Export" means three unrelated things — check which one you mean
+
+A recurring source of confusion. They share no code and are not interchangeable:
+
+| Concept | Endpoint / service | Scope & auth |
+|---|---|---|
+| **Deliverable export** | `export_service.py`, `POST /api/generator/export`, `/api/deliverables/{id}/download` | Turning generated content into DOCX/PDF/TXT/MD/CSV. This is what **EXPORT-02** in `TODO.md` refers to — file *formats*, nothing to do with GDPR. |
+| **GDPR subject access** | `GET /api/privacy/account/export` → `data_privacy_service.export_user_data` | The caller's own record **plus the whole content tree they created** (clients, projects, posts, briefs, runs, deliverables). Any authenticated user. GDPR Art. 15. |
+| **Instance migration** | `GET /api/privacy/instance/export` → `data_privacy_service.export_full_instance` | The **entire instance database** as one JSON bundle, for a customer leaving the platform. **Superuser only.** |
+
+`/api/privacy` also has four **client-scoped** operations (export / delete / anonymize / restore per client) plus user-restore — day-to-day data management, distinct from all of the above.
+
+All `/api/privacy` paths are on the entitlement gate's allowlist (`account_state.py`): expiry withdraws the service, never the data rights. ⚠ The instance export serialises the whole DB into one JSON response and the client loads it into memory — fine at current volumes, needs streaming before it isn't.
+
 ### Research tools (src/research/ + backend/services/research_prerequisites.py)
 
 ~14 tools, $300–$600 per run. All extend `src/research/base.py:ResearchTool`.

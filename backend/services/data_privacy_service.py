@@ -221,6 +221,10 @@ def export_full_instance(db: Session) -> Dict:
     Superuser-only (enforced at the router). Every table is included so the
     customer can migrate elsewhere; secret columns (password hashes, MFA secrets,
     encrypted setting values) are redacted by ``_row_to_dict``.
+
+    Distinct from ``export_user_data`` (one user's GDPR subject access) and from
+    ``export_service.py`` (DOCX/PDF/CSV deliverables). See project/CLAUDE.md →
+    "Export means three unrelated things".
     """
     from backend.models import (
         AuditLog,

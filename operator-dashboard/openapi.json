@@ -5252,7 +5252,7 @@
           "privacy"
         ],
         "summary": "Export Instance",
-        "description": "Export the entire instance database as a single JSON bundle (migration).\n\nSuperuser-only. Secret columns (password hashes, MFA secrets, encrypted\nsetting values) are redacted. Intended for a customer migrating elsewhere.",
+        "description": "Export the entire instance database as a single JSON bundle (migration).\n\nSuperuser-only. Secret columns (password hashes, MFA secrets, encrypted\nsetting values) are redacted. Intended for a customer migrating elsewhere.\n\nNOT the same as ``GET /account/export`` below, which is one user's GDPR\nsubject-access export. Neither is `export_service.py` (DOCX/PDF deliverables).\nSee project/CLAUDE.md \u2192 \"Export means three unrelated things\".\n\n\u26a0 Serialises the whole DB into one response; needs streaming before instances\nget large.",
         "operationId": "export_instance_api_privacy_instance_export_get",
         "responses": {
           "200": {
@@ -5278,7 +5278,7 @@
           "privacy"
         ],
         "summary": "Export My Account",
-        "description": "Export all data associated with the authenticated user's own account\n(GDPR Article 15 / CCPA Right to Know). Secrets are redacted.",
+        "description": "Export all data associated with the authenticated user's own account\n(GDPR Article 15 / CCPA Right to Know). Secrets are redacted.\n\nWider than it sounds: includes the full content tree the user created\n(clients, projects, posts, briefs, runs, deliverables), not just their user\nrow. Narrower than ``GET /instance/export`` above, which is the whole-instance\nmigration bundle and is superuser-only.",
         "operationId": "export_my_account_api_privacy_account_export_get",
         "responses": {
           "200": {

@@ -2,6 +2,11 @@
 Export service for generating deliverable files.
 
 Handles TXT, Markdown, DOCX, and CSV export generation from database posts.
+
+This is DELIVERABLE export — turning generated content into files, and what
+TODO.md's EXPORT-02 refers to. Unrelated to the GDPR/privacy exports in
+``data_privacy_service.py`` (subject access and whole-instance migration). See
+project/CLAUDE.md → "Export means three unrelated things".
 """
 
 import json

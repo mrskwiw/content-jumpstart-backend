@@ -432,6 +432,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/account/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Account Status
+         * @description Current entitlement state + the plans available to restore access.
+         */
+        get: operations["get_account_status_api_account_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{user_id}/activate": {
         parameters: {
             query?: never;
@@ -2213,6 +2233,13 @@ export interface paths {
          *
          *     Superuser-only. Secret columns (password hashes, MFA secrets, encrypted
          *     setting values) are redacted. Intended for a customer migrating elsewhere.
+         *
+         *     NOT the same as ``GET /account/export`` below, which is one user's GDPR
+         *     subject-access export. Neither is `export_service.py` (DOCX/PDF deliverables).
+         *     See project/CLAUDE.md → "Export means three unrelated things".
+         *
+         *     ⚠ Serialises the whole DB into one response; needs streaming before instances
+         *     get large.
          */
         get: operations["export_instance_api_privacy_instance_export_get"];
         put?: never;
@@ -2234,6 +2261,11 @@ export interface paths {
          * Export My Account
          * @description Export all data associated with the authenticated user's own account
          *     (GDPR Article 15 / CCPA Right to Know). Secrets are redacted.
+         *
+         *     Wider than it sounds: includes the full content tree the user created
+         *     (clients, projects, posts, briefs, runs, deliverables), not just their user
+         *     row. Narrower than ``GET /instance/export`` above, which is the whole-instance
+         *     migration bundle and is superuser-only.
          */
         get: operations["export_my_account_api_privacy_account_export_get"];
         put?: never;
@@ -5156,6 +5188,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountStatus */
+        AccountStatus: {
+            /** State */
+            state: string;
+            /** Gated */
+            gated: boolean;
+            /** Gate Reason */
+            gate_reason: string | null;
+            /** Spend Blocked */
+            spend_blocked: boolean;
+            /** Credits Remaining */
+            credits_remaining: number;
+            /** Trial Ends At */
+            trial_ends_at: string | null;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Plans */
+            plans: components["schemas"]["PlanOption"][];
+        };
         /** AddMemberRequest */
         AddMemberRequest: {
             /**
@@ -7032,6 +7083,19 @@ export interface components {
             credits?: number | null;
             /** Project Id */
             project_id?: string | null;
+        };
+        /** PlanOption */
+        PlanOption: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Price Usd Month */
+            price_usd_month: number;
+            /** Monthly Credits */
+            monthly_credits: number;
+            /** Annual Price Usd */
+            annual_price_usd: number;
         };
         /**
          * Platform
@@ -9183,6 +9247,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MFAStatusResponse"];
+                };
+            };
+        };
+    };
+    get_account_status_api_account_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountStatus"];
                 };
             };
         };
