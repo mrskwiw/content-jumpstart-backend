@@ -172,39 +172,65 @@ def test_token_expiry_respected(secret_manager):
     assert payload is None  # Expired token rejected
 
 
-def test_deprecated_secret_warning(secret_manager, caplog):
-    """Test that using deprecated secret logs a warning."""
+def test_deprecated_secret_warning(secret_manager):
+    """A token verified by a rotated-out secret must warn, naming the deprecated index.
+
+    BUGS #240: this was flaky — it passed alone and across `tests/unit`, but failed
+    intermittently in the full run. The old version depended on THREE pieces of
+    global logging state it did not control: the logger's ``propagate`` flag, the
+    root handlers ``caplog`` installs onto, and the module-wide ``logging.disable``
+    threshold. Any test anywhere in the session could disturb one of them, and the
+    failure surfaced here rather than at the cause.
+
+    Root cause was never pinned down (see BUGS #240). Rather than keep hunting, the
+    test now captures from its OWN handler attached directly to the logger under
+    test, so none of that global state can reach it — which also protects against
+    whichever future test would have broken it next.
+    """
     import logging
 
-    # Ensure the auth module logger propagates to root (required for caplog to capture)
+    class _Capture(logging.Handler):
+        def __init__(self) -> None:
+            super().__init__(level=logging.WARNING)
+            self.messages: list[str] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            # getMessage(), not `.message` — the latter only exists once a Formatter
+            # has run, which is itself a piece of state this test should not rely on.
+            self.messages.append(record.getMessage())
+
     auth_logger = logging.getLogger("backend.utils.auth")
-    original_propagate = auth_logger.propagate
-    auth_logger.propagate = True
+    handler = _Capture()
 
+    original_level = auth_logger.level
+    original_disabled = auth_logger.disabled
+    # Module-wide suppression set by any other test (logging.disable) would silence
+    # the logger no matter what we configure on it, so neutralise it too.
+    original_manager_disable = logging.root.manager.disable
+
+    auth_logger.addHandler(handler)
+    auth_logger.setLevel(logging.WARNING)
+    auth_logger.disabled = False
+    logging.root.manager.disable = 0
     try:
-        caplog.set_level(logging.WARNING, logger="backend.utils.auth")
-
-        # Add first secret and create token
         secret_manager.add_secret("deprecated-secret")
         token_old = create_access_token({"sub": "deprecated-user@example.com"})
 
-        # Rotate secret
         secret_manager.rotate_secret(grace_period_days=7)
 
-        # Decode old token should log warning
         payload = decode_token(token_old)
-        assert payload is not None
+        assert payload is not None, "token signed with the deprecated secret should still verify"
 
-        # Check that warning was logged
-        assert any(
-            "deprecated secret" in record.message.lower() for record in caplog.records
-        ), f"Expected 'deprecated secret' warning, got: {[r.message for r in caplog.records]}"
-        assert any(
-            "index 1" in record.message for record in caplog.records
-        ), f"Expected 'index 1' in warning, got: {[r.message for r in caplog.records]}"
+        logged = " | ".join(handler.messages)
+        assert (
+            "deprecated secret" in logged.lower()
+        ), f"no deprecation warning; got: {handler.messages}"
+        assert "index 1" in logged, f"warning did not name the index; got: {handler.messages}"
     finally:
-        # Restore original propagate setting
-        auth_logger.propagate = original_propagate
+        auth_logger.removeHandler(handler)
+        auth_logger.setLevel(original_level)
+        auth_logger.disabled = original_disabled
+        logging.root.manager.disable = original_manager_disable
 
 
 def test_rotation_workflow_end_to_end(secret_manager):
