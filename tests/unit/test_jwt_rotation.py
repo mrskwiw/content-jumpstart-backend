@@ -204,14 +204,15 @@ def test_deprecated_secret_warning(secret_manager):
 
     original_level = auth_logger.level
     original_disabled = auth_logger.disabled
-    # Module-wide suppression set by any other test (logging.disable) would silence
-    # the logger no matter what we configure on it, so neutralise it too.
-    original_manager_disable = logging.root.manager.disable
+    # Module-wide suppression set by any other test would silence the logger no
+    # matter what we configure on it, so neutralise it too. Read via the public
+    # getter rather than logging.root.manager.disable, which is an internal.
+    original_manager_disable = logging.getLogger().manager.disable
 
     auth_logger.addHandler(handler)
     auth_logger.setLevel(logging.WARNING)
     auth_logger.disabled = False
-    logging.root.manager.disable = 0
+    logging.disable(logging.NOTSET)
     try:
         secret_manager.add_secret("deprecated-secret")
         token_old = create_access_token({"sub": "deprecated-user@example.com"})
@@ -230,7 +231,7 @@ def test_deprecated_secret_warning(secret_manager):
         auth_logger.removeHandler(handler)
         auth_logger.setLevel(original_level)
         auth_logger.disabled = original_disabled
-        logging.root.manager.disable = original_manager_disable
+        logging.disable(original_manager_disable)
 
 
 def test_rotation_workflow_end_to_end(secret_manager):
