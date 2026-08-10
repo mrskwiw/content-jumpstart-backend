@@ -34,8 +34,8 @@ class PostApproval(Base):
         index=True,
     )
     status = Column(String, nullable=False, default=APPROVAL_PENDING)  # pending|approved|rejected
-    submitted_by_user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    decided_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    submitted_by_user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    decided_by_user_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     decided_at = Column(DateTime(timezone=True), nullable=True)
     note = Column(Text, nullable=True)  # optional reviewer note (e.g. rejection reason)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

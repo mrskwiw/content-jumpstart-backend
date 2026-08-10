@@ -13,8 +13,10 @@ class Communication(Base):
     __tablename__ = "communications"
 
     id = Column(Integer, primary_key=True, index=True)
-    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Who logged it
+    client_id = Column(
+        Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # Who logged it
     type = Column(String, nullable=False)  # email, call, meeting, note
     subject = Column(String, nullable=False)
     content = Column(Text)  # Email body, call notes, etc.

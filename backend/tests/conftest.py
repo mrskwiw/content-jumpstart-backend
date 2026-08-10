@@ -55,3 +55,13 @@ def tmp_path():
     """Provide a stable repo-local temporary path for tests that need filesystem writes."""
 
     yield temp_root
+
+
+@pytest.fixture(autouse=True)
+def _clear_instance_config_cache():
+    """Reset the instance-config read cache between tests — see tests/conftest.py."""
+    from backend.services.settings_service import invalidate_instance_config_cache
+
+    invalidate_instance_config_cache()
+    yield
+    invalidate_instance_config_cache()

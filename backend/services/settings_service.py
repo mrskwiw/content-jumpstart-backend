@@ -206,14 +206,54 @@ def delete_setting(db: Session, user_id: int, key: str, category: str = "integra
 # concept, so writes and reads always agree.
 
 
+# ── instance-config read cache ────────────────────────────────────────────────
+# The entitlement gate reads `account_state` on EVERY authenticated request, so an
+# uncached lookup put one SELECT in front of ~200 endpoints to fetch a value that
+# changes perhaps monthly. Instance config is instance-GLOBAL (one row per key, no
+# owner) and near-static, which is what makes a plain process-local cache safe.
+#
+# Writes go through set_instance_config, which invalidates — so the TTL only bounds
+# staleness from a write by ANOTHER process (a control-plane suspension, or a second
+# web worker). 30s is the deliberate ceiling on "how long can a suspended account
+# keep working": short enough to be immaterial, long enough to erase the per-request
+# query. Deliberately NOT Redis — this must stay correct while Redis is unavailable
+# in production (see the startup log), and per-process is sufficient for a value
+# that is global and rarely written.
+_CONFIG_TTL_SECONDS = 30.0
+_config_cache: dict[str, tuple[Optional[str], float]] = {}
+
+
+def invalidate_instance_config_cache(key: Optional[str] = None) -> None:
+    """Drop one key (or the whole cache) — called on write, and by tests."""
+    if key is None:
+        _config_cache.clear()
+    else:
+        _config_cache.pop(key, None)
+
+
 def get_instance_config(db: Session, key: str, default: Optional[str] = None) -> Optional[str]:
-    """Read an instance-global config value; returns ``default`` when unset."""
+    """Read an instance-global config value; returns ``default`` when unset.
+
+    Cached for ``_CONFIG_TTL_SECONDS``. Note the cache stores the resolved value
+    only — ``default`` is applied per call, so two callers passing different
+    defaults for an unset key still each get their own.
+    """
+    import time
+
     from ..models.instance_config import InstanceConfig
 
+    hit = _config_cache.get(key)
+    if hit is not None and hit[1] > time.monotonic():
+        return hit[0] if hit[0] is not None else default
+
     row = db.query(InstanceConfig).filter(InstanceConfig.key == key).first()
-    if row is None or row.value is None:
-        return default
-    return decrypt_value(row.value) if row.is_encrypted else row.value
+    value = (
+        None
+        if (row is None or row.value is None)
+        else (decrypt_value(row.value) if row.is_encrypted else row.value)
+    )
+    _config_cache[key] = (value, time.monotonic() + _CONFIG_TTL_SECONDS)
+    return value if value is not None else default
 
 
 def set_instance_config(db: Session, key: str, value: Optional[str], encrypt: bool = False):
@@ -230,6 +270,8 @@ def set_instance_config(db: Session, key: str, value: Optional[str], encrypt: bo
         db.add(row)
     db.commit()
     db.refresh(row)
+    # After the commit, so a failed write cannot evict a still-correct cached value.
+    invalidate_instance_config_cache(key)
     return row
 
 

@@ -33,7 +33,7 @@ class PostMetric(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     posted_content_id = Column(String, ForeignKey("posted_content.id"), nullable=True, index=True)
-    scheduled_post_id = Column(String, ForeignKey("scheduled_posts.id"), nullable=True)
+    scheduled_post_id = Column(String, ForeignKey("scheduled_posts.id"), nullable=True, index=True)
     platform = Column(String, nullable=False, index=True)
     template_name = Column(String, nullable=True)
     metric_date = Column(Date, nullable=False, index=True)

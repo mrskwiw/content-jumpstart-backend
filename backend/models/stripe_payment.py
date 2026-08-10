@@ -28,7 +28,7 @@ class StripePayment(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     stripe_session_id = Column(String, nullable=False, unique=True, index=True)
     stripe_payment_intent = Column(String, nullable=True, index=True)
-    package_id = Column(String, ForeignKey("credit_packages.id"), nullable=True)
+    package_id = Column(String, ForeignKey("credit_packages.id"), nullable=True, index=True)
     amount_usd = Column(Float, nullable=True)
     credits = Column(Integer, nullable=True)
     status = Column(String, nullable=False, default="pending")  # pending|completed|failed|expired

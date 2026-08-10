@@ -42,6 +42,7 @@ class ClientKeyword(Base):
         String,
         ForeignKey("research_results.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     keyword = Column(String(200), nullable=False)
     keyword_type = Column(String(20), nullable=False)  # primary|secondary|negative|quick_win

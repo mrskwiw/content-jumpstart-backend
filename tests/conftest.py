@@ -36,3 +36,20 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-min-32-cha
 # by column default) and then log in for real, so the gate is off by default here and the
 # tests that are ABOUT the gate turn it on explicitly (see test_email_verification_api.py).
 os.environ.setdefault("REQUIRE_EMAIL_VERIFICATION", "false")
+
+
+@pytest.fixture(autouse=True)
+def _clear_instance_config_cache():
+    """Reset the instance-config read cache between tests (AUDIT-01 / P1).
+
+    That cache is module-level and keyed by config key alone, which is correct in
+    production — one process serves exactly one instance database. Tests violate
+    that assumption: each test builds a fresh DB while the cache persists, so a
+    value written by one test would be read by the next. Autouse, because the
+    failure mode is a confusing cross-test leak rather than an obvious error.
+    """
+    from backend.services.settings_service import invalidate_instance_config_cache
+
+    invalidate_instance_config_cache()
+    yield
+    invalidate_instance_config_cache()

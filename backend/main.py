@@ -462,10 +462,24 @@ async def limit_request_size(request: Request, call_next):
 
     Returns 413 Payload Too Large if exceeded.
     """
-    content_length = request.headers.get("content-length")
+    raw_content_length = request.headers.get("content-length")
 
-    if content_length:
-        content_length = int(content_length)
+    if raw_content_length:
+        # Separate name, not a reassignment: the header is `str | None` and rebinding
+        # it to int made the whole block untypeable (mypy: str|None vs int, then
+        # `str > int`). The try/except is the substantive part — Content-Length is
+        # client-supplied, so a malformed value would otherwise raise ValueError and
+        # turn a bad request into a 500.
+        try:
+            content_length = int(raw_content_length)
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": {"code": "invalid_header", "message": "Malformed Content-Length"},
+                },
+            )
 
         # Determine limit based on endpoint
         path = request.url.path

@@ -71,7 +71,7 @@ class ScheduledPost(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     project_id = Column(String, ForeignKey("projects.id"), nullable=True, index=True)
     client_id = Column(String, ForeignKey("clients.id"), nullable=True, index=True)
-    post_id = Column(String, ForeignKey("posts.id"), nullable=True)
+    post_id = Column(String, ForeignKey("posts.id"), nullable=True, index=True)
     platform = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     media_url = Column(String, nullable=True)
