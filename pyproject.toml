@@ -129,6 +129,21 @@ ignore_errors = true
 module = "backend.utils.auth"
 ignore_errors = true
 
+# Third-party packages that ship no type information. This is NOT suppressing our
+# own errors — it stops mypy reporting the absence of someone else's stubs, which
+# is noise we cannot act on. Deliberately a narrow allowlist rather than a global
+# ignore_missing_imports, so a genuinely mistyped internal import still surfaces.
+[[tool.mypy.overrides]]
+module = [
+    "jose.*",
+    "reportlab.*",
+    "celery.*",
+    "psycopg2.*",
+    "docx.*",
+    "slowapi.*",
+]
+ignore_missing_imports = true
+
 [tool.pydantic-mypy]
 init_forbid_extra = true
 init_typed = true

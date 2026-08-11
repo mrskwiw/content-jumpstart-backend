@@ -1,0 +1,5 @@
+{
+  "max_errors": 782,
+  "files": 80,
+  "note": "Ratchet ceiling for `mypy backend/`. May only ever decrease. ~69% of the original 796 are SQLAlchemy Column[...] false positives from legacy Column() declarations; migrating the models to Mapped[] is what retires them in bulk."
+}

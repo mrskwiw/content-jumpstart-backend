@@ -98,6 +98,25 @@ repos:
           - types-python-dateutil
           - pydantic
 
+  # Type-error ratchet for backend/ (AUDIT-01 / S1b).
+  #
+  # The mypy hook above only covers src/. backend/ — the actual application —
+  # was never type-checked and had accumulated 796 errors. Demanding zero here
+  # would mean either a huge blocking cleanup or the gate being turned off again,
+  # so instead the count is pinned and may only ever fall.
+  #
+  # Runs the local mypy against the repo's own pyproject config (the mirrors-mypy
+  # hook above uses an isolated env, which would resolve a different config and
+  # produce a different count — useless for a ratchet).
+  - repo: local
+    hooks:
+      - id: mypy-backend-ratchet
+        name: Type errors in backend/ must not increase
+        entry: python scripts/mypy_ratchet.py
+        language: system
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
   # Security scanning
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.2

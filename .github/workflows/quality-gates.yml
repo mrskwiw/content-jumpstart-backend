@@ -42,7 +42,10 @@ jobs:
           pip install -r requirements.txt
           # Pin black/ruff to the pre-commit versions (.pre-commit-config.yaml) so
           # local, pre-commit, and CI all agree — unpinned latest formats differently.
-          pip install black==25.12.0 ruff==0.14.10 mypy pre-commit
+          # mypy pinned for the same reason: the backend ratchet compares an error
+          # COUNT, and a different mypy version reports a different count — an
+          # unpinned bump would fail the gate with no code change.
+          pip install black==25.12.0 ruff==0.14.10 mypy==1.19.1 pre-commit
 
       # tests/ is intentionally excluded — the suite lives outside the repo (see header note).
       - name: Check code formatting (Black)
@@ -59,6 +62,16 @@ jobs:
         run: |
           mypy src/
         continue-on-error: true  # Warning only for now
+
+      # AUDIT-01 / S1b. backend/ was never type-checked and had accumulated 796
+      # errors, so a zero-error gate was never going to be switched on. This pins
+      # the count instead: it may fall, never rise. BLOCKING on purpose — the
+      # mypy step above is continue-on-error, and a ratchet that cannot fail is
+      # decoration.
+      - name: Type-error ratchet (backend/)
+        run: |
+          python scripts/mypy_ratchet.py
+        continue-on-error: false
 
       - name: Run pre-commit hooks
         run: |

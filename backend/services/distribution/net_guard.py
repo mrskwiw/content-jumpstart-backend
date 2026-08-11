@@ -25,7 +25,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from urllib.parse import ParseResult, urljoin, urlparse
 
 import requests
@@ -47,6 +47,13 @@ _MAX_UNIQUE_ADDRS = 16
 
 # Ranges not consistently covered by ``ipaddress.is_private`` across Python
 # versions — blocked explicitly for defense in depth.
+# IPAddress is a PRIVATE base that declares none of is_private /
+# is_loopback / is_reserved / … — those live on the concrete v4/v6 classes, which
+# is what ipaddress.ip_address() actually returns. Annotating with the private
+# base meant every guard check below was unverifiable by a type checker: the SSRF
+# blocklist is exactly the code where that verification is worth having.
+IPAddress = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
+
 _EXTRA_BLOCKED = [
     ipaddress.ip_network("100.64.0.0/10"),  # CGNAT / RFC 6598 shared space
     ipaddress.ip_network("198.18.0.0/15"),  # RFC 2544 benchmarking
@@ -78,7 +85,7 @@ class _PinnedHostHTTPSAdapter(HTTPAdapter):
         super().init_poolmanager(*args, **kwargs)
 
 
-def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
+def _ip_is_blocked(ip: IPAddress) -> bool:
     if (
         ip.is_private
         or ip.is_loopback
@@ -91,7 +98,7 @@ def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
     return any(ip in net for net in _EXTRA_BLOCKED)
 
 
-def _unique(ips: List[ipaddress._BaseAddress]) -> List[ipaddress._BaseAddress]:
+def _unique(ips: List[IPAddress]) -> List[IPAddress]:
     """De-duplicate resolved addresses, preserving resolver order."""
     seen, out = set(), []
     for ip in ips:
@@ -101,19 +108,22 @@ def _unique(ips: List[ipaddress._BaseAddress]) -> List[ipaddress._BaseAddress]:
     return out
 
 
-def _resolve_ips(host: str) -> List[ipaddress._BaseAddress]:
+def _resolve_ips(host: str) -> List[IPAddress]:
     try:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror as exc:
         raise UnsafeURLError(f"Could not resolve host: {host}") from exc
     ips = []
     for info in infos:
-        addr = info[4][0].split("%", 1)[0]  # strip IPv6 zone id
+        # sockaddr is (host, port) for v4 and (host, port, flowinfo, scope_id) for
+        # v6, so typeshed types element 0 as `str | int`. It is always the address
+        # string in practice; str() keeps that provable without changing behaviour.
+        addr = str(info[4][0]).split("%", 1)[0]  # strip IPv6 zone id
         ips.append(ipaddress.ip_address(addr))
     return ips
 
 
-def _validate_and_resolve(url: str) -> Tuple[ParseResult, List[ipaddress._BaseAddress]]:
+def _validate_and_resolve(url: str) -> Tuple[ParseResult, List[IPAddress]]:
     """Return ``(parsed_url, validated_ips)`` or raise ``UnsafeURLError``.
 
     Validates the scheme, then every IP the host resolves to (or a literal IP),
@@ -144,8 +154,17 @@ def assert_safe_url(url: str) -> None:
 
 
 def _host_header(parsed: ParseResult) -> str:
-    """Original ``hostname[:port]`` for the Host header (IPv6 literal bracketed)."""
+    """Original ``hostname[:port]`` for the Host header (IPv6 literal bracketed).
+
+    ``_validate_and_resolve`` already rejects a host-less URL, so this is
+    unreachable on the sanctioned path — but the guarantee lives in a different
+    function and nothing stops a future caller reaching here directly. Enforced
+    rather than cast away: a None hostname would otherwise be formatted into the
+    literal Host header "None".
+    """
     raw = parsed.hostname
+    if raw is None:
+        raise UnsafeURLError("URL has no host")
     try:
         if isinstance(ipaddress.ip_address(raw), ipaddress.IPv6Address):
             raw = f"[{raw}]"
@@ -154,7 +173,7 @@ def _host_header(parsed: ParseResult) -> str:
     return f"{raw}:{parsed.port}" if parsed.port else raw
 
 
-def _pin(parsed: ParseResult, ip: ipaddress._BaseAddress) -> Tuple[str, str]:
+def _pin(parsed: ParseResult, ip: IPAddress) -> Tuple[str, str]:
     """Build ``(connect_url, host_header)`` that targets the literal ``ip``.
 
     The connect URL swaps the hostname for the validated IP (bracketed for
@@ -179,7 +198,12 @@ def _pinned_get(parsed: ParseResult, ip, headers: dict, timeout, kwargs) -> requ
     try:
         if parsed.scheme == "https":
             # Pin the socket to the IP but verify the cert against the real host.
-            session.mount(connect_url, _PinnedHostHTTPSAdapter(parsed.hostname))
+            # Non-None by the same invariant _host_header enforces (which _pin
+            # has just called), but re-derived locally so the type is provable here.
+            pinned_host = parsed.hostname
+            if pinned_host is None:
+                raise UnsafeURLError("URL has no host")
+            session.mount(connect_url, _PinnedHostHTTPSAdapter(pinned_host))
         resp = session.get(
             connect_url,
             stream=True,
