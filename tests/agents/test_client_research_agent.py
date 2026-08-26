@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from project.src.agents.client_research_agent import (
+from src.agents.client_research_agent import (
     ClientResearchAgent,
     ClientResearchResult,
     CREDIT_COST,
 )
-from project.src.models.client_brief import ClientBrief
-from project.src.utils.web_search import SearchResponse, SearchResult
+from src.models.client_brief import ClientBrief
+from src.utils.web_search import SearchResponse, SearchResult
 
 
 # ---------------------------------------------------------------------------
