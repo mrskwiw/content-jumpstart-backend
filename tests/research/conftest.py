@@ -136,19 +136,23 @@ def mock_anthropic_client(monkeypatch):
     """
     Automatically mock the Anthropic client for all research tests.
 
-    This patches get_default_client to return a mock client that
+    This patches the client factories to return a mock client that
     returns appropriate responses without making real API calls.
+
+    Research tools moved from get_default_client() to get_research_client()
+    when per-workload model routing landed, so both names are patched — a tool
+    importing either one must still be intercepted.
     """
     # Create mock client that returns hybrid response
     mock_client = MagicMock()
     mock_client.create_message.side_effect = lambda **kwargs: create_mock_response()
 
-    # Patch get_default_client in all research modules
-    def mock_get_default_client():
+    def mock_get_client():
         return mock_client
 
     # Patch in the anthropic_client module
-    monkeypatch.setattr("src.utils.anthropic_client.get_default_client", mock_get_default_client)
+    monkeypatch.setattr("src.utils.anthropic_client.get_default_client", mock_get_client)
+    monkeypatch.setattr("src.utils.anthropic_client.get_research_client", mock_get_client)
 
     # Also patch in research modules that import it directly
     research_modules = [
@@ -167,12 +171,17 @@ def mock_anthropic_client(monkeypatch):
         "src.research.base",
     ]
 
+    # A module needs its own patch only if it binds the factory at module scope —
+    # that binding is captured at import time and is unaffected by the two
+    # setattrs above. Modules that import the factory inside a function resolve
+    # it at call time and are therefore already covered, which is why a miss
+    # here is not an error.
     for module in research_modules:
-        try:
-            monkeypatch.setattr(f"{module}.get_default_client", mock_get_default_client)
-        except (AttributeError, ImportError):
-            # Module doesn't import get_default_client directly or doesn't exist
-            pass
+        for factory in ("get_research_client", "get_default_client"):
+            try:
+                monkeypatch.setattr(f"{module}.{factory}", mock_get_client)
+            except (AttributeError, ImportError):
+                continue
 
     return mock_client
 

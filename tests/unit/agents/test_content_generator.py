@@ -1386,6 +1386,117 @@ class TestBuildContext:
         ctx = generator._build_context(brief, template, variant=1)
         assert "research_insights" not in ctx
 
+    def test_research_never_enters_the_per_post_context(self, generator, brief):
+        """Research must stay out of the user message even when a session exists.
+
+        It is identical for every post in a run, so it belongs in the cached
+        system prompt. Re-adding it here would re-send the same tokens at full
+        input price once per post and duplicate it in the prompt.
+        """
+        template = self._make_template()
+        generator.backend_session = Mock()
+        with patch(
+            "src.agents.content_generator.build_research_context",
+            return_value={
+                "formatted_text": "RESEARCH INSIGHTS: voice is direct",
+                "tool_count": 1,
+                "total_tokens": 8,
+            },
+        ):
+            ctx = generator._build_context(brief, template, variant=1)
+        assert "research_insights" not in ctx
+
+
+class TestResearchBlockInSystemPrompt:
+    """Research context belongs in the batch-level cached system prompt."""
+
+    @pytest.fixture
+    def generator(self):
+        client = Mock()
+        loader = Mock()
+        return ContentGeneratorAgent(client=client, template_loader=loader, use_content_skill=False)
+
+    @pytest.fixture
+    def brief(self):
+        return ClientBrief(
+            company_name="Test Co",
+            business_description="SaaS platform",
+            ideal_customer="Teams",
+            main_problem_solved="Workflow gaps",
+        )
+
+    def _research(self, text="RESEARCH INSIGHTS: voice is direct, avoid jargon"):
+        return {"formatted_text": text, "tool_count": 2, "total_tokens": 9}
+
+    @pytest.fixture
+    def brief_with_client(self):
+        """A brief carrying a client_id, as the backend now builds it.
+
+        Regression anchor for BUGS #242: ClientBrief previously had no client_id
+        field at all, and pydantic rejected assigning one, so every research
+        injection path was permanently unreachable.
+        """
+        return ClientBrief(
+            company_name="Test Co",
+            business_description="SaaS platform",
+            ideal_customer="Teams",
+            main_problem_solved="Workflow gaps",
+            client_id="client-123",
+        )
+
+    def test_block_is_included_when_the_brief_carries_a_client_id(
+        self, generator, brief_with_client
+    ):
+        generator.backend_session = Mock()
+        with patch(
+            "src.agents.content_generator.build_research_context",
+            return_value=self._research(),
+        ):
+            block = generator._build_research_block(brief_with_client)
+        assert "CLIENT RESEARCH CONTEXT" in block
+        assert "voice is direct, avoid jargon" in block
+
+    def test_client_brief_accepts_a_client_id(self, brief_with_client):
+        """BUGS #242: assigning client_id used to raise ValueError in pydantic."""
+        assert brief_with_client.client_id == "client-123"
+
+    def test_block_is_empty_without_a_client_id(self, generator, brief):
+        """A brief with no client id (CLI runs) skips research rather than failing."""
+        generator.backend_session = Mock()
+        assert generator._build_research_block(brief) == ""
+
+    def test_research_reaches_the_system_prompt_end_to_end(self, generator, brief_with_client):
+        """The whole point of BUGS #242: findings must land in the actual prompt."""
+        generator.backend_session = Mock()
+        with patch(
+            "src.agents.content_generator.build_research_context",
+            return_value=self._research(),
+        ):
+            prompt = generator._build_system_prompt(brief_with_client)
+        assert "CLIENT RESEARCH CONTEXT" in prompt
+        assert "voice is direct, avoid jargon" in prompt
+
+    def test_block_is_empty_without_a_session(self, generator, brief):
+        generator.backend_session = None
+        assert generator._build_research_block(brief) == ""
+
+    def test_block_is_empty_when_client_has_no_research(self, generator, brief):
+        generator.backend_session = Mock()
+        with patch(
+            "src.agents.content_generator.build_research_context",
+            return_value={"formatted_text": "", "tool_count": 0, "total_tokens": 0},
+        ):
+            assert generator._build_research_block(brief) == ""
+
+    def test_lookup_failure_degrades_instead_of_breaking_the_run(self, generator, brief):
+        """Research is an enhancement — a lookup failure must not abort generation."""
+        generator.backend_session = Mock()
+        with patch(
+            "src.agents.content_generator.build_research_context",
+            side_effect=RuntimeError("db down"),
+        ):
+            assert generator._build_research_block(brief) == ""
+
 
 # ==================== _generate_single_post sync Tests ====================
 

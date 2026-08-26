@@ -135,6 +135,14 @@ class ClientBrief(BaseModel):
     project_id: Optional[str] = Field(
         None, description="Backend database project ID for cost tracking"
     )
+    client_id: Optional[str] = Field(
+        None,
+        description=(
+            "Backend database client ID. Required for research context, story context, "
+            "and brand-archetype lookup to reach the generation prompt — those paths key "
+            "off this field. Absent for CLI runs, where research injection is skipped."
+        ),
+    )
 
     @field_validator("customer_questions")
     @classmethod

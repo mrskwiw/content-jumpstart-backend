@@ -19,7 +19,7 @@ from ..models.market_trends_models import (
 )
 from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 from ..utils.google_maps_search import get_google_maps_client
 from ..utils.web_search import get_search_client
 from .base import ResearchTool
@@ -33,7 +33,7 @@ class MarketTrendsResearcher(ResearchTool, CommonValidationMixin):
         """Initialize Market Trends Researcher with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()
+        self.client = get_research_client()
 
     @staticmethod
     def _safe_join(items: List[Any], separator: str = ", ") -> str:

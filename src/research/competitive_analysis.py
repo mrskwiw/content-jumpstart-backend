@@ -22,7 +22,7 @@ from ..validators.research_input_validator import (
     ResearchInputValidator,
     validate_competitor_list,
 )
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 from ..utils.web_search import get_search_client, SearchResponse
 from ..utils.google_maps_search import get_google_maps_client
 from .base import ResearchTool
@@ -72,7 +72,7 @@ class CompetitiveAnalyzer(ResearchTool, CommonValidationMixin):
         """Initialize competitive analyzer with input validator"""
         super().__init__(project_id=project_id, config=config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()
+        self.client = get_research_client()
 
     @property
     def tool_name(self) -> str:

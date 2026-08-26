@@ -9,10 +9,16 @@ from typing import Any, Dict, List, Optional
 
 import anthropic
 
+from src.utils.model_capabilities import WORKLOAD_ASSISTANT, build_model_params, resolve_model
+
 from .context import ContextManager, ConversationContext
 from .prompts import AGENT_SYSTEM_PROMPT, build_conversation_context_prompt, get_tool_descriptions
 from .tools import AgentTools
 from .workflows import WorkflowExecutor
+
+#: Output budget for an agent turn. With adaptive thinking enabled, thinking and
+#: response text share this budget, so the pre-migration 4096 would truncate.
+AGENT_MAX_TOKENS = 16000
 
 
 class AgentResponse:
@@ -35,11 +41,24 @@ class ContentAgentCore:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: Optional[str] = None,
         session_id: Optional[str] = None,
     ):
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = model
+        # Resolve from settings rather than hardcoding: a pinned literal here
+        # silently rots when the model is retired (the previous default,
+        # claude-3-5-sonnet-20241022, was retired 2025-10-28 and now 404s).
+        self.model = model or resolve_model(WORKLOAD_ASSISTANT)
+        # Generation controls differ by model generation: temperature on legacy
+        # models, effort + thinking on Claude 5 (which rejects temperature).
+        # has_tools=True is load-bearing — it forces adaptive thinking, without
+        # which Opus 5 can emit a tool call as plain text that never executes.
+        self._model_params = build_model_params(
+            model=self.model,
+            temperature=0.7,
+            workload=WORKLOAD_ASSISTANT,
+            has_tools=True,
+        )
         self.tools = AgentTools()
         self.workflow_executor = WorkflowExecutor(self.tools)
         self.context_manager = ContextManager()
@@ -69,11 +88,11 @@ class ContentAgentCore:
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=AGENT_MAX_TOKENS,
                 system=system_prompt,
                 messages=self.messages,
                 tools=self._get_tool_definitions(),
-                temperature=0.7,
+                **self._model_params,
             )
 
             # Process response
@@ -115,10 +134,10 @@ class ContentAgentCore:
                 # Get follow-up response from Claude
                 follow_up = self.client.messages.create(
                     model=self.model,
-                    max_tokens=4096,
+                    max_tokens=AGENT_MAX_TOKENS,
                     system=system_prompt,
                     messages=self.messages,
-                    temperature=0.7,
+                    **self._model_params,
                 )
 
                 response_text = self._extract_text_from_response(follow_up)

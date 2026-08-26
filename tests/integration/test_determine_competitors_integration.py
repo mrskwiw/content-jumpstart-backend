@@ -97,9 +97,9 @@ class TestDetermineCompetitorsIntegration:
     @patch(
         "backend.utils.web_search_validator.is_web_search_configured", return_value=(True, "mock")
     )
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     @patch("src.research.determine_competitors.get_search_client")
-    @patch("src.research.determine_competitors.get_default_client")
+    @patch("src.research.determine_competitors.get_research_client")
     def test_full_execution_with_web_search(
         self,
         mock_dc_claude_client,
@@ -198,9 +198,9 @@ class TestDetermineCompetitorsIntegration:
     @patch(
         "backend.utils.web_search_validator.is_web_search_configured", return_value=(True, "mock")
     )
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     @patch("src.research.determine_competitors.get_search_client")
-    @patch("src.research.determine_competitors.get_default_client")
+    @patch("src.research.determine_competitors.get_research_client")
     def test_auto_saves_competitors_to_client_profile(
         self,
         mock_dc_claude_client,
@@ -304,9 +304,9 @@ class TestDetermineCompetitorsIntegration:
     @patch(
         "backend.utils.web_search_validator.is_web_search_configured", return_value=(True, "mock")
     )
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     @patch("src.research.determine_competitors.get_search_client")
-    @patch("src.research.determine_competitors.get_default_client")
+    @patch("src.research.determine_competitors.get_research_client")
     def test_optional_location_parameter(
         self,
         mock_dc_claude_client,
@@ -365,9 +365,9 @@ class TestDetermineCompetitorsIntegration:
     @patch(
         "backend.utils.web_search_validator.is_web_search_configured", return_value=(True, "mock")
     )
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     @patch("src.research.determine_competitors.get_search_client")
-    @patch("src.research.determine_competitors.get_default_client")
+    @patch("src.research.determine_competitors.get_research_client")
     def test_optional_industry_parameter(
         self,
         mock_dc_claude_client,

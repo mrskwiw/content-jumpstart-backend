@@ -254,7 +254,7 @@ class SEOKeywordResearcher(ResearchTool, CommonValidationMixin):
         Returns:
             List of 3-5 main topic keywords
         """
-        from ..utils.anthropic_client import get_default_client
+        from ..utils.anthropic_client import get_research_client
 
         logger.info("Auto-generating topics from business context")
 
@@ -299,7 +299,7 @@ SEO strategy
 Your topics:"""
 
         try:
-            client = get_default_client()
+            client = get_research_client()
             response = client.create_message(
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=300,

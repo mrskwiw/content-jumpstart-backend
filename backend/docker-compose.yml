@@ -16,7 +16,7 @@ services:
       - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
       - SECRET_KEY=${SECRET_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+      - ANTHROPIC_MODEL=claude-sonnet-5
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -39,7 +39,7 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
       - SECRET_KEY=${SECRET_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-5}
       - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-2800}
       - RATE_LIMIT_TOKENS_PER_MINUTE=${RATE_LIMIT_TOKENS_PER_MINUTE:-280000}
     volumes:
@@ -103,7 +103,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/content_jumpstart
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-5}
     volumes:
       - api-data:/app/data
       - api-logs:/app/logs

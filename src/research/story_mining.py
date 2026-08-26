@@ -24,7 +24,7 @@ from ..models.story_mining_models import (
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 
 
 class StoryMiner(ResearchTool, CommonValidationMixin):
@@ -34,7 +34,7 @@ class StoryMiner(ResearchTool, CommonValidationMixin):
         """Initialize story miner with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()  # Needed for API calls
+        self.client = get_research_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:

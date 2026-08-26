@@ -14,7 +14,7 @@ from ..models.determine_competitors_models import (
     DiscoveredCompetitor,
     DetermineCompetitorsReport,
 )
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 from ..utils.logger import logger
 from ..utils.web_search import get_search_client, SearchResponse
 from ..utils.google_maps_search import get_google_maps_client, GoogleMapsPlace
@@ -29,7 +29,7 @@ class CompetitorDeterminer(ResearchTool, CommonValidationMixin):
     def __init__(self, project_id: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()
+        self.client = get_research_client()
 
     @property
     def tool_name(self) -> str:

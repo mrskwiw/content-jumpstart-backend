@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from ..utils.logger import logger
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
+from ..utils.model_capabilities import supports_structured_outputs
 from ..config.settings import Settings
 
 settings = Settings()
@@ -243,6 +244,7 @@ class ResearchTool(ABC):
         temperature: float = 0.4,
         extract_json: bool = False,
         fallback_on_error: Optional[Any] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Call Claude API with unified error handling and optional JSON extraction
 
@@ -255,6 +257,14 @@ class ResearchTool(ABC):
             temperature: Sampling temperature 0.0-1.0 (default: 0.4)
             extract_json: Whether to extract JSON from response (default: False)
             fallback_on_error: Value to return on error (default: None = raise exception)
+            response_schema: JSON Schema constraining the response. When supplied
+                (and the target model supports structured outputs) the API is
+                required to emit conforming JSON, so the response is parsed
+                directly instead of being scraped out of prose with
+                ``_extract_json_from_response``. Schemas must set
+                ``additionalProperties: false`` and list ``required`` keys.
+                Ignored on models without structured-output support, which fall
+                back to prompt-and-parse.
 
         Returns:
             - If extract_json=True: Parsed JSON dict
@@ -283,16 +293,35 @@ class ResearchTool(ABC):
             ... )
         """
         try:
-            client = get_default_client()
+            client = get_research_client()
 
             logger.debug(
                 f"{self.tool_name}: Calling Claude API "
                 f"(max_tokens={max_tokens}, temperature={temperature})"
             )
 
+            # Attach the schema only when the resolved model can honour it;
+            # sending output_config.format to a model without structured-output
+            # support is rejected, and silently dropping it would leave callers
+            # believing the response was validated when it was merely parsed.
+            schema_kwargs: Dict[str, Any] = {}
+            use_schema = bool(response_schema) and supports_structured_outputs(client.model)
+            if use_schema:
+                schema_kwargs["output_config"] = {
+                    "format": {"type": "json_schema", "schema": response_schema}
+                }
+            elif response_schema:
+                logger.debug(
+                    f"{self.tool_name}: {client.model} has no structured-output support; "
+                    "falling back to prompt-and-parse"
+                )
+
+            # No explicit model= here: the research client already resolves
+            # ANTHROPIC_MODEL_RESEARCH, and passing settings.ANTHROPIC_MODEL
+            # would silently route research back onto the generation model.
             response = client.create_message(
-                model=settings.ANTHROPIC_MODEL,
                 max_tokens=max_tokens,
+                **schema_kwargs,
                 temperature=temperature,
                 system=prompt,
                 messages=[{"role": "user", "content": "Please provide the requested analysis."}],
@@ -303,6 +332,12 @@ class ResearchTool(ABC):
             response_text = response  # Wrapper already extracts text
 
             logger.debug(f"{self.tool_name}: Received response ({len(response_text)} chars)")
+
+            if use_schema:
+                # The API guaranteed the shape, so parse straight through. Any
+                # failure here is a real contract violation and should surface
+                # rather than be papered over by the prose scraper.
+                return json.loads(response_text)
 
             if extract_json:
                 return self._extract_json_from_response(response_text)

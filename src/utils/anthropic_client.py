@@ -29,7 +29,59 @@ from .connection_diagnostics import (
 )
 from .cost_tracker import get_default_tracker
 from .logger import log_api_call, log_error, logger
+from .model_capabilities import (
+    WORKLOAD_ASSISTANT,
+    WORKLOAD_GENERATION,
+    WORKLOAD_RESEARCH,
+    build_model_params,
+    enforce_token_floor,
+    estimate_tokens,
+    resolve_model,
+)
 from .response_cache import ResponseCache
+
+
+class ContentRefusedError(RuntimeError):
+    """Raised when the model's safety classifiers decline a request.
+
+    Claude 5 models return HTTP 200 with ``stop_reason == "refusal"`` and an
+    empty or partial ``content`` array rather than raising an API error, so this
+    is surfaced as a distinct exception instead of an opaque IndexError.
+    """
+
+    def __init__(self, stop_details: Any = None):
+        self.stop_details = stop_details
+        category = getattr(stop_details, "category", None)
+        explanation = getattr(stop_details, "explanation", None)
+        detail = f" (category={category})" if category else ""
+        super().__init__(f"Model declined the request{detail}: {explanation or 'no explanation'}")
+
+
+def _extract_response_text(response: Any) -> str:
+    """Pull the assistant's text out of a Messages API response.
+
+    Indexing ``response.content[0]`` is unsafe once thinking is enabled: the
+    first block is then a thinking block, which has no ``.text`` attribute. This
+    walks the blocks and returns the first one of type ``"text"``.
+
+    Args:
+        response: A Messages API response object.
+
+    Returns:
+        The first text block's content.
+
+    Raises:
+        ContentRefusedError: If the model declined the request.
+        RuntimeError: If the response carries no text block.
+    """
+    if getattr(response, "stop_reason", None) == "refusal":
+        raise ContentRefusedError(getattr(response, "stop_details", None))
+
+    for block in response.content or []:
+        if getattr(block, "type", None) == "text":
+            return str(block.text)
+
+    raise RuntimeError("Empty response from API")
 
 
 @dataclass
@@ -71,19 +123,24 @@ class AnthropicClient:
         max_retries: Optional[int] = None,
         retry_delay: Optional[float] = None,
         enable_response_cache: Optional[bool] = None,
+        workload: str = WORKLOAD_GENERATION,
     ):
         """
         Initialize Anthropic client
 
         Args:
             api_key: Anthropic API key (defaults to settings)
-            model: Model to use (defaults to settings)
+            model: Model to use (defaults to the workload's configured model)
             max_retries: Maximum number of retries on failure
             retry_delay: Initial delay between retries (exponential backoff)
             enable_response_cache: Enable disk-based response caching
+            workload: Which model route to use — "generation", "research", or
+                "assistant". Determines the model, the effort level, and whether
+                thinking is enabled. See src/utils/model_capabilities.py.
         """
         self.api_key = api_key or settings.ANTHROPIC_API_KEY
-        self.model = model or settings.ANTHROPIC_MODEL
+        self.workload = workload
+        self.model = model or resolve_model(workload, settings_obj=settings)
         self.max_retries = max_retries or DEFAULT_MAX_RETRIES
         self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
 
@@ -287,6 +344,8 @@ class AnthropicClient:
         enable_prompt_caching: Optional[bool] = None,
         project_id: Optional[str] = None,
         operation: str = "api_call",
+        thinking: Optional[Dict[str, Any]] = None,
+        effort: Optional[str] = None,
         **kwargs,
     ) -> str:
         """
@@ -315,6 +374,30 @@ class AnthropicClient:
         if enable_prompt_caching is None:
             enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
 
+        # Research tools target a specific model via model=...; capability
+        # decisions must follow that model, not self.model.
+        target_model = kwargs.pop("model", self.model)
+        model_params = build_model_params(
+            model=target_model,
+            temperature=temperature,
+            workload=self.workload,
+            has_tools=bool(kwargs.get("tools")),
+            thinking=thinking,
+            effort=effort,
+            settings_obj=settings,
+        )
+        max_tokens = enforce_token_floor(max_tokens, model_params)
+
+        # A caller-supplied output_config (e.g. a JSON schema) must MERGE with the
+        # effort we resolved, not replace it — a plain **kwargs splat would silently
+        # drop the effort level and change the model's behaviour.
+        caller_output_config = kwargs.pop("output_config", None)
+        if caller_output_config:
+            model_params["output_config"] = {
+                **model_params.get("output_config", {}),
+                **caller_output_config,
+            }
+
         # Try response cache first (max_tokens included in key so budget changes bust the cache)
         if use_cache and self.response_cache:
             cached_response = self.response_cache.get(
@@ -327,9 +410,9 @@ class AnthropicClient:
         total_chars = sum(len(msg.get("content", "")) for msg in messages)
         if system:
             total_chars += len(system)
-        estimated_tokens = total_chars // 4  # Rough estimate: 4 chars per token
+        estimated_tokens = estimate_tokens(total_chars, target_model)
 
-        log_api_call(self.model, estimated_tokens)
+        log_api_call(target_model, estimated_tokens)
 
         # Prepare system prompt with optional caching
         system_messages = (
@@ -340,12 +423,14 @@ class AnthropicClient:
 
         for attempt in range(self.max_retries):
             try:
-                # Build API call parameters
-                api_params = {
-                    "model": self.model,
+                # Build API call parameters. Generation controls come from
+                # build_model_params: temperature on legacy models, effort +
+                # thinking on Claude 5 models (which reject temperature).
+                api_params: Dict[str, Any] = {
+                    "model": target_model,
                     "max_tokens": max_tokens,
-                    "temperature": temperature,
                     "messages": messages,
+                    **model_params,
                     **kwargs,
                 }
 
@@ -357,41 +442,39 @@ class AnthropicClient:
 
                 response = self.client.messages.create(**api_params)
 
-                # Extract text from response
-                if response.content and len(response.content) > 0:
-                    response_text: str = response.content[0].text
+                # Extract text. _extract_response_text guards two failure modes
+                # that response.content[0].text could not: a refusal (HTTP 200
+                # with empty content on Claude 5 models) and a leading thinking
+                # block, which has no .text attribute.
+                response_text: str = _extract_response_text(response)
 
-                    # Track cost if project_id provided
-                    if project_id and hasattr(response, "usage"):
-                        try:
-                            self.cost_tracker.track_api_call(
-                                project_id=project_id,
-                                operation=operation,
-                                model=self.model,
-                                input_tokens=response.usage.input_tokens,
-                                output_tokens=response.usage.output_tokens,
-                                cache_creation_tokens=getattr(
-                                    response.usage, "cache_creation_input_tokens", 0
-                                ),
-                                cache_read_tokens=getattr(
-                                    response.usage, "cache_read_input_tokens", 0
-                                ),
-                            )
-                        except Exception as e:
-                            logger.warning(f"Failed to track API cost: {e}")
-
-                    # Cache the response
-                    if use_cache and self.response_cache:
-                        self.response_cache.put(
-                            messages, system or "", temperature, response_text, max_tokens
+                # Track cost if project_id provided
+                if project_id and hasattr(response, "usage"):
+                    try:
+                        self.cost_tracker.track_api_call(
+                            project_id=project_id,
+                            operation=operation,
+                            model=target_model,
+                            input_tokens=response.usage.input_tokens,
+                            output_tokens=response.usage.output_tokens,
+                            cache_creation_tokens=getattr(
+                                response.usage, "cache_creation_input_tokens", 0
+                            ),
+                            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0),
                         )
+                    except Exception as e:
+                        logger.warning(f"Failed to track API cost: {e}")
 
-                    # Record success
-                    self._record_success()
+                # Cache the response
+                if use_cache and self.response_cache:
+                    self.response_cache.put(
+                        messages, system or "", temperature, response_text, max_tokens
+                    )
 
-                    return response_text
-                else:
-                    raise RuntimeError("Empty response from API")
+                # Record success
+                self._record_success()
+
+                return response_text
 
             except RateLimitError as e:
                 last_exception = e
@@ -490,6 +573,8 @@ class AnthropicClient:
         enable_prompt_caching: Optional[bool] = None,
         project_id: Optional[str] = None,
         operation: str = "api_call",
+        thinking: Optional[Dict[str, Any]] = None,
+        effort: Optional[str] = None,
         **kwargs,
     ) -> str:
         """
@@ -518,6 +603,30 @@ class AnthropicClient:
         if enable_prompt_caching is None:
             enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
 
+        # Research tools target a specific model via model=...; capability
+        # decisions must follow that model, not self.model.
+        target_model = kwargs.pop("model", self.model)
+        model_params = build_model_params(
+            model=target_model,
+            temperature=temperature,
+            workload=self.workload,
+            has_tools=bool(kwargs.get("tools")),
+            thinking=thinking,
+            effort=effort,
+            settings_obj=settings,
+        )
+        max_tokens = enforce_token_floor(max_tokens, model_params)
+
+        # A caller-supplied output_config (e.g. a JSON schema) must MERGE with the
+        # effort we resolved, not replace it — a plain **kwargs splat would silently
+        # drop the effort level and change the model's behaviour.
+        caller_output_config = kwargs.pop("output_config", None)
+        if caller_output_config:
+            model_params["output_config"] = {
+                **model_params.get("output_config", {}),
+                **caller_output_config,
+            }
+
         # Try response cache first (max_tokens included in key so budget changes bust the cache)
         if use_cache and self.response_cache:
             cached_response = self.response_cache.get(
@@ -530,9 +639,9 @@ class AnthropicClient:
         total_chars = sum(len(msg.get("content", "")) for msg in messages)
         if system:
             total_chars += len(system)
-        estimated_tokens = total_chars // 4  # Rough estimate: 4 chars per token
+        estimated_tokens = estimate_tokens(total_chars, target_model)
 
-        log_api_call(self.model, estimated_tokens)
+        log_api_call(target_model, estimated_tokens)
 
         # Prepare system prompt with optional caching
         system_messages = (
@@ -543,12 +652,14 @@ class AnthropicClient:
 
         for attempt in range(self.max_retries):
             try:
-                # Build API call parameters
-                api_params = {
-                    "model": self.model,
+                # Build API call parameters. Generation controls come from
+                # build_model_params: temperature on legacy models, effort +
+                # thinking on Claude 5 models (which reject temperature).
+                api_params: Dict[str, Any] = {
+                    "model": target_model,
                     "max_tokens": max_tokens,
-                    "temperature": temperature,
                     "messages": messages,
+                    **model_params,
                     **kwargs,
                 }
 
@@ -560,41 +671,39 @@ class AnthropicClient:
 
                 response = await self.async_client.messages.create(**api_params)
 
-                # Extract text from response
-                if response.content and len(response.content) > 0:
-                    response_text: str = response.content[0].text
+                # Extract text. _extract_response_text guards two failure modes
+                # that response.content[0].text could not: a refusal (HTTP 200
+                # with empty content on Claude 5 models) and a leading thinking
+                # block, which has no .text attribute.
+                response_text: str = _extract_response_text(response)
 
-                    # Track cost if project_id provided
-                    if project_id and hasattr(response, "usage"):
-                        try:
-                            self.cost_tracker.track_api_call(
-                                project_id=project_id,
-                                operation=operation,
-                                model=self.model,
-                                input_tokens=response.usage.input_tokens,
-                                output_tokens=response.usage.output_tokens,
-                                cache_creation_tokens=getattr(
-                                    response.usage, "cache_creation_input_tokens", 0
-                                ),
-                                cache_read_tokens=getattr(
-                                    response.usage, "cache_read_input_tokens", 0
-                                ),
-                            )
-                        except Exception as e:
-                            logger.warning(f"Failed to track API cost: {e}")
-
-                    # Cache the response
-                    if use_cache and self.response_cache:
-                        self.response_cache.put(
-                            messages, system or "", temperature, response_text, max_tokens
+                # Track cost if project_id provided
+                if project_id and hasattr(response, "usage"):
+                    try:
+                        self.cost_tracker.track_api_call(
+                            project_id=project_id,
+                            operation=operation,
+                            model=target_model,
+                            input_tokens=response.usage.input_tokens,
+                            output_tokens=response.usage.output_tokens,
+                            cache_creation_tokens=getattr(
+                                response.usage, "cache_creation_input_tokens", 0
+                            ),
+                            cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0),
                         )
+                    except Exception as e:
+                        logger.warning(f"Failed to track API cost: {e}")
 
-                    # Record success
-                    self._record_success()
+                # Cache the response
+                if use_cache and self.response_cache:
+                    self.response_cache.put(
+                        messages, system or "", temperature, response_text, max_tokens
+                    )
 
-                    return response_text
-                else:
-                    raise RuntimeError("Empty response from API")
+                # Record success
+                self._record_success()
+
+                return response_text
 
             except RateLimitError as e:
                 last_exception = e
@@ -693,6 +802,8 @@ class AnthropicClient:
         enable_prompt_caching: Optional[bool] = None,
         project_id: Optional[str] = None,
         operation: str = "assistant_chat",
+        thinking: Optional[Dict[str, Any]] = None,
+        effort: Optional[str] = None,
         **kwargs,
     ):
         """Stream a completion token-by-token, yielding structured events.
@@ -733,11 +844,26 @@ class AnthropicClient:
         if enable_prompt_caching is None:
             enable_prompt_caching = settings.ENABLE_PROMPT_CACHING
 
+        target_model = kwargs.pop("model", self.model)
+        # has_tools=True forces adaptive thinking. Disabling thinking on a
+        # tool-using Opus 5 call lets it emit a tool call as plain text, which
+        # completes the turn without ever running the tool.
+        model_params = build_model_params(
+            model=target_model,
+            temperature=temperature,
+            workload=self.workload,
+            has_tools=bool(tools),
+            thinking=thinking,
+            effort=effort,
+            settings_obj=settings,
+        )
+        max_tokens = enforce_token_floor(max_tokens, model_params)
+
         # Estimate tokens for logging (rough approximation)
         total_chars = sum(len(str(msg.get("content", ""))) for msg in messages)
         if system:
             total_chars += len(system)
-        log_api_call(self.model, total_chars // 4)
+        log_api_call(target_model, estimate_tokens(total_chars, target_model))
 
         system_messages = (
             self._prepare_system_with_caching(system, enable_prompt_caching) if system else None
@@ -750,10 +876,10 @@ class AnthropicClient:
             emitted = False
             try:
                 api_params: Dict[str, Any] = {
-                    "model": self.model,
+                    "model": target_model,
                     "max_tokens": max_tokens,
-                    "temperature": temperature,
                     "messages": messages,
+                    **model_params,
                     **kwargs,
                 }
                 if system_messages:
@@ -770,7 +896,22 @@ class AnthropicClient:
 
                     final_message = await stream.get_final_message()
 
-                # Normalize final content blocks to plain dicts.
+                # A Claude 5 refusal arrives as a normal 200 with an empty or
+                # partial body, so it has to be detected explicitly rather than
+                # surfacing as an exception.
+                if getattr(final_message, "stop_reason", None) == "refusal":
+                    logger.warning(
+                        f"Model declined the request "
+                        f"(stop_details={getattr(final_message, 'stop_details', None)})"
+                    )
+                    yield {
+                        "type": "error",
+                        "error": "The assistant declined to answer that request.",
+                    }
+                    return
+
+                # Normalize final content blocks to plain dicts. Thinking blocks
+                # are intentionally dropped — they carry no user-facing content.
                 content_blocks: List[Dict[str, Any]] = []
                 for block in final_message.content:
                     btype = getattr(block, "type", None)
@@ -803,7 +944,7 @@ class AnthropicClient:
                             self.cost_tracker.track_api_call(
                                 project_id=project_id,
                                 operation=operation,
-                                model=self.model,
+                                model=target_model,
                                 input_tokens=usage.get("input_tokens", 0),
                                 output_tokens=usage.get("output_tokens", 0),
                                 cache_creation_tokens=usage.get("cache_creation_input_tokens", 0),
@@ -1103,13 +1244,50 @@ Revise the post incorporating the feedback while maintaining the brand voice."""
         return self.create_message(messages=messages, system=system_prompt, max_tokens=max_tokens)
 
 
-# Default client instance (lazy loaded)
-default_client = None
+# One lazily-created shared client per workload. Kept separate because each
+# workload targets a different model — see src/utils/model_capabilities.py.
+_workload_clients: Dict[str, AnthropicClient] = {}
+
+# Retained for backwards compatibility: some callers and tests reach for this
+# module-level name directly. It mirrors the generation-workload client.
+default_client: Optional[AnthropicClient] = None
+
+
+def get_client(workload: str = WORKLOAD_GENERATION) -> AnthropicClient:
+    """Get or create the shared client for a workload.
+
+    Args:
+        workload: "generation", "research", or "assistant".
+
+    Returns:
+        The cached AnthropicClient for that workload.
+    """
+    global default_client
+
+    if workload not in _workload_clients:
+        _workload_clients[workload] = AnthropicClient(workload=workload)
+    client = _workload_clients[workload]
+
+    if workload == WORKLOAD_GENERATION:
+        default_client = client
+    return client
 
 
 def get_default_client() -> AnthropicClient:
-    """Get or create default client instance"""
-    global default_client
-    if default_client is None:
-        default_client = AnthropicClient()
-    return default_client
+    """Get or create the generation-workload client (the pipeline default)."""
+    return get_client(WORKLOAD_GENERATION)
+
+
+def get_research_client() -> AnthropicClient:
+    """Get or create the research-workload client.
+
+    Research tools produce $300-600 deliverables where output quality dominates
+    volume, so they route to ANTHROPIC_MODEL_RESEARCH (Opus 5 by default) with
+    adaptive thinking rather than the cheaper generation model.
+    """
+    return get_client(WORKLOAD_RESEARCH)
+
+
+def get_assistant_client() -> AnthropicClient:
+    """Get or create the assistant-workload client (tool-using agentic loop)."""
+    return get_client(WORKLOAD_ASSISTANT)

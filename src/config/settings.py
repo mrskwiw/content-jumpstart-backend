@@ -14,7 +14,21 @@ class Settings(BaseSettings):
 
     # Anthropic API
     ANTHROPIC_API_KEY: str
-    ANTHROPIC_MODEL: str = "claude-sonnet-4-5-20250929"  # Claude 3.5 Sonnet (latest)
+    ANTHROPIC_MODEL: str = "claude-sonnet-5"  # Claude Sonnet 5 — pipeline default
+
+    # Per-workload model routing. Each falls back to ANTHROPIC_MODEL when unset,
+    # so single-model deployments keep working unchanged. Routing table and
+    # rationale: src/utils/model_capabilities.py
+    ANTHROPIC_MODEL_GENERATION: Optional[str] = None  # None -> ANTHROPIC_MODEL
+    ANTHROPIC_MODEL_RESEARCH: Optional[str] = "claude-opus-5"
+    ANTHROPIC_MODEL_ASSISTANT: Optional[str] = "claude-opus-5"
+
+    # Effort overrides for Claude 5 models. None means "derive from the call's
+    # temperature", which preserves the per-agent tuning encoded across the
+    # pipeline. Set these only once there is measured data to tune against.
+    ANTHROPIC_EFFORT_GENERATION: Optional[str] = None
+    ANTHROPIC_EFFORT_RESEARCH: Optional[str] = None
+    ANTHROPIC_EFFORT_ASSISTANT: Optional[str] = None
 
     @field_validator("ANTHROPIC_API_KEY")
     @classmethod

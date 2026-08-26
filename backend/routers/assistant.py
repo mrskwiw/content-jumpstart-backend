@@ -28,7 +28,7 @@ from src.validators.prompt_injection_defense import (
 
 # Will use Claude API directly for assistant conversations
 try:
-    from src.utils.anthropic_client import get_default_client
+    from src.utils.anthropic_client import get_assistant_client
     from src.utils.response_cache import ResponseCache
 
     CLAUDE_AVAILABLE = True
@@ -245,7 +245,7 @@ async def chat_with_assistant(
             # (a str) and uses the client's configured model — it takes no
             # `model` kwarg. (Previously this passed model=... and indexed
             # .content[0].text on a str, which raised AttributeError.)
-            client = get_default_client()
+            client = get_assistant_client()
             assistant_message = client.create_message(
                 max_tokens=1024,
                 temperature=0.7,

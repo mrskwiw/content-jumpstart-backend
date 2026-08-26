@@ -266,6 +266,21 @@ ARCHETYPES = {
 }
 
 
+def _archetype_score_schema() -> dict:
+    """JSON Schema for the 12-archetype score object.
+
+    Derived from ARCHETYPES so it can never drift from the registry. Numeric
+    range constraints (minimum/maximum) are deliberately omitted — structured
+    outputs do not support them, and including them would be silently dropped.
+    """
+    return {
+        "type": "object",
+        "properties": {archetype_id: {"type": "number"} for archetype_id in ARCHETYPES},
+        "required": list(ARCHETYPES),
+        "additionalProperties": False,
+    }
+
+
 class BrandArchetypeAnalyzer(ResearchTool, CommonValidationMixin):
     """Analyzes brand positioning to determine primary and secondary archetypes"""
 
@@ -598,8 +613,19 @@ ANALYSIS STRATEGY:
 
 Return ONLY the JSON object with all 12 archetype scores (0.0-1.0). No markdown, no explanation."""
 
+        # Structured output pilot (MODEL-02). The shape is fixed and fully known —
+        # a score for each of the 12 archetypes — so the schema is derived from the
+        # registry rather than hand-written, and cannot drift from it. The prompt's
+        # "Return ONLY the JSON object… No markdown, no explanation" instruction is
+        # now enforced by the API rather than requested and then scraped for.
+        # extract_json remains as the fallback for models without schema support.
         result = self._call_claude_api(
-            prompt, max_tokens=500, temperature=0.3, extract_json=True, fallback_on_error={}
+            prompt,
+            max_tokens=500,
+            temperature=0.3,
+            extract_json=True,
+            fallback_on_error={},
+            response_schema=_archetype_score_schema(),
         )
         return dict(result) if isinstance(result, dict) else {}
 

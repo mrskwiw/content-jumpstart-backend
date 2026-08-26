@@ -33,6 +33,11 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.validators.prompt_injection_defense import sanitize_prompt_input, detect_prompt_leakage
+from src.utils.model_capabilities import WORKLOAD_ASSISTANT, build_model_params, resolve_model
+
+#: Output budget for an agent turn. With adaptive thinking enabled, thinking and
+#: response text share this budget, so the pre-migration 4096 would truncate.
+AGENT_MAX_TOKENS = 16000
 
 
 class AgentResponse:
@@ -59,12 +64,22 @@ class ContentAgentCoreEnhanced:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-4-5-20250929",
+        model: Optional[str] = None,
         session_id: Optional[str] = None,
     ):
         # Core components (Week 1)
         self.client = anthropic.Anthropic(api_key=api_key)
-        self.model = model
+        self.model = model or resolve_model(WORKLOAD_ASSISTANT)
+        # Generation controls differ by model generation: temperature on legacy
+        # models, effort + thinking on Claude 5 (which rejects temperature).
+        # has_tools=True is load-bearing — it forces adaptive thinking, without
+        # which Opus 5 can emit a tool call as plain text that never executes.
+        self._model_params = build_model_params(
+            model=self.model,
+            temperature=0.7,
+            workload=WORKLOAD_ASSISTANT,
+            has_tools=True,
+        )
         self.tools = AgentTools()
         self.workflow_executor = WorkflowExecutor(self.tools)
         self.context_manager = ContextManager()
@@ -147,11 +162,11 @@ class ContentAgentCoreEnhanced:
         success, response_obj, error_record = await self.error_recovery.execute_with_retry_async(
             func=lambda: self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=AGENT_MAX_TOKENS,
                 system=system_prompt,
                 messages=self.messages,
                 tools=self._get_enhanced_tool_definitions(),
-                temperature=0.7,
+                **self._model_params,
             ),
             config=RetryConfig(max_retries=3),
             context={"operation": "api_call", "user_message": user_message[:100]},
@@ -234,10 +249,10 @@ class ContentAgentCoreEnhanced:
             # Get follow-up response from Claude
             follow_up = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=AGENT_MAX_TOKENS,
                 system=system_prompt,
                 messages=self.messages,
-                temperature=0.7,
+                **self._model_params,
             )
 
             response_text = self._extract_text_from_response(follow_up)

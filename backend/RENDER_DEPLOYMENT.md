@@ -33,7 +33,7 @@ Complete guide for deploying the Content Jumpstart FastAPI backend with PostgreS
    The following are auto-configured by render.yaml:
    - ✅ `DATABASE_URL`: Auto-linked from PostgreSQL service
    - ✅ `SECRET_KEY`: Auto-generated secure value
-   - ✅ `ANTHROPIC_MODEL`: claude-3-5-sonnet-20241022
+   - ✅ `ANTHROPIC_MODEL`: claude-sonnet-5
    - ✅ `DEBUG_MODE`: false
    - ✅ `CORS_ORIGINS`: Update this to your frontend URL
 
@@ -81,7 +81,7 @@ If you prefer manual setup instead of Blueprint:
    DATABASE_URL=<paste-internal-database-url-here>
    SECRET_KEY=<generate-random-secret>
    ANTHROPIC_API_KEY=<your-anthropic-key>
-   ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+   ANTHROPIC_MODEL=claude-sonnet-5
    DEBUG_MODE=false
    CORS_ORIGINS=https://your-frontend-url.com
    PARALLEL_GENERATION=true
@@ -179,7 +179,8 @@ alembic upgrade head
 
 **Fixes:**
 1. Use **Internal Database URL** (not External)
-   - Format: `postgresql://user:pass@internal-host:5432/dbname`
+   - Format: `postgresql://user:pass@internal-host:5432/dbname` <!-- pragma: allowlist secret -->
+
 2. Ensure both services in same region (Oregon)
 3. Wait 2-3 minutes after database creation
 
@@ -251,7 +252,7 @@ Restart service after updating.
 
 In web service dashboard → "Logs" tab:
 ```
-2025-12-13 10:30:52 - API call: claude-3-5-sonnet-20241022
+2025-12-13 10:30:52 - API call: claude-sonnet-5
 2025-12-13 10:30:54 - Post generated: #1 "Problem Recognition"
 ```
 

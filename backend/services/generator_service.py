@@ -321,10 +321,11 @@ class GeneratorService:
                 customer_pain_points=client.customer_pain_points or [],
                 customer_questions=client.customer_questions or [],
                 project_id=project_id,
+                client_id=client.id,
             )
 
             # Generate new posts
-            generator = ContentGeneratorAgent()
+            generator = ContentGeneratorAgent(backend_session=db)
             new_posts = await generator.generate_posts_async(
                 client_brief=brief,
                 template_quantities=template_quantities,
@@ -470,6 +471,7 @@ class GeneratorService:
                     customer_pain_points=client.customer_pain_points or [],
                     customer_questions=client.customer_questions or [],
                     project_id=project.id,
+                    client_id=client.id,
                 )
                 logger.info(f"Successfully created ClientBrief for {brief.company_name}")
             except Exception as e:
@@ -479,7 +481,7 @@ class GeneratorService:
             # Initialize content generator
             logger.info("Initializing content generator")
             try:
-                generator = ContentGeneratorAgent()
+                generator = ContentGeneratorAgent(backend_session=db)
                 logger.info("Successfully initialized ContentGeneratorAgent")
             except Exception as e:
                 logger.error(

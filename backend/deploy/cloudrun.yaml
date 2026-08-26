@@ -40,7 +40,7 @@ spec:
               name: anthropic-api-key
               key: latest
         - name: ANTHROPIC_MODEL
-          value: "claude-3-5-sonnet-20241022"
+          value: "claude-sonnet-5"
         - name: CORS_ORIGINS
           value: "https://your-frontend.netlify.app"
         - name: PARALLEL_GENERATION

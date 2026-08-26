@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from backend.models import Conversation, Message, User
 from backend.services.assistant_tools import dispatch_tool, get_tool_definitions
 from backend.utils.logger import logger
-from src.utils.anthropic_client import get_default_client
+from src.utils.anthropic_client import get_assistant_client
 from src.validators.prompt_injection_defense import (
     detect_prompt_leakage,
     sanitize_prompt_input,
@@ -35,7 +35,13 @@ from src.validators.prompt_injection_defense import (
 # Guardrails for the agentic loop.
 MAX_TOOL_ITERATIONS = 5  # cap tool round-trips per user message
 MAX_HISTORY_MESSAGES = 10  # prior turns injected as cross-request context
-MAX_TOKENS = 1024
+# Thinking and response text share the max_tokens budget on Claude 5 models, and
+# thinking is spent first — the previous 1024 truncated the answer to nothing.
+# enforce_token_floor() in the client raises anything below the thinking floor,
+# but this is set explicitly so the value here isn't misleading.
+MAX_TOKENS = 16000
+# Retained as the *intent* dial only. The client translates it into
+# output_config.effort for models that reject sampling parameters.
 TEMPERATURE = 0.7
 
 _LEAKAGE_REPLACEMENT = (
@@ -247,7 +253,7 @@ async def stream_chat(
     # 3. Build prompt inputs.
     history = _build_history(db, conv)
     tools = get_tool_definitions(include_billable=False)
-    client = get_default_client()
+    client = get_assistant_client()
 
     final_assistant_text = ""
 

@@ -17,8 +17,13 @@ def mock_anthropic_response():
     """Create mock Anthropic API response"""
     mock_response = MagicMock()
     mock_content = MagicMock()
+    # `type` must be set: the client walks content blocks looking for the first
+    # of type "text", because with thinking enabled content[0] is a thinking
+    # block that has no .text attribute.
+    mock_content.type = "text"
     mock_content.text = "This is a test response from Claude"
     mock_response.content = [mock_content]
+    mock_response.stop_reason = "end_turn"
 
     # Mock usage for cost tracking
     mock_usage = MagicMock()
@@ -133,6 +138,36 @@ class TestCreateMessage:
             assert call_args.kwargs["model"] == "claude-3-5-sonnet-20241022"
             assert call_args.kwargs["max_tokens"] == 4096
             assert call_args.kwargs["temperature"] == 0.7
+
+    @patch("src.utils.anthropic_client.get_default_tracker")
+    def test_caller_output_config_merges_with_effort(
+        self, mock_tracker, mock_settings, mock_anthropic_response
+    ):
+        """A caller-supplied JSON schema must not clobber the resolved effort.
+
+        Both live under `output_config`, so a plain **kwargs splat would drop
+        effort silently — the request would still succeed, just at a different
+        (default) effort level than the workload asked for.
+        """
+        mock_settings.ANTHROPIC_MODEL = "claude-sonnet-5"
+        schema = {"type": "object", "properties": {}, "additionalProperties": False}
+
+        with patch("src.utils.anthropic_client.Anthropic") as mock_anthropic_class:
+            mock_client_instance = MagicMock()
+            mock_client_instance.messages.create.return_value = mock_anthropic_response
+            mock_anthropic_class.return_value = mock_client_instance
+
+            client = AnthropicClient()
+            client.create_message(
+                [{"role": "user", "content": "Test"}],
+                temperature=0.2,
+                output_config={"format": {"type": "json_schema", "schema": schema}},
+            )
+
+            output_config = mock_client_instance.messages.create.call_args.kwargs["output_config"]
+            assert output_config["format"]["type"] == "json_schema"
+            assert output_config["effort"] == "low", "effort was dropped by the caller's config"
+            assert "temperature" not in mock_client_instance.messages.create.call_args.kwargs
 
     @patch("src.utils.anthropic_client.get_default_tracker")
     def test_create_message_with_custom_params(

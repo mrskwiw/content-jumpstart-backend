@@ -98,7 +98,7 @@ Let me know if you need more details."""
 class TestCallClaudeApi:
     """Test unified Claude API call method"""
 
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     def test_call_api_returns_text(self, mock_get_client):
         """Test API call returns raw text when extract_json=False"""
         # Setup mock
@@ -113,7 +113,7 @@ class TestCallClaudeApi:
         assert result == "This is the analysis result."
         mock_client.create_message.assert_called_once()
 
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     def test_call_api_extracts_json(self, mock_get_client):
         """Test API call extracts and returns JSON when extract_json=True"""
         # Setup mock
@@ -127,7 +127,48 @@ class TestCallClaudeApi:
 
         assert result == {"market": "B2B", "size": 1000}
 
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
+    def test_schema_is_attached_on_a_supporting_model(self, mock_get_client):
+        """A schema turns prompt-and-hope into an API-enforced contract."""
+        mock_client = MagicMock()
+        mock_client.model = "claude-opus-5"
+        mock_client.create_message.return_value = '{"score": 0.5}'
+        mock_get_client.return_value = mock_client
+
+        schema = {
+            "type": "object",
+            "properties": {"score": {"type": "number"}},
+            "required": ["score"],
+            "additionalProperties": False,
+        }
+        tool = MockResearchTool(project_id="test")
+        result = tool._call_claude_api("Score it", extract_json=True, response_schema=schema)
+
+        assert result == {"score": 0.5}
+        sent = mock_client.create_message.call_args.kwargs["output_config"]
+        assert sent == {"format": {"type": "json_schema", "schema": schema}}
+
+    @patch("src.research.base.get_research_client")
+    def test_schema_is_omitted_on_a_legacy_model(self, mock_get_client):
+        """Sonnet 4.5 rejects output_config.format, so the call must fall back to
+        prompt-and-parse rather than sending a parameter the model refuses."""
+        mock_client = MagicMock()
+        mock_client.model = "claude-sonnet-4-5-20250929"
+        mock_client.create_message.return_value = 'Here you go: {"score": 0.5}'
+        mock_get_client.return_value = mock_client
+
+        tool = MockResearchTool(project_id="test")
+        result = tool._call_claude_api(
+            "Score it",
+            extract_json=True,
+            response_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        )
+
+        # Scraped out of prose by the fallback extractor, not schema-validated.
+        assert result == {"score": 0.5}
+        assert "output_config" not in mock_client.create_message.call_args.kwargs
+
+    @patch("src.research.base.get_research_client")
     def test_call_api_uses_custom_parameters(self, mock_get_client):
         """Test API call uses custom max_tokens and temperature"""
         # Setup mock
@@ -146,7 +187,7 @@ class TestCallClaudeApi:
         assert call_args.kwargs["max_tokens"] == 5000
         assert call_args.kwargs["temperature"] == 0.8
 
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     def test_call_api_with_fallback_on_error(self, mock_get_client):
         """Test API call returns fallback value on error"""
         # Setup mock to raise error
@@ -163,7 +204,7 @@ class TestCallClaudeApi:
 
         assert result == fallback
 
-    @patch("src.research.base.get_default_client")
+    @patch("src.research.base.get_research_client")
     def test_call_api_raises_without_fallback(self, mock_get_client):
         """Test API call raises exception when no fallback specified"""
         # Setup mock to raise error

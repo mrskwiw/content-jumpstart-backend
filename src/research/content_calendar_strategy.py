@@ -22,7 +22,7 @@ from src.models.content_calendar_models import (
 )
 from src.research.base import ResearchTool
 from src.research.validation_mixin import CommonValidationMixin
-from src.utils.anthropic_client import get_default_client
+from src.utils.anthropic_client import get_research_client
 from src.utils.web_search import get_search_client
 from src.validators.research_input_validator import ResearchInputValidator
 
@@ -189,7 +189,7 @@ class ContentCalendarStrategist(ResearchTool, CommonValidationMixin):
         """Initialize Content Calendar Strategist with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()  # Needed for API calls
+        self.client = get_research_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:

@@ -13,7 +13,7 @@ Usage:
     tracker.track_api_call(
         project_id="Client_20250101_120000",
         operation="post_generation",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-5",
         input_tokens=1500,
         output_tokens=800
     )
@@ -63,9 +63,48 @@ def _as_dt(value: Any) -> datetime:
     return datetime.fromisoformat(str(value))
 
 
-# Model pricing (as of Dec 2025)
-# Source: https://www.anthropic.com/pricing
+# Model pricing (verified 2026-08-14 against platform.claude.com/docs/en/about-claude/pricing)
+# Cache write is 1.25x input; cache read is 0.1x input.
+#
+# Legacy rows are retained deliberately: historical APICall records reference
+# retired models, and re-pricing them at current rates would corrupt past
+# profitability figures.
 MODEL_PRICING = {
+    # --- Current models ---
+    "claude-opus-5": {
+        "input": 5.0,
+        "output": 25.0,
+        "cache_write": 6.25,
+        "cache_read": 0.5,
+    },
+    # NOTE: Sonnet 5 carries an introductory rate of $2/$10 through 2026-08-31.
+    # List price is used here so costs are never under-reported; expect ~33%
+    # over-reporting on Sonnet 5 calls until the intro window closes.
+    "claude-sonnet-5": {
+        "input": 3.0,
+        "output": 15.0,
+        "cache_write": 3.75,
+        "cache_read": 0.3,
+    },
+    "claude-fable-5": {
+        "input": 10.0,
+        "output": 50.0,
+        "cache_write": 12.5,
+        "cache_read": 1.0,
+    },
+    "claude-haiku-4-5": {
+        "input": 1.0,
+        "output": 5.0,
+        "cache_write": 1.25,
+        "cache_read": 0.1,
+    },
+    "claude-opus-4-8": {
+        "input": 5.0,
+        "output": 25.0,
+        "cache_write": 6.25,
+        "cache_read": 0.5,
+    },
+    # --- Legacy / historical ---
     "claude-3-5-sonnet-20241022": {
         "input": 3.0,  # $3 per million input tokens
         "output": 15.0,  # $15 per million output tokens
@@ -167,7 +206,7 @@ class CostTracker:
         Args:
             project_id: Project identifier (e.g., "Client_20250101_120000")
             operation: Operation type (e.g., "brief_parsing", "post_generation")
-            model: Model used (e.g., "claude-3-5-sonnet-20241022")
+            model: Model used (e.g., "claude-sonnet-5")
             input_tokens: Input token count
             output_tokens: Output token count
             cache_creation_tokens: Tokens written to cache
@@ -255,8 +294,13 @@ class CostTracker:
             Cost in USD
         """
         if model not in MODEL_PRICING:
-            logger.warning(f"Unknown model '{model}', using Sonnet pricing")
-            model = "claude-3-5-sonnet-20241022"
+            # Loud on purpose: an unpriced model means every call it makes is
+            # being billed into reports at the wrong rate.
+            logger.warning(
+                f"Unknown model '{model}' has no pricing entry — falling back to "
+                f"claude-sonnet-5 rates. Add it to MODEL_PRICING."
+            )
+            model = "claude-sonnet-5"
 
         pricing = MODEL_PRICING[model]
 

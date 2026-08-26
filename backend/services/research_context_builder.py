@@ -7,7 +7,9 @@ Provides concise, actionable insights from completed research tools with usage g
 Phase 1 Implementation - Research Context Integration Feature
 """
 
+import os
 from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
 
 from backend.models.research_result import ResearchResult
@@ -21,9 +23,19 @@ cache = ResponseCache()
 CACHE_TTL = 48 * 3600  # 48 hours
 CACHE_PREFIX = "research_context"
 
-# Token limits
-MAX_TOTAL_TOKENS = 500  # Maximum tokens for all research insights
-MAX_TOOL_TOKENS = 150  # Maximum tokens per tool summary
+# Token limits.
+#
+# These were 500/150 when the research block was injected into *every post's*
+# user message — at 30 posts per run that budget was paid ~30 times over, so a
+# tight cap was the only thing keeping generation affordable. The block now
+# lives in the batch-level cached system prompt (written once, read at ~0.1x),
+# which decouples the cap from post count and makes a genuinely useful amount
+# of research context cheap. Raised accordingly; still bounded so a client with
+# every tool run cannot crowd out the rest of the prompt.
+#
+# Override per instance if a client's research is unusually large.
+MAX_TOTAL_TOKENS = int(os.getenv("RESEARCH_CONTEXT_MAX_TOKENS", "4000"))
+MAX_TOOL_TOKENS = int(os.getenv("RESEARCH_CONTEXT_MAX_TOOL_TOKENS", "600"))
 PRIORITY_TOOLS = ["voice_analysis", "seo_keyword_research", "brand_archetype"]
 
 
@@ -175,6 +187,16 @@ def _format_all_results(tool_results: Dict[str, ResearchResult]) -> Dict[str, An
 
         # Estimate tokens (rough: 4 chars = 1 token)
         tool_tokens = len(formatted) // 4
+
+        # Cap any single tool's share of the budget. This was previously declared
+        # but never applied: at the old 500-token total the per-tool ceiling was
+        # implicit, so nothing noticed. At a 4000-token budget it is load-bearing —
+        # without it one verbose tool can consume the whole allowance and crowd
+        # every other tool's findings out of the prompt entirely.
+        if tool_tokens > MAX_TOOL_TOKENS:
+            formatted = formatted[: MAX_TOOL_TOKENS * 4] + "..."
+            tool_tokens = len(formatted) // 4
+            logger.info(f"Truncated {tool_name} to the per-tool token cap")
 
         # Check if adding this would exceed limit
         if total_tokens + tool_tokens > MAX_TOTAL_TOKENS:

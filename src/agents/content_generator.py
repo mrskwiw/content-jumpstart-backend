@@ -993,7 +993,7 @@ Rules:
 
             # Mark story as used for this template+project if story context was injected
             _used_story_id = context.get("_story_id_for_template")
-            if _used_story_id and self.backend_session and hasattr(client_brief, "project_id"):
+            if _used_story_id and self.backend_session and client_brief.project_id:
                 try:
                     from backend.services.story_service import story_service
                     from backend.services.template_prerequisites import TEMPLATE_IDS
@@ -1435,24 +1435,11 @@ Rules:
         # Note: Sanitization should happen before caching in the calling code
         context = base_context.copy() if base_context else client_brief.to_context_dict()
 
-        # Add research insights if available (Phase 2: Research Context Integration)
-        if (
-            RESEARCH_CONTEXT_AVAILABLE
-            and self.backend_session
-            and hasattr(client_brief, "client_id")
-        ):
-            try:
-                research_context = build_research_context(
-                    self.backend_session, client_brief.client_id
-                )
-                if research_context.get("formatted_text"):
-                    context["research_insights"] = research_context["formatted_text"]
-                    logger.info(
-                        f"Added research context: {research_context['tool_count']} tools, "
-                        f"~{research_context['total_tokens']} tokens"
-                    )
-            except Exception as e:
-                logger.warning(f"Could not add research context: {e}")
+        # Research insights are deliberately NOT added here. They are identical
+        # for every post in a run, so they live in the cached system prompt
+        # (_build_research_block) instead of being re-sent in each post's user
+        # message at full input price. Adding them back here would both undo
+        # that saving and duplicate the content in the prompt.
 
         # Add variant-specific guidance.
         # If a pre-sampled angle was embedded into base_context by the task builder,
@@ -1560,8 +1547,8 @@ Rules:
             and get_story_context_for_template is not None
             and template.template_id in _STORY_TEMPLATE_IDS
             and self.backend_session
-            and hasattr(client_brief, "client_id")
-            and hasattr(client_brief, "project_id")
+            and client_brief.client_id
+            and client_brief.project_id
         ):
             try:
                 from backend.services.template_prerequisites import TEMPLATE_IDS
@@ -1609,20 +1596,20 @@ Rules:
         prompt += f"\n\n{'=' * 60}"
         prompt += f"\nPLATFORM-SPECIFIC REQUIREMENTS FOR {platform.value.upper()}"
         prompt += f"\n{'=' * 60}"
-        prompt += f"\n\nTARGET LENGTH: **{target_length}** (STRICTLY ENFORCE THIS)"
+        prompt += f"\n\nTARGET LENGTH: **{target_length}**"
 
         # Add critical length enforcement for platforms with tight limits
         if platform == Platform.TWITTER:
             prompt += """
 
-🚨 TWITTER ULTRA-CONCISE REQUIREMENTS (STRICTLY ENFORCE):
+TWITTER LENGTH REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. MAXIMUM 280 characters total (HARD LIMIT - will FAIL if exceeded)
+1. MAXIMUM 280 characters total
 2. Aim for 70-100 characters for standalone posts
 3. Single sentence preferred; two very short sentences only if needed
 4. NO paragraph breaks, NO line breaks
 5. NO explanations, backstory, or setup
-6. Make EVERY character count - remove filler aggressively
+6. Cut filler; every character counts
 
 EXAMPLES OF CORRECT LENGTH:
 ✓ "Systems break when teams juggle too many tools." (47 chars)
@@ -1630,7 +1617,7 @@ EXAMPLES OF CORRECT LENGTH:
 ✓ "Your process is slower than it should be. Fix the bottlenecks." (65 chars)
 ✗ "I've been tracking this across 200+ engineering teams and the data clearly shows..." (WRONG - too long)
 
-CRITICAL: If your draft exceeds 100 characters for a standalone tweet, rewrite it shorter.
+If your draft exceeds 100 characters for a standalone tweet, rewrite it shorter.
 If it exceeds 280 characters at any point, DO NOT OUTPUT. Rewrite from scratch.
 Think: billboard, not paragraph. Punchy, not explanatory.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1642,7 +1629,7 @@ Think: billboard, not paragraph. Punchy, not explanatory.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TARGET: 50-80 words (MINIMUM 40 words — posts under 40 words will be rejected)
 
-CRITICAL: Write a COMPLETE, self-contained post.
+Write a complete, self-contained post.
 Do NOT write a teaser or headline that implies more content follows.
 ❌ WRONG: "Here's what top teams do differently." (too vague and incomplete)
 ❌ WRONG: "Most teams make this mistake. Here's the fix." (teaser with no follow-through)
@@ -1677,7 +1664,7 @@ OPTIMAL: 220-280 words (best engagement range)
 MAXIMUM: 300 words (do not exceed)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CRITICAL: First 140 characters must contain your key message (mobile cutoff)
+The first 140 characters must contain your key message (mobile cutoff).
 
 If your first draft is 150-199 words, ADD:
 - One more supporting point or example
@@ -1734,7 +1721,7 @@ RECOMMENDED 5-SECTION STRUCTURE (aim for full depth in each section):
   NOT questions like: "Want to learn more?" or "Ready to get started?"
 - End with a forward-looking statement about what's possible
 
-🚨 CRITICAL WRITING REQUIREMENTS:
+WRITING REQUIREMENTS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ MINIMUM 1500 words total (count your words before submitting)
 ✓ Include 4-5 H2 headers (## format)
@@ -1850,8 +1837,8 @@ A post that is under 800 words FAILS quality validation and will be regenerated.
             prompt += """
 
 RESEARCH INSIGHTS GUIDANCE:
-The context may include research insights from completed research tools for this client.
-If research insights are present, use them to:
+Research findings for this client appear in the CLIENT RESEARCH CONTEXT section at the end
+of this prompt, when research tools have been run. If that section is present, use it to:
 - Match the identified voice patterns and readability level
 - Naturally integrate recommended keywords where relevant
 - Address identified content gaps and differentiation opportunities
@@ -1896,7 +1883,62 @@ HARD WRITING RULE — NEVER USE THESE WORDS OR PHRASES:
 
 Do not use any of the above, even in passing. They are AI clichés that will cause the post to be rejected and regenerated. Write in plain, direct, conversational language. Say exactly what you mean — no corporate buzzwords, no marketing speak, no motivational filler."""
 
+        # Research context belongs HERE, in the batch-level system prompt, not in
+        # each post's user message. It is byte-identical for every post in a run,
+        # so injecting it per-post re-sent the same tokens at full input price
+        # ~30 times per client. In the cached system block it is written once and
+        # read at ~0.1x thereafter. That economics change is also what makes a
+        # useful RESEARCH_CONTEXT_MAX_TOKENS affordable — the old 500-token cap
+        # existed to bound the per-post cost this move eliminates.
+        prompt += self._build_research_block(client_brief)
+
         return prompt
+
+    def _build_research_block(self, client_brief: ClientBrief) -> str:
+        """Build the client's research-context section for the cached system prompt.
+
+        Args:
+            client_brief: Brief carrying the ``client_id`` to look research up by.
+
+        Returns:
+            The formatted section, or an empty string when research is
+            unavailable, the client has none, or the lookup fails. Research is
+            an enhancement, so every failure path degrades to plain generation
+            rather than breaking the run.
+        """
+        if not (RESEARCH_CONTEXT_AVAILABLE and self.backend_session):
+            return ""
+
+        client_id = getattr(client_brief, "client_id", None)
+        if not client_id:
+            # A session without a client id is a wiring fault, not a client who
+            # simply has no research. Warn — silence here is exactly how BUGS #242
+            # went unnoticed: research worth $300-600/run never reached a prompt
+            # and absent research was indistinguishable from unrun research.
+            logger.warning(
+                "Research context skipped: backend session present but the brief carries "
+                "no client_id. Research findings will NOT reach the generation prompt."
+            )
+            return ""
+
+        try:
+            research_context = build_research_context(self.backend_session, client_id)
+        except Exception as e:
+            logger.warning(f"Could not add research context: {e}")
+            return ""
+
+        formatted = research_context.get("formatted_text")
+        if not formatted:
+            return ""
+
+        logger.info(
+            f"Added research context to cached system prompt: "
+            f"{research_context.get('tool_count', 0)} tools, "
+            f"~{research_context.get('total_tokens', 0)} tokens"
+        )
+
+        separator = "=" * 60
+        return f"\n\n{separator}\nCLIENT RESEARCH CONTEXT\n{separator}\n\n{formatted}\n"
 
     def _build_skill_guidance(self, platform: Platform = Platform.LINKEDIN) -> str:
         """
@@ -2018,7 +2060,7 @@ Do not use any of the above, even in passing. They are AI clichés that will cau
             RESEARCH_CONTEXT_AVAILABLE
             and get_brand_archetype_from_research is not None
             and self.backend_session
-            and hasattr(client_brief, "client_id")
+            and client_brief.client_id
         ):
             research_archetype = get_brand_archetype_from_research(
                 self.backend_session, client_brief.client_id
@@ -2558,7 +2600,7 @@ You understand the psychology of curiosity gaps and urgency-driven CTAs.
 
 {platform_guidance}
 
-CRITICAL: You MUST include the provided link placeholder in your post."""
+Include the provided link placeholder in your post."""
 
         # Build user prompt with blog context
         user_prompt = f"""Create a {platform.value} post to drive traffic to this blog post:

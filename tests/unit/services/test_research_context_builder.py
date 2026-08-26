@@ -20,6 +20,7 @@ from backend.services.research_context_builder import (
     CACHE_PREFIX,
     CACHE_TTL,
     MAX_TOTAL_TOKENS,
+    MAX_TOOL_TOKENS,
 )
 
 
@@ -188,3 +189,26 @@ class TestTokenBudgetEnforcement:
         formatted = _format_all_results(tool_results)
 
         assert formatted["total_tokens"] <= MAX_TOTAL_TOKENS
+
+    def test_single_verbose_tool_is_capped_to_its_share(self):
+        """One oversized tool must not be able to claim the whole budget.
+
+        The per-tool cap was declared but never applied. At the old 500-token
+        total it was implicitly enforced by the total; at the current budget it
+        is the only thing stopping one verbose tool from consuming the entire
+        allowance and crowding every other tool out of the prompt.
+        """
+        # voice_analysis is a PRIORITY tool, so it is formatted first and would
+        # otherwise claim the budget before anything else is considered.
+        verbose = Mock()
+        verbose.tool_name = "voice_analysis"
+        verbose.data = {"summary": "x" * (MAX_TOTAL_TOKENS * 8)}
+        verbose.created_at = datetime.now()
+        verbose.status = "completed"
+
+        formatted = _format_all_results({"voice_analysis": verbose})
+
+        assert formatted["tool_count"] == 1
+        # Truncated to the per-tool ceiling, well short of the total budget.
+        assert formatted["total_tokens"] <= MAX_TOOL_TOKENS + 10
+        assert formatted["total_tokens"] < MAX_TOTAL_TOKENS

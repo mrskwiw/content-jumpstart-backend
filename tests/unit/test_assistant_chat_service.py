@@ -164,7 +164,7 @@ async def _collect(gen):
 @pytest.mark.asyncio
 async def test_stream_chat_runs_tool_and_persists(db, seeded, monkeypatch):
     fake = _FakeClient()
-    monkeypatch.setattr(chat_service, "get_default_client", lambda: fake)
+    monkeypatch.setattr(chat_service, "get_assistant_client", lambda: fake)
 
     events = await _collect(
         chat_service.stream_chat(
@@ -270,7 +270,7 @@ class _AlwaysToolClient:
 @pytest.mark.asyncio
 async def test_tool_iteration_exhaustion_errors_not_completes(db, seeded, monkeypatch):
     fake = _AlwaysToolClient()
-    monkeypatch.setattr(chat_service, "get_default_client", lambda: fake)
+    monkeypatch.setattr(chat_service, "get_assistant_client", lambda: fake)
 
     events = await _collect(chat_service.stream_chat(db, seeded.ua, message="loop forever"))
     types_seen = [e["type"] for e in events]

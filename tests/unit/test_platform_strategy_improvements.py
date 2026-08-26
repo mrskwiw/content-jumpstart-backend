@@ -16,7 +16,7 @@ def _strategist():
     """Return a PlatformStrategist with a mocked Anthropic client."""
     from src.research.platform_strategy import PlatformStrategist
 
-    with patch("src.research.platform_strategy.get_default_client"):
+    with patch("src.research.platform_strategy.get_research_client"):
         s = PlatformStrategist.__new__(PlatformStrategist)
         s.client = MagicMock()
         s.project_id = "test-project"

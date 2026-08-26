@@ -24,7 +24,7 @@ from ..models.icp_workshop_models import (
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 from ..utils.logger import logger
 from ..utils.web_search import get_search_client
 
@@ -36,7 +36,7 @@ class ICPWorkshopFacilitator(ResearchTool, CommonValidationMixin):
         """Initialize ICP Workshop with input validator"""
         super().__init__(project_id, config)
         self.validator = ResearchInputValidator(strict_mode=False)
-        self.client = get_default_client()  # Needed for API calls
+        self.client = get_research_client()  # Needed for API calls
 
     @property
     def tool_name(self) -> str:

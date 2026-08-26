@@ -80,8 +80,11 @@ class TestPlatformAwarePrompts:
         # Should include Twitter target length
         assert "12-18 words" in prompt
 
-        # Should include critical warning emoji
-        assert "🚨" in prompt
+        # MODEL-06 stripped decorative pressure markers (🚨 / "CRITICAL") from every
+        # prompt — 23 down to 0 — while keeping the instructions that state a real
+        # system constraint. Assert the constraint, not the decoration: 280 chars is
+        # enforced by Twitter itself, so it is the thing that must survive.
+        assert "280 characters" in prompt
 
         # Should warn about validation failure
         assert "FAIL" in prompt or "will be rejected" in prompt or "HARD LIMIT" in prompt
@@ -239,14 +242,18 @@ class TestPlatformAwarePrompts:
         for platform in short_platforms:
             prompt = generator._build_system_prompt(sample_brief, platform)
 
-            # Twitter uses 🚨; Facebook uses 📘 with CRITICAL text
-            assert "🚨" in prompt or "CRITICAL" in prompt
+            # Enforcement is stated plainly since MODEL-06 removed the 🚨/CRITICAL
+            # markers. What matters is that the post is told it can be rejected.
+            assert "will be rejected" in prompt or "DO NOT EXCEED" in prompt
 
             # Should mention word limit
             assert "words" in prompt
 
-            # Should emphasize strictness
-            assert "MUST" in prompt or "STRICTLY" in prompt
+            # Should state the requirement as mandatory. Matched case-insensitively:
+            # MODEL-06 de-shouted the prompts, so the obligation now reads "must"
+            # rather than "MUST" — the instruction is unchanged, the volume is not.
+            lowered = prompt.lower()
+            assert "must" in lowered or "maximum" in lowered
 
     def test_linkedin_no_critical_warning(self, generator, sample_brief):
         """Test LinkedIn doesn't get critical emoji (more flexible length)"""

@@ -362,7 +362,7 @@ class TestEnhancedErrorHandling:
 
         # Mock successful response
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Generated content")]
+        mock_response.content = [MagicMock(type="text", text="Generated content")]
         mock_response.usage = MagicMock(input_tokens=100, output_tokens=50)
         client.client.messages.create.return_value = mock_response
 
@@ -444,7 +444,7 @@ class TestRateLimitHandling:
 
         # First call hits rate limit, second succeeds
         mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="Success after retry")]
+        mock_response.content = [MagicMock(type="text", text="Success after retry")]
         mock_response.usage = MagicMock(input_tokens=100, output_tokens=50)
 
         mock_error = RateLimitError("Rate limit exceeded", response=MagicMock(), body=None)

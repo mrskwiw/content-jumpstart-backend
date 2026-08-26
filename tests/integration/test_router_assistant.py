@@ -71,7 +71,7 @@ def auth_headers_user_a(test_user_a, client, db_session):
 class TestChatWithAssistant:
     """Test chatting with the AI assistant."""
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_authenticated(self, mock_cache, mock_get_client, client, auth_headers_user_a):
         """Test chatting with assistant with valid authentication."""
@@ -117,7 +117,7 @@ class TestChatWithAssistant:
 
         assert response.status_code == 401
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_with_conversation_history(
         self, mock_cache, mock_get_client, client, auth_headers_user_a
@@ -179,7 +179,7 @@ class TestChatWithAssistant:
         # Verify cache was checked
         mock_cache.get.assert_called_once()
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_cache_stores_response(
         self, mock_cache, mock_get_client, client, auth_headers_user_a
@@ -208,7 +208,7 @@ class TestChatWithAssistant:
         # Verify cache.put was called to store the response
         mock_cache.put.assert_called_once()
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     @patch("backend.routers.assistant.sanitize_prompt_input")
     def test_chat_prompt_injection_sanitized(
@@ -245,7 +245,7 @@ class TestChatWithAssistant:
         )
 
     @patch("backend.routers.assistant.sanitize_prompt_input")
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_message_sanitized(
         self, mock_cache, mock_get_client, mock_sanitize, client, auth_headers_user_a
@@ -292,7 +292,7 @@ class TestChatWithAssistant:
         assert response.status_code == 503
         assert "not available" in response.json()["detail"]
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_claude_api_error(self, mock_cache, mock_get_client, client, auth_headers_user_a):
         """Test handling of Claude API errors."""
@@ -316,7 +316,7 @@ class TestChatWithAssistant:
         assert response.status_code == 500
         assert "AI assistant error" in response.json()["detail"]
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_context_aware_wizard(
         self, mock_cache, mock_get_client, client, auth_headers_user_a
@@ -346,7 +346,7 @@ class TestChatWithAssistant:
         # Should include wizard-specific suggestions
         assert any("template" in s.lower() for s in data["suggestions"])
 
-    @patch("backend.routers.assistant.get_default_client")
+    @patch("backend.routers.assistant.get_assistant_client")
     @patch("backend.routers.assistant.chat_cache")
     def test_chat_unknown_page_defaults_to_overview(
         self, mock_cache, mock_get_client, client, auth_headers_user_a

@@ -23,7 +23,7 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL
-        value: claude-3-5-sonnet-20241022
+        value: claude-sonnet-5
       - key: DEBUG_MODE
         value: false
       - key: ENVIRONMENT

@@ -56,7 +56,7 @@ If dental anxiety has kept you from getting the care you need, let's make your f
 
 Rationale: ~240 words. Addresses pain point directly with a specific story, uses warm/approachable voice, concrete details (not generic), clear structure with supporting evidence before the list, actionable statement CTA on the final line.
 
-CRITICAL GUIDELINES:
+GUIDELINES:
 
 1. **Match the client's voice exactly** - Use their specific phrases, tone, and personality
 2. **Be specific, not generic** - Use real examples and concrete details
@@ -441,7 +441,7 @@ If a field has no information in the brief, use null for strings or [] for array
 
 Revise the post based on the feedback while maintaining the client's authentic brand voice.
 
-CRITICAL: Apply the feedback while preserving what works. Don't over-edit.
+Apply the feedback while preserving what works. Don't over-edit.
 
 EXAMPLE INPUT/OUTPUT:
 
@@ -506,7 +506,7 @@ Return ONLY the revised post content. No explanation, no metadata, just the post
 
 Analyze the provided content samples to create a comprehensive brand voice guide.
 
-CRITICAL: Analyze ALL aspects of the brand voice. Provide specific, concrete examples from the content.
+Analyze all aspects of the brand voice. Provide specific, concrete examples from the content.
 
 EXAMPLE INPUT/OUTPUT:
 

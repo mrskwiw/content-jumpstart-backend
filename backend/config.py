@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 import re
-from typing import List
+from typing import List, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -174,7 +174,18 @@ class Settings(BaseSettings):
 
     # Anthropic API
     ANTHROPIC_API_KEY: str
-    ANTHROPIC_MODEL: str = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
+    ANTHROPIC_MODEL: str = "claude-sonnet-5"  # Claude Sonnet 5 — pipeline default
+
+    # Per-workload model routing — must mirror src/config/settings.py. Each
+    # falls back to ANTHROPIC_MODEL when unset. See src/utils/model_capabilities.py
+    ANTHROPIC_MODEL_GENERATION: Optional[str] = None  # None -> ANTHROPIC_MODEL
+    ANTHROPIC_MODEL_RESEARCH: Optional[str] = "claude-opus-5"
+    ANTHROPIC_MODEL_ASSISTANT: Optional[str] = "claude-opus-5"
+
+    # Effort overrides; None derives the level from the call's temperature.
+    ANTHROPIC_EFFORT_GENERATION: Optional[str] = None
+    ANTHROPIC_EFFORT_RESEARCH: Optional[str] = None
+    ANTHROPIC_EFFORT_ASSISTANT: Optional[str] = None
 
     # Rate Limiting (70% of Anthropic limits)
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = 2800

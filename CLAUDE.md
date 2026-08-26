@@ -121,7 +121,10 @@ Entry point: `src/agents/coordinator.py` → `CoordinatorAgent.run_complete_work
 
 Token budget: ~15.5K tokens/client (~$0.40–0.60). `research_context_builder.py` injects research findings and limits injected lists to 5 items to stay within budget.
 
-Temperature: 0.3 for parsing agents, 0.7 for generation.
+Temperature: 0.3 for parsing agents, 0.7 for generation. **On Claude 5 models these values never
+reach the API** — sampling parameters were removed and are a 400. `src/utils/model_capabilities.py`
+translates them into `output_config.effort` (≤0.3 → `low`, ≤0.6 → `medium`, else `high`) and picks
+the thinking mode per workload. Keep tuning with `temperature=`; the wrapper handles the rest.
 
 ### FastAPI backend (backend/)
 
@@ -219,7 +222,8 @@ the deployment-relevant ones are in `.env.example`, the rest default in that fil
 Highlights (see `.env.example` for all + defaults):
 ```
 ANTHROPIC_API_KEY          required          SECRET_KEY                 required (JWT)
-ANTHROPIC_MODEL            default: sonnet   SETTINGS_ENCRYPTION_KEY    required outside DEBUG_MODE
+ANTHROPIC_MODEL            claude-sonnet-5   SETTINGS_ENCRYPTION_KEY    required outside DEBUG_MODE
+ANTHROPIC_MODEL_RESEARCH   claude-opus-5     ANTHROPIC_MODEL_ASSISTANT  claude-opus-5
 MAX_CONCURRENT_API_CALLS   default: 10       DATABASE_URL               postgres in prod (no SQLite)
 PARALLEL_GENERATION        True              MEDIA_DRY_RUN/*_DRY_RUN     stub providers (no spend)
 DEBUG_MODE / LOG_LEVEL                       DATAFORSEO_LOGIN/PASSWORD   optional — Google Trends fallback

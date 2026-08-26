@@ -29,7 +29,7 @@ from ..utils.logger import logger
 from ..validators.research_input_validator import ResearchInputValidator
 from .base import ResearchTool
 from .validation_mixin import CommonValidationMixin
-from ..utils.anthropic_client import get_default_client
+from ..utils.anthropic_client import get_research_client
 
 
 def _parse_content_type(value: str) -> ContentType:
@@ -281,7 +281,7 @@ class ContentAuditor(ResearchTool, CommonValidationMixin):
         performance_metrics: Dict[str, Any],
     ) -> List[ContentPiece]:
         """Analyze each content piece"""
-        client = get_default_client()
+        client = get_research_client()
 
         # Prepare content list for analysis
         content_list = "\n".join(
@@ -357,7 +357,7 @@ Return ONLY a valid JSON array. Each item has: performance_level, health_status,
         self, business_description: str, content_pieces: List[ContentPiece]
     ) -> List[TopicPerformance]:
         """Analyze performance by topic area"""
-        client = get_default_client()
+        client = get_research_client()
 
         content_titles = "\n".join(
             [f"- {p.title} (Performance: {p.performance_level.value})" for p in content_pieces]
@@ -398,7 +398,7 @@ Return ONLY a valid JSON array. Each item has: topic_cluster, performance_trend,
         self, content_pieces: List[ContentPiece], target_audience: str
     ) -> List[RefreshOpportunity]:
         """Identify content worth refreshing"""
-        client = get_default_client()
+        client = get_research_client()
 
         # Find pieces that need updates
         needs_refresh = [
@@ -456,7 +456,7 @@ Return ONLY a valid JSON array. Each item has: content_title, current_issues (ar
         if not top_performers:
             return []
 
-        client = get_default_client()
+        client = get_research_client()
 
         content_list = "\n".join(
             [f"- {p.title} ({p.content_type.value})" for p in top_performers[:5]]
@@ -525,7 +525,7 @@ Return ONLY a valid JSON array. Each item has: source_content, repurpose_into, t
         audit_focus_areas: str = "",
     ) -> List[ContentGap]:
         """Identify gaps in content coverage"""
-        client = get_default_client()
+        client = get_research_client()
 
         content_topics = list(set([p.title for p in existing_content]))[:20]
 

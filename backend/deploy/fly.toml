@@ -9,7 +9,7 @@ primary_region = "sjc"
 
 [env]
   DEBUG_MODE = "false"
-  ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
+  ANTHROPIC_MODEL = "claude-sonnet-5"
   PARALLEL_GENERATION = "true"
   MAX_CONCURRENT_API_CALLS = "5"
 
