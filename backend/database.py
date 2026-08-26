@@ -96,6 +96,37 @@ def _build_engine() -> Engine:
         return eng
 
 
+def redact_dsn(dsn: str) -> str:
+    """Render a database URL with its password removed.
+
+    Startup diagnostics legitimately need the scheme, user, host, port and
+    database name — those are what distinguish "pointed at the wrong Supabase
+    project" from "silently fell back to SQLite" (Bugs #185/#186). The password
+    is never diagnostic, and printing it put the live production credential into
+    Render's log stream on every boot (Bug #238).
+
+    Delegates to SQLAlchemy's own renderer rather than hand-rolled string
+    surgery: a ``split("@")`` mask leaks a fragment of any password that itself
+    contains ``@``, and a ``split(":")`` mask drops the username whenever the
+    password contains ``:``.
+
+    Args:
+        dsn: A database URL, or a sentinel such as ``"NOT_SET"``.
+
+    Returns:
+        The URL with the password rendered as ``***``, or a safe placeholder
+        when the value is absent or cannot be parsed.
+    """
+    if not dsn or dsn == "NOT_SET":
+        return "NOT_SET"
+    try:
+        return make_url(dsn).render_as_string(hide_password=True)
+    except Exception:
+        # Never echo a value we could not parse — it may still contain, or be,
+        # a credential.
+        return "<unparseable DATABASE_URL>"
+
+
 # Create SQLAlchemy engine with optimized connection pooling
 engine = _build_engine()
 
@@ -562,6 +593,13 @@ def init_db():
                 # ORM model default is False, so NEW signups still start unverified.
                 ("email_verified", "BOOLEAN DEFAULT TRUE"),
                 ("email_verified_at", "TIMESTAMP"),
+                # S-01.4f / Bug #239: this column shipped in the User model and in
+                # scripts/schema.sql (which only builds NEW instances) but had no
+                # ALTER path, so every already-provisioned database crash-looped at
+                # startup on `db.query(User).count()` for two weeks. DEFAULT FALSE
+                # matches both the ORM default and schema.sql:37 — an incumbent has
+                # already chosen their password and must not be forced to reset it.
+                ("must_change_password", "BOOLEAN DEFAULT FALSE NOT NULL"),
             ]
 
             for col_name, col_type in new_user_columns:

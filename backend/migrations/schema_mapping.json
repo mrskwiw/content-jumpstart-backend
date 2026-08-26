@@ -1,5 +1,5 @@
 {
-  "current_version": 8,
+  "current_version": 9,
   "version_migrations": {
     "1": {
       "description": "Add file_size_bytes to deliverables table",
@@ -174,6 +174,19 @@
             "type": "VARCHAR",
             "nullable": true,
             "default": null
+          }
+        ]
+      }
+    },
+    "9": {
+      "description": "Bug #239: register users.must_change_password (S-01.4f). The column shipped in the User model and scripts/schema.sql but had no ALTER path, so already-provisioned instances crash-looped at startup for two weeks. DEFAULT false matches the ORM default — incumbents keep their existing password.",
+      "users": {
+        "add_columns": [
+          {
+            "name": "must_change_password",
+            "type": "BOOLEAN",
+            "nullable": false,
+            "default": false
           }
         ]
       }

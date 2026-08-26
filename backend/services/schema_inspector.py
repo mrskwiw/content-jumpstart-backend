@@ -252,3 +252,105 @@ def compare_schemas(
     )
 
     return diff
+
+
+# ---------------------------------------------------------------------------
+# Model-vs-database drift (Bug #239)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ModelDrift:
+    """Tables and columns the ORM expects that the connected database lacks.
+
+    Deliberately one-directional. A database holding *extra* columns is
+    harmless legacy baggage; a database missing a column the ORM selects is a
+    guaranteed runtime failure, and an opaque one — Bug #239 surfaced as
+    ``psycopg2.errors.UndefinedColumn`` inside the admin-seed query rather than
+    as anything naming the real problem.
+    """
+
+    missing_tables: list[str]
+    missing_columns: dict[str, list[str]]  # table_name -> column names
+
+    def has_drift(self) -> bool:
+        """Whether the database is missing anything the ORM declares."""
+        return bool(self.missing_tables or self.missing_columns)
+
+    def describe(self) -> str:
+        """One-line human-readable summary, safe to print at startup."""
+        if not self.has_drift():
+            return "no drift: database matches the ORM models"
+        parts = []
+        if self.missing_tables:
+            parts.append(f"missing tables: {', '.join(sorted(self.missing_tables))}")
+        for table in sorted(self.missing_columns):
+            cols = ", ".join(sorted(self.missing_columns[table]))
+            parts.append(f"{table} missing: {cols}")
+        return "; ".join(parts)
+
+
+def get_model_snapshot() -> dict[str, list[ColumnInfo]]:
+    """Snapshot the schema the ORM models declare.
+
+    Returns the same shape as :func:`get_schema_snapshot` so the two can be
+    compared directly.
+    """
+    # Imported here rather than at module scope: backend.database imports this
+    # module from inside init_db(), and backend.models pulls in the whole model
+    # package. Deferring keeps import order free of cycles.
+    from backend.database import Base
+    import backend.models  # noqa: F401  — registers every model on Base.metadata
+
+    schema: dict[str, list[ColumnInfo]] = {}
+    for table_name, table in Base.metadata.tables.items():
+        schema[table_name] = [
+            ColumnInfo(
+                name=col.name,
+                type=str(col.type),
+                nullable=col.nullable,
+                default=col.default,
+            )
+            for col in table.columns
+        ]
+    return schema
+
+
+def check_model_drift(engine: Engine) -> ModelDrift:
+    """Report what the ORM expects that ``engine``'s database does not have.
+
+    This is the check that makes Bug #239's failure mode legible: ``schema.sql``
+    builds new instances while ``init_db`` upgrades existing ones, and the two
+    drifted silently for two weeks because nothing compared either against the
+    models.
+
+    Read-only — issues no DDL, so it is safe to run against production on every
+    boot and safe to run against a database the caller does not own.
+
+    Args:
+        engine: Engine bound to the database to inspect.
+
+    Returns:
+        A :class:`ModelDrift` describing everything missing.
+    """
+    model_schema = get_model_snapshot()
+    db_schema = get_schema_snapshot(engine)
+
+    missing_tables: list[str] = []
+    missing_columns: dict[str, list[str]] = {}
+
+    for table_name, model_columns in model_schema.items():
+        if table_name not in db_schema:
+            missing_tables.append(table_name)
+            continue
+        db_column_names = {c.name for c in db_schema[table_name]}
+        absent = [c.name for c in model_columns if c.name not in db_column_names]
+        if absent:
+            missing_columns[table_name] = absent
+
+    drift = ModelDrift(missing_tables=missing_tables, missing_columns=missing_columns)
+    if drift.has_drift():
+        logger.warning(f"Schema drift detected: {drift.describe()}")
+    else:
+        logger.debug("No schema drift: database matches the ORM models")
+    return drift

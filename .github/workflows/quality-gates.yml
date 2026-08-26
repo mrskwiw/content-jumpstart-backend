@@ -73,6 +73,18 @@ jobs:
           python scripts/mypy_ratchet.py
         continue-on-error: false
 
+      # Bug #239. users.must_change_password reached the models and schema.sql but
+      # never got an upgrade path, so every already-provisioned instance crash-looped
+      # at startup while Render kept serving the last good deploy — three failed
+      # deploys over two weeks, silently. This gate covers the models-vs-schema.sql
+      # edge; the runtime counterpart (check_model_drift) covers already-provisioned
+      # databases on every boot. BLOCKING: a false positive here costs one commit,
+      # a false negative costs a fortnight.
+      - name: Schema drift (models vs schema.sql)
+        run: |
+          python scripts/check_schema_drift.py
+        continue-on-error: false
+
       - name: Run pre-commit hooks
         run: |
           pre-commit run --all-files

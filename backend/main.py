@@ -120,28 +120,21 @@ async def lifespan(app: FastAPI):
     print(f">> CORS Origins: {app_settings.cors_origins_list}")
     print(f">> DEBUG: CORS_ORIGINS env var = '{app_settings.CORS_ORIGINS}'")
 
-    # Log database connection info
-    from backend.database import engine
+    # Log database connection info. Every line here is password-redacted via
+    # redact_dsn — Bug #238 was an adjacent unredacted print putting the live
+    # production credential into Render's logs on every boot.
+    from backend.database import engine, redact_dsn
 
-    db_url = str(engine.url)
+    # Debug: show the configured DATABASE_URL (helps diagnose Render env var issues)
+    print(f">> DEBUG: DATABASE_URL env var = '{redact_dsn(os.getenv('DATABASE_URL', 'NOT_SET'))}'")
+    print(f">> DEBUG: app_settings.DATABASE_URL = '{redact_dsn(app_settings.DATABASE_URL)}'")
 
-    # Debug: Show DATABASE_URL from settings (helps diagnose Render env var issues)
-
-    raw_db_url = os.getenv("DATABASE_URL", "NOT_SET")
-    if raw_db_url != "NOT_SET" and "@" in raw_db_url:
-        # Mask password for security
-        raw_db_display = raw_db_url.split("@")[0].split(":")[0] + ":***@" + raw_db_url.split("@")[1]
-    else:
-        raw_db_display = raw_db_url[:50] if raw_db_url != "NOT_SET" else "NOT_SET"
-    print(f">> DEBUG: DATABASE_URL env var = '{raw_db_display}'")
-    print(f">> DEBUG: app_settings.DATABASE_URL = '{app_settings.DATABASE_URL[:80]}...'")
-
-    # Mask password in URL for security
-    if "@" in db_url:
-        db_display = db_url.split("@")[1] if "@" in db_url else db_url
-        print(f">> Database: PostgreSQL ({db_display})")
-    else:
+    # Branch on the actual driver rather than on the presence of "@": a
+    # credential-less PostgreSQL URL has no "@" and used to be misreported as SQLite.
+    if engine.url.get_backend_name() == "sqlite":
         print(">> Database: SQLite (local)")
+    else:
+        print(f">> Database: PostgreSQL ({engine.url.render_as_string(hide_password=True)})")
 
     # Initialize database
     init_db()
@@ -155,6 +148,29 @@ async def lifespan(app: FastAPI):
 
     migrate_qa_score()
     migrate_deletion_audit_log()
+
+    # Bug #239: report any column the ORM expects that this database lacks, while we
+    # can still name it. Everything below here queries through the ORM, so drift
+    # surfaces as an opaque psycopg2 UndefinedColumn inside whichever query hits it
+    # first — that is exactly how must_change_password stalled prod deploys for two
+    # weeks. Runs after the migrations above so it reports only genuine gaps.
+    #
+    # Warns rather than aborts on purpose: drift on a column no request touches is
+    # survivable, and failing closed here would take down instances that boot fine
+    # today. CI runs the same check as a hard gate (scripts/check_schema_drift.py),
+    # where a false positive costs nothing. FLEET-MIGRATE (FM-2) replaces this with a
+    # fail-closed version guard once Alembic owns migrations.
+    from backend.services.schema_inspector import check_model_drift
+
+    try:
+        drift = check_model_drift(engine)
+        if drift.has_drift():
+            print(f">> WARNING: database schema drift — {drift.describe()}")
+            print(">>          the app expects these; queries touching them will fail")
+        else:
+            print(">> Schema drift check: database matches the ORM models")
+    except Exception as exc:  # never let a diagnostic break startup
+        print(f">> WARNING: schema drift check could not run: {exc}")
 
     # Auto-seed admin users if database is empty or forced reset
     from backend.database import SessionLocal
