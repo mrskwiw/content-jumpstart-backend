@@ -39,7 +39,9 @@ passing one that never ran.
 from __future__ import annotations
 
 import argparse
+import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -47,6 +49,19 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+
+# This is a static check over model definitions — it opens no database and reads
+# no deployment config. But importing backend.models pulls in backend.config,
+# whose Settings declares SECRET_KEY with no default, and backend.database builds
+# an Engine at module scope. On a developer box a .env satisfies both; a CI runner
+# has neither, so the import would raise and this gate — which is blocking — would
+# fail every build for reasons unrelated to the commit.
+#
+# Supply throwaway values for exactly that import, and only when the real ones are
+# absent, so a configured environment is left untouched. The random SECRET_KEY also
+# satisfies the weak-value validator, which rejects fixed placeholders by design.
+os.environ.setdefault("SECRET_KEY", secrets.token_urlsafe(32))
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 #: The authoritative provisioning schema — the file provision_customer.py applies
 #: to a new customer database. It lives at the *repo root*, which is outside this
@@ -151,11 +166,24 @@ def find_schema_file(explicit: str | None) -> Path | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schema", help="Path to schema.sql (default: search known locations)")
+    parser.add_argument(
+        "--require",
+        action="store_true",
+        help=(
+            "Fail instead of skipping when the schema file is absent. Use wherever "
+            "the file is known to exist (pre-commit on a dev box), so the gate "
+            "cannot quietly degrade into a no-op."
+        ),
+    )
     args = parser.parse_args()
 
     schema_path = find_schema_file(args.schema)
     if schema_path is None:
         searched = args.schema or ", ".join(str(c) for c in _SCHEMA_CANDIDATES)
+        if args.require:
+            print(f"FAIL: no provisioning schema found (looked in: {searched})")
+            print("      --require was set, so a skip is treated as a failure.")
+            return 1
         print(f"SKIP: no provisioning schema found (looked in: {searched})")
         print("      Cannot verify model-vs-schema drift in this checkout.")
         return 0

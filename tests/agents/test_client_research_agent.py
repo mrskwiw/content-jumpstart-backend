@@ -77,7 +77,7 @@ class TestClientResearchAgent:
         results = [_make_search_result("Title", "https://example.com", "snippet")]
         mock_response = _make_search_response("query", results)
 
-        with patch("project.src.agents.client_research_agent.get_search_client") as mock_get:
+        with patch("src.agents.client_research_agent.get_search_client") as mock_get:
             mock_search_client = MagicMock()
             mock_search_client.provider = "brave"
             mock_search_client.search.return_value = mock_response
@@ -96,7 +96,7 @@ class TestClientResearchAgent:
 
         mock_response = _make_search_response("query", [])
 
-        with patch("project.src.agents.client_research_agent.get_search_client") as mock_get:
+        with patch("src.agents.client_research_agent.get_search_client") as mock_get:
             mock_search_client = MagicMock()
             mock_search_client.provider = "brave"
             mock_search_client.search.return_value = mock_response
@@ -114,7 +114,7 @@ class TestClientResearchAgent:
         mock_response = _make_search_response("query", [])
 
         with (
-            patch("project.src.agents.client_research_agent.get_search_client") as mock_get,
+            patch("src.agents.client_research_agent.get_search_client") as mock_get,
             patch.object(agent, "_synthesize", return_value=(_make_brief(), {})),
         ):
             mock_search_client = MagicMock()
@@ -136,7 +136,7 @@ class TestClientResearchAgent:
         mock_response = _make_search_response("query", [])
 
         with (
-            patch("project.src.agents.client_research_agent.get_search_client") as mock_get,
+            patch("src.agents.client_research_agent.get_search_client") as mock_get,
             patch.object(agent, "_synthesize", return_value=(_make_brief(), {})),
         ):
             mock_search_client = MagicMock()
@@ -157,7 +157,7 @@ class TestClientResearchAgent:
         mock_response = _make_search_response("query", [])
 
         with (
-            patch("project.src.agents.client_research_agent.get_search_client") as mock_get,
+            patch("src.agents.client_research_agent.get_search_client") as mock_get,
             patch.object(
                 agent, "_synthesize", return_value=(_make_brief(), {"business_description": 0.9})
             ),
@@ -185,7 +185,7 @@ class TestClientResearchAgent:
         mock_response = _make_search_response("query", [dup_result, dup_result])
 
         with (
-            patch("project.src.agents.client_research_agent.get_search_client") as mock_get,
+            patch("src.agents.client_research_agent.get_search_client") as mock_get,
             patch.object(agent, "_synthesize", return_value=(_make_brief(), {})),
         ):
             mock_search_client = MagicMock()
@@ -216,7 +216,7 @@ class TestClientResearchAgent:
             )
 
         with (
-            patch("project.src.agents.client_research_agent.get_search_client") as mock_get,
+            patch("src.agents.client_research_agent.get_search_client") as mock_get,
             patch.object(agent, "_synthesize", return_value=(_make_brief(), {})),
         ):
             mock_search_client = MagicMock()
@@ -256,7 +256,7 @@ class TestClientResearchAgent:
         }
 
         with patch(
-            "project.src.agents.client_research_agent.call_claude_api",
+            "src.agents.client_research_agent.call_claude_api",
             return_value=synthesized_json,
         ):
             brief, confidence = agent._synthesize("Acme", "Austin", [])
@@ -269,7 +269,7 @@ class TestClientResearchAgent:
         mock_client = MagicMock()
         agent = ClientResearchAgent(client=mock_client)
 
-        with patch("project.src.agents.client_research_agent.call_claude_api", return_value={}):
+        with patch("src.agents.client_research_agent.call_claude_api", return_value={}):
             brief, confidence = agent._synthesize("Acme", "Austin", [])
 
         assert isinstance(brief, ClientBrief)
