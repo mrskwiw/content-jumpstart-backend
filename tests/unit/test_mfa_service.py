@@ -221,3 +221,102 @@ class TestGetRemainingBackupCodes:
 
 def test_singleton_import():
     assert isinstance(mfa_service, MFAService)
+
+
+class TestMFASecretEncryptionAtRest:
+    """AUDIT-01: users.mfa_secret is now encrypted at rest, with tolerant reads so any
+    legacy plaintext secret (written before encryption) still verifies — no lockout."""
+
+    def test_encrypt_secret_roundtrips_and_is_not_plaintext(self):
+        secret = MFAService.generate_secret()
+        stored = MFAService.encrypt_secret(secret)
+        assert stored != secret  # actually encrypted at rest
+        assert MFAService.load_secret(stored) == secret  # decrypts back to the real secret
+
+    def test_load_secret_tolerates_legacy_plaintext(self):
+        # CRITICAL lockout guard: a raw base32 secret stored before encryption existed must
+        # load UNCHANGED (Fernet-decrypt fails → return as-is), not "" — else login breaks.
+        legacy = MFAService.generate_secret()  # raw base32, never encrypted
+        assert MFAService.load_secret(legacy) == legacy
+
+    def test_encrypted_secret_still_verifies_a_live_totp(self):
+        secret = MFAService.generate_secret()
+        token = pyotp.TOTP(secret).now()
+        loaded = MFAService.load_secret(MFAService.encrypt_secret(secret))
+        assert MFAService.verify_totp(loaded, token) is True
+
+    def test_legacy_plaintext_secret_still_verifies_a_live_totp(self):
+        # End-to-end: an already-enrolled (plaintext) user can still complete their second factor.
+        secret = MFAService.generate_secret()
+        token = pyotp.TOTP(secret).now()
+        loaded = MFAService.load_secret(secret)  # legacy plaintext read path
+        assert MFAService.verify_totp(loaded, token) is True
+
+    def test_empty_values_are_handled(self):
+        assert MFAService.encrypt_secret("") == ""
+        assert MFAService.load_secret(None) == ""
+        assert MFAService.load_secret("") == ""
+
+    def test_marked_ciphertext_that_wont_decrypt_fails_closed(self):
+        # A value carrying the encryption marker that cannot be decrypted (key skew /
+        # corruption) must fail closed (""), NOT be returned as if it were plaintext.
+        assert MFAService.load_secret("fenc:not-a-valid-fernet-token") == ""
+
+    def test_is_encrypted_marker_distinguishes_formats(self):
+        secret = MFAService.generate_secret()
+        assert MFAService._is_encrypted(MFAService.encrypt_secret(secret)) is True
+        assert MFAService._is_encrypted(secret) is False  # legacy raw base32
+        assert MFAService._is_encrypted(None) is False
+
+    def test_verify_credential_upgrades_legacy_plaintext_on_success(self):
+        # On-read upgrade: an already-enrolled user whose secret is legacy plaintext gets it
+        # re-encrypted the first time they authenticate — migrating existing rows over time.
+        from backend.models import User
+
+        secret = MFAService.generate_secret()
+        user = User(mfa_secret=secret, mfa_backup_codes=None)  # legacy plaintext at rest
+        token = pyotp.TOTP(secret).now()
+        assert MFAService.verify_credential(user, token) is True
+        assert MFAService._is_encrypted(user.mfa_secret) is True  # migrated to ciphertext
+        assert MFAService.load_secret(user.mfa_secret) == secret  # still the real secret
+
+    def test_verify_credential_leaves_already_encrypted_secret_unchanged(self):
+        from backend.models import User
+
+        secret = MFAService.generate_secret()
+        enc = MFAService.encrypt_secret(secret)
+        user = User(mfa_secret=enc, mfa_backup_codes=None)
+        token = pyotp.TOTP(secret).now()
+        assert MFAService.verify_credential(user, token) is True
+        assert user.mfa_secret == enc  # already encrypted → not needlessly rewritten
+
+    def test_upgrade_secret_if_legacy_encrypts_and_reports_change(self):
+        from backend.models import User
+
+        secret = MFAService.generate_secret()
+        user = User(mfa_secret=secret)  # legacy plaintext
+        assert MFAService.upgrade_secret_if_legacy(user) is True
+        assert MFAService._is_encrypted(user.mfa_secret) is True
+        assert MFAService.load_secret(user.mfa_secret) == secret
+
+    def test_upgrade_secret_if_legacy_is_noop_for_encrypted_or_absent(self):
+        from backend.models import User
+
+        enc = MFAService.encrypt_secret(MFAService.generate_secret())
+        user = User(mfa_secret=enc)
+        assert MFAService.upgrade_secret_if_legacy(user) is False
+        assert user.mfa_secret == enc  # unchanged
+
+        assert MFAService.upgrade_secret_if_legacy(User(mfa_secret=None)) is False
+
+    def test_verify_credential_upgrades_legacy_on_backup_code_login(self):
+        # A recovered account (authenticated via BACKUP CODE, not TOTP) must also migrate its
+        # legacy plaintext secret to ciphertext — not stay plaintext indefinitely.
+        from backend.models import User
+
+        codes, hashed_json = MFAService.generate_backup_codes()
+        secret = MFAService.generate_secret()  # legacy plaintext at rest
+        user = User(mfa_secret=secret, mfa_backup_codes=hashed_json)
+        assert MFAService.verify_credential(user, codes[0]) is True
+        assert MFAService._is_encrypted(user.mfa_secret) is True
+        assert MFAService.load_secret(user.mfa_secret) == secret

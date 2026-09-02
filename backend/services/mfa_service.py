@@ -39,6 +39,72 @@ class MFAService:
         """Generate a new TOTP secret"""
         return pyotp.random_base32()
 
+    # Marks an at-rest-encrypted TOTP secret. A legacy plaintext secret is raw base32
+    # ([A-Z2-7]) and can NEVER start with this lowercase prefix, so the marker unambiguously
+    # separates "ciphertext" from "legacy plaintext" — no format guessing, no decrypt attempt
+    # on a plaintext value, and a marked-but-undecryptable value is a REAL fault (key skew /
+    # corruption), not mistaken for plaintext.
+    _ENC_PREFIX = "fenc:"
+
+    @staticmethod
+    def _is_encrypted(stored: Optional[str]) -> bool:
+        return bool(stored) and stored.startswith(MFAService._ENC_PREFIX)
+
+    @staticmethod
+    def upgrade_secret_if_legacy(user: User) -> bool:
+        """On-read upgrade (AUDIT-01): if the user's stored secret is LEGACY PLAINTEXT, re-encrypt
+        it in place so existing rows migrate to ciphertext. Returns True if it changed anything.
+        The CALLER must COMMIT. No-op for an already-encrypted (or absent) secret.
+
+        Called after a SUCCESSFUL second-factor verify at EVERY read path (login, enrollment
+        verify, backup-code regeneration), so a legacy secret is migrated on whichever MFA
+        interaction the user hits first — no fleet backfill needed for the small enrolled set.
+        """
+        if user.mfa_secret and not MFAService._is_encrypted(user.mfa_secret):
+            user.mfa_secret = MFAService.encrypt_secret(MFAService.load_secret(user.mfa_secret))
+            return True
+        return False
+
+    @staticmethod
+    def encrypt_secret(secret: str) -> str:
+        """Encrypt a TOTP secret for at-rest storage (Fernet, via the settings key), tagged with
+        the ``fenc:`` marker so reads can tell ciphertext from legacy plaintext.
+
+        The ``users.mfa_secret`` column previously held the raw base32 secret — a plaintext
+        credential at rest. New writes store the marked ciphertext; reads go through
+        ``load_secret``, which tolerates legacy plaintext, so no existing user is broken.
+        """
+        if not secret:
+            return secret
+        # Lazy import to avoid any import-time cycle (settings_service ← models ← db).
+        from backend.services.settings_service import encrypt_value
+
+        return MFAService._ENC_PREFIX + encrypt_value(secret)
+
+    @staticmethod
+    def load_secret(stored: Optional[str]) -> str:
+        """Return the plaintext TOTP secret from a stored value.
+
+        - Marked ciphertext (``fenc:…``) → decrypt. A decrypt FAILURE here is a genuine fault
+          (wrong key / corruption), so it is LOGGED and fails closed (``""``) rather than being
+          masked as plaintext — otherwise a key-skew event would look like ordinary "invalid
+          code" with no signal.
+        - Unmarked value → LEGACY PLAINTEXT (written before encryption): returned as-is, so an
+          already-enrolled user is never locked out. ``on-read upgrade`` re-encrypts it on next
+          successful verify (see ``verify_credential``).
+        """
+        if not stored:
+            return ""
+        if not MFAService._is_encrypted(stored):
+            return stored  # legacy plaintext secret, written before encryption
+        from backend.services.settings_service import cipher_suite
+
+        try:
+            return cipher_suite.decrypt(stored[len(MFAService._ENC_PREFIX) :].encode()).decode()
+        except Exception as e:  # noqa: BLE001 - fail closed, but make the fault visible
+            logger.error("MFA secret decrypt failed (key skew / corruption?): %s", e)
+            return ""
+
     @staticmethod
     def generate_provisioning_uri(user: User, secret: str) -> str:
         """
@@ -185,12 +251,19 @@ class MFAService:
             return False
 
         candidate = code.strip().replace(" ", "").replace("-", "").upper()
-        if user.mfa_secret and MFAService.verify_totp(user.mfa_secret, candidate):
-            return True
+        if user.mfa_secret:
+            plaintext = MFAService.load_secret(user.mfa_secret)
+            if plaintext and MFAService.verify_totp(plaintext, candidate):
+                # On-read upgrade: migrate a legacy plaintext secret to ciphertext. The caller
+                # commits (as it must for backup-code consumption), which persists this too.
+                MFAService.upgrade_secret_if_legacy(user)
+                return True
 
         is_valid, remaining = MFAService.verify_backup_code(user, candidate)
         if is_valid:
             user.mfa_backup_codes = remaining
+            # Also migrate on a backup-code login — a recovered account must not stay plaintext.
+            MFAService.upgrade_secret_if_legacy(user)
             return True
         return False
 

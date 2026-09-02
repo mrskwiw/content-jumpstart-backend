@@ -72,7 +72,9 @@ async def enroll_mfa(
     qr_code = mfa_service.generate_qr_code(provisioning_uri)
     backup_codes, hashed_backup_codes = mfa_service.generate_backup_codes()
 
-    current_user.mfa_secret = secret
+    # Store the TOTP secret ENCRYPTED at rest (was plaintext). Reads go through
+    # mfa_service.load_secret(), which tolerates any legacy plaintext value.
+    current_user.mfa_secret = mfa_service.encrypt_secret(secret)
     current_user.mfa_backup_codes = hashed_backup_codes
     current_user.mfa_enabled = False
 
@@ -102,11 +104,14 @@ async def verify_mfa_token(
             detail="MFA is not set up for this account",
         )
 
-    is_valid = mfa_service.verify_totp(current_user.mfa_secret, body.token)
+    is_valid = mfa_service.verify_totp(mfa_service.load_secret(current_user.mfa_secret), body.token)
 
     if not is_valid:
         logger.warning(f"Invalid MFA token for user {current_user.email}")
         return {"success": False, "message": "Invalid verification code"}
+
+    # On-read upgrade: migrate a legacy plaintext secret on any successful verify.
+    upgraded = mfa_service.upgrade_secret_if_legacy(current_user)
 
     if not current_user.mfa_enabled:
         current_user.mfa_enabled = True
@@ -117,6 +122,8 @@ async def verify_mfa_token(
         logger.info(f"MFA enrollment completed for user {current_user.email}")
         return {"success": True, "message": "MFA successfully enabled"}
 
+    if upgraded:
+        db.commit()  # persist the secret migration even when already enabled
     return {"success": True, "message": "MFA verification successful"}
 
 
@@ -194,12 +201,16 @@ async def regenerate_backup_codes(
             detail="MFA is not enabled for this account",
         )
 
-    if not mfa_service.verify_totp(current_user.mfa_secret, body.token):
+    if not mfa_service.verify_totp(mfa_service.load_secret(current_user.mfa_secret), body.token):
         logger.warning(f"Backup-code regeneration refused for {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid verification code",
         )
+
+    # On-read upgrade: migrate a legacy plaintext secret on this successful verify (persisted
+    # by the commit below alongside the new backup codes).
+    mfa_service.upgrade_secret_if_legacy(current_user)
 
     backup_codes, hashed_backup_codes = mfa_service.generate_backup_codes()
     current_user.mfa_backup_codes = hashed_backup_codes

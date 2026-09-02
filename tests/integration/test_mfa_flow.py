@@ -66,6 +66,11 @@ def test_enroll_then_verify_activates_mfa(db_session, client):
     db_session.refresh(user)
     assert user.mfa_enabled is False
 
+    # The TOTP secret is stored ENCRYPTED at rest — the DB value must NOT be the plaintext
+    # base32 secret the QR was built from (AUDIT-01: no more plaintext MFA secrets).
+    assert user.mfa_secret != payload["secret"]
+    assert MFAService.load_secret(user.mfa_secret) == payload["secret"]
+
     code = pyotp.TOTP(payload["secret"]).now()
     verify = client.post("/api/mfa/verify", json={"token": code}, headers=_auth(user))
     assert verify.status_code == 200, verify.text
