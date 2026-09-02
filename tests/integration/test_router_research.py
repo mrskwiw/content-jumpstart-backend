@@ -598,6 +598,48 @@ class TestRunResearch:
         assert "outputs" in data
         assert "metadata" in data
 
+    @patch("backend.services.credit_service.refund_credits")
+    @patch(
+        "backend.services.research_service.research_service.execute_research_tool",
+        new_callable=AsyncMock,
+    )
+    def test_run_refunds_credits_when_tool_returns_success_false(
+        self,
+        mock_execute_research,
+        mock_refund,
+        client,
+        auth_headers_user_a,
+        project_for_user_a,
+        client_for_user_a,
+    ):
+        """AUDIT-01 #7 / Bug #245: a tool that RETURNS success=False (a genuine execution
+        failure, not a raised exception) must refund the deducted credits — the 500 raised for
+        it is caught by `except HTTPException` which re-raises WITHOUT refunding, so previously
+        the customer was silently charged 50-300 credits for a failed run."""
+        # Not a blocked/validation error → the router classifies it as a 500 server error.
+        mock_execute_research.return_value = {
+            "success": False,
+            "error": "The upstream research API call failed",
+            "outputs": {},
+            "metadata": {},
+        }
+
+        response = client.post(
+            "/api/research/run",
+            headers=auth_headers_user_a,
+            json={
+                "project_id": project_for_user_a.id,
+                "client_id": client_for_user_a.id,
+                "tool": "brand_archetype",
+                "params": {"custom_guidance": "refund-regression unique marker a1b2c3"},
+            },
+        )
+
+        assert response.status_code == 500, response.text
+        # The deducted credits MUST be refunded exactly once (not zero — the bug — and not
+        # twice, which would over-credit the customer).
+        assert mock_refund.call_count == 1, "success=False must trigger exactly one refund"
+
     @patch(
         "backend.services.research_service.research_service.execute_research_tool",
         new_callable=AsyncMock,

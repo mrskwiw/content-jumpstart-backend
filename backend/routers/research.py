@@ -932,42 +932,39 @@ async def run_research(
             error_msg = result.get("error", "Unknown error")
             metadata = result.get("metadata", {})
 
-            # Check if this is a prerequisite/validation error (should be 400)
+            # CREDIT REFUND: the deducted credits bought a failed/blocked result, so refund
+            # them for ANY success=False outcome (blocked, validation, OR a genuine execution
+            # failure) — not just the blocked subcase. This MUST happen here: the HTTPException
+            # raised below is caught by `except HTTPException`, which re-raises WITHOUT
+            # refunding, so a tool that *returns* success=False (rather than raising) would
+            # otherwise silently charge the customer 50-300 credits for a failed run
+            # (AUDIT-01 finding #7 / Bug #245). Credits are only deducted on a cache MISS.
+            if not cached_result:
+                try:
+                    credit_cost = get_research_tool_cost(input.tool)
+                    credit_service.refund_credits(
+                        db=db,
+                        user_id=current_user.id,
+                        amount=credit_cost,
+                        description=f"Refund for failed research: {tool.label}",
+                        reference_id=input.project_id,
+                        reference_type="research_refund",
+                    )
+                    logger.info(
+                        f"Refunded {credit_cost} credits for failed {input.tool} "
+                        f"(user {current_user.id})"
+                    )
+                except Exception as refund_err:
+                    logger.error(f"Failed to refund credits for failed {input.tool}: {refund_err}")
+
+            # Classify the failure into the right status code (refund already done above).
+            # Prerequisite / validation errors are the caller's to fix → 400; anything else is
+            # a server-side execution failure → 500.
             if (
                 metadata.get("blocked")
                 or "missing" in error_msg.lower()
                 or "prerequisite" in error_msg.lower()
-            ):
-                # CREDIT REFUND: blocked results did no API work — refund before
-                # raising so the HTTPException bypass in except HTTPException doesn't
-                # silently eat the credits (Bug #164 fix companion).
-                if not cached_result:
-                    try:
-                        credit_cost = get_research_tool_cost(input.tool)
-                        credit_service.refund_credits(
-                            db=db,
-                            user_id=current_user.id,
-                            amount=credit_cost,
-                            description=f"Refund for blocked research: {tool.label}",
-                            reference_id=input.project_id,
-                            reference_type="research_refund",
-                        )
-                        logger.info(
-                            f"Refunded {credit_cost} credits for blocked {input.tool} "
-                            f"(user {current_user.id})"
-                        )
-                    except Exception as refund_err:
-                        logger.error(
-                            f"Failed to refund credits for blocked {input.tool}: {refund_err}"
-                        )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_msg,
-                )
-
-            # Check if this is a validation error
-            if (
-                "validation" in error_msg.lower()
+                or "validation" in error_msg.lower()
                 or "invalid" in error_msg.lower()
                 or "required" in error_msg.lower()
                 or "coming soon" in error_msg.lower()
