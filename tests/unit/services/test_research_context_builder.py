@@ -212,3 +212,56 @@ class TestTokenBudgetEnforcement:
         # Truncated to the per-tool ceiling, well short of the total budget.
         assert formatted["total_tokens"] <= MAX_TOOL_TOKENS + 10
         assert formatted["total_tokens"] < MAX_TOTAL_TOKENS
+
+
+class TestTokenBudgetOrderingAndSkip:
+    """Ordering + skip behavior of the budget guard — complements TestTokenBudgetEnforcement.
+
+    Bypasses the per-tool ResearchResult formatters (patches _format_tool_result) so the
+    budgeting order/skip logic is exercised with controlled section sizes.
+    """
+
+    def test_empty_when_no_tool_formats(self):
+        with patch(
+            "backend.services.research_context_builder._format_tool_result", return_value=""
+        ):
+            out = _format_all_results({"voice_analysis": Mock(), "content_audit": Mock()})
+        assert out["formatted_text"] == ""
+        assert out["tool_count"] == 0
+        assert out["tools_included"] == []
+
+    def test_non_priority_tool_skipped_when_it_would_exceed_total(self):
+        def fake_fmt(name, result):
+            return {"voice_analysis": "V" * 160, "content_audit": "C" * 160}.get(name, "")
+
+        with (
+            patch(
+                "backend.services.research_context_builder._format_tool_result",
+                side_effect=fake_fmt,
+            ),
+            patch("backend.services.research_context_builder.MAX_TOTAL_TOKENS", 50),
+            patch("backend.services.research_context_builder.MAX_TOOL_TOKENS", 10_000),
+        ):
+            out = _format_all_results({"content_audit": Mock(), "voice_analysis": Mock()})
+        assert "voice_analysis" in out["tools_included"]  # priority kept
+        assert "content_audit" not in out["tools_included"]  # non-priority dropped to fit
+        assert out["total_tokens"] <= 50
+
+    def test_priority_tools_ordered_before_others(self):
+        def fake_fmt(name, result):
+            return {"voice_analysis": "VOICE_SECTION", "content_audit": "AUDIT_SECTION"}.get(
+                name, ""
+            )
+
+        with (
+            patch(
+                "backend.services.research_context_builder._format_tool_result",
+                side_effect=fake_fmt,
+            ),
+            patch("backend.services.research_context_builder.MAX_TOTAL_TOKENS", 100_000),
+            patch("backend.services.research_context_builder.MAX_TOOL_TOKENS", 100_000),
+        ):
+            out = _format_all_results({"content_audit": Mock(), "voice_analysis": Mock()})
+        text = out["formatted_text"]
+        assert text.index("VOICE_SECTION") < text.index("AUDIT_SECTION")  # priority first
+        assert out["tools_included"] == ["voice_analysis", "content_audit"]
