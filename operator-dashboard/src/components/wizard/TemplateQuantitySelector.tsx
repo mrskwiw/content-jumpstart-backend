@@ -198,7 +198,14 @@ interface Props {
   onEditClient?: () => void;
 }
 
-const CREDITS_PER_POST = 20;  // $40/post ÷ $2/credit = 20 credits
+// Bug #246/#247: must mirror the backend's platform-aware credit cost
+// (backend/routers/generator.py::_generation_credit_cost) — blog is the only
+// long-form content type; everything else is the flagship short-form social
+// post. This used to be a flat 20 cr/post for every platform, which both
+// overcharged the default social flow server-side (#246, now fixed) and,
+// even before that, was the wrong number to show here.
+const CREDITS_PER_POST_BLOG = 20;
+const CREDITS_PER_POST_SOCIAL = 5;
 // const RESEARCH_PRICE_PER_POST = 15.0; // DEPRECATED: Research now handled by granular tools
 
 export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
@@ -375,15 +382,15 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   // Calculate totals
   const { totalPosts, totalCredits, creditsPerPost } = useMemo(() => {
     const total = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
-    const baseCredits = CREDITS_PER_POST;
     // Research costs handled separately by research tools, not per-post
-    const perPost = baseCredits;
+    const perPost =
+      targetPlatform.toLowerCase() === 'blog' ? CREDITS_PER_POST_BLOG : CREDITS_PER_POST_SOCIAL;
     return {
       totalPosts: total,
       creditsPerPost: perPost,
       totalCredits: total * perPost,
     };
-  }, [quantities, includeResearch]);
+  }, [quantities, includeResearch, targetPlatform]);
 
   const updateQuantity = (templateId: number, delta: number) => {
     const slug = STORY_TEMPLATE_SLUGS[templateId];
@@ -492,7 +499,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
       </div>
 
       <p className="mb-6 text-sm text-neutral-600 dark:text-neutral-400">
-        Specify exact quantities for each template. Cost is 20 credits per post. Research tools are available in the Research step (100-300 credits each).
+        Specify exact quantities for each template. Cost is {creditsPerPost} credits per post{targetPlatform.toLowerCase() === 'blog' ? '' : ` (${CREDITS_PER_POST_BLOG} for blog content)`}. Research tools are available in the Research step (100-300 credits each).
       </p>
 
       {/* Pricing Summary Card */}

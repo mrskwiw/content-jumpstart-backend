@@ -833,3 +833,44 @@ class TestAnswerBlockGeo:
         assert "answer_block_geo" in report.model_dump()
         assert report.answer_block_geo is None
         assert "GEO Answer Blocks" not in report.to_markdown()
+
+
+class TestTemplateScaffoldingLeak:
+    """Bug #249: a leaked template section-header label (e.g. "[CONTEXT - Why I'm
+    asking]:") must be caught and must block the Quality Gate, not ship silently."""
+
+    def _post(self, content: str) -> Post:
+        return Post(
+            content=content,
+            template_id=5,
+            template_name="Question Post",
+            client_name="Test Client",
+        )
+
+    def test_check_flags_a_leaked_label(self):
+        leaked = self._post(
+            "D) Actually have a system that works [CONTEXT – Why I'm asking]: "
+            "I've been thinking about this because..."
+        )
+        issues = QAAgent()._check_template_scaffolding_leak([leaked])
+        assert len(issues) == 1
+        assert "[CONTEXT – Why I'm asking]:" in issues[0]
+
+    def test_check_ignores_clean_content(self):
+        clean = self._post("Try QuizSquirrel free at quizsquirrel.com")
+        assert QAAgent()._check_template_scaffolding_leak([clean]) == []
+
+    def test_check_ignores_unrelated_bracket_usage(self):
+        # Markdown-style links and numeric citation markers are not template labels.
+        posts = [
+            self._post("Check out [our guide](https://example.com) for more."),
+            self._post("Adoption grew 40% year over year [1]."),
+        ]
+        assert QAAgent()._check_template_scaffolding_leak(posts) == []
+
+    def test_leaked_post_fails_the_quality_gate(self):
+        leaked = self._post("Some setup text.\n\n[INVITATION]: Drop your answer below.")
+        clean = self._post("A clean post with a real close.\n\nHit reply to learn more.")
+        report = QAAgent().validate_posts([leaked, clean], "Test Client")
+        assert report.overall_passed is False
+        assert any("TEMPLATE LEAK" in issue for issue in report.all_issues)

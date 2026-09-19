@@ -102,6 +102,11 @@ class QAAgent:
         stat_conflicts = self._check_stat_conflicts(posts)
         source_dups = self._check_source_dedup(posts)
 
+        # Template scaffolding leak (Bug #249) — blocking, unlike the two checks
+        # above: a literal "[CONTEXT - Why I'm asking]:" in shipped content is an
+        # unambiguous defect, not a judgment call for the operator to weigh.
+        scaffolding_leaks = self._check_template_scaffolding_leak(posts)
+
         # Citation scan — non-blocking, advisory only
         citation_results = self.citation_validator.validate(posts)
 
@@ -117,6 +122,7 @@ class QAAgent:
             all_issues.extend(seo_results.get("issues", []))
         all_issues.extend(stat_conflicts)
         all_issues.extend(source_dups)
+        all_issues.extend(scaffolding_leaks)
         # Citation warnings are advisory — kept in citation_validation only,
         # not counted in total_issues or all_issues so they don't affect pass/fail
         # semantics or trigger the Recommendations section on clean reports.
@@ -157,6 +163,7 @@ class QAAgent:
                 if seo_results and not seo_results.get("skipped", False)
                 else True
             )
+            and not scaffolding_leaks
         )
 
         # Advisory pre-publish engagement prediction (does not affect pass/fail)
@@ -349,3 +356,29 @@ class QAAgent:
                     f"(posts {post_nums}). Use distinct sources per post."
                 )
         return warnings
+
+    def _check_template_scaffolding_leak(self, posts: "List[Post]") -> "List[str]":
+        """Detect a generated post that echoed a template's internal bracket-labeled
+        section header verbatim instead of writing natural prose (Bug #249).
+
+        Templates in 02_POST_TEMPLATE_LIBRARY.md use bracket labels like
+        "[CONTEXT - Why I'm asking]:" purely as authoring scaffolding — structural
+        guidance for the model, never meant to appear in the finished post. The
+        generation prompt now explicitly says so, but this is a safety net: a
+        leaked label is an unambiguous defect, so it blocks the Quality Gate
+        rather than shipping silently.
+        """
+        import re
+
+        leak_re = re.compile(r"\[[A-Z][A-Za-z0-9 /'\"\-–—]*?\]\s*:")
+
+        issues: "List[str]" = []
+        for i, post in enumerate(posts, 1):
+            match = leak_re.search(post.content)
+            if match:
+                issues.append(
+                    f"⚠ TEMPLATE LEAK in post {i} ('{post.template_name or 'post'}'): "
+                    f"internal template label {match.group(0)!r} appeared verbatim in "
+                    "the output — rewrite as natural prose without brackets/labels."
+                )
+        return issues

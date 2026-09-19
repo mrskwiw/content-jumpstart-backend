@@ -304,6 +304,17 @@ async def update_post(
 
     post.has_cta = _CLIPost._detect_cta(post_update.content)
 
+    # Bug #248: keep the `no_cta` Quality Gate flag in sync with the edited
+    # content. Previously only `has_cta` was recomputed here — `flags` (what the
+    # Quality Gate actually displays) was left stale until a full "Regenerate all
+    # flagged" re-ran QA, so editing a post to add a CTA never cleared its badge.
+    current_flags = list(post.flags) if post.flags else []
+    if post.has_cta:
+        current_flags = [f for f in current_flags if f != "no_cta"]
+    elif "no_cta" not in current_flags:
+        current_flags.append("no_cta")
+    post.flags = current_flags or None
+
     # Operator override: clear flags and force approved status so a human
     # judgment call can bypass automatic validation results.
     if post_update.approve_override:

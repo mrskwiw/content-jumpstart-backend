@@ -653,6 +653,50 @@ class TestUpdatePost:
         assert word_count is not None and word_count > 0
         assert has_cta is True
 
+    def test_update_post_content_adds_cta_clears_no_cta_flag(
+        self, client, auth_headers_user_a, sample_posts
+    ):
+        """Bug #248: editing a flagged post's content to add a real CTA must clear
+        the `no_cta` Quality Gate flag — it used to require a full 'Regenerate all
+        flagged' because `flags` was never recomputed on a plain content edit.
+        post-3 starts flagged ["too_short", "no_cta"] with has_cta=False.
+        """
+        response = client.patch(
+            "/api/posts/post-3",
+            headers=auth_headers_user_a,
+            json={
+                "content": "Still a short post, but now it closes with a real ask.\n\nHit reply to learn more."
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        has_cta = data.get("has_cta") if "has_cta" in data else data.get("hasCta")
+        assert has_cta is True
+        flags = data.get("flags") or []
+        assert "no_cta" not in flags
+        # unrelated flags are preserved — this isn't a blanket flags reset
+        assert "too_short" in flags
+
+    def test_update_post_content_removes_cta_adds_no_cta_flag(
+        self, client, auth_headers_user_a, sample_posts
+    ):
+        """Bug #248 (inverse): editing an approved, CTA-having post to remove the
+        CTA must add the `no_cta` flag back — the sync must go both ways, not
+        just clear-on-add."""
+        response = client.patch(
+            "/api/posts/post-2",
+            headers=auth_headers_user_a,
+            json={"content": "Just a plain statement with no call to action at all."},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        has_cta = data.get("has_cta") if "has_cta" in data else data.get("hasCta")
+        assert has_cta is False
+        flags = data.get("flags") or []
+        assert "no_cta" in flags
+
     def test_update_post_unauthorized(
         self, client, auth_headers_user_b, sample_posts, enforce_ownership
     ):

@@ -28,32 +28,112 @@ const steps: { key: StepKey; label: string }[] = [
   { key: 'export', label: 'Export' },
 ];
 
+const STEP_KEYS = new Set<StepKey>(steps.map((s) => s.key));
+const isStepKey = (v: unknown): v is StepKey => typeof v === 'string' && STEP_KEYS.has(v as StepKey);
+
+// Bug #250: wizard step progress used to live only in React state — navigating
+// away (even accidentally) lost the in-progress project with no way back short
+// of the URL's location.state, which a reload or a fresh nav link doesn't carry.
+// `wizard_state_v1` persists the resumable slice of wizard state to localStorage.
+const STORAGE_KEY = 'wizard_state_v1';
+
+interface PersistedWizardState {
+  projectId: string | null;
+  clientId: string | null;
+  activeStep: StepKey;
+  maxReachedStep: StepKey;
+  isCreatingNewClient: boolean;
+  templateQuantities: Record<number, number>;
+  includeResearch: boolean;
+  totalPrice: number;
+  customTopics: string[];
+  targetPlatform: string;
+}
+
+function readPersistedWizardState(): PersistedWizardState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedWizardState>;
+    if (!parsed.projectId) return null; // nothing to resume without a real project
+    return {
+      projectId: parsed.projectId,
+      clientId: parsed.clientId ?? null,
+      activeStep: isStepKey(parsed.activeStep) ? parsed.activeStep : 'profile',
+      maxReachedStep: isStepKey(parsed.maxReachedStep) ? parsed.maxReachedStep : 'profile',
+      isCreatingNewClient: parsed.isCreatingNewClient ?? false,
+      templateQuantities: parsed.templateQuantities ?? {},
+      includeResearch: parsed.includeResearch ?? false,
+      totalPrice: parsed.totalPrice ?? 0,
+      customTopics: parsed.customTopics ?? [],
+      targetPlatform: parsed.targetPlatform ?? 'generic',
+    };
+  } catch {
+    return null; // corrupt/unavailable storage — fall back to a fresh wizard
+  }
+}
+
 export default function Wizard() {
   const location = useLocation();
   const qc = useQueryClient();
 
-  const STORAGE_KEY = 'wizard_state_v1';
+  // Explicit navigation state (e.g. "New Project" from a client page) always wins;
+  // otherwise resume whatever was last persisted so leaving the wizard mid-flow
+  // (reload, back button, a bare /dashboard/wizard link) doesn't strand the project.
+  const navProjectId = (location.state as { projectId?: string })?.projectId ?? null;
+  const navClientId = (location.state as { clientId?: string })?.clientId ?? null;
+  const [persisted] = useState(() => (navProjectId ? null : readPersistedWizardState()));
 
-  const [projectId, setProjectId] = useState<string | null>(
-    (location.state as { projectId?: string })?.projectId ?? null
-  );
-  const [clientId, setClientId] = useState<string | null>(
-    (location.state as { clientId?: string })?.clientId ?? null
-  );
+  const [projectId, setProjectId] = useState<string | null>(navProjectId ?? persisted?.projectId ?? null);
+  const [clientId, setClientId] = useState<string | null>(navClientId ?? persisted?.clientId ?? null);
 
-  const [activeStep, setActiveStep] = useState<StepKey>('profile');
-  const [maxReachedStep, setMaxReachedStep] = useState<StepKey>('profile');
+  const [activeStep, setActiveStep] = useState<StepKey>(persisted?.activeStep ?? 'profile');
+  const [maxReachedStep, setMaxReachedStep] = useState<StepKey>(persisted?.maxReachedStep ?? 'profile');
   const [clientBrief, setClientBrief] = useState<ClientBrief | null>(null);
   const [selectedTemplates] = useState<number[]>([]);
   const [showKeywordError, setShowKeywordError] = useState(false);
-  const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(true);
+  const [isCreatingNewClient, setIsCreatingNewClient] = useState<boolean>(persisted ? persisted.isCreatingNewClient : true);
 
   // Template quantities state (new pricing model)
-  const [templateQuantities, setTemplateQuantities] = useState<Record<number, number>>({});
-  const [includeResearch, setIncludeResearch] = useState<boolean>(false);
-  const [totalPrice, setTotalPrice] = useState<number>(0);
-  const [customTopics, setCustomTopics] = useState<string[]>([]);  // NEW: topic override for generation
-  const [targetPlatform, setTargetPlatform] = useState<string>('generic');  // NEW: target platform for generation
+  const [templateQuantities, setTemplateQuantities] = useState<Record<number, number>>(persisted?.templateQuantities ?? {});
+  const [includeResearch, setIncludeResearch] = useState<boolean>(persisted?.includeResearch ?? false);
+  const [totalPrice, setTotalPrice] = useState<number>(persisted?.totalPrice ?? 0);
+  const [customTopics, setCustomTopics] = useState<string[]>(persisted?.customTopics ?? []);  // NEW: topic override for generation
+  const [targetPlatform, setTargetPlatform] = useState<string>(persisted?.targetPlatform ?? 'generic');  // NEW: target platform for generation
+
+  // Persist the resumable slice on every change. Gated on projectId so we never
+  // write (or overwrite a real in-progress session with) an empty fresh-wizard state.
+  useEffect(() => {
+    if (!projectId) return;
+    const toSave: PersistedWizardState = {
+      projectId,
+      clientId,
+      activeStep,
+      maxReachedStep,
+      isCreatingNewClient,
+      templateQuantities,
+      includeResearch,
+      totalPrice,
+      customTopics,
+      targetPlatform,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch {
+      // best-effort — private browsing / storage full / disabled: resuming just won't work
+    }
+  }, [
+    projectId,
+    clientId,
+    activeStep,
+    maxReachedStep,
+    isCreatingNewClient,
+    templateQuantities,
+    includeResearch,
+    totalPrice,
+    customTopics,
+    targetPlatform,
+  ]);
 
 
   // Query to list existing clients
@@ -671,10 +751,15 @@ export default function Wizard() {
             <strong>Total Posts:</strong> {Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0) || 0}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Research:</strong> {includeResearch ? 'Yes (+$15/post)' : 'No'}
+            <strong>Research:</strong> {includeResearch ? 'Yes (billed separately per tool)' : 'No'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
-            <strong>Total Price:</strong> {totalPrice > 0 ? `$${totalPrice.toLocaleString()}` : 'Not calculated'}
+            {/* Bug #247: this used to show the raw credit count formatted as a
+                dollar amount ($totalPrice) with no conversion applied at all — a
+                fabricated number. Showing the credit count directly is the only
+                figure this component can state with certainty; see BUGS.md #247
+                for the unresolved $/credit rate inconsistency elsewhere in the app. */}
+            <strong>Total Cost:</strong> {totalPrice > 0 ? `${totalPrice.toLocaleString()} credits` : 'Not calculated'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Generated:</strong> {posts?.length ?? 0} posts

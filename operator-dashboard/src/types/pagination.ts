@@ -14,8 +14,8 @@ export const PaginationMetadataSchema = z.object({
   total_pages: z.number().int().optional(),
   has_next: z.boolean(),
   has_prev: z.boolean(),
-  next_cursor: z.string().optional(),
-  prev_cursor: z.string().optional(),
+  next_cursor: z.string().nullish(),
+  prev_cursor: z.string().nullish(),
   strategy: z.enum(['offset', 'cursor']),
 });
 
@@ -39,10 +39,10 @@ export interface PaginationMetadata {
   has_prev: boolean;
 
   /** Cursor for next page (cursor pagination only) */
-  next_cursor?: string;
+  next_cursor?: string | null;
 
   /** Cursor for previous page (cursor pagination only) */
-  prev_cursor?: string;
+  prev_cursor?: string | null;
 
   /** Pagination strategy used: "offset" or "cursor" */
   strategy: 'offset' | 'cursor';

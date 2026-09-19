@@ -364,6 +364,72 @@ class TestGenerateAllEndpoint:
 
         assert response.status_code in [200, 201, 202]
 
+    def test_generate_all_social_platform_charges_social_rate(
+        self,
+        client,
+        auth_headers_user_a,
+        project_with_brief,
+        client_for_user_a,
+        mock_anthropic_client,
+        db_session,
+        test_user_a,
+    ):
+        """Bug #246: generation used to hardcode the blog_post credit rate (20 cr/post)
+        for every run regardless of platform — a 4x overcharge on the default
+        social-post flow (social_post = 5 cr/post). A non-blog target_platform must
+        deduct the social rate, not the blog rate.
+        """
+        from backend.pricing.credit_pricing import CONTENT_COSTS
+
+        num_posts = 3
+        response = client.post(
+            "/api/generator/generate-all",
+            headers=auth_headers_user_a,
+            json={
+                "project_id": project_with_brief.id,
+                "client_id": client_for_user_a.id,
+                "target_platform": "linkedin",
+                "num_posts": num_posts,
+            },
+        )
+
+        assert response.status_code in [200, 201, 202]
+        db_session.refresh(test_user_a)
+        deducted = 1000 - test_user_a.credit_balance
+        assert deducted == num_posts * CONTENT_COSTS["social_post"]
+        assert deducted != num_posts * CONTENT_COSTS["blog_post"]
+
+    def test_generate_all_blog_platform_still_charges_blog_rate(
+        self,
+        client,
+        auth_headers_user_a,
+        project_with_brief,
+        client_for_user_a,
+        mock_anthropic_client,
+        db_session,
+        test_user_a,
+    ):
+        """Bug #246 companion: an explicit blog target_platform must still charge the
+        (higher) blog_post rate — the fix must not flatten everything to social."""
+        from backend.pricing.credit_pricing import CONTENT_COSTS
+
+        num_posts = 3
+        response = client.post(
+            "/api/generator/generate-all",
+            headers=auth_headers_user_a,
+            json={
+                "project_id": project_with_brief.id,
+                "client_id": client_for_user_a.id,
+                "target_platform": "blog",
+                "num_posts": num_posts,
+            },
+        )
+
+        assert response.status_code in [200, 201, 202]
+        db_session.refresh(test_user_a)
+        deducted = 1000 - test_user_a.credit_balance
+        assert deducted == num_posts * CONTENT_COSTS["blog_post"]
+
     def test_generate_all_rate_limiting(
         self,
         client,
@@ -433,6 +499,60 @@ class TestRegenerateEndpoint:
         assert response.status_code in [200, 201, 202]
         data = response.json()
         assert "run_id" in data or "id" in data
+
+    def test_regenerate_social_platform_charges_social_rate(
+        self,
+        client,
+        auth_headers_user_a,
+        project_with_brief,
+        mock_anthropic_client,
+        db_session,
+        test_user_a,
+    ):
+        """Bug #246: /regenerate had the same hardcoded blog_post rate as /generate-all.
+        A project targeting a social platform must be charged the social rate on
+        regeneration too, not the blog rate."""
+        from backend.pricing.credit_pricing import CONTENT_COSTS
+
+        project_with_brief.target_platform = "linkedin"
+        db_session.add(project_with_brief)
+        db_session.commit()
+
+        post1 = Post(
+            id="post-social-1",
+            project_id=project_with_brief.id,
+            run_id="run-social-1",
+            content="Original content 1",
+            template_id=1,
+            target_platform="linkedin",
+            status="flagged",
+        )
+        post2 = Post(
+            id="post-social-2",
+            project_id=project_with_brief.id,
+            run_id="run-social-1",
+            content="Original content 2",
+            template_id=2,
+            target_platform="linkedin",
+            status="flagged",
+        )
+        db_session.add_all([post1, post2])
+        db_session.commit()
+
+        response = client.post(
+            "/api/generator/regenerate",
+            headers=auth_headers_user_a,
+            json={
+                "project_id": project_with_brief.id,
+                "post_ids": ["post-social-1", "post-social-2"],
+            },
+        )
+
+        assert response.status_code in [200, 201, 202]
+        db_session.refresh(test_user_a)
+        deducted = 1000 - test_user_a.credit_balance
+        assert deducted == 2 * CONTENT_COSTS["social_post"]
+        assert deducted != 2 * CONTENT_COSTS["blog_post"]
 
     def test_regenerate_unauthorized_posts(
         self, client, auth_headers_user_b, project_with_brief, mock_anthropic_client, db_session
@@ -519,6 +639,68 @@ class TestExportEndpoint:
             t in content_type
             for t in ["application/json", "text/markdown", "application/octet-stream"]
         )
+
+    def test_export_after_project_cached_before_run_existed(
+        self,
+        client,
+        auth_headers_user_a,
+        project_for_user_a,
+        client_for_user_a,
+        db_session,
+    ):
+        """Bug #252: crud.get_project() is wrapped in a 10-minute TTL cache. The
+        export endpoint used to fetch the project via that cache and db.merge()
+        the result into its session — if the project had already been cached
+        (e.g. by an earlier wizard step) while it still had zero runs, that stale
+        `runs=[]` collection got merged back in, and because Project.runs
+        cascades delete-orphan, SQLAlchemy treated the run created afterward as
+        removed and scheduled a DELETE for it. On Postgres that violates
+        deliverables_run_id_fkey (the live 500 this reproduces, seen via a real
+        web-qa run against production); on any DB it silently deletes the run.
+        Reproduce the exact trigger sequence and assert the run survives.
+        """
+        from backend.services import crud
+
+        crud.get_project.cache_clear()
+        try:
+            # Prime the cache while the project genuinely has zero runs — this
+            # is exactly what an earlier wizard step (e.g. template validation)
+            # does in production before generation ever creates a run.
+            cached_project = crud.get_project(db_session, project_for_user_a.id)
+            # In production the cached object detaches when ITS OWN request's
+            # session closes; this test harness shares one session for every
+            # request (see tests/integration/conftest.py db_session), so without
+            # this the cache hit below would just return an already-attached
+            # object and never exercise db.merge()'s cross-session reconciliation.
+            # Expunge to faithfully simulate that detachment.
+            db_session.expunge(cached_project)
+
+            run = crud.create_run(db_session, project_id=project_for_user_a.id, is_batch=True)
+            post = Post(
+                id="post-cache-bug-252",
+                project_id=project_for_user_a.id,
+                run_id=run.id,
+                content="A finished post with a real CTA.\n\nHit reply to learn more.",
+                template_id=1,
+                target_platform="linkedin",
+                status="approved",
+            )
+            db_session.add(post)
+            db_session.commit()
+
+            response = client.post(
+                "/api/generator/export",
+                headers=auth_headers_user_a,
+                json={"project_id": project_for_user_a.id, "format": "txt"},
+            )
+
+            assert response.status_code == 200
+            # The regression check: export must not have deleted the run out from
+            # under its own just-created deliverable.
+            db_session.expire_all()
+            assert db_session.query(Run).filter(Run.id == run.id).first() is not None
+        finally:
+            crud.get_project.cache_clear()
 
     def test_export_unauthorized_project(
         self, client, auth_headers_user_b, project_with_brief, db_session

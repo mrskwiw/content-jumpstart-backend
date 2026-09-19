@@ -1057,7 +1057,7 @@ class AnthropicClient:
 Client Context:
 {context_str}
 
-Generate a post following this template structure, customized for this client's voice and audience."""
+Generate a post following this template structure, customized for this client's voice and audience. The bracketed labels above (e.g. "[CONTEXT - Why I'm asking]:") are structural guidance for YOU only — they describe what each section should accomplish, not text to reproduce. Never include brackets, section labels, or placeholder syntax like that in your output. Write natural, flowing prose exactly as it would appear in a real, finished social post."""
 
         messages = [{"role": "user", "content": user_message}]
 
@@ -1106,7 +1106,7 @@ Generate a post following this template structure, customized for this client's 
 Client Context:
 {context_str}
 
-Generate a post following this template structure, customized for this client's voice and audience."""
+Generate a post following this template structure, customized for this client's voice and audience. The bracketed labels above (e.g. "[CONTEXT - Why I'm asking]:") are structural guidance for YOU only — they describe what each section should accomplish, not text to reproduce. Never include brackets, section labels, or placeholder syntax like that in your output. Write natural, flowing prose exactly as it would appear in a real, finished social post."""
 
         messages = [{"role": "user", "content": user_message}]
 

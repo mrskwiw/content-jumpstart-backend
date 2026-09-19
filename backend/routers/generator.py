@@ -35,6 +35,19 @@ from backend.services.template_prerequisites import (
 router = APIRouter()
 
 
+def _generation_credit_cost(num_posts: int, target_platform: Optional[str]) -> int:
+    """Credits for generating/regenerating ``num_posts`` posts on ``target_platform``.
+
+    Bug #246: this used to hardcode ``get_content_cost("blog_post")`` (20 cr/post)
+    for every run regardless of platform, so the default social-post flow (e.g.
+    LinkedIn) was charged 4x the intended ``social_post`` rate (5 cr/post). Blog
+    is the only long-form content type; everything else is the flagship
+    short-form social post.
+    """
+    content_type = "blog_post" if (target_platform or "").lower() == "blog" else "social_post"
+    return num_posts * get_content_cost(content_type)
+
+
 class GenerateAllInput(BaseModel):
     """Input for generate-all endpoint"""
 
@@ -287,18 +300,19 @@ async def run_generation_background(
         logger.error(f"Background generation failed for run {run_id}: {str(e)}", exc_info=True)
 
         # CREDIT REFUND: Refund credits if generation failed
+        # Must mirror the charge in /generate exactly (same target_platform), or a
+        # failed run over/under-refunds relative to what was actually deducted.
+        refund_amount = _generation_credit_cost(num_posts, target_platform)
         try:
             credit_service.refund_credits(
                 db=db,
                 user_id=user_id,
-                amount=num_posts * get_content_cost("blog_post"),
+                amount=refund_amount,
                 description=f"Refund for failed generation (run {run_id})",
                 reference_id=run_id,
                 reference_type="run_refund",
             )
-            logger.info(
-                f"Refunded {num_posts * get_content_cost('blog_post')} credits to user {user_id}"
-            )
+            logger.info(f"Refunded {refund_amount} credits to user {user_id}")
         except Exception as refund_err:
             logger.error(f"Failed to refund credits for run {run_id}: {refund_err}")
 
@@ -766,7 +780,7 @@ async def generate_all(
     target_platform = input.target_platform or project.target_platform or "blog"
 
     # CREDIT DEDUCTION: Calculate and deduct credits before generation
-    credit_cost = num_posts * get_content_cost("blog_post")
+    credit_cost = _generation_credit_cost(num_posts, target_platform)
     try:
         credit_service.deduct_credits(
             db=db,
@@ -848,7 +862,7 @@ async def regenerate(
 
     # CREDIT DEDUCTION: Calculate and deduct credits for regeneration
     num_posts_to_regenerate = len(input.post_ids)
-    credit_cost = num_posts_to_regenerate * get_content_cost("blog_post")
+    credit_cost = _generation_credit_cost(num_posts_to_regenerate, project.target_platform)
     try:
         credit_service.deduct_credits(
             db=db,
@@ -986,16 +1000,27 @@ async def export_package(
                 ),
             )
 
-        # Verify project exists
-        project = crud.get_project(db, input.project_id)
+        # Verify project exists — query directly rather than crud.get_project(),
+        # which is wrapped in a 10-minute cache (Bug #252). A cached Project
+        # instance's eager-loaded `runs` collection reflects whatever existed at
+        # cache-population time; db.merge()-ing that stale collection back into
+        # this session, combined with Project.runs' cascade="all, delete-orphan",
+        # makes SQLAlchemy treat any run created AFTER the cache was populated
+        # (i.e. the run this very export is trying to package — the common case
+        # for a project just generated and immediately exported) as removed from
+        # the collection and schedules a DELETE for it at flush time. That DELETE
+        # then violates deliverables_run_id_fkey against the Deliverable row this
+        # same request just inserted, turning every export into a 500:
+        #   psycopg2.errors.ForeignKeyViolation: update or delete on table "runs"
+        #   violates foreign key constraint "deliverables_run_id_fkey"
+        # /regenerate already avoids crud.get_project()+db.merge() for the same
+        # reason (see its comment above) — this mirrors that fix.
+        project = db.query(Project).filter(Project.id == input.project_id).first()
         if not project:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Project {input.project_id} not found",
             )
-
-        # Reattach detached object to session for attribute access
-        project = db.merge(project)
 
         # TR-021: Verify user owns the project
         if project.user_id != current_user.id and not current_user.is_superuser:
@@ -1004,8 +1029,7 @@ async def export_package(
                 detail="Access denied: You don't own this project",
             )
 
-        # Use eager-loaded client (already loaded by crud.get_project)
-        client = project.client
+        client = project.client  # lazy-loaded — see the cache/cascade note above
         if not client:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

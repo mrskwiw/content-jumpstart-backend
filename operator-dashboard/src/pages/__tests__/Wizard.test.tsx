@@ -70,7 +70,13 @@ jest.mock('@/api/generator', () => ({
   },
 }));
 
+const WIZARD_STORAGE_KEY = 'wizard_state_v1';
+
 describe('Wizard page', () => {
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('surfaces the flagged post count in the wizard status panel', async () => {
     const { wrapper } = renderWithProviders([
       { pathname: '/dashboard/wizard', state: { projectId: 'p1', clientId: 'c1' } },
@@ -85,5 +91,44 @@ describe('Wizard page', () => {
       expect(screen.getByText('Flagged:').parentElement).toHaveTextContent('Flagged: 1');
     });
     expect(screen.getByText('Generated:').parentElement).toHaveTextContent('Generated: 1 posts');
+  });
+
+  it('Bug #250: persists the in-progress project to localStorage so it survives navigating away', async () => {
+    const { wrapper } = renderWithProviders([
+      { pathname: '/dashboard/wizard', state: { projectId: 'p1', clientId: 'c1' } },
+    ]);
+    render(<Wizard />, { wrapper });
+
+    await screen.findByText(/Demo Project/);
+    await waitFor(() => {
+      const saved = localStorage.getItem(WIZARD_STORAGE_KEY);
+      expect(saved).not.toBeNull();
+      expect(JSON.parse(saved as string)).toMatchObject({ projectId: 'p1', clientId: 'c1' });
+    });
+  });
+
+  it('Bug #250: resumes from persisted state when the wizard is opened with no navigation state', async () => {
+    localStorage.setItem(
+      WIZARD_STORAGE_KEY,
+      JSON.stringify({
+        projectId: 'p1',
+        clientId: 'c1',
+        activeStep: 'quality',
+        maxReachedStep: 'quality',
+        isCreatingNewClient: false,
+        templateQuantities: {},
+        includeResearch: false,
+        totalPrice: 0,
+        customTopics: [],
+        targetPlatform: 'linkedin',
+      })
+    );
+
+    const { wrapper } = renderWithProviders(['/dashboard/wizard']); // no location.state
+    render(<Wizard />, { wrapper });
+
+    // Resuming from storage means the project query fires for the persisted
+    // projectId even though this navigation carried no state at all.
+    await screen.findByText(/Demo Project/);
   });
 });
