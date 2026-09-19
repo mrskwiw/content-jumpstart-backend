@@ -47,9 +47,14 @@ def _patch(monkeypatch, *, post=None, get=None):
 
 
 def test_elevenlabs_missing_credential(monkeypatch):
+    # 2026-09-19 QA audit (issue-006): the raw env var name used to leak straight
+    # into the user-facing error (surfaced verbatim on Media Jobs); now it must
+    # not appear at all, and the message must be a generic, non-leaking one.
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     r = ElevenLabsTTSProvider(MediaKind.TTS).start({"script": "hi"})
-    assert not r.ok and "ELEVENLABS_API_KEY" in r.error
+    assert not r.ok
+    assert "ELEVENLABS_API_KEY" not in r.error
+    assert "configured" in r.error.lower()
 
 
 def test_elevenlabs_missing_voice_id(monkeypatch):
@@ -535,9 +540,12 @@ def _raise(*a, **kw):
 
 
 def test_heygen_start_missing_credential(monkeypatch):
+    # 2026-09-19 QA audit (issue-006): no raw env var name in the user-facing error.
     monkeypatch.delenv("HEYGEN_API_KEY", raising=False)
     r = HeyGenProvider(MediaKind.AVATAR_VIDEO).start({"script": "hi"})
-    assert not r.ok and "HEYGEN_API_KEY" in r.error
+    assert not r.ok
+    assert "HEYGEN_API_KEY" not in r.error
+    assert "configured" in r.error.lower()
 
 
 def test_heygen_start_network_exception(monkeypatch):
@@ -635,9 +643,12 @@ def test_dub_poll_missing_cred_and_network(monkeypatch):
 
 
 def test_flux_missing_credential(monkeypatch):
+    # 2026-09-19 QA audit (issue-006): no raw env var name in the user-facing error.
     monkeypatch.delenv("BFL_API_KEY", raising=False)
     r = FluxProvider(MediaKind.GEN_IMAGE).start({"prompt": "a cat"})
-    assert not r.ok and "BFL_API_KEY" in r.error
+    assert not r.ok
+    assert "BFL_API_KEY" not in r.error
+    assert "configured" in r.error.lower()
 
 
 def test_flux_missing_prompt(monkeypatch):

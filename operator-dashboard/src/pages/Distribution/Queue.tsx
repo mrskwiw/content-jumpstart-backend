@@ -56,6 +56,10 @@ export default function Queue() {
 
   // Connected platforms plus the always-available stub (safe demo target).
   const platformOptions = ['stub', ...(creds.data ?? []).map((c) => c.platform)];
+  // Bug fix (2026-09-19 QA audit, issue-005): the dropdown used to render the raw
+  // internal value "stub" as its own label with no explanation — read as a leaked
+  // dev placeholder rather than the intentional safe demo target it is.
+  const platformLabel = (p: string) => (p === 'stub' ? 'Demo (test only, no real platform)' : p);
 
   return (
     <div className="space-y-6">
@@ -93,7 +97,7 @@ export default function Queue() {
                 >
                   {[...new Set(platformOptions)].map((p) => (
                     <option key={p} value={p}>
-                      {p}
+                      {platformLabel(p)}
                     </option>
                   ))}
                 </select>

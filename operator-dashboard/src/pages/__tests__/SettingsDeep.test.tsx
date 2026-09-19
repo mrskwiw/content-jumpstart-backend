@@ -256,6 +256,29 @@ describe('Settings Page', () => {
         expect(screen.queryByText(/integration settings and credentials/i)).not.toBeInTheDocument();
       });
     });
+
+    it('discloses Coming Soon upfront for mock integrations instead of a misleading live status (Bug fix 2026-09-19)', () => {
+      renderWithProviders(<Settings />);
+
+      // Anthropic Claude / Email / Storage / Analytics have no real configuration
+      // UI behind them — they must show "Coming Soon" on the card itself, not a
+      // "Connected"/"Error" badge that only reveals the truth after a click.
+      const comingSoonBadges = screen.getAllByText(/coming soon/i);
+      expect(comingSoonBadges.length).toBeGreaterThanOrEqual(4);
+
+      // The corresponding buttons must be disabled, not a clickable "Configure".
+      const comingSoonButtons = screen.getAllByRole('button', { name: /coming soon/i });
+      expect(comingSoonButtons.length).toBeGreaterThanOrEqual(4);
+      comingSoonButtons.forEach((btn) => expect(btn).toBeDisabled());
+    });
+
+    it('leaves real, working integrations (pytrends/brave/tavily/serpapi) with a real status badge and enabled button', () => {
+      renderWithProviders(<Settings />);
+
+      const realButtons = screen.getAllByRole('button', { name: /^(configure|connect)$/i });
+      expect(realButtons.length).toBeGreaterThan(0);
+      realButtons.forEach((btn) => expect(btn).not.toBeDisabled());
+    });
   });
 
   describe('Workflows Tab', () => {
@@ -335,6 +358,20 @@ describe('Settings Page', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/create new workflow rule/i)).toBeInTheDocument();
+      });
+    });
+
+    it('marks "Create New Workflow Rule" as Coming Soon and disabled instead of a silent no-op (Bug fix 2026-09-19)', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Settings />);
+
+      const workflowsTab = screen.getByRole('button', { name: /workflows/i });
+      await user.click(workflowsTab);
+
+      await waitFor(() => {
+        const createButton = screen.getByRole('button', { name: /create new workflow rule/i });
+        expect(createButton).toBeDisabled();
+        expect(createButton).toHaveTextContent(/coming soon/i);
       });
     });
   });

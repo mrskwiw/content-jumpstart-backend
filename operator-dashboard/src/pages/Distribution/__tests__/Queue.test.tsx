@@ -99,4 +99,23 @@ describe('Distribution Queue — per-client attribution', () => {
       expect.objectContaining({ content: 'Account post', client_id: undefined })
     );
   });
+
+  it('labels the "stub" platform option as a demo target, not the raw internal value (Bug fix 2026-09-19)', async () => {
+    renderWithProviders(<Queue />);
+
+    // The <option value="stub"> must render a human label, not the literal "stub".
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /demo \(test only/i })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('option', { name: /^stub$/ })).not.toBeInTheDocument();
+
+    // The underlying value scheduled is still the real "stub" platform id.
+    fireEvent.change(screen.getByPlaceholderText(/what do you want to post/i), {
+      target: { value: 'Demo post' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+    await waitFor(() =>
+      expect(dist.schedule).toHaveBeenCalledWith(expect.objectContaining({ platform: 'stub' }))
+    );
+  });
 });

@@ -24,6 +24,15 @@ interface Integration {
   status: 'connected' | 'disconnected' | 'error';
   configured: boolean;
   lastSync?: string;
+  // Bug fix (2026-09-19 QA audit, issue-003/004): these cards used to show a live
+  // "Connected"/"Error" status badge and a "Configure"/"Connect" button that only
+  // revealed "Coming Soon" AFTER the user clicked through — undisclosed until
+  // clicked, and Google Analytics' fake "Error" badge had no working recovery
+  // path. pytrends/brave/tavily/serpapi are real, queried from live endpoints
+  // below; the rest (anthropic, email, storage, analytics) have no real
+  // configuration UI behind them yet — isMock marks those so the card discloses
+  // Coming Soon upfront instead of behind a click.
+  isMock?: boolean;
 }
 
 const mockApiKeys: ApiKey[] = [
@@ -32,11 +41,11 @@ const mockApiKeys: ApiKey[] = [
 ];
 
 const mockIntegrations: Integration[] = [
-  { id: '1', name: 'Anthropic Claude API', type: 'anthropic', status: 'connected', configured: true, lastSync: '2025-12-17T14:30:00' },
+  { id: '1', name: 'Anthropic Claude API', type: 'anthropic', status: 'connected', configured: true, lastSync: '2025-12-17T14:30:00', isMock: true },
   { id: '2', name: 'Google Trends (Pytrends)', type: 'pytrends', status: 'connected', configured: true, lastSync: new Date().toISOString() },
-  { id: '3', name: 'Email Service (SendGrid)', type: 'email', status: 'disconnected', configured: false },
-  { id: '4', name: 'Cloud Storage (S3)', type: 'storage', status: 'disconnected', configured: false },
-  { id: '5', name: 'Analytics (Google Analytics)', type: 'analytics', status: 'error', configured: true, lastSync: '2025-12-16T08:00:00' },
+  { id: '3', name: 'Email Service (SendGrid)', type: 'email', status: 'disconnected', configured: false, isMock: true },
+  { id: '4', name: 'Cloud Storage (S3)', type: 'storage', status: 'disconnected', configured: false, isMock: true },
+  { id: '5', name: 'Analytics (Google Analytics)', type: 'analytics', status: 'error', configured: true, lastSync: '2025-12-16T08:00:00', isMock: true },
   { id: '6', name: 'Brave Search', type: 'brave', status: 'disconnected', configured: false },
   { id: '7', name: 'Tavily Web Search', type: 'tavily', status: 'disconnected', configured: false },
   { id: '8', name: 'SerpAPI (Google Search)', type: 'serpapi', status: 'disconnected', configured: false },
@@ -308,17 +317,31 @@ export function IntegrationsTab() {
                   <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800 p-3"><Icon className="h-6 w-6 text-neutral-600 dark:text-neutral-400" /></div>
                   <div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{integration.name}</h3>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{integration.configured ? `Last synced ${formatTimeAgo(integration.lastSync)}` : 'Not configured'}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                      {integration.isMock ? 'Management UI not built yet' : integration.configured ? `Last synced ${formatTimeAgo(integration.lastSync)}` : 'Not configured'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium ${getIntegrationBadge(integration.status)}`}>
-                    {integration.status === 'connected' && <CheckCircle className="h-3 w-3" />}
-                    {integration.status === 'error' && <AlertCircle className="h-3 w-3" />}
-                    {integration.status.charAt(0).toUpperCase() + integration.status.slice(1)}
-                  </span>
-                  <button onClick={() => setShowConfigureModal(integration)} className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                    {integration.configured ? 'Configure' : 'Connect'}
+                  {integration.isMock ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/20 px-3 py-1 text-sm font-medium text-amber-800 dark:text-amber-300">
+                      <AlertCircle className="h-3 w-3" />
+                      Coming Soon
+                    </span>
+                  ) : (
+                    <span className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1 text-sm font-medium ${getIntegrationBadge(integration.status)}`}>
+                      {integration.status === 'connected' && <CheckCircle className="h-3 w-3" />}
+                      {integration.status === 'error' && <AlertCircle className="h-3 w-3" />}
+                      {integration.status.charAt(0).toUpperCase() + integration.status.slice(1)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowConfigureModal(integration)}
+                    disabled={integration.isMock}
+                    title={integration.isMock ? 'Configuration for this integration is not available yet' : undefined}
+                    className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white dark:disabled:hover:bg-neutral-800"
+                  >
+                    {integration.isMock ? 'Coming Soon' : integration.configured ? 'Configure' : 'Connect'}
                   </button>
                 </div>
               </div>

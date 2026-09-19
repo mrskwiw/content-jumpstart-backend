@@ -2,11 +2,20 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { mediaApi, Estimate, GenerateBody } from '@/api/media';
+
+// Image/video/TTS generation is under development — none of the backing
+// provider API keys (ElevenLabs, HeyGen, Kling, BFL/Flux, Sync, Auphonic) are
+// configured on this instance yet, so every pipeline here would fail on
+// confirm (see BUGS.md / the stuck Media Jobs this exact gap already
+// produced). The form still renders so the roadmap is visible, but estimating
+// and confirming are disabled until at least one provider is wired up.
+const MEDIA_GENERATION_AVAILABLE = false;
 
 // Pipelines that generate from a prompt/script vs. standalone ops on an existing asset.
 const PIPELINES = [
@@ -78,7 +87,9 @@ export default function MediaGenerate() {
     },
   });
 
-  const canEstimate = isAudioOp ? sourceAssetId.trim().length > 0 : choice === 'cinematic' ? scenes.trim().length > 0 : script.trim().length > 0;
+  const canEstimate =
+    MEDIA_GENERATION_AVAILABLE &&
+    (isAudioOp ? sourceAssetId.trim().length > 0 : choice === 'cinematic' ? scenes.trim().length > 0 : script.trim().length > 0);
 
   return (
     <div className="space-y-6">
@@ -89,6 +100,20 @@ export default function MediaGenerate() {
           start — renders run in the background on the Jobs page.
         </p>
       </div>
+
+      {!MEDIA_GENERATION_AVAILABLE && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-medium">Media generation is under development</p>
+            <p className="mt-1 text-amber-800 dark:text-amber-300">
+              Image, video, and voiceover/TTS generation aren't available on this instance yet — the
+              form below is disabled until they're live. Existing jobs are still visible on the{' '}
+              <span className="font-medium">Jobs</span> page.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -102,6 +127,7 @@ export default function MediaGenerate() {
               estimateMut.mutate();
             }}
           >
+            <fieldset disabled={!MEDIA_GENERATION_AVAILABLE} className="space-y-4 disabled:opacity-60">
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">Type</span>
               <select
@@ -187,8 +213,9 @@ export default function MediaGenerate() {
             )}
 
             <Button type="submit" loading={estimateMut.isPending} disabled={!canEstimate}>
-              Estimate cost
+              {MEDIA_GENERATION_AVAILABLE ? 'Estimate cost' : 'Under development'}
             </Button>
+            </fieldset>
           </form>
         </CardContent>
       </Card>

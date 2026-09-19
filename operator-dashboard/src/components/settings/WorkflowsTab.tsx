@@ -112,9 +112,19 @@ export function WorkflowsTab() {
         </div>
       ))}
 
-      <button className="w-full rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 text-neutral-600 dark:text-neutral-400 hover:border-primary-400 dark:hover:border-primary-600 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+      {/* Bug fix (2026-09-19 QA audit, issue-002): this button had no onClick at
+          all — clicking it was a silent no-op (no modal, no toast, no error),
+          which is worse than a disclosed stub because nothing told the user the
+          action did nothing. Disabled + relabeled Coming Soon, matching the
+          disclosure pattern used elsewhere (e.g. Security tab's "Delete My
+          Account (coming soon)"). */}
+      <button
+        disabled
+        title="Creating custom workflow rules is not available yet"
+        className="w-full cursor-not-allowed rounded-lg border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 text-neutral-400 dark:text-neutral-600"
+      >
         <Plus className="h-5 w-5 mx-auto mb-2" />
-        <span className="text-sm font-medium">Create New Workflow Rule</span>
+        <span className="text-sm font-medium">Create New Workflow Rule (Coming Soon)</span>
       </button>
 
       {/* suppress unused import warning */}

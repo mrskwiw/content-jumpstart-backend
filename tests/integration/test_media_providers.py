@@ -176,7 +176,11 @@ def test_real_provider_missing_key_fails_closed(client, db_session, monkeypatch)
     )
     root = r.json()["root_job"]
     assert root["status"] == "failed"
-    assert "ELEVENLABS_API_KEY" in (root["error_message"] or "")
+    # 2026-09-19 QA audit (issue-006): error_message is user-facing (rendered
+    # verbatim on the Media Jobs page) and must not leak the raw env var name.
+    error_message = root["error_message"] or ""
+    assert "ELEVENLABS_API_KEY" not in error_message
+    assert "configured" in error_message.lower()
 
 
 # ── HeyGen (asynchronous) + full chain ────────────────────────────────────────

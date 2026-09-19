@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import MediaGenerate from '@/pages/Media/Generate';
 import { mediaApi } from '@/api/media';
 import { renderWithProviders } from '@/test-utils';
@@ -12,7 +12,7 @@ jest.mock('@/api/media', () => ({
 
 const mockedGenerate = mediaApi.generate as jest.Mock;
 
-describe('MediaGenerate — image (Flux)', () => {
+describe('MediaGenerate — under development (Bug fix 2026-09-19)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedGenerate.mockResolvedValue({
@@ -21,34 +21,25 @@ describe('MediaGenerate — image (Flux)', () => {
     });
   });
 
-  it('estimates a gen_image job with the prompt spec', async () => {
+  it('discloses that media generation is under development instead of silently failing on confirm', async () => {
     const { wrapper } = renderWithProviders();
     render(<MediaGenerate />, { wrapper });
 
-    // Choose the image pipeline.
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'gen_image' } });
-    // The prompt field appears with the image label.
-    const promptBox = await screen.findByPlaceholderText(/golden retriever/i);
-    fireEvent.change(promptBox, { target: { value: 'a red bicycle in the rain' } });
-
-    fireEvent.click(screen.getByRole('button', { name: /estimate cost/i }));
-
-    await waitFor(() =>
-      expect(mockedGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pipeline: 'gen_image',
-          confirm: false,
-          spec: { prompt: 'a red bicycle in the rain' },
-        })
-      )
-    );
+    expect(screen.getByText(/media generation is under development/i)).toBeInTheDocument();
   });
 
-  it('disables Estimate until a prompt is entered', async () => {
+  it('disables the whole form so no pipeline can be estimated or confirmed', async () => {
     const { wrapper } = renderWithProviders();
     render(<MediaGenerate />, { wrapper });
 
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'gen_image' } });
-    expect(screen.getByRole('button', { name: /estimate cost/i })).toBeDisabled();
+    const promptBox = await screen.findByPlaceholderText(/golden retriever/i);
+    expect(promptBox).toBeDisabled();
+
+    const submit = screen.getByRole('button', { name: /under development/i });
+    expect(submit).toBeDisabled();
+
+    fireEvent.click(submit);
+    expect(mockedGenerate).not.toHaveBeenCalled();
   });
 });

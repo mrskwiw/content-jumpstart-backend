@@ -164,7 +164,16 @@ class _MissingCredential(Exception):
 def _require_env(name: str) -> str:
     val = os.getenv(name, "").strip()
     if not val:
-        raise _MissingCredential(f"{name} is not set")
+        # 2026-09-19 QA audit (issue-006): every `except _MissingCredential as e:`
+        # site below does `error=str(e)`, which used to put the raw env var name
+        # straight into the user-facing MediaResult.error / Job.error_message
+        # field ("ELEVENLABS_API_KEY is not set"). Fixed once here so all ~14
+        # call sites stop leaking internal config names; the technical detail is
+        # still logged server-side for operators to diagnose.
+        logger.warning("Media provider credential missing: %s is not set", name)
+        raise _MissingCredential(
+            "This media provider isn't configured on this instance yet — contact your administrator."
+        )
     return val
 
 
