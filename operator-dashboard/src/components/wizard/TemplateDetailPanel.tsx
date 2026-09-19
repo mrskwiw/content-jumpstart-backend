@@ -30,6 +30,7 @@ interface Props {
   storyCounts: Record<string, number>;
   storySlug: string | undefined;
   quantity: number;
+  creditsPerPost: number;
   onQuantityChange: (delta: number) => void;
   onClose: () => void;
   onEditClient: (() => void) | undefined;
@@ -233,6 +234,7 @@ export function TemplateDetailPanel({
   storyCounts,
   storySlug,
   quantity,
+  creditsPerPost,
   onQuantityChange,
   onClose,
   onEditClient,
@@ -456,7 +458,7 @@ export function TemplateDetailPanel({
         </div>
         {quantity > 0 && (
           <p className="mt-1 text-xs text-neutral-400 text-right">
-            {quantity * 20} credits for this template
+            {quantity * creditsPerPost} credits for this template
           </p>
         )}
       </div>

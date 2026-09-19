@@ -6,7 +6,16 @@ Includes:
 - CreditPackage: Defines available credit packages and pricing
 """
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Integer, Float, Boolean, Text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    String,
+    Integer,
+    Float,
+    Boolean,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -49,7 +58,7 @@ class CreditPackage(Base):
     price_usd = Column(Float, nullable=False)
     package_type = Column(
         String, default="package"
-    )  # 'package' ($2/credit) or 'additional' ($2.50/credit)
+    )  # 'package' ($0.50/credit, subscription) or 'additional' ($1.00/credit, non-expiring top-up) — BILLING-01 locked rate
     is_active = Column(Boolean, default=True)
     description = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

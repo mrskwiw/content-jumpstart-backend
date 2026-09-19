@@ -680,13 +680,16 @@ def init_db():
                 try:
                     import uuid
 
-                    # Standard packages ($2/credit)
+                    # Standard packages — BILLING-01 locked rate: $0.50/credit
+                    # (2 credits/$, matches backend/pricing/credit_pricing.py's
+                    # STANDARD_PACKAGE_RATE, locked 2026-07-30). Was $2.00/credit
+                    # (legacy pre-BILLING-01 rate) until this fix.
                     standard_packages = [
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Starter Pack",
                             "credits": 100,
-                            "price_usd": 200.0,
+                            "price_usd": 50.0,
                             "package_type": "package",
                             "description": "Perfect for trying out the platform",
                         },
@@ -694,7 +697,7 @@ def init_db():
                             "id": str(uuid.uuid4()),
                             "name": "Basic Pack",
                             "credits": 300,
-                            "price_usd": 600.0,
+                            "price_usd": 150.0,
                             "package_type": "package",
                             "description": "Great for small businesses",
                         },
@@ -702,7 +705,7 @@ def init_db():
                             "id": str(uuid.uuid4()),
                             "name": "Pro Pack",
                             "credits": 600,
-                            "price_usd": 1200.0,
+                            "price_usd": 300.0,
                             "package_type": "package",
                             "description": "Ideal for regular content creation",
                         },
@@ -710,7 +713,7 @@ def init_db():
                             "id": str(uuid.uuid4()),
                             "name": "Business Pack",
                             "credits": 1200,
-                            "price_usd": 2400.0,
+                            "price_usd": 600.0,
                             "package_type": "package",
                             "description": "Best for agencies and teams",
                         },
@@ -718,53 +721,55 @@ def init_db():
                             "id": str(uuid.uuid4()),
                             "name": "Premium Pack",
                             "credits": 2500,
-                            "price_usd": 5000.0,
+                            "price_usd": 1250.0,
                             "package_type": "package",
                             "description": "Maximum value for high-volume users",
                         },
                     ]
 
-                    # Additional credits ($2.50/credit in 100-credit batches)
+                    # Additional (top-up) credits — BILLING-01 locked rate:
+                    # $1.00/credit, non-expiring (ADDITIONAL_CREDIT_RATE). Was
+                    # $2.50/credit until this fix.
                     additional_packages = [
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Additional 100 Credits",
                             "credits": 100,
-                            "price_usd": 250.0,
+                            "price_usd": 100.0,
                             "package_type": "additional",
-                            "description": "Top-up credits at $2.50 each",
+                            "description": "Top-up credits at $1.00 each",
                         },
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Additional 200 Credits",
                             "credits": 200,
-                            "price_usd": 500.0,
+                            "price_usd": 200.0,
                             "package_type": "additional",
-                            "description": "Top-up credits at $2.50 each",
+                            "description": "Top-up credits at $1.00 each",
                         },
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Additional 300 Credits",
                             "credits": 300,
-                            "price_usd": 750.0,
+                            "price_usd": 300.0,
                             "package_type": "additional",
-                            "description": "Top-up credits at $2.50 each",
+                            "description": "Top-up credits at $1.00 each",
                         },
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Additional 500 Credits",
                             "credits": 500,
-                            "price_usd": 1250.0,
+                            "price_usd": 500.0,
                             "package_type": "additional",
-                            "description": "Top-up credits at $2.50 each",
+                            "description": "Top-up credits at $1.00 each",
                         },
                         {
                             "id": str(uuid.uuid4()),
                             "name": "Additional 1000 Credits",
                             "credits": 1000,
-                            "price_usd": 2500.0,
+                            "price_usd": 1000.0,
                             "package_type": "additional",
-                            "description": "Top-up credits at $2.50 each",
+                            "description": "Top-up credits at $1.00 each",
                         },
                     ]
 
@@ -786,6 +791,42 @@ def init_db():
 
                 except Exception as e:
                     print(f">> Seeding credit_packages failed: {e}")
+
+            # Self-healing data fix: an instance provisioned before the BILLING-01
+            # rate change (S-01.4c, commit 03fbd67) has credit_packages rows still
+            # priced at the legacy $2.00/$2.50 rate — credit_pricing.py's
+            # STANDARD_PACKAGE_RATE/ADDITIONAL_CREDIT_RATE constants moved to
+            # $0.50/$1.00 but the DB rows that actually drive Stripe checkout
+            # amounts (stripe_service.py: amount_cents = price_usd * 100) were
+            # never updated to match. WHERE clauses are pinned to the exact
+            # legacy price so this never touches a row an admin has since
+            # customized on purpose; safe to run every boot.
+            elif "credit_packages" in inspector.get_table_names():
+                try:
+                    legacy_standard = conn.execute(
+                        text(
+                            "UPDATE credit_packages SET price_usd = credits * 0.50 "
+                            "WHERE package_type = 'package' AND price_usd = credits * 2.0"
+                        )
+                    )
+                    legacy_additional = conn.execute(
+                        text(
+                            "UPDATE credit_packages "
+                            "SET price_usd = credits * 1.00, "
+                            "    description = REPLACE(description, "
+                            "        'Top-up credits at $2.50 each', 'Top-up credits at $1.00 each') "
+                            "WHERE package_type = 'additional' AND price_usd = credits * 2.5"
+                        )
+                    )
+                    fixed = legacy_standard.rowcount + legacy_additional.rowcount
+                    if fixed:
+                        conn.commit()
+                        print(
+                            f">> Corrected {fixed} credit_packages row(s) from the legacy "
+                            "$2.00/$2.50 rate to the BILLING-01 locked $0.50/$1.00 rate"
+                        )
+                except Exception as e:
+                    print(f">> credit_packages legacy-rate fix failed: {e}")
 
         # Soft delete migration (GDPR/CCPA compliance - TR-XXX)
         # Add deleted_at and is_deleted columns to tables containing PII

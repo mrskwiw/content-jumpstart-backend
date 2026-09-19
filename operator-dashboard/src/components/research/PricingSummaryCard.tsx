@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Coins } from 'lucide-react';
 import { PricingPreview } from '../../api/research';
+import { SUBSCRIPTION_CREDIT_RATE_USD } from '@/config/pricing';
 
 interface PricingSummaryCardProps {
   pricing: PricingPreview;
@@ -30,7 +31,7 @@ export const PricingSummaryCard = memo(function PricingSummaryCard({ pricing, se
         <div className="flex items-center gap-2 text-sm p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <Coins className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span className="text-blue-700 dark:text-blue-300">
-            ≈ ${((pricing?.finalCost ?? 0) * 2).toFixed(2)} at $2/credit
+            ≈ ${((pricing?.finalCost ?? 0) * SUBSCRIPTION_CREDIT_RATE_USD).toFixed(2)} at ${SUBSCRIPTION_CREDIT_RATE_USD.toFixed(2)}/credit
           </span>
         </div>
       )}

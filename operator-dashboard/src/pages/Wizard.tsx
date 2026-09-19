@@ -17,6 +17,7 @@ import type { CreateProjectInput } from '@/api/projects';
 import type { PaginatedResponse } from '@/types/pagination';
 import { Button, Card, CardContent, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { SUBSCRIPTION_CREDIT_RATE_USD } from '@/config/pricing';
 
 type StepKey = 'profile' | 'research' | 'templates' | 'quality' | 'export';
 
@@ -755,11 +756,13 @@ export default function Wizard() {
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             {/* Bug #247: this used to show the raw credit count formatted as a
-                dollar amount ($totalPrice) with no conversion applied at all — a
-                fabricated number. Showing the credit count directly is the only
-                figure this component can state with certainty; see BUGS.md #247
-                for the unresolved $/credit rate inconsistency elsewhere in the app. */}
-            <strong>Total Cost:</strong> {totalPrice > 0 ? `${totalPrice.toLocaleString()} credits` : 'Not calculated'}
+                dollar amount ($totalPrice) with NO rate conversion applied at
+                all. Now converts through the single shared rate constant
+                (BILLING-01 locked, $0.50/credit) instead of a hardcoded/guessed
+                figure — see src/config/pricing.ts. */}
+            <strong>Total Cost:</strong> {totalPrice > 0
+              ? `${totalPrice.toLocaleString()} credits (≈ $${(totalPrice * SUBSCRIPTION_CREDIT_RATE_USD).toFixed(2)})`
+              : 'Not calculated'}
           </p>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             <strong>Generated:</strong> {posts?.length ?? 0} posts

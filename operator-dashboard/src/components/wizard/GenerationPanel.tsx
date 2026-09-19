@@ -7,6 +7,7 @@ import type { GenerateAllInput, Run } from '@/types/domain';
 import { Play, Loader2, Coins, AlertTriangle } from 'lucide-react';
 import { getApiErrorMessage } from '@/utils/apiError';
 import { TokenUsageDisplay } from '@/components/costs';
+import { creditsPerPost } from '@/config/pricing';
 
 interface Props {
   projectId: string;
@@ -44,9 +45,12 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
     },
   });
 
-  // Calculate total posts and credit cost
+  // Calculate total posts and credit cost. Bug #246/#247: was a flat 20
+  // credits/post regardless of platform — now matches the backend's actual
+  // (platform-aware) charge via the shared creditsPerPost() helper.
   const totalPosts = templateQuantities ? Object.values(templateQuantities).reduce((sum, qty) => sum + qty, 0) : 0;
-  const creditCost = totalPosts * 20; // 20 credits per post ($40 ÷ $2/credit)
+  const perPostCredits = creditsPerPost(targetPlatform);
+  const creditCost = totalPosts * perPostCredits;
   const hasInsufficientCredits = creditBalance ? creditBalance.balance < creditCost : false;
 
   const generate = useMutation({
@@ -135,7 +139,7 @@ export function GenerationPanel({ projectId, clientId, templateQuantities, custo
                   {creditCost.toLocaleString()} credits
                 </span>
                 <span className="text-neutral-500 dark:text-neutral-400">
-                  ({totalPosts} {totalPosts === 1 ? 'post' : 'posts'} × 20 credits)
+                  ({totalPosts} {totalPosts === 1 ? 'post' : 'posts'} × {perPostCredits} credits)
                 </span>
               </div>
               {creditBalance && (

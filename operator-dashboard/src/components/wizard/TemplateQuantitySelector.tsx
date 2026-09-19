@@ -7,6 +7,7 @@ import { generatorApi, type TemplateDependencies } from '@/api/generator';
 import { researchApi, type ResearchResultListResponse } from '@/api/research';
 import type { Client } from '@/types/domain';
 import { getDisabledTemplateIds } from '@/config/featureRegistry';
+import { creditsPerPost as getCreditsPerPost, CREDITS_PER_POST_BLOG } from '@/config/pricing';
 
 interface Template {
   id: number;
@@ -198,14 +199,6 @@ interface Props {
   onEditClient?: () => void;
 }
 
-// Bug #246/#247: must mirror the backend's platform-aware credit cost
-// (backend/routers/generator.py::_generation_credit_cost) — blog is the only
-// long-form content type; everything else is the flagship short-form social
-// post. This used to be a flat 20 cr/post for every platform, which both
-// overcharged the default social flow server-side (#246, now fixed) and,
-// even before that, was the wrong number to show here.
-const CREDITS_PER_POST_BLOG = 20;
-const CREDITS_PER_POST_SOCIAL = 5;
 // const RESEARCH_PRICE_PER_POST = 15.0; // DEPRECATED: Research now handled by granular tools
 
 export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
@@ -383,8 +376,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
   const { totalPosts, totalCredits, creditsPerPost } = useMemo(() => {
     const total = Object.values(quantities).reduce((sum, qty) => sum + qty, 0);
     // Research costs handled separately by research tools, not per-post
-    const perPost =
-      targetPlatform.toLowerCase() === 'blog' ? CREDITS_PER_POST_BLOG : CREDITS_PER_POST_SOCIAL;
+    const perPost = getCreditsPerPost(targetPlatform);
     return {
       totalPosts: total,
       creditsPerPost: perPost,
@@ -954,6 +946,7 @@ export const TemplateQuantitySelector = memo(function TemplateQuantitySelector({
                 storyCounts={storyCounts}
                 storySlug={STORY_TEMPLATE_SLUGS[selectedTemplateId]}
                 quantity={quantities[selectedTemplateId] ?? 0}
+                creditsPerPost={creditsPerPost}
                 onQuantityChange={(delta) => updateQuantity(selectedTemplateId, delta)}
                 onClose={() => setSelectedTemplateId(null)}
                 onEditClient={onEditClient}

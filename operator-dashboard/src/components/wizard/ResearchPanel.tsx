@@ -6,6 +6,7 @@ import { researchApi, ResearchTool, type ResearchRunResult } from '@/api/researc
 import { clientsApi } from '@/api/clients';
 import { settingsApi } from '@/api/settings';
 import { getApiErrorMessage } from '@/utils/apiError';
+import { SUBSCRIPTION_CREDIT_RATE_USD } from '@/config/pricing';
 import { notifyResearchSuccess, notifyResearchError, extractResearchMetrics } from '@/utils/researchNotifications';
 import { ResearchDataCollectionPanel } from './ResearchDataCollectionPanel';
 import { getDisabledToolIds } from '@/config/featureRegistry';
@@ -897,7 +898,7 @@ export const ResearchPanel = memo(function ResearchPanel({ projectId, clientId, 
             </div>
           </div>
           <div className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-            ≈ ${(totalCredits * 0.1).toFixed(2)} at $0.10/credit
+            ≈ ${(totalCredits * SUBSCRIPTION_CREDIT_RATE_USD).toFixed(2)} at ${SUBSCRIPTION_CREDIT_RATE_USD.toFixed(2)}/credit
           </div>
         </div>
       )}
