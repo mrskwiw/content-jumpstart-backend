@@ -112,3 +112,6 @@ test_*.db
 
 # Cache directories
 .cache/
+
+# Credentials docs live in the never-pushed root docs/ (moved 2026-10-22)
+LOGIN_CREDENTIALS*.md
