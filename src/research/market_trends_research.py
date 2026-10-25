@@ -644,7 +644,7 @@ Your focus areas:"""
         target_audience: str,
         focus_areas: List[str],
         industry_insights: str = "",
-        web_trends_data: List[Dict[str, str]] = None,
+        web_trends_data: Optional[List[Dict[str, str]]] = None,
         customer_pain_points: str = "",
         misconceptions: str = "",
     ) -> List[TrendCategory]:

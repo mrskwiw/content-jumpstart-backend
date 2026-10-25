@@ -5,7 +5,7 @@ Handles content generation, regeneration, and export operations.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, field_validator
@@ -784,7 +784,7 @@ async def generate_all(
     try:
         credit_service.deduct_credits(
             db=db,
-            user_id=current_user.id,
+            user_id=cast(str, current_user.id),
             amount=credit_cost,
             description=f"Post generation: {num_posts} posts",
             reference_id=db_run.id,
@@ -799,7 +799,7 @@ async def generate_all(
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Insufficient credits. Required: {credit_cost} credits for {num_posts} posts. "
-            f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
+            f"Your balance: {credit_service.live_balance(db, cast(str, current_user.id))} credits. "
             "Please purchase more credits.",
         )
 
@@ -809,7 +809,7 @@ async def generate_all(
         run_id=db_run.id,
         project_id=input.project_id,
         client_id=input.client_id,
-        user_id=current_user.id,  # NEW: pass user_id for refund on failure
+        user_id=cast(str, current_user.id),  # NEW: pass user_id for refund on failure
         num_posts=num_posts,
         template_quantities=input.template_quantities,  # Pass template quantities from frontend
         custom_topics=input.custom_topics,  # NEW: pass topic override for generation
@@ -866,7 +866,7 @@ async def regenerate(
     try:
         credit_service.deduct_credits(
             db=db,
-            user_id=current_user.id,
+            user_id=cast(str, current_user.id),
             amount=credit_cost,
             description=f"Post regeneration: {num_posts_to_regenerate} posts",
             reference_id=db_run.id,
@@ -882,7 +882,7 @@ async def regenerate(
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Insufficient credits. Required: {credit_cost} credits for {num_posts_to_regenerate} posts. "
-            f"Your balance: {credit_service.live_balance(db, current_user.id)} credits. "
+            f"Your balance: {credit_service.live_balance(db, cast(str, current_user.id))} credits. "
             "Please purchase more credits.",
         )
 
@@ -953,7 +953,7 @@ async def regenerate(
         try:
             credit_service.refund_credits(
                 db=db,
-                user_id=current_user.id,
+                user_id=cast(str, current_user.id),
                 amount=credit_cost,
                 description=f"Refund for failed regeneration (run {db_run.id})",
                 reference_id=db_run.id,

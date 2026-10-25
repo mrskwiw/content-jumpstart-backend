@@ -58,9 +58,9 @@ try:
     RESEARCH_CONTEXT_AVAILABLE = True
 except ImportError:
     RESEARCH_CONTEXT_AVAILABLE = False
-    build_research_context = None
-    get_brand_archetype_from_research = None
-    get_story_context_for_template = None
+    build_research_context = None  # type: ignore[assignment]
+    get_brand_archetype_from_research = None  # type: ignore[assignment]
+    get_story_context_for_template = None  # type: ignore[assignment]
 
 try:
     from ..utils.web_search_context import (
@@ -74,7 +74,7 @@ except ImportError:
     WEB_SEARCH_CONTEXT_AVAILABLE = False
     TEMPLATE_WEB_SEARCH_CONFIG = {}
     MAX_SEARCHES_PER_RUN = 5
-    build_web_search_context = None
+    build_web_search_context = None  # type: ignore[assignment]
 
 
 class ContentGeneratorAgent:

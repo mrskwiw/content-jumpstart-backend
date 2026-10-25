@@ -8,7 +8,7 @@ Phase 1 Implementation - Research Context Integration Feature
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from sqlalchemy.orm import Session
 
@@ -82,14 +82,15 @@ def build_research_context(db: Session, client_id: str) -> Dict[str, Any]:
         }
 
     # Group by tool name and keep most recent for each tool
-    tool_results = {}
+    tool_results: Dict[str, ResearchResult] = {}
     for result in completed_results:
-        if result.tool_name not in tool_results:
-            tool_results[result.tool_name] = result
+        tool_name = cast(str, result.tool_name)
+        if tool_name not in tool_results:
+            tool_results[tool_name] = result
         else:
             # Keep most recent
-            if result.created_at > tool_results[result.tool_name].created_at:
-                tool_results[result.tool_name] = result
+            if result.created_at > tool_results[tool_name].created_at:
+                tool_results[tool_name] = result
 
     # Format all results
     formatted = _format_all_results(tool_results)
@@ -143,7 +144,7 @@ def get_brand_archetype_from_research(session: Any, client_id: str) -> Optional[
             session, client_id, tool_name="brand_archetype", status="completed"
         )
         if results:
-            primary = (results[0].data or {}).get("primary_archetype")
+            primary = cast(Dict[str, Any], results[0].data or {}).get("primary_archetype")
             if primary:
                 jungian = str(primary).lower()
                 content_archetype = _JUNGIAN_TO_CONTENT_ARCHETYPE.get(jungian)
@@ -1153,7 +1154,7 @@ def get_story_context_for_template(
 
     # Pick the most recent eligible story
     story = available[0]
-    full = story.full_story or {}
+    full = cast(Dict[str, Any], story.full_story or {})
 
     parts = []
     if story.title:
