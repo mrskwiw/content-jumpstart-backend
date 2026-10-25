@@ -19,7 +19,7 @@ import io
 import base64
 import secrets
 import json
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, cast
 from passlib.hash import bcrypt
 
 from backend.models import User
@@ -48,7 +48,7 @@ class MFAService:
 
     @staticmethod
     def _is_encrypted(stored: Optional[str]) -> bool:
-        return bool(stored) and stored.startswith(MFAService._ENC_PREFIX)
+        return stored is not None and stored.startswith(MFAService._ENC_PREFIX)
 
     @staticmethod
     def upgrade_secret_if_legacy(user: User) -> bool:
@@ -60,8 +60,9 @@ class MFAService:
         verify, backup-code regeneration), so a legacy secret is migrated on whichever MFA
         interaction the user hits first — no fleet backfill needed for the small enrolled set.
         """
-        if user.mfa_secret and not MFAService._is_encrypted(user.mfa_secret):
-            user.mfa_secret = MFAService.encrypt_secret(MFAService.load_secret(user.mfa_secret))
+        stored = cast(Optional[str], user.mfa_secret)
+        if stored and not MFAService._is_encrypted(stored):
+            user.mfa_secret = MFAService.encrypt_secret(MFAService.load_secret(stored))  # type: ignore[assignment]
             return True
         return False
 
@@ -252,7 +253,7 @@ class MFAService:
 
         candidate = code.strip().replace(" ", "").replace("-", "").upper()
         if user.mfa_secret:
-            plaintext = MFAService.load_secret(user.mfa_secret)
+            plaintext = MFAService.load_secret(cast(Optional[str], user.mfa_secret))
             if plaintext and MFAService.verify_totp(plaintext, candidate):
                 # On-read upgrade: migrate a legacy plaintext secret to ciphertext. The caller
                 # commits (as it must for backup-code consumption), which persists this too.
