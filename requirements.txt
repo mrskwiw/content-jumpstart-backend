@@ -46,7 +46,7 @@ schemathesis==3.27.1       # Property-based API testing from OpenAPI schemas
 # Development Tools — pinned to match .pre-commit-config.yaml and CI
 black==25.12.0
 ruff==0.14.10
-mypy==1.8.0
+mypy==1.19.1  # must match CI (quality-gates.yml) — the backend ratchet compares counts (BUGS #257)
 pre-commit==3.6.0
 redis==5.0.1
 pyotp==2.9.0
