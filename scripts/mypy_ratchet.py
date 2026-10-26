@@ -22,8 +22,13 @@ requirements.txt must pin the same one.
 The installed packages matter as much as the version: mypy treats an import it can't
 resolve as ``Any``, so an interpreter missing the backend's dependencies undercounts
 (764 vs 779 under the same mypy). Before measuring, the interpreter is checked against
-backend/requirements.txt (which includes the root file); a missing package or an
-``==`` mismatch exits 2.
+backend/requirements.txt (which includes the root file): any requirement it doesn't
+satisfy — a missing package, a version outside its specifier, ranges included — exits 2.
+
+Known limit: two environments can both satisfy a ranged requirement (``stripe>=7.0.0``)
+at different versions, and those can still differ in count. Closing that needs a
+lockfile for the type-check environment; this gate guarantees "satisfies the declared
+requirements", not "byte-identical environment".
 
 Usage:
     python scripts/mypy_ratchet.py            # check against the baseline
@@ -46,11 +51,6 @@ _REQUIREMENTS = _ROOT / "backend" / "requirements.txt"
 _TARGET = "backend/"
 _SUMMARY = re.compile(r"Found (\d+) errors? in (\d+) files?")
 _VERSION = re.compile(r"mypy (\d+(?:\.\d+)+)")
-_REQUIREMENT = re.compile(
-    r"([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*(==|>=|<=|~=|!=|>|<)?\s*([^,\s]*)"
-)
-
-Requirement = tuple[str, str, str]  # (name, operator or "", version or "")
 
 
 def measuring_python() -> str:
@@ -74,14 +74,13 @@ def measuring_python() -> str:
     return sys.executable
 
 
-def parse_requirements(path: pathlib.Path) -> list[Requirement]:
-    """Return ``(name, op, version)`` for each requirement in ``path``, following ``-r``.
+def parse_requirements(path: pathlib.Path) -> list[str]:
+    """Return each requirement string in ``path``, following ``-r`` includes.
 
-    Comments and other pip options are ignored. Lines with an environment marker
-    (``; sys_platform == ...``) are skipped: they don't apply on every platform, so
-    they can't be required of every environment.
+    Comments and other pip options are dropped; specifiers, extras and environment
+    markers are kept whole so the probe can evaluate them with ``packaging``.
     """
-    reqs: list[Requirement] = []
+    reqs: list[str] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.split("#", 1)[0].strip()
         if not line:
@@ -89,37 +88,49 @@ def parse_requirements(path: pathlib.Path) -> list[Requirement]:
         if line.startswith(("-r ", "--requirement ")):
             reqs += parse_requirements((path.parent / line.split(None, 1)[1]).resolve())
             continue
-        if line.startswith("-") or ";" in line:
+        if line.startswith("-"):
             continue
-        match = _REQUIREMENT.match(line)
-        if match:
-            reqs.append((match.group(1), match.group(2) or "", match.group(3) or ""))
+        reqs.append(line)
     return reqs
 
 
-# Runs inside the measuring interpreter: package metadata must come from THAT
-# environment, not the one running this script.
+# Runs inside the measuring interpreter: package metadata and marker values must
+# come from THAT environment, not the one running this script. `packaging` is a
+# dependency of the pinned pytest, so a complete environment has it; if it's
+# absent, that is itself reported as a problem (fail closed).
 _ENV_PROBE = """
 import json, sys
 from importlib import metadata
+try:
+    from packaging.requirements import InvalidRequirement, Requirement
+except ImportError:
+    print(json.dumps(["packaging: missing (needed to check requirement versions)"]))
+    sys.exit(0)
 problems = []
-for name, op, version in json.load(sys.stdin):
+for line in json.load(sys.stdin):
     try:
-        have = metadata.version(name)
-    except metadata.PackageNotFoundError:
-        problems.append(f"{name}: missing")
+        req = Requirement(line)
+    except InvalidRequirement:
+        problems.append(f"unparseable requirement: {line!r}")
         continue
-    if op == "==" and have != version:
-        problems.append(f"{name}: {have} installed, {version} required")
+    if req.marker is not None and not req.marker.evaluate():
+        continue  # e.g. a Windows-only package on Linux
+    try:
+        have = metadata.version(req.name)
+    except metadata.PackageNotFoundError:
+        problems.append(f"{req.name}: missing")
+        continue
+    if req.specifier and not req.specifier.contains(have, prereleases=True):
+        problems.append(f"{req.name}: {have} installed, {req.specifier} required")
 print(json.dumps(problems))
 """
 
 
-def environment_problems(python: str, reqs: list[Requirement]) -> list[str]:
-    """List the packages ``python`` is missing or has at a different ``==`` pin.
+def environment_problems(python: str, reqs: list[str]) -> list[str]:
+    """List the requirements ``python`` doesn't satisfy (missing, or outside the specifier).
 
-    Only presence and exact pins are checked; ranges like ``>=`` count as satisfied
-    once the package is installed. Exits 2 if the probe itself can't run.
+    Every specifier is checked, ranges included; requirements whose environment marker
+    doesn't apply to ``python`` are skipped. Exits 2 if the probe itself can't run.
     """
     proc = subprocess.run(
         [python, "-c", _ENV_PROBE],

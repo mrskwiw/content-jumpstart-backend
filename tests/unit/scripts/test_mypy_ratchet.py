@@ -152,37 +152,62 @@ class TestRequirementsParsing:
             encoding="utf-8",
         )
         reqs = ratchet.parse_requirements(sub / "req.txt")
-        assert ("anthropic", "==", "0.122.0") in reqs
-        assert ("stripe", ">=", "7.0.0") in reqs
-        assert ("fastapi", "==", "0.115.0") in reqs
-        # Platform-marked lines are skipped: they can't be required everywhere.
-        assert not any(name == "pywin32" for name, _, _ in reqs)
+        # Requirement strings are passed through whole (specifiers, extras, markers) so
+        # the probe can evaluate them with `packaging`; only comments/options are dropped.
+        assert reqs == [
+            "anthropic==0.122.0",
+            "stripe>=7.0.0",
+            "fastapi[all]==0.115.0",
+            "pywin32==306; sys_platform == 'win32'",
+        ]
 
 
 class TestEnvironmentCheck:
     """Codex review of f572ea6: the version guard can't tell a package-poor interpreter
-    from a complete one — both may run mypy 1.19.1. A missing or mis-pinned package
-    changes the count, so the ratchet must fail closed instead of measuring."""
+    from a complete one — both may run mypy 1.19.1. Codex review of 022f1ca: ranged
+    requirements must be checked too, not just `==` pins. The ratchet must fail closed
+    on any requirement the interpreter doesn't satisfy."""
 
-    def test_reports_missing_and_mismatched_packages(self, ratchet):
+    def test_reports_missing_package(self, ratchet):
         import sys
 
         problems = ratchet.environment_problems(
-            sys.executable,
-            [
-                ("definitely-not-installed-pkg-257", "==", "1.0"),
-                ("pytest", "==", "0.0.1"),
-                ("pytest", ">=", "1.0"),
-            ],
+            sys.executable, ["definitely-not-installed-pkg-257==1.0"]
         )
-        assert any("definitely-not-installed-pkg-257" in p and "missing" in p for p in problems)
-        assert any("pytest" in p and "0.0.1" in p for p in problems)
-        assert len(problems) == 2  # the satisfied >= requirement is not a problem
+        assert problems == ["definitely-not-installed-pkg-257: missing"]
 
-    def test_complete_environment_has_no_problems(self, ratchet):
+    @pytest.mark.parametrize("spec", ["pytest==0.0.1", "pytest<1.0", "pytest>=1.0,<2.0"])
+    def test_reports_unsatisfied_specifier(self, ratchet, spec):
         import sys
 
-        assert ratchet.environment_problems(sys.executable, [("pytest", ">=", "1.0")]) == []
+        problems = ratchet.environment_problems(sys.executable, [spec])
+        assert len(problems) == 1
+        assert problems[0].startswith("pytest: ") and "required" in problems[0]
+
+    def test_satisfied_range_has_no_problems(self, ratchet):
+        import sys
+
+        assert ratchet.environment_problems(sys.executable, ["pytest>=1.0", "pytest!=0.0.1"]) == []
+
+    def test_marker_for_another_platform_is_skipped(self, ratchet):
+        import sys
+
+        reqs = ["definitely-not-installed-pkg-257==1.0; sys_platform == 'no-such-platform'"]
+        assert ratchet.environment_problems(sys.executable, reqs) == []
+
+    def test_marker_for_this_platform_is_enforced(self, ratchet):
+        import sys
+
+        reqs = [f"definitely-not-installed-pkg-257==1.0; sys_platform == '{sys.platform}'"]
+        assert ratchet.environment_problems(sys.executable, reqs) == [
+            "definitely-not-installed-pkg-257: missing"
+        ]
+
+    def test_unparseable_requirement_is_a_problem(self, ratchet):
+        import sys
+
+        problems = ratchet.environment_problems(sys.executable, ["not a ==== requirement"])
+        assert len(problems) == 1 and "unparseable" in problems[0]
 
     def test_incomplete_environment_exits_2_without_measuring(self, ratchet, monkeypatch, capsys):
         _write_baseline(ratchet, 782, "1.19.1")
