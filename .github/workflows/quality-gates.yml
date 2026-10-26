@@ -39,7 +39,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # backend/requirements.txt (which pulls the root file via -r), not the root
+          # file alone: the backend ratchet below type-checks backend/, and without the
+          # web layer (fastapi, sqlalchemy, ...) mypy treats those imports as Any and
+          # undercounts. The ratchet now refuses to run in an incomplete env (BUGS #257).
+          pip install -r backend/requirements.txt
           # Pin black/ruff to the pre-commit versions (.pre-commit-config.yaml) so
           # local, pre-commit, and CI all agree — unpinned latest formats differently.
           # mypy pinned for the same reason: the backend ratchet compares an error

@@ -25,6 +25,13 @@ def ratchet(tmp_path, monkeypatch):
     return module
 
 
+@pytest.fixture
+def complete_env(ratchet, monkeypatch):
+    """Treat the measuring interpreter as fully provisioned (for main() flow tests)."""
+    monkeypatch.setattr(ratchet, "parse_requirements", lambda path: [])
+    monkeypatch.setattr(ratchet, "environment_problems", lambda python, reqs: [])
+
+
 def _write_baseline(ratchet, max_errors, version):
     data = {"max_errors": max_errors, "files": 80}
     if version is not None:
@@ -46,6 +53,7 @@ class TestVersionMismatch:
         assert ratchet.version_mismatch("1.19.1", None) is not None
 
 
+@pytest.mark.usefixtures("complete_env")
 class TestMainVersionGuard:
     def test_mismatch_exits_2_without_measuring(self, ratchet, monkeypatch, capsys):
         _write_baseline(ratchet, 782, "1.19.1")
@@ -71,6 +79,7 @@ class TestMainVersionGuard:
         assert ratchet.main() == 1
 
 
+@pytest.mark.usefixtures("complete_env")
 class TestBaselineRecordsVersion:
     def test_update_records_running_version(self, ratchet, monkeypatch):
         _write_baseline(ratchet, 782, "1.19.1")
@@ -106,8 +115,89 @@ class TestInterpreterSelection:
     def test_falls_back_to_current_interpreter(self, ratchet, tmp_path, monkeypatch):
         import sys
 
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
         monkeypatch.setattr(ratchet, "_ROOT", tmp_path)  # no venv/ here
         assert ratchet.measuring_python() == sys.executable
+
+    def test_prefers_dot_venv(self, ratchet, tmp_path, monkeypatch):
+        monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+        venv_py = tmp_path / ".venv" / "bin" / "python"
+        venv_py.parent.mkdir(parents=True)
+        venv_py.write_text("")
+        monkeypatch.setattr(ratchet, "_ROOT", tmp_path)
+        assert ratchet.measuring_python() == str(venv_py)
+
+    def test_active_virtual_env_wins(self, ratchet, tmp_path, monkeypatch):
+        active = tmp_path / "elsewhere" / "Scripts" / "python.exe"
+        active.parent.mkdir(parents=True)
+        active.write_text("")
+        repo_venv = tmp_path / "venv" / "bin" / "python"
+        repo_venv.parent.mkdir(parents=True)
+        repo_venv.write_text("")
+        monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "elsewhere"))
+        monkeypatch.setattr(ratchet, "_ROOT", tmp_path)
+        assert ratchet.measuring_python() == str(active)
+
+
+class TestRequirementsParsing:
+    def test_follows_includes_and_skips_noise(self, ratchet, tmp_path):
+        (tmp_path / "root.txt").write_text(
+            "# comment\nanthropic==0.122.0\nstripe>=7.0.0  # trailing\n--index-url x\n\n",
+            encoding="utf-8",
+        )
+        sub = tmp_path / "backend"
+        sub.mkdir()
+        (sub / "req.txt").write_text(
+            "-r ../root.txt\nfastapi[all]==0.115.0\npywin32==306; sys_platform == 'win32'\n",
+            encoding="utf-8",
+        )
+        reqs = ratchet.parse_requirements(sub / "req.txt")
+        assert ("anthropic", "==", "0.122.0") in reqs
+        assert ("stripe", ">=", "7.0.0") in reqs
+        assert ("fastapi", "==", "0.115.0") in reqs
+        # Platform-marked lines are skipped: they can't be required everywhere.
+        assert not any(name == "pywin32" for name, _, _ in reqs)
+
+
+class TestEnvironmentCheck:
+    """Codex review of f572ea6: the version guard can't tell a package-poor interpreter
+    from a complete one — both may run mypy 1.19.1. A missing or mis-pinned package
+    changes the count, so the ratchet must fail closed instead of measuring."""
+
+    def test_reports_missing_and_mismatched_packages(self, ratchet):
+        import sys
+
+        problems = ratchet.environment_problems(
+            sys.executable,
+            [
+                ("definitely-not-installed-pkg-257", "==", "1.0"),
+                ("pytest", "==", "0.0.1"),
+                ("pytest", ">=", "1.0"),
+            ],
+        )
+        assert any("definitely-not-installed-pkg-257" in p and "missing" in p for p in problems)
+        assert any("pytest" in p and "0.0.1" in p for p in problems)
+        assert len(problems) == 2  # the satisfied >= requirement is not a problem
+
+    def test_complete_environment_has_no_problems(self, ratchet):
+        import sys
+
+        assert ratchet.environment_problems(sys.executable, [("pytest", ">=", "1.0")]) == []
+
+    def test_incomplete_environment_exits_2_without_measuring(self, ratchet, monkeypatch, capsys):
+        _write_baseline(ratchet, 782, "1.19.1")
+        monkeypatch.setattr(ratchet, "mypy_version", lambda: "1.19.1")
+        monkeypatch.setattr(ratchet, "parse_requirements", lambda path: [])
+        monkeypatch.setattr(
+            ratchet, "environment_problems", lambda python, reqs: ["fastapi: missing"]
+        )
+
+        def _must_not_run():
+            raise AssertionError("measure() ran in an incomplete environment")
+
+        monkeypatch.setattr(ratchet, "measure", _must_not_run)
+        assert ratchet.main() == 2
+        assert "fastapi: missing" in capsys.readouterr().out
 
 
 class TestMeasureIsCacheIndependent:

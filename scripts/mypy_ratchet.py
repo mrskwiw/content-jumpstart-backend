@@ -19,6 +19,12 @@ So the baseline records its mypy version, and a run under any other version exit
 rather than comparing incomparable numbers. CI pins the version in quality-gates.yml;
 requirements.txt must pin the same one.
 
+The installed packages matter as much as the version: mypy treats an import it can't
+resolve as ``Any``, so an interpreter missing the backend's dependencies undercounts
+(764 vs 779 under the same mypy). Before measuring, the interpreter is checked against
+backend/requirements.txt (which includes the root file); a missing package or an
+``==`` mismatch exits 2.
+
 Usage:
     python scripts/mypy_ratchet.py            # check against the baseline
     python scripts/mypy_ratchet.py --update   # accept a NEW LOWER baseline
@@ -28,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -35,24 +42,96 @@ import sys
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _BASELINE = _ROOT / "scripts" / "mypy_baseline.json"
+_REQUIREMENTS = _ROOT / "backend" / "requirements.txt"
 _TARGET = "backend/"
 _SUMMARY = re.compile(r"Found (\d+) errors? in (\d+) files?")
 _VERSION = re.compile(r"mypy (\d+(?:\.\d+)+)")
+_REQUIREMENT = re.compile(
+    r"([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*(==|>=|<=|~=|!=|>|<)?\s*([^,\s]*)"
+)
+
+Requirement = tuple[str, str, str]  # (name, operator or "", version or "")
 
 
 def measuring_python() -> str:
     """Return the interpreter whose mypy and packages define the count.
 
     The pre-commit hook runs as ``language: system``, so ``sys.executable`` is whatever
-    ``python`` is first on PATH. On a dev box that is often a global interpreter without
-    the project's packages, and mypy then treats those imports as ``Any`` and reports
-    fewer errors (764 vs 779 under the same mypy; BUGS #257). Prefer the repo venv when
-    it exists; CI has none and installs requirements.txt into its own interpreter.
+    ``python`` is first on PATH — often a global interpreter, not the project's. Order:
+    an active ``VIRTUAL_ENV``, then a repo-local ``venv/`` or ``.venv/``, then the current
+    interpreter (CI). Whichever is chosen must still pass ``environment_problems``; this
+    only picks the most likely candidate, it does not vouch for it.
     """
-    for candidate in (_ROOT / "venv" / "Scripts" / "python.exe", _ROOT / "venv" / "bin" / "python"):
-        if candidate.exists():
-            return str(candidate)
+    roots = []
+    active = os.environ.get("VIRTUAL_ENV")
+    if active:
+        roots.append(pathlib.Path(active))
+    roots += [_ROOT / "venv", _ROOT / ".venv"]
+    for root in roots:
+        for candidate in (root / "Scripts" / "python.exe", root / "bin" / "python"):
+            if candidate.exists():
+                return str(candidate)
     return sys.executable
+
+
+def parse_requirements(path: pathlib.Path) -> list[Requirement]:
+    """Return ``(name, op, version)`` for each requirement in ``path``, following ``-r``.
+
+    Comments and other pip options are ignored. Lines with an environment marker
+    (``; sys_platform == ...``) are skipped: they don't apply on every platform, so
+    they can't be required of every environment.
+    """
+    reqs: list[Requirement] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith(("-r ", "--requirement ")):
+            reqs += parse_requirements((path.parent / line.split(None, 1)[1]).resolve())
+            continue
+        if line.startswith("-") or ";" in line:
+            continue
+        match = _REQUIREMENT.match(line)
+        if match:
+            reqs.append((match.group(1), match.group(2) or "", match.group(3) or ""))
+    return reqs
+
+
+# Runs inside the measuring interpreter: package metadata must come from THAT
+# environment, not the one running this script.
+_ENV_PROBE = """
+import json, sys
+from importlib import metadata
+problems = []
+for name, op, version in json.load(sys.stdin):
+    try:
+        have = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        problems.append(f"{name}: missing")
+        continue
+    if op == "==" and have != version:
+        problems.append(f"{name}: {have} installed, {version} required")
+print(json.dumps(problems))
+"""
+
+
+def environment_problems(python: str, reqs: list[Requirement]) -> list[str]:
+    """List the packages ``python`` is missing or has at a different ``==`` pin.
+
+    Only presence and exact pins are checked; ranges like ``>=`` count as satisfied
+    once the package is installed. Exits 2 if the probe itself can't run.
+    """
+    proc = subprocess.run(
+        [python, "-c", _ENV_PROBE],
+        input=json.dumps(reqs),
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return list(json.loads(proc.stdout))
+    except json.JSONDecodeError:
+        print(f"Could not inspect the packages of {python}:\n", (proc.stdout + proc.stderr)[-500:])
+        raise SystemExit(2)
 
 
 def parse_mypy_version(output: str) -> str:
@@ -151,6 +230,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update", action="store_true", help="accept a new lower baseline")
     args = parser.parse_args()
+
+    python = measuring_python()
+    problems = environment_problems(python, parse_requirements(_REQUIREMENTS))
+    if problems:
+        print(
+            f"FAIL: {python} is not a complete backend environment, so its mypy count "
+            "isn't comparable to the baseline:\n  "
+            + "\n  ".join(problems)
+            + f"\nFix: {python} -m pip install -r backend/requirements.txt"
+        )
+        return 2
 
     running = mypy_version()
     baseline = load_baseline()
