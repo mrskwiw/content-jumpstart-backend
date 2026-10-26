@@ -8,6 +8,7 @@ import { getDisabledToolIds } from '@/config/featureRegistry';
 import { ToolCard } from '../../components/research/ToolCard';
 import { Search, Filter, AlertCircle, Link2, Info, Loader2, FileOutput } from 'lucide-react';
 import { ToolRunStatusList, type ToolStatusItem } from '@/components/wizard/ToolRunStatusList';
+import { runResearchBatch, type BatchToolFailure } from '@/utils/researchBatch';
 
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
@@ -60,6 +61,11 @@ export default function ResearchToolsLibrary() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<'md' | 'docx' | 'pdf'>('docx');
   const [executionStatus, setExecutionStatus] = useState<Record<string, string>>({});
+  // Per-tool failure reasons and the tools of the last run — kept after the run ends so
+  // a partial batch's reasons stay visible instead of vanishing with a toast (F3).
+  const [executionErrors, setExecutionErrors] = useState<Record<string, string>>({});
+  const [lastRunTools, setLastRunTools] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Fetch available tools
@@ -179,27 +185,34 @@ export default function ResearchToolsLibrary() {
         if (orderedTools.length !== selectedTools.length) orderedTools = [...selectedTools];
       }
       setExecutionStatus({});
-      for (const tool of orderedTools) {
-        setExecutionStatus(prev => ({ ...prev, [tool]: 'running' }));
-        try {
-          await researchApi.run({
-            projectId,
-            clientId: selectedClientId,
-            tool,
-            params: {},
-            forceRefresh: true,
-          });
-          setExecutionStatus(prev => ({ ...prev, [tool]: 'complete' }));
-        } catch (err) {
-          setExecutionStatus(prev => ({ ...prev, [tool]: 'failed' }));
-          throw new Error(`Failed to execute ${tool}: ${err}`);
+      setExecutionErrors({});
+      setNotice(null);
+      setLastRunTools(orderedTools);
+      // GAP-RESEARCH-01: one failed tool no longer aborts the batch. Failures keep the
+      // backend's reason; tools whose in-run prerequisite failed are blocked, not called.
+      const clientId = selectedClientId;
+      const outcome = await runResearchBatch(
+        orderedTools,
+        (tool) => TOOL_PREREQUISITES[tool]?.required ?? [],
+        (tool) =>
+          researchApi.run({ projectId, clientId, tool, params: {}, forceRefresh: true }),
+        (tool, status, toolError) => {
+          setExecutionStatus(prev => ({ ...prev, [tool]: status }));
+          if (toolError) setExecutionErrors(prev => ({ ...prev, [tool]: toolError }));
         }
+      );
+      if (outcome.succeeded.length === 0) {
+        throw new Error(
+          'None of the selected research tools completed, so no report was generated. ' +
+            'See Tool Execution Status below for each reason.'
+        );
       }
 
-      // Step 3: Create deliverable record in DB (matches wizard flow)
+      // Step 3: Create deliverable record in DB (matches wizard flow) — from the tools
+      // that actually completed, not the full selection.
       const { deliverableId, fileName } = await researchApi.generateResearchReport({
         clientId: selectedClientId,
-        tools: selectedTools,
+        tools: outcome.succeeded,
         format: exportFormat,
       });
 
@@ -218,12 +231,31 @@ export default function ResearchToolsLibrary() {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
 
-      return { deliverableId, fileName: resolvedFilename || fileName };
+      return {
+        deliverableId,
+        fileName: resolvedFilename || fileName,
+        ranCount: orderedTools.length,
+        failed: outcome.failed,
+      };
     },
-    onSuccess: () => {
-      setSelectedTools([]);
-      setExecutionStatus({});
+    onSuccess: ({ ranCount, failed }: { ranCount: number; failed: BatchToolFailure[] }) => {
       setError(null);
+      if (failed.length === 0) {
+        setSelectedTools([]);
+        setExecutionStatus({});
+        setExecutionErrors({});
+        setLastRunTools([]);
+        setNotice(null);
+        return;
+      }
+      // Partial batch: keep the per-tool status visible, and leave only the tools that
+      // didn't complete selected so they can be retried in one click.
+      setSelectedTools(failed.map((f) => f.tool));
+      setNotice(
+        `Report generated from ${ranCount - failed.length} of ${ranCount} tools. ` +
+          `${failed.length} could not run — the reasons are listed under Tool Execution ` +
+          'Status. They are still selected so you can retry them.'
+      );
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : 'Failed to generate report');
@@ -451,17 +483,39 @@ export default function ResearchToolsLibrary() {
         </div>
       )}
 
-      {/* Execution Status */}
-      {Object.keys(executionStatus).length > 0 && (
+      {/* Partial-batch notice */}
+      {notice && (
+        <div
+          role="status"
+          className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">{notice}</p>
+            <button
+              onClick={() => setNotice(null)}
+              aria-label="Dismiss notice"
+              className="ml-auto text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Execution Status — rendered from the last run, not the live selection, so it
+          survives the selection being reset after a partial batch. */}
+      {lastRunTools.length > 0 && (
         <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
           <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
             Tool Execution Status
           </h3>
           <ToolRunStatusList
-            items={selectedTools.map((tool): ToolStatusItem => ({
+            items={lastRunTools.map((tool): ToolStatusItem => ({
               name: tool,
               label: TOOL_LABELS[tool] || tool,
               status: (executionStatus[tool] ?? 'pending') as ToolStatusItem['status'],
+              error: executionErrors[tool],
             }))}
           />
         </div>
