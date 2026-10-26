@@ -1021,10 +1021,15 @@ class TestBusinessReportTool:
         from src.research.base import ResearchResult
 
         # The real execute_research_tool path runs the web-search prerequisite check
-        # before the stubbed leaf. Supply a key explicitly so the test doesn't depend
-        # on the developer's backend/.env (BUGS #256). The leaf is mocked, so it is
-        # never used for a real request.
-        monkeypatch.setenv("BRAVE_API_KEY", "test-brave-key")
+        # before the stubbed leaf. Its result depends on the provider setting AND the
+        # matching key (env, .env, or the user's stored settings), so stub it at the
+        # boundary — this test is about input preparation, not provider selection
+        # (BUGS #256). research_service imports it at call time, so patching the
+        # source module is what that import sees.
+        monkeypatch.setattr(
+            "backend.utils.web_search_validator.is_web_search_configured",
+            lambda db, user_id: (True, "brave"),
+        )
 
         fake_result = ResearchResult(
             tool_name="business_report",
