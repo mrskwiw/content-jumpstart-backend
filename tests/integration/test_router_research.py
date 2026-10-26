@@ -1063,6 +1063,40 @@ class TestBusinessReportTool:
         passed_inputs = mock_execute.call_args.args[0]
         assert passed_inputs["company_name"] == client_for_user_a.name == "Research Test Client A"
 
+    def test_business_report_route_blocks_when_web_search_unconfigured(
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a, monkeypatch
+    ):
+        """Route-level guard for the web-search prerequisite (BUGS #256).
+
+        The test above stubs the gate to "configured"; this pins the other branch
+        hermetically: an unconfigured gate must return 400 with the gate's message
+        and never reach the tool. The gate's own provider/key logic is covered in
+        tests/unit/utils/test_web_search_validator.py.
+        """
+        from backend.services.research_service import RESEARCH_TOOL_MAP
+
+        monkeypatch.setattr(
+            "backend.utils.web_search_validator.is_web_search_configured",
+            lambda db, user_id: (False, "No web search API key found."),
+        )
+        ToolClass = RESEARCH_TOOL_MAP["business_report"]
+
+        with patch.object(ToolClass, "execute") as mock_execute:
+            response = client.post(
+                "/api/research/run",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": client_for_user_a.id,
+                    "tool": "business_report",
+                    "params": {"location": "Seattle, WA"},
+                },
+            )
+
+        assert response.status_code == 400, response.text
+        assert "requires web search to be configured" in response.json()["detail"]
+        assert mock_execute.call_count == 0
+
     def test_business_report_missing_location(
         self,
         client,
