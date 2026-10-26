@@ -1005,7 +1005,7 @@ class TestBusinessReportTool:
         assert inputs["company_name"] == "Explicit Co"
 
     def test_business_report_route_auto_populates_company_name(
-        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a, monkeypatch
     ):
         """Route-level guard for the endpoint -> _prepare_inputs wiring.
 
@@ -1019,6 +1019,12 @@ class TestBusinessReportTool:
         from datetime import datetime
         from backend.services.research_service import RESEARCH_TOOL_MAP
         from src.research.base import ResearchResult
+
+        # The real execute_research_tool path runs the web-search prerequisite check
+        # before the stubbed leaf. Supply a key explicitly so the test doesn't depend
+        # on the developer's backend/.env (BUGS #256). The leaf is mocked, so it is
+        # never used for a real request.
+        monkeypatch.setenv("BRAVE_API_KEY", "test-brave-key")
 
         fake_result = ResearchResult(
             tool_name="business_report",
