@@ -199,7 +199,10 @@ export default function ResearchToolsLibrary() {
         (tool, status, toolError) => {
           setExecutionStatus(prev => ({ ...prev, [tool]: status }));
           if (toolError) setExecutionErrors(prev => ({ ...prev, [tool]: toolError }));
-        }
+        },
+        // Prerequisites are client-scoped on the backend: an earlier completed result
+        // still satisfies a dependent if this run's refresh of it fails.
+        new Set(completedToolsForClient)
       );
       if (outcome.succeeded.length === 0) {
         throw new Error(

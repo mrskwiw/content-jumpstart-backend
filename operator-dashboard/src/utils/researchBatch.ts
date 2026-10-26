@@ -40,13 +40,18 @@ export interface BatchOutcome {
  *   this run can block it (earlier-session results are the backend's to check)
  * @param runTool - executes one tool; a rejection marks it failed
  * @param onUpdate - called on every status change, with the error for failed/blocked
+ * @param previouslyCompleted - tools the client already has a completed result for. The
+ *   backend checks prerequisites per client, so such a result still satisfies a
+ *   dependent even when this run's refresh of the prerequisite failed — only a
+ *   prerequisite with no prior result blocks.
  * @returns which tools succeeded and which failed or were blocked, with reasons
  */
 export async function runResearchBatch(
   orderedTools: readonly string[],
   requiredPrereqs: (tool: string) => readonly string[],
   runTool: (tool: string) => Promise<unknown>,
-  onUpdate: (tool: string, status: BatchToolStatus, error?: string) => void
+  onUpdate: (tool: string, status: BatchToolStatus, error?: string) => void,
+  previouslyCompleted: ReadonlySet<string> = new Set()
 ): Promise<BatchOutcome> {
   const inRun = new Set(orderedTools);
   const notSucceeded = new Set<string>();
@@ -54,7 +59,9 @@ export async function runResearchBatch(
   const failed: BatchToolFailure[] = [];
 
   for (const tool of orderedTools) {
-    const blocked = requiredPrereqs(tool).some((dep) => inRun.has(dep) && notSucceeded.has(dep));
+    const blocked = requiredPrereqs(tool).some(
+      (dep) => inRun.has(dep) && notSucceeded.has(dep) && !previouslyCompleted.has(dep)
+    );
     if (blocked) {
       notSucceeded.add(tool);
       failed.push({ tool, status: 'blocked', error: BLOCKED_ERROR });

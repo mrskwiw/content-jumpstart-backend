@@ -72,6 +72,33 @@ describe('runResearchBatch (GAP-RESEARCH-01)', () => {
     expect(outcome.succeeded).toEqual(['competitive_analysis']);
   });
 
+  it('still runs a dependent when its failed in-run prerequisite has an earlier completed result', async () => {
+    // Codex review of 7400c98: the backend checks prerequisites per client, so a
+    // completed result from an earlier run satisfies them even if this run's
+    // force-refresh of the prerequisite failed. Blocking here would silently drop
+    // the dependent from the report.
+    const runTool = jest.fn(async (tool: string) => {
+      if (tool === 'determine_competitors') throw apiError(500, 'Upstream timeout');
+      return {};
+    });
+    const outcome = await runResearchBatch(
+      ['determine_competitors', 'competitive_analysis'],
+      prereqs({ competitive_analysis: ['determine_competitors'] }),
+      runTool,
+      jest.fn(),
+      new Set(['determine_competitors'])
+    );
+
+    expect(runTool.mock.calls.map(([t]) => t)).toEqual([
+      'determine_competitors',
+      'competitive_analysis',
+    ]);
+    expect(outcome.succeeded).toEqual(['competitive_analysis']);
+    expect(outcome.failed).toEqual([
+      { tool: 'determine_competitors', status: 'failed', error: 'Upstream timeout' },
+    ]);
+  });
+
   it('reports each status change, and blocked tools never enter running', async () => {
     const updates: Array<[string, BatchToolStatus, string | undefined]> = [];
     const runTool = jest.fn(async (tool: string) => {
