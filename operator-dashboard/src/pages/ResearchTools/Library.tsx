@@ -188,21 +188,18 @@ export default function ResearchToolsLibrary() {
       setExecutionErrors({});
       setNotice(null);
       setLastRunTools(orderedTools);
-      // GAP-RESEARCH-01: one failed tool no longer aborts the batch. Failures keep the
-      // backend's reason; tools whose in-run prerequisite failed are blocked, not called.
+      // GAP-RESEARCH-01: one failed tool no longer aborts the batch, and each failure
+      // keeps the backend's reason. Every tool is attempted — the backend, not this
+      // page, decides whether a dependent's prerequisites are satisfied.
       const clientId = selectedClientId;
       const outcome = await runResearchBatch(
         orderedTools,
-        (tool) => TOOL_PREREQUISITES[tool]?.required ?? [],
         (tool) =>
           researchApi.run({ projectId, clientId, tool, params: {}, forceRefresh: true }),
         (tool, status, toolError) => {
           setExecutionStatus(prev => ({ ...prev, [tool]: status }));
           if (toolError) setExecutionErrors(prev => ({ ...prev, [tool]: toolError }));
-        },
-        // Prerequisites are client-scoped on the backend: an earlier completed result
-        // still satisfies a dependent if this run's refresh of it fails.
-        new Set(completedToolsForClient)
+        }
       );
       if (outcome.succeeded.length === 0) {
         throw new Error(
