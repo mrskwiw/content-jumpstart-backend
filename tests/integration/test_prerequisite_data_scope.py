@@ -213,3 +213,80 @@ async def test_execute_research_tool_rejects_a_project_of_another_client():
     assert result["success"] is False
     assert "does not belong" in result["error"]
     fetch.assert_not_called()
+
+
+def _result(db: Session, world, *, rid, client, project, tool, data, when, deleted=False):
+    db.add(
+        ResearchResult(
+            id=rid,
+            user_id=world["user"].id,
+            client_id=world["clients"][client].id,
+            project_id=world["projects"][project].id,
+            tool_name=tool,
+            data=data,
+            status="completed",
+            created_at=when,
+            is_deleted=deleted,
+        )
+    )
+    db.commit()
+
+
+def test_project_scoped_completed_tools_ignore_soft_deleted(db_session, world):
+    # Codex review of a735ea6: the same soft-delete invariant at the project-scoped
+    # prerequisite check — a deleted result must not satisfy a prerequisite.
+    _result(
+        db_session,
+        world,
+        rid="r-del",
+        client="a",
+        project="research",
+        tool="seo_keyword_research",
+        data={},
+        when=datetime(2026, 10, 1),
+        deleted=True,
+    )
+    _result(
+        db_session,
+        world,
+        rid="r-live",
+        client="a",
+        project="research",
+        tool="audience_research",
+        data={},
+        when=datetime(2026, 10, 1),
+    )
+    completed = ResearchService()._get_completed_tools(db_session, world["projects"]["research"].id)
+    assert completed == {"audience_research"}
+
+
+def test_avoid_platforms_ignore_a_soft_deleted_platform_strategy(db_session, world):
+    # Codex review of a735ea6: content_gap_analysis gets avoid_platforms from the
+    # latest platform_strategy — never from a deleted one.
+    _result(
+        db_session,
+        world,
+        rid="ps-live",
+        client="a",
+        project="wizard",
+        tool="platform_strategy",
+        data={"recommended_platform_mix": {"avoid_platforms": ["tiktok"]}},
+        when=datetime(2026, 10, 1),
+    )
+    _result(
+        db_session,
+        world,
+        rid="ps-del",
+        client="a",
+        project="research",
+        tool="platform_strategy",
+        data={"recommended_platform_mix": {"avoid_platforms": ["linkedin"]}},
+        when=datetime(2026, 10, 20),
+        deleted=True,
+    )
+    avoid = ResearchService()._latest_avoid_platforms(db_session, world["clients"]["a"].id)
+    assert avoid == ["tiktok"]
+
+
+def test_avoid_platforms_empty_without_a_strategy(db_session, world):
+    assert ResearchService()._latest_avoid_platforms(db_session, world["clients"]["a"].id) == []

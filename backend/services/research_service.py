@@ -259,6 +259,31 @@ class ResearchService:
         logger.info(f"Fetched prerequisite data for {tool_name}: {list(prerequisite_data.keys())}")
         return prerequisite_data
 
+    def _latest_avoid_platforms(self, db: Session, client_id: str) -> list[str]:
+        """Return `avoid_platforms` from the client's latest active platform_strategy result.
+
+        Bug #153: content_gap_analysis runs before platform_strategy in the tier order, so
+        the avoid list never arrives through the normal prerequisite path and is looked up
+        directly. Soft-deleted results are ignored, like everywhere prerequisites are read.
+        """
+        from backend.models import ResearchResult
+
+        result = (
+            db.query(ResearchResult)
+            .filter(
+                ResearchResult.client_id == client_id,
+                ResearchResult.tool_name == "platform_strategy",
+                ResearchResult.status == "completed",
+                ResearchResult.is_deleted.is_(False),
+            )
+            .order_by(ResearchResult.created_at.desc())
+            .first()
+        )
+        if not result or not result.data:
+            return []
+        avoid = (result.data.get("recommended_platform_mix") or {}).get("avoid_platforms") or []
+        return list(avoid)
+
     def _get_completed_tools(self, db: Session, project_id: str) -> set[str]:
         """Get set of tool IDs that have been completed for this project"""
         from backend.models import ResearchResult
@@ -268,6 +293,7 @@ class ResearchService:
             .filter(
                 ResearchResult.project_id == project_id,
                 ResearchResult.status == "completed",
+                ResearchResult.is_deleted.is_(False),  # a deleted result satisfies nothing
             )
             .distinct()
             .all()
@@ -668,24 +694,10 @@ class ResearchService:
         # for this client and inject the avoid list so the format-gap prompt does not
         # recommend channels the strategy already marked as off-limits.
         if tool_name == "content_gap_analysis" and not inputs.get("avoid_platforms"):
-            from backend.models import ResearchResult as _RR
-
-            _ps = (
-                db.query(_RR)
-                .filter(
-                    _RR.client_id == client_id,
-                    _RR.tool_name == "platform_strategy",
-                    _RR.status == "completed",
-                )
-                .order_by(_RR.created_at.desc())
-                .first()
-            )
-            if _ps and _ps.data:
-                _mix = _ps.data.get("recommended_platform_mix", {})
-                _avoid = _mix.get("avoid_platforms", [])
-                if _avoid:
-                    inputs["avoid_platforms"] = _avoid
-                    logger.info(f"Injected platform avoid list into content_gap_analysis: {_avoid}")
+            _avoid = self._latest_avoid_platforms(db, client_id)
+            if _avoid:
+                inputs["avoid_platforms"] = _avoid
+                logger.info(f"Injected platform avoid list into content_gap_analysis: {_avoid}")
 
         if prerequisite_data:
             logger.info(
