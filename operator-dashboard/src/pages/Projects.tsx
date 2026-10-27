@@ -362,38 +362,10 @@ export default function Projects() {
                             label: 'View Deliverables',
                             icon: 'download',
                             onClick: () => navigate(`${ROUTES.DELIVERABLES}?projectId=${project.id}`),
-                            dividerAfter: true,
                           },
-                          {
-                            label: 'Duplicate Project',
-                            icon: 'copy',
-                            onClick: () => {
-                              // TODO: Implement duplicate functionality
-                              alert('Duplicate functionality coming soon');
-                            },
-                            hidden: true, // Hide until implemented
-                          },
-                          {
-                            label: 'Export Project',
-                            icon: 'external',
-                            onClick: () => {
-                              // TODO: Implement export functionality
-                              alert('Export functionality coming soon');
-                            },
-                            dividerAfter: true,
-                            hidden: true, // Hide until implemented
-                          },
-                          {
-                            label: 'Archive Project',
-                            icon: 'archive',
-                            onClick: () => {
-                              if (confirm(`Archive project "${project.name}"?`)) {
-                                // TODO: Implement archive functionality
-                                alert('Archive functionality coming soon');
-                              }
-                            },
-                            hidden: true, // Hide until implemented
-                          },
+                          // Duplicate / Export / Archive were hidden `alert('coming soon')`
+                          // stubs (G3) — removed rather than left as fake features; add them
+                          // back with real handlers when those actions exist.
                         ]}
                       />
                     </div>
