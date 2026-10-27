@@ -107,7 +107,11 @@ class ResearchService:
         self.prerequisites = ResearchPrerequisites()
 
     def _fetch_prerequisite_data(
-        self, db: Session, project_id: str, tool_name: str
+        self,
+        db: Session,
+        project_id: str,
+        tool_name: str,
+        client_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Fetch results from prerequisite tools and extract relevant data.
@@ -119,6 +123,10 @@ class ResearchService:
             db: Database session
             project_id: Project ID
             tool_name: Tool requesting prerequisite data
+            client_id: When given, load the client's latest completed result for each
+                prerequisite from ANY of its projects — the same scope
+                `check_client_prerequisites` validates with (BUGS #259). Without it the
+                lookup is limited to `project_id`.
 
         Returns:
             Dict of prerequisite data to merge into tool inputs
@@ -141,10 +149,15 @@ class ResearchService:
 
         for prereq_tool in all_prereqs:
             # Fetch most recent completed result for this prerequisite
+            scope = (
+                ResearchResult.client_id == client_id
+                if client_id
+                else ResearchResult.project_id == project_id
+            )
             result = (
                 db.query(ResearchResult)
                 .filter(
-                    ResearchResult.project_id == project_id,
+                    scope,
                     ResearchResult.tool_name == prereq_tool,
                     ResearchResult.status == "completed",
                 )
@@ -626,7 +639,12 @@ class ResearchService:
             }
 
         # STAGED EXECUTION: Fetch data from prerequisite tools stored in database
-        prerequisite_data = self._fetch_prerequisite_data(db, project_id, tool_name)
+        # Client-scoped, matching the client-scoped prerequisite check above (BUGS #259):
+        # a prerequisite completed in another project of this client passed validation,
+        # so its data must be loaded too.
+        prerequisite_data = self._fetch_prerequisite_data(
+            db, project_id, tool_name, client_id=client_id
+        )
         inputs.update(prerequisite_data)  # Merge prerequisite data into inputs
 
         # Bug #153: content_gap_analysis runs at tier 2, before platform_strategy
