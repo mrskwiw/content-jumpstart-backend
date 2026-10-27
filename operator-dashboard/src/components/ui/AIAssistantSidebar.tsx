@@ -380,6 +380,7 @@ export default function AIAssistantSidebar() {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
+                  aria-label="Message the AI Assistant"
                   placeholder="Ask me anything..."
                   rows={2}
                   className="flex-1 resize-none rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
@@ -388,9 +389,10 @@ export default function AIAssistantSidebar() {
                 <button
                   onClick={() => sendMessage()}
                   disabled={!inputMessage.trim() || isLoading}
+                  aria-label="Send message"
                   className="flex h-[calc(100%-8px)] items-center justify-center rounded-lg bg-purple-500 px-4 text-white hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
               <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
