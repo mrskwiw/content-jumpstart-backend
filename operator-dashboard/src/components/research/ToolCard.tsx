@@ -34,15 +34,20 @@ export const ToolCard = memo(function ToolCard({ tool, isSelected, onToggle, exe
 
   const categoryColor = categoryColors[tool.category as keyof typeof categoryColors] || categoryColors.advanced;
 
+  // A coming-soon tool can never be selected, whichever page renders the card — the
+  // pages only guarded the feature registry's disabled list, not the backend status.
+  const isDisabled = disabled || tool.status === 'coming_soon';
+
   return (
     <div
-      onClick={disabled ? undefined : onToggle}
+      onClick={isDisabled ? undefined : onToggle}
       role="button"
       aria-label={`Select ${tool.label}`}
-      tabIndex={disabled ? -1 : 0}
-      onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(); } }}
+      aria-disabled={isDisabled || undefined}
+      tabIndex={isDisabled ? -1 : 0}
+      onKeyDown={(e) => { if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(); } }}
       className={`relative p-4 rounded-lg border-2 transition-all ${
-        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+        isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
       } ${
         isSelected
           ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
