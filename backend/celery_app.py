@@ -51,7 +51,6 @@ celery_app.conf.update(
     worker_max_tasks_per_child=100,  # Restart worker after 100 tasks (memory management)
     # Task routing (for future expansion to multiple queues)
     task_routes={
-        "backend.tasks.generation.*": {"queue": "generation"},  # Content generation queue
         "backend.tasks.email.*": {"queue": "email"},  # Email queue (future)
         "backend.tasks.export.*": {"queue": "export"},  # Export queue (future)
     },
