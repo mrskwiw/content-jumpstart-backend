@@ -48,3 +48,6 @@ textstat==0.7.3    # Readability scoring for voice analysis
 # Background Job Queue (Phase 2 optimization)
 celery==5.3.6  # Distributed task queue
 flower==2.0.1  # Celery monitoring UI (optional)
+
+# Error reporting (GAP-BE-02) — opt-in per instance via SENTRY_DSN; see backend/observability.py
+sentry-sdk==2.71.0

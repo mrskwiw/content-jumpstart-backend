@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
+import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,6 +84,7 @@ from backend.middleware.security_headers import (
 )
 from backend.middleware.csrf_protection import CSRFProtectionMiddleware
 from backend.middleware.request_id import RequestIDMiddleware, get_request_id
+from backend.observability import init_sentry
 from backend.utils.rate_limiter import rate_limiter
 from backend.utils.http_rate_limiter import limiter
 
@@ -94,6 +96,10 @@ if env_file_path.exists():
     print(f">> Loaded environment from: {env_file_path}")
 else:
     print(f">> No .env file found at {env_file_path}, using system environment variables")
+
+# Error reporting (GAP-BE-02) — after the env is loaded, before the app is created, as
+# the SDK requires. A no-op unless SENTRY_DSN is set.
+init_sentry()
 
 
 @asynccontextmanager
@@ -586,6 +592,9 @@ async def spa_routing_middleware(request: Request, call_next):
                 spa_response.headers["Pragma"] = "no-cache"
                 spa_response.headers["Expires"] = "0"
                 return spa_response
+        # This 500 is built here, so the exception never reaches Sentry's ASGI
+        # integration — report it explicitly (GAP-BE-02; no-op without SENTRY_DSN).
+        sentry_sdk.capture_exception(e)
         logger.error(
             f"Middleware error in spa_routing_middleware: {str(e)} [{request.method} {path}]"
         )
@@ -596,6 +605,7 @@ async def spa_routing_middleware(request: Request, call_next):
             status_code=500,
         )
     except Exception as e:
+        sentry_sdk.capture_exception(e)  # see above: swallowed here, so report it
         logger.error(
             f"Middleware error in spa_routing_middleware: {str(e)} [{request.method} {path}]"
         )
