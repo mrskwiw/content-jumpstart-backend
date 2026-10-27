@@ -1087,7 +1087,12 @@ async def get_all_research_results(
     """
     from backend.models import ResearchResult
 
-    query = db.query(ResearchResult).filter(ResearchResult.user_id == current_user.id)
+    query = db.query(ResearchResult).filter(
+        ResearchResult.user_id == current_user.id,
+        # BUGS #261: a privacy client-delete soft-deletes its research; never list it
+        # (the per-project and per-client listings already exclude these via crud).
+        ResearchResult.is_deleted.is_(False),
+    )
     if tool_name and tool_name != "all":
         query = query.filter(ResearchResult.tool_name == tool_name)
     if client_id and client_id != "all":

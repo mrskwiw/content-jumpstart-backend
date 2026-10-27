@@ -1340,3 +1340,38 @@ class TestProjectClientMismatch:
         assert "does not belong" in response.json()["detail"]
         deduct.assert_not_called()
         execute.assert_not_called()
+
+
+class TestResultsListingHidesSoftDeleted:
+    """BUGS #261: a privacy client-delete soft-deletes the client's research results
+    (data_privacy_service), but GET /api/research/results/ never filtered them out, so a
+    deleted client's research stayed listed."""
+
+    def test_soft_deleted_results_are_not_listed(
+        self, client, db_session, auth_headers_user_a, test_user_a, client_for_user_a
+    ):
+        from datetime import datetime
+
+        from backend.models import ResearchResult
+
+        for rid, deleted in (("res-261-live", False), ("res-261-gone", True)):
+            db_session.add(
+                ResearchResult(
+                    id=rid,
+                    user_id=test_user_a.id,
+                    client_id=client_for_user_a.id,
+                    tool_name="voice_analysis",
+                    status="completed",
+                    data={},
+                    created_at=datetime(2026, 10, 27),
+                    is_deleted=deleted,
+                )
+            )
+        db_session.commit()
+
+        response = client.get("/api/research/results/", headers=auth_headers_user_a)
+
+        assert response.status_code == 200, response.text
+        ids = [r["id"] for r in response.json()["results"]]
+        assert "res-261-live" in ids
+        assert "res-261-gone" not in ids
