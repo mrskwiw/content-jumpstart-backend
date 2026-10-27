@@ -673,6 +673,16 @@ async def run_research(
             detail="Access denied: You don't own this client",
         )
 
+    # BUGS #259: owning both is not enough — the project must belong to this client, or
+    # one client's research would be loaded into (and saved against) another's project.
+    # Checked before any credits are deducted. A legacy project with no client_id is
+    # left alone; ownership of each was verified above.
+    if project.client_id and project.client_id != client.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Project {project.id} does not belong to client {client.id}",
+        )
+
     # Validate client has sufficient data for research
     # Research tools require minimum business context
     business_desc = client.business_description or ""

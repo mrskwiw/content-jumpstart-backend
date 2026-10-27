@@ -1305,3 +1305,38 @@ class TestBatchEndpointDisabled:
     def test_batch_still_requires_authentication(self, client):
         response = client.post("/api/research/batch", json={})
         assert response.status_code in (401, 403)
+
+
+class TestProjectClientMismatch:
+    """Codex review of cfb71f9 (BUGS #259): /run checked ownership of the project and
+    the client separately but never that the project belongs to that client."""
+
+    def test_run_rejects_project_of_another_owned_client_before_charging(
+        self, client, db_session, auth_headers_user_a, test_user_a, project_for_user_a
+    ):
+        other = Client(id="client-259-other", user_id=test_user_a.id, name="Other Client")
+        db_session.add(other)
+        db_session.commit()
+
+        with (
+            patch("backend.routers.research.credit_service.deduct_credits") as deduct,
+            patch(
+                "backend.routers.research.research_service.execute_research_tool",
+                new_callable=AsyncMock,
+            ) as execute,
+        ):
+            response = client.post(
+                "/api/research/run",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": other.id,
+                    "tool": "voice_analysis",
+                    "params": {},
+                },
+            )
+
+        assert response.status_code == 400, response.text
+        assert "does not belong" in response.json()["detail"]
+        deduct.assert_not_called()
+        execute.assert_not_called()

@@ -160,6 +160,9 @@ class ResearchService:
                     scope,
                     ResearchResult.tool_name == prereq_tool,
                     ResearchResult.status == "completed",
+                    # Validation ignores soft-deleted results, so the data load must
+                    # too — never resurface deleted research into a prompt.
+                    ResearchResult.is_deleted.is_(False),
                 )
                 .order_by(ResearchResult.created_at.desc())
                 .first()
@@ -479,6 +482,18 @@ class ResearchService:
         client = crud.get_client(db, client_id)
         if not client:
             raise ValueError(f"Client {client_id} not found")
+
+        # BUGS #259: prerequisite data is loaded client-wide below, so a project of a
+        # different client must never get here (the /run route rejects this before
+        # charging; this guards every other caller). Returned, not raised, so a router
+        # treats it like any other blocked run and refunds.
+        if project.client_id and project.client_id != client_id:
+            return {
+                "success": False,
+                "outputs": {},
+                "metadata": {"tool_name": tool_name, "blocked": True},
+                "error": f"Project {project_id} does not belong to client {client_id}",
+            }
 
         # Access all needed attributes while session is active to prevent detachment errors
         project_platforms = project.platforms

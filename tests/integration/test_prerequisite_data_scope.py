@@ -143,7 +143,7 @@ class _Stop(Exception):
 async def test_execute_research_tool_loads_prerequisite_data_client_wide():
     """The production caller must pass client_id — the scope it validated with."""
     service = ResearchService()
-    project = Mock(platforms=[], user_id="user-1")
+    project = Mock(platforms=[], user_id="user-1", client_id="client-a")
     client = Mock(business_description="", ideal_customer="")
     client.name = "Client"
     with (
@@ -162,3 +162,54 @@ async def test_execute_research_tool_loads_prerequisite_data_client_wide():
             )
 
     assert fetch.call_args.kwargs.get("client_id") == "client-a"
+
+
+def test_soft_deleted_result_is_never_injected(db_session, world):
+    # Codex review of cfb71f9: validation excludes soft-deleted results, so the data
+    # load must too — a newer deleted row must not override the older active one.
+    _seo_result(
+        db_session,
+        world,
+        client="a",
+        project="wizard",
+        keywords=["active"],
+        when=datetime(2026, 10, 1),
+    )
+    _seo_result(
+        db_session,
+        world,
+        client="a",
+        project="research",
+        keywords=["deleted"],
+        when=datetime(2026, 10, 20),
+    )
+    deleted = db_session.query(ResearchResult).filter_by(id="res-259-a-research-deleted").one()
+    deleted.is_deleted = True
+    db_session.commit()
+
+    assert _fetch(db_session, world, "research", client="a").get("seo_keywords") == ["active"]
+    assert "seo_keywords" not in _fetch(db_session, world, "research")  # project scope too
+
+
+@pytest.mark.asyncio
+async def test_execute_research_tool_rejects_a_project_of_another_client():
+    # Codex review of cfb71f9: client-scoped data must never flow into a project that
+    # belongs to a different client.
+    service = ResearchService()
+    project = Mock(platforms=[], user_id="user-1", client_id="client-a")
+    client = Mock(business_description="", ideal_customer="")
+    client.name = "Client B"
+    with (
+        patch("backend.services.research_service.crud") as crud,
+        patch("backend.services.research_service.RESEARCH_TOOLS_AVAILABLE", True),
+        patch.object(service, "_fetch_prerequisite_data") as fetch,
+    ):
+        crud.get_project.return_value = project
+        crud.get_client.return_value = client
+        result = await service.execute_research_tool(
+            Mock(), "proj-of-a", "client-b", "market_trends_research"
+        )
+
+    assert result["success"] is False
+    assert "does not belong" in result["error"]
+    fetch.assert_not_called()
