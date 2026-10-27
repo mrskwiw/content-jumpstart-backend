@@ -1085,13 +1085,20 @@ async def get_all_research_results(
     Get all research results for the current user, across all clients/projects.
     Supports filtering by tool_name, client_id, and date range (days back from now).
     """
-    from backend.models import ResearchResult
+    from backend.models import Client, ResearchResult
 
-    query = db.query(ResearchResult).filter(
-        ResearchResult.user_id == current_user.id,
-        # BUGS #261: a privacy client-delete soft-deletes its research; never list it
-        # (the per-project and per-client listings already exclude these via crud).
-        ResearchResult.is_deleted.is_(False),
+    # BUGS #261: never list research that was soft-deleted, nor research of a client that
+    # is deleted or archived (a privacy delete with cascade=false, and archiving, flag only
+    # the client). The per-client listing already 404s for such a client via
+    # crud.get_client, so this keeps the global listing consistent with it.
+    query = (
+        db.query(ResearchResult)
+        .join(Client, Client.id == ResearchResult.client_id)
+        .filter(
+            ResearchResult.user_id == current_user.id,
+            ResearchResult.is_deleted.is_(False),
+            Client.is_deleted.is_(False),
+        )
     )
     if tool_name and tool_name != "all":
         query = query.filter(ResearchResult.tool_name == tool_name)

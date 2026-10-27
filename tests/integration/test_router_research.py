@@ -1375,3 +1375,39 @@ class TestResultsListingHidesSoftDeleted:
         ids = [r["id"] for r in response.json()["results"]]
         assert "res-261-live" in ids
         assert "res-261-gone" not in ids
+
+    def test_results_of_a_non_cascade_deleted_client_are_not_listed(
+        self, client, db_session, auth_headers_user_a, test_user_a, client_for_user_a
+    ):
+        # Codex review of 9b5ceed: DELETE /api/privacy/clients/{id}?cascade=false marks
+        # only the client deleted and leaves its research rows active. A deleted (or
+        # archived — same flag) client's research must not be listed either; the
+        # per-client listing already 404s for it via crud.get_client.
+        from datetime import datetime
+
+        from backend.models import ResearchResult
+        from backend.services import data_privacy_service
+
+        db_session.add(
+            ResearchResult(
+                id="res-261-orphan",
+                user_id=test_user_a.id,
+                client_id=client_for_user_a.id,
+                tool_name="voice_analysis",
+                status="completed",
+                data={},
+                created_at=datetime(2026, 10, 27),
+            )
+        )
+        db_session.commit()
+        data_privacy_service.soft_delete_client(client_for_user_a.id, db_session, cascade=False)
+        db_session.commit()
+        assert (
+            db_session.query(ResearchResult).filter_by(id="res-261-orphan").one().is_deleted
+            is False
+        )
+
+        response = client.get("/api/research/results/", headers=auth_headers_user_a)
+
+        assert response.status_code == 200, response.text
+        assert "res-261-orphan" not in [r["id"] for r in response.json()["results"]]
