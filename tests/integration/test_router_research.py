@@ -1266,3 +1266,42 @@ class TestBusinessReportTool:
 
         # Should be forbidden (403) or not found (404)
         assert response.status_code in [403, 404]
+
+
+class TestBatchEndpointDisabled:
+    """BUGS #260: POST /api/research/batch ran research tools without charging any
+    credits (the router never deducted; the service doesn't either). Nothing in the
+    app called it, so it is disabled until a properly metered batch exists."""
+
+    def test_batch_is_gone_and_never_executes_tools(
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a
+    ):
+        with patch(
+            "backend.routers.research.research_service.execute_research_tools_batch",
+            new_callable=AsyncMock,
+        ) as mock_batch:
+            response = client.post(
+                "/api/research/batch",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": client_for_user_a.id,
+                    "tools": [{"tool_name": "voice_analysis", "params": {}}],
+                },
+            )
+
+        assert response.status_code == 410, response.text
+        assert "/api/research/run" in response.json()["detail"]
+        mock_batch.assert_not_called()
+
+    def test_batch_is_gone_even_with_a_malformed_body(self, client, auth_headers_user_a):
+        # No request-body validation runs first, so callers can't mistake the
+        # endpoint for a working one that merely rejected their payload.
+        response = client.post(
+            "/api/research/batch", headers=auth_headers_user_a, json={"nonsense": True}
+        )
+        assert response.status_code == 410, response.text
+
+    def test_batch_still_requires_authentication(self, client):
+        response = client.post("/api/research/batch", json={})
+        assert response.status_code in (401, 403)

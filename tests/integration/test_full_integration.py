@@ -306,20 +306,6 @@ class TestAPIEndpointsExist:
         assert request.project_id == "test"
         assert request.tool_names == ["seo_keyword_research"]
 
-    def test_batch_request_schema_exists(self):
-        """Test BatchResearchRequest schema exists"""
-        from backend.routers.research import BatchResearchRequest, BatchToolConfig
-
-        # Test schema can be instantiated
-        request = BatchResearchRequest(
-            project_id="test",
-            client_id="test",
-            tools=[BatchToolConfig(tool_name="seo_keyword_research", params={})],
-        )
-
-        assert request.project_id == "test"
-        assert len(request.tools) == 1
-
 
 class TestEndToEndIntegration:
     """Test complete end-to-end integration"""
@@ -377,7 +363,6 @@ class TestSystemHealthCheck:
         from backend.services.research_prerequisites import ResearchPrerequisites
         from backend.routers.research import (
             PrerequisiteCheckRequest,
-            BatchResearchRequest,
             check_prerequisites,
             execute_research_batch,
         )

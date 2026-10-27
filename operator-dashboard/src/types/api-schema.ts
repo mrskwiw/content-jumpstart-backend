@@ -3798,22 +3798,18 @@ export interface paths {
         put?: never;
         /**
          * Execute Research Batch
-         * @description Execute multiple research tools in correct dependency order.
+         * @description Disabled (BUGS #260): this endpoint ran research tools without charging credits.
          *
-         *     This is the MAIN endpoint frontend should use instead of calling /run multiple times.
+         *     ``/run`` deducts credits in the router before executing and refunds on failure;
+         *     this route called ``execute_research_tools_batch`` directly, and nothing on that
+         *     path deducts. It also crashed on every call since b16803d (2026-03-20) — it read a
+         *     ``tool_names`` field the request model doesn't have — which is the only reason the
+         *     hole was latent; fixing that crash alone would have reopened it.
          *
-         *     Features:
-         *     - Automatic dependency ordering (Tier 1 → Tier 2 → Tier 3 → Tier 4)
-         *     - Tools completed in batch count as prerequisites for later tools
-         *     - Staged execution with data flow between tools via database
-         *     - Blocks tools missing required prerequisites
-         *     - Partial success handling (some succeed, some blocked)
-         *
-         *     Args:
-         *         batch_request: Project, client, and list of tools to execute
-         *
-         *     Returns:
-         *         Execution order, results for each tool, and summary
+         *     Nothing in the app calls it. It answers 410 Gone, before any body validation, until
+         *     a metered batch exists (price the plan, deduct per tool after skipping blocked
+         *     tools, refund per failure — see TODO GAP-RESEARCH-01 F2). Authentication is still
+         *     required, so anonymous callers get 401 rather than learning about the route.
          */
         post: operations["execute_research_batch_api_research_batch_post"];
         delete?: never;
@@ -5369,47 +5365,6 @@ export interface components {
              * @default 10
              */
             limit: number;
-        };
-        /**
-         * BatchResearchRequest
-         * @description Request to execute multiple research tools in batch
-         */
-        BatchResearchRequest: {
-            /** Project Id */
-            project_id: string;
-            /** Client Id */
-            client_id: string;
-            /** Tools */
-            tools: components["schemas"]["BatchToolConfig"][];
-        };
-        /**
-         * BatchResearchResponse
-         * @description Response from batch research execution
-         */
-        BatchResearchResponse: {
-            /** Execution Order */
-            execution_order: string[];
-            /** Results */
-            results: {
-                [key: string]: Record<string, never>;
-            };
-            /** Summary */
-            summary: {
-                [key: string]: number;
-            };
-        };
-        /**
-         * BatchToolConfig
-         * @description Configuration for a single tool in batch
-         */
-        BatchToolConfig: {
-            /** Tool Name */
-            tool_name: string;
-            /**
-             * Params
-             * @default {}
-             */
-            params: Record<string, never> | null;
         };
         /** BillingPortalRequest */
         BillingPortalRequest: {
@@ -13912,28 +13867,15 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchResearchRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BatchResearchResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": unknown;
                 };
             };
         };

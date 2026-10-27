@@ -1541,108 +1541,29 @@ async def get_execution_order(
     )
 
 
-class BatchToolConfig(BaseModel):
-    """Configuration for a single tool in batch"""
-
-    tool_name: str
-    params: Optional[Dict[str, Any]] = {}
-
-
-class BatchResearchRequest(BaseModel):
-    """Request to execute multiple research tools in batch"""
-
-    project_id: str
-    client_id: str
-    tools: List[BatchToolConfig]
-
-
-class BatchResearchResponse(BaseModel):
-    """Response from batch research execution"""
-
-    execution_order: List[str]
-    results: Dict[str, Dict[str, Any]]
-    summary: Dict[str, int]
-
-
-@router.post("/batch", response_model=BatchResearchResponse)
-@strict_limiter.limit("2/minute")  # DoS protection - per-user limits still apply
+@router.post("/batch", status_code=status.HTTP_410_GONE)
 async def execute_research_batch(
-    request: Request,
-    batch_request: BatchResearchRequest,
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
+    """Disabled (BUGS #260): this endpoint ran research tools without charging credits.
+
+    ``/run`` deducts credits in the router before executing and refunds on failure;
+    this route called ``execute_research_tools_batch`` directly, and nothing on that
+    path deducts. It also crashed on every call since b16803d (2026-03-20) — it read a
+    ``tool_names`` field the request model doesn't have — which is the only reason the
+    hole was latent; fixing that crash alone would have reopened it.
+
+    Nothing in the app calls it. It answers 410 Gone, before any body validation, until
+    a metered batch exists (price the plan, deduct per tool after skipping blocked
+    tools, refund per failure — see TODO GAP-RESEARCH-01 F2). Authentication is still
+    required, so anonymous callers get 401 rather than learning about the route.
     """
-    Execute multiple research tools in correct dependency order.
-
-    This is the MAIN endpoint frontend should use instead of calling /run multiple times.
-
-    Features:
-    - Automatic dependency ordering (Tier 1 → Tier 2 → Tier 3 → Tier 4)
-    - Tools completed in batch count as prerequisites for later tools
-    - Staged execution with data flow between tools via database
-    - Blocks tools missing required prerequisites
-    - Partial success handling (some succeed, some blocked)
-
-    Args:
-        batch_request: Project, client, and list of tools to execute
-
-    Returns:
-        Execution order, results for each tool, and summary
-    """
-    # TR-003: Check per-user rate limits for batch operations
-    # Batch operations count as multiple tool calls
-    total_tools = len(batch_request.tool_names)
-    logger.info(f"Batch research request: {total_tools} tools")
-
-    # Check limits for first tool (will increment for each tool executed)
-    if total_tools > 0:
-        tool_cost = get_research_tool_cost(batch_request.tool_names[0])
-        usage_stats = research_rate_limiter.check_and_increment(
-            user=current_user,
-            tool_name=f"batch[{total_tools}]",
-            cost_credits=tool_cost * total_tools,
-        )
-        logger.info(f"Batch research rate limit check passed. Usage: {usage_stats}")
-
-    # Verify project ownership
-    project = crud.get_project(db, batch_request.project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    if not _check_ownership("project", project, current_user):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    # Verify client ownership
-    client = crud.get_client(db, batch_request.client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
-
-    if not _check_ownership("client", client, current_user):
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    logger.info(
-        f"Executing batch of {len(batch_request.tools)} research tools "
-        f"for project {batch_request.project_id}"
-    )
-
-    # Convert to format expected by service
-    tool_configs = [
-        {"tool_name": tool.tool_name, "params": tool.params or {}} for tool in batch_request.tools
-    ]
-
-    # Execute batch — raises ValueError on circular dependency (→ 422)
-    try:
-        result = await research_service.execute_research_tools_batch(
-            db, batch_request.project_id, batch_request.client_id, tool_configs
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    return BatchResearchResponse(
-        execution_order=result["execution_order"],
-        results=result["results"],
-        summary=result["summary"],
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Batch research is disabled. Run each tool with POST /api/research/run, "
+            "which charges and refunds credits per tool."
+        ),
     )
 
 

@@ -8397,36 +8397,14 @@
           "Research"
         ],
         "summary": "Execute Research Batch",
-        "description": "Execute multiple research tools in correct dependency order.\n\nThis is the MAIN endpoint frontend should use instead of calling /run multiple times.\n\nFeatures:\n- Automatic dependency ordering (Tier 1 \u2192 Tier 2 \u2192 Tier 3 \u2192 Tier 4)\n- Tools completed in batch count as prerequisites for later tools\n- Staged execution with data flow between tools via database\n- Blocks tools missing required prerequisites\n- Partial success handling (some succeed, some blocked)\n\nArgs:\n    batch_request: Project, client, and list of tools to execute\n\nReturns:\n    Execution order, results for each tool, and summary",
+        "description": "Disabled (BUGS #260): this endpoint ran research tools without charging credits.\n\n``/run`` deducts credits in the router before executing and refunds on failure;\nthis route called ``execute_research_tools_batch`` directly, and nothing on that\npath deducts. It also crashed on every call since b16803d (2026-03-20) \u2014 it read a\n``tool_names`` field the request model doesn't have \u2014 which is the only reason the\nhole was latent; fixing that crash alone would have reopened it.\n\nNothing in the app calls it. It answers 410 Gone, before any body validation, until\na metered batch exists (price the plan, deduct per tool after skipping blocked\ntools, refund per failure \u2014 see TODO GAP-RESEARCH-01 F2). Authentication is still\nrequired, so anonymous callers get 401 rather than learning about the route.",
         "operationId": "execute_research_batch_api_research_batch_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchResearchRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
-          "200": {
+          "410": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchResearchResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": {}
               }
             }
           }
@@ -11654,92 +11632,6 @@
         ],
         "title": "AvailableStoriesRequest",
         "description": "Request for getting available stories (excluding used on platform)"
-      },
-      "BatchResearchRequest": {
-        "properties": {
-          "project_id": {
-            "type": "string",
-            "title": "Project Id"
-          },
-          "client_id": {
-            "type": "string",
-            "title": "Client Id"
-          },
-          "tools": {
-            "items": {
-              "$ref": "#/components/schemas/BatchToolConfig"
-            },
-            "type": "array",
-            "title": "Tools"
-          }
-        },
-        "type": "object",
-        "required": [
-          "project_id",
-          "client_id",
-          "tools"
-        ],
-        "title": "BatchResearchRequest",
-        "description": "Request to execute multiple research tools in batch"
-      },
-      "BatchResearchResponse": {
-        "properties": {
-          "execution_order": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Execution Order"
-          },
-          "results": {
-            "additionalProperties": {
-              "type": "object"
-            },
-            "type": "object",
-            "title": "Results"
-          },
-          "summary": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Summary"
-          }
-        },
-        "type": "object",
-        "required": [
-          "execution_order",
-          "results",
-          "summary"
-        ],
-        "title": "BatchResearchResponse",
-        "description": "Response from batch research execution"
-      },
-      "BatchToolConfig": {
-        "properties": {
-          "tool_name": {
-            "type": "string",
-            "title": "Tool Name"
-          },
-          "params": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Params",
-            "default": {}
-          }
-        },
-        "type": "object",
-        "required": [
-          "tool_name"
-        ],
-        "title": "BatchToolConfig",
-        "description": "Configuration for a single tool in batch"
       },
       "BillingPortalRequest": {
         "properties": {
