@@ -9,6 +9,7 @@ import { ToolCard } from '../../components/research/ToolCard';
 import { Search, Filter, AlertCircle, Link2, Info, Loader2, FileOutput } from 'lucide-react';
 import { ToolRunStatusList, type ToolStatusItem } from '@/components/wizard/ToolRunStatusList';
 import { runResearchBatch, type BatchToolFailure } from '@/utils/researchBatch';
+import { runnableSelection } from '@/utils/researchSelection';
 
 // Tool prerequisites mapping (from backend research_prerequisites.py)
 const TOOL_PREREQUISITES: Record<string, { required: string[]; recommended: string[] }> = {
@@ -54,7 +55,8 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 export default function ResearchToolsLibrary() {
-  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  // Raw selection; read it through `selectedTools` below, which drops unavailable tools.
+  const [rawSelectedTools, setSelectedTools] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +75,22 @@ export default function ResearchToolsLibrary() {
     queryKey: ['research-tools'],
     queryFn: () => researchApi.listTools()
   });
+
+  // Apply registry disabled status — overrides backend status so UI stays in sync with registry
+  const disabledToolIds = useMemo(() => getDisabledToolIds(), []);
+  const effectiveTools = useMemo<ResearchTool[]>(
+    () => tools.map((t: ResearchTool) =>
+      disabledToolIds.has(t.name) ? { ...t, status: 'coming_soon' as const } : t
+    ),
+    [tools, disabledToolIds]
+  );
+
+  // The selection every read uses (display, pricing, the batch): unavailable tools drop
+  // out. Derived rather than pruned in an effect, so it can never go stale.
+  const selectedTools = useMemo(
+    () => runnableSelection(rawSelectedTools, effectiveTools),
+    [rawSelectedTools, effectiveTools]
+  );
 
   // Fetch clients for client selector
   const { data: clients = [] } = useQuery<Client[]>({
@@ -261,15 +279,6 @@ export default function ResearchToolsLibrary() {
       setError(err instanceof Error ? err.message : 'Failed to generate report');
     },
   });
-
-  // Apply registry disabled status — overrides backend status so UI stays in sync with registry
-  const disabledToolIds = useMemo(() => getDisabledToolIds(), []);
-  const effectiveTools = useMemo<ResearchTool[]>(
-    () => tools.map((t: ResearchTool) =>
-      disabledToolIds.has(t.name) ? { ...t, status: 'coming_soon' as const } : t
-    ),
-    [tools, disabledToolIds]
-  );
 
   // Filter tools by category and search
   const filteredTools = effectiveTools.filter((tool: ResearchTool) => {
