@@ -132,12 +132,20 @@ class SecretManager:
         tie, and the stable sort kept the OLDER secret primary (BUGS #243). Nudging the
         new timestamp forward by a microsecond makes the order total, and it survives
         save + reload because it lives in the stored value itself.
+
+        Compared as ISO strings, exactly as `get_active_secrets` sorts, so "later" means
+        what the sort means and a naive value is never compared with a timezone-aware
+        one. Never raises: rotation depends on this, so an unparseable stored value just
+        falls back to `now` (a tie is possible then, a crash is not).
         """
-        now = datetime.now()
-        stored = [datetime.fromisoformat(s.created_at) for s in self.secrets.values()]
-        if stored and now <= max(stored):
-            now = max(stored) + timedelta(microseconds=1)
-        return now.isoformat()
+        now = datetime.now().isoformat()
+        latest = max((s.created_at for s in self.secrets.values() if s.created_at), default=None)
+        if latest is None or now > latest:
+            return now
+        try:
+            return (datetime.fromisoformat(latest) + timedelta(microseconds=1)).isoformat()
+        except ValueError:
+            return now
 
     def add_secret(
         self, secret: str, expires_in_days: Optional[int] = None, auto_save: bool = True

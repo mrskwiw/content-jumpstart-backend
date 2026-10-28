@@ -212,3 +212,25 @@ class TestPrimaryTieBreak:
 
         reloaded = SecretManager(config_path=path)
         assert reloaded.get_primary_secret() == "newer-secret-value-32-chars-minimum!"
+
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            "2099-01-01T00:00:00+00:00",  # timezone-aware (hand-edited / other writer)
+            "2099-01-01T00:00:00",  # no microseconds
+            "not-a-timestamp",  # malformed — must not crash rotation
+        ],
+    )
+    def test_odd_stored_timestamps_never_crash_add_secret(self, tmp_path, monkeypatch, stored):
+        # Codex review of 8c52a1b: comparing naive now() with a tz-aware stored value
+        # raised TypeError inside add_secret, which secret rotation depends on.
+        monkeypatch.delenv("SECRET_KEY", raising=False)
+        m = SecretManager(config_path=tmp_path / "odd.json")
+        old = m.add_secret("older-secret-value-32-chars-minimum!")
+        old.created_at = stored
+
+        m.add_secret("newer-secret-value-32-chars-minimum!")
+
+        if stored != "not-a-timestamp":
+            # Ordering is by the ISO string, so the new secret must sort after it.
+            assert m.get_primary_secret() == "newer-secret-value-32-chars-minimum!"
