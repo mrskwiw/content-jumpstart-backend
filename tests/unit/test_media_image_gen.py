@@ -60,7 +60,11 @@ def test_real_image_provider_fails_closed_without_credentials(monkeypatch):
     prov = get_provider(MediaKind.GEN_IMAGE, "flux")
     assert not isinstance(prov, NotImplementedProvider)
     res = prov.start({"prompt": "x"})
-    assert res.ok is False and "BFL_API_KEY" in (res.error or "")
+    assert res.ok is False
+    # b54a2c6 stopped leaking raw env var names to users (_require_env); the error is a
+    # generic "not configured" message now, and must not name the key.
+    assert "isn't configured" in (res.error or "")
+    assert "BFL_API_KEY" not in (res.error or "")
 
 
 def test_unknown_image_provider_still_fails_closed(monkeypatch):
