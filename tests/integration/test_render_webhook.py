@@ -235,3 +235,18 @@ def test_route_is_exempt_from_csrf_and_needs_no_login(client, sent):
     with patch("backend.middleware.auth_dependency.require_access") as gate:
         assert _post(client, _event()).status_code == 200
     gate.assert_not_called()
+
+
+def test_provider_idempotency_key_is_stable_per_webhook_id(client, monkeypatch):
+    # Codex review of 8aad92d: the email's message_id is Resend's Idempotency-Key
+    # (agent/email_system.py). Deriving it from webhook-id, not a random UUID, lets the
+    # provider drop a duplicate send of the same alert — from a retry after a timed-out
+    # send, or from a concurrent delivery — without a lock here.
+    seen = []
+    outcomes = iter([False, True])
+    monkeypatch.setattr(
+        ops_webhooks, "_send_email", lambda msg: seen.append(msg.message_id) or next(outcomes)
+    )
+    _post(client, _event(), msg_id="msg_idem")
+    _post(client, _event(), msg_id="msg_idem")
+    assert seen == ["render-alert-msg_idem", "render-alert-msg_idem"]

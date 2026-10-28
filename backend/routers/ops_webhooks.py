@@ -38,7 +38,6 @@ import json
 import os
 import re
 import time
-import uuid
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Deque, Dict, Optional, Set
@@ -154,13 +153,13 @@ def _send_email(message: Any) -> bool:
 
 def _deliver(event: Dict[str, Any], recipient: str, msg_id: str) -> bool:
     """Send the alert; remember the id only if it went out. Returns whether it did."""
-    if _alert(event, recipient):
+    if _alert(event, recipient, msg_id):
         _remember(msg_id)
         return True
     return False
 
 
-def _alert(event: Dict[str, Any], recipient: str) -> bool:
+def _alert(event: Dict[str, Any], recipient: str, msg_id: str) -> bool:
     from agent.email_system import EmailMessage, EmailPriority
 
     data = event.get("data") or {}
@@ -179,7 +178,9 @@ def _alert(event: Dict[str, Any], recipient: str) -> bool:
     )
     return _send_email(
         EmailMessage(
-            message_id=f"render-alert-{uuid.uuid4().hex[:12]}",
+            # Also Resend's Idempotency-Key: stable per webhook-id, so the provider drops
+            # a duplicate send of this alert (retry or concurrent delivery).
+            message_id=f"render-alert-{msg_id}",
             to_email=recipient,
             subject=f"[Render] {event_type} failed: {service}",
             body_text=body,
