@@ -62,6 +62,7 @@ from backend.routers import (
     stories,
     trends,
     stripe_checkout,
+    ops_webhooks,
     client_keywords,
     teams,
     comments,
@@ -830,6 +831,7 @@ app.include_router(database.router, prefix="/api", tags=["Database"])
 app.include_router(cache.router, prefix="/api/cache", tags=["Cache Management"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Metrics & Monitoring"])
 app.include_router(stripe_checkout.router, prefix="/api/stripe", tags=["Payments"])
+app.include_router(ops_webhooks.router, prefix="/api/ops", tags=["Ops"])  # BUGS #239
 app.include_router(audit.router, prefix="/api/audit", tags=["Audit Trail"])
 
 

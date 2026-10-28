@@ -10814,6 +10814,32 @@
         ]
       }
     },
+    "/api/ops/render-webhook": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "summary": "Render Webhook",
+        "description": "Receive a Render workspace webhook and email on deploy failures.",
+        "operationId": "render_webhook_api_ops_render_webhook_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Render Webhook Api Ops Render Webhook Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit/stats": {
       "get": {
         "tags": [

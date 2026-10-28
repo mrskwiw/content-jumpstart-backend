@@ -32,6 +32,7 @@ CSRF_EXEMPT_PATHS = {
     "/api/auth/register",
     "/api/auth/refresh",
     "/api/stripe/webhook",
+    "/api/ops/render-webhook",  # Render webhook — Standard Webhooks signature is the auth (BUGS #239)
     "/health",
     "/docs",
     "/redoc",
