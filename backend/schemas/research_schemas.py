@@ -6,7 +6,7 @@ and security constraints for all research tools.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator, field_serializer, ConfigDict
 
 
@@ -437,6 +437,35 @@ class StoryMiningParams(BaseModel):
         max_length=200,
         description="Specific customer segment to focus on (optional)",
     )
+
+    # BUGS #262: the inputs StoryMiner actually reads. Without them, /run's validation
+    # (schema(**params).model_dump()) dropped customer_context — the tool's one required
+    # input — so every story_mining run failed. Limits mirror StoryMiner.validate_inputs,
+    # which still enforces presence/min length and sanitises; these only cap size here.
+    customer_context: Optional[str] = Field(
+        None, max_length=2000, description="Who the customer is, their challenge, outcome"
+    )
+    interview_notes: Optional[str] = Field(
+        None, max_length=10000, description="Interview transcript, quotes or notes"
+    )
+    business_name: Optional[str] = Field(None, max_length=200)
+    existing_stories: Optional[Union[List[str], str]] = Field(
+        None, description="Stories pre-seeded from the client brief (list or one text)"
+    )
+    measurable_results: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("existing_stories")
+    @classmethod
+    def _cap_existing_stories(cls, v: Optional[Union[List[str], str]]):
+        """Bound size like the tool does: ≤20 stories of ≤2000 chars, or one ≤5000."""
+        if isinstance(v, list):
+            if len(v) > 20:
+                raise ValueError("at most 20 existing stories")
+            if any(len(s) > 2000 for s in v):
+                raise ValueError("each existing story must be at most 2000 characters")
+        elif isinstance(v, str) and len(v) > 5000:
+            raise ValueError("existing_stories text must be at most 5000 characters")
+        return v
 
 
 class BrandArchetypeParams(BaseModel):

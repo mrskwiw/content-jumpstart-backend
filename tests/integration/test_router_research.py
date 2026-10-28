@@ -1411,3 +1411,60 @@ class TestResultsListingHidesSoftDeleted:
 
         assert response.status_code == 200, response.text
         assert "res-261-orphan" not in [r["id"] for r in response.json()["results"]]
+
+
+class TestStoryMiningParamsReachTheTool:
+    """BUGS #262: StoryMiningParams only declared story_type/customer_segment, so the
+    /run validation step (schema(**params).model_dump()) silently dropped
+    customer_context — the tool's one REQUIRED input — plus interview_notes,
+    business_name, existing_stories and measurable_results. Every story_mining run
+    through the API failed with "customer_context is required", whatever the UI sent."""
+
+    def test_validation_keeps_every_input_the_tool_reads(self):
+        from backend.routers.research import validate_research_params
+
+        params = {
+            "customer_context": "Anxious adults returning to the dentist after years away.",
+            "interview_notes": "Patient said: I don't dread coming anymore.",
+            "business_name": "Cascade Family Dentistry",
+            "existing_stories": ["Teen got Invisalign before prom."],
+            "measurable_results": "Referred 6 friends.",
+            "story_type": "transformation",
+        }
+        validated = validate_research_params("story_mining", params)
+        for key, value in params.items():
+            assert validated.get(key) == value, key
+
+    def test_existing_stories_may_be_a_single_string(self):
+        from backend.routers.research import validate_research_params
+
+        validated = validate_research_params(
+            "story_mining",
+            {"customer_context": "c" * 40, "existing_stories": "One long story about a patient."},
+        )
+        assert validated["existing_stories"] == "One long story about a patient."
+
+    def test_run_forwards_customer_context_to_the_service(
+        self, client, auth_headers_user_a, project_for_user_a, client_for_user_a
+    ):
+        with patch(
+            "backend.routers.research.research_service.execute_research_tool",
+            new_callable=AsyncMock,
+            return_value={"success": False, "outputs": {}, "metadata": {}, "error": "stop"},
+        ) as execute:
+            client.post(
+                "/api/research/run",
+                headers=auth_headers_user_a,
+                json={
+                    "project_id": project_for_user_a.id,
+                    "client_id": client_for_user_a.id,
+                    "tool": "story_mining",
+                    "params": {
+                        "customer_context": "Who the customer is and what changed for them."
+                    },
+                },
+            )
+
+        assert execute.called, "the run never reached the service"
+        sent = execute.call_args.kwargs.get("params") or execute.call_args.args[4]
+        assert sent.get("customer_context") == "Who the customer is and what changed for them."
