@@ -25,11 +25,14 @@ Usage:
 import os
 import json
 import hashlib
+import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from pathlib import Path
 from dataclasses import dataclass, asdict
 import secrets
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -102,8 +105,15 @@ class SecretManager:
         except (json.JSONDecodeError, IOError) as e:
             raise ValueError(f"Failed to load secrets: {e}")
 
-    def save_secrets(self):
-        """Save secrets to config file"""
+    def save_secrets(self) -> bool:
+        """Save secrets to the config file; return whether it was written.
+
+        A store that can't be written is NOT fatal (BUGS #263): in production the app
+        runs as a non-root user in a read-only image dir, and the store is only a cache
+        of the env-seeded SECRET_KEY there. Raising here escaped the constructor, so
+        get_secret_manager() never cached an instance and every token mint/check — login
+        and every authenticated request — returned 500. The secrets stay in memory.
+        """
         data = {
             "secrets": [asdict(secret) for secret in self.secrets.values()],
             "last_updated": datetime.now().isoformat(),
@@ -111,10 +121,18 @@ class SecretManager:
 
         # Write atomically (write to temp file, then rename)
         temp_path = self.config_path.with_suffix(".tmp")
-        with open(temp_path, "w") as f:
-            json.dump(data, f, indent=2)
-
-        temp_path.replace(self.config_path)
+        try:
+            with open(temp_path, "w") as f:
+                json.dump(data, f, indent=2)
+            temp_path.replace(self.config_path)
+        except OSError as e:
+            logger.warning(
+                "Secrets store %s is not writable (%s); keeping secrets in memory only.",
+                self.config_path,
+                e,
+            )
+            return False
+        return True
 
     def generate_secret(self, length: int = 32) -> str:
         """Generate cryptographically secure random secret"""

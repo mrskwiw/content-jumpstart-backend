@@ -234,3 +234,34 @@ class TestPrimaryTieBreak:
         if stored != "not-a-timestamp":
             # Ordering is by the ISO string, so the new secret must sort after it.
             assert m.get_primary_secret() == "newer-secret-value-32-chars-minimum!"
+
+
+class TestUnwritableSecretsStore:
+    """Prod outage 2026-10-28 (BUGS #263): a118ee2 stopped shipping .secrets.json in
+    the image, so SecretManager seeded from SECRET_KEY and tried to WRITE the file into
+    /app, which the non-root container user can't. The PermissionError escaped the
+    constructor, get_secret_manager never cached an instance, and every token mint /
+    check — login and every authenticated request — returned 500."""
+
+    def test_unwritable_store_still_loads_the_env_secret(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SECRET_KEY", "env-signing-secret-value-32-chars-min!")
+        unwritable = tmp_path / "missing-dir" / "secrets.json"  # parent doesn't exist
+
+        m = SecretManager(config_path=unwritable)  # must not raise
+
+        assert m.get_primary_secret() == "env-signing-secret-value-32-chars-min!"
+        assert not unwritable.exists()
+
+    def test_permission_error_on_save_is_not_fatal(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("SECRET_KEY", "env-signing-secret-value-32-chars-min!")
+        real_open = open
+
+        def deny_tmp(path, *args, **kwargs):
+            if str(path).endswith(".tmp"):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", deny_tmp)
+        m = SecretManager(config_path=tmp_path / "secrets.json")
+
+        assert m.get_primary_secret() == "env-signing-secret-value-32-chars-min!"
