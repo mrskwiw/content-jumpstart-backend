@@ -161,3 +161,54 @@ class TestSecretManager:
         # Load fresh from same file
         m2 = SecretManager(config_path=config)
         assert "persist-this" in m2.get_active_secrets()
+
+
+class _FrozenDatetime(datetime):
+    """datetime whose now() never advances — every call lands in the same clock tick."""
+
+    FIXED = datetime(2026, 10, 27, 15, 0, 13, 686088)
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.FIXED
+
+
+class TestPrimaryTieBreak:
+    """BUGS #243: secrets are ordered by `created_at` (ISO, clock resolution). A secret
+    seeded from SECRET_KEY and one added right after it shared a timestamp in 87 of 200
+    measured runs, and the stable sort then kept the OLDER one first, so the secret just
+    added was not primary. A new secret must always sort after every existing one, and
+    that ordering must survive save + reload."""
+
+    def test_secret_added_in_the_same_tick_is_primary(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SECRET_KEY", raising=False)
+        monkeypatch.setattr("backend.utils.secret_rotation.datetime", _FrozenDatetime)
+        m = SecretManager(config_path=tmp_path / "tie.json")
+        first = m.add_secret("older-secret-value-32-chars-minimum!")
+        second = m.add_secret("newer-secret-value-32-chars-minimum!")
+
+        assert second.created_at > first.created_at
+        assert m.get_primary_secret() == "newer-secret-value-32-chars-minimum!"
+
+    def test_added_secret_is_primary_after_an_env_seed_in_the_same_tick(
+        self, tmp_path, monkeypatch
+    ):
+        # The original #243 shape: env-seeded secret, then an explicit add.
+        monkeypatch.setenv("SECRET_KEY", "env-seeded-secret-value-32-chars-min!")
+        monkeypatch.setattr("backend.utils.secret_rotation.datetime", _FrozenDatetime)
+        m = SecretManager(config_path=tmp_path / "seeded.json")
+        m.add_secret("primary")
+
+        assert m.get_primary_secret() == "primary"
+
+    def test_ordering_survives_save_and_reload(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SECRET_KEY", raising=False)
+        monkeypatch.setattr("backend.utils.secret_rotation.datetime", _FrozenDatetime)
+        path = tmp_path / "persist.json"
+        m = SecretManager(config_path=path)
+        m.add_secret("older-secret-value-32-chars-minimum!")
+        m.add_secret("newer-secret-value-32-chars-minimum!")
+        m.save_secrets()
+
+        reloaded = SecretManager(config_path=path)
+        assert reloaded.get_primary_secret() == "newer-secret-value-32-chars-minimum!"

@@ -124,6 +124,21 @@ class SecretManager:
         """Generate unique ID for secret"""
         return hashlib.sha256(secret.encode()).hexdigest()[:16]
 
+    def _next_created_at(self) -> str:
+        """Return a `created_at` strictly later than every stored secret's.
+
+        Secrets are ordered newest-first by this ISO timestamp, so a secret added in the
+        same clock tick as an existing one (e.g. right after SECRET_KEY is seeded) used to
+        tie, and the stable sort kept the OLDER secret primary (BUGS #243). Nudging the
+        new timestamp forward by a microsecond makes the order total, and it survives
+        save + reload because it lives in the stored value itself.
+        """
+        now = datetime.now()
+        stored = [datetime.fromisoformat(s.created_at) for s in self.secrets.values()]
+        if stored and now <= max(stored):
+            now = max(stored) + timedelta(microseconds=1)
+        return now.isoformat()
+
     def add_secret(
         self, secret: str, expires_in_days: Optional[int] = None, auto_save: bool = True
     ) -> Secret:
@@ -151,7 +166,7 @@ class SecretManager:
         new_secret = Secret(
             id=secret_id,
             value=secret,
-            created_at=datetime.now().isoformat(),
+            created_at=self._next_created_at(),
             expires_at=expires_at,
             status="active",
         )
