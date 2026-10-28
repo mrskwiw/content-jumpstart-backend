@@ -91,7 +91,9 @@ class SecretManager:
             env_secret = os.getenv("SECRET_KEY")
             if env_secret:
                 self.add_secret(env_secret, auto_save=False)
-            self.save_secrets()
+            # Implicit seed: best-effort (BUGS #263) — an unwritable store must not
+            # break token minting. Explicit changes below still raise.
+            self.save_secrets(strict=False)
             return
 
         try:
@@ -105,14 +107,18 @@ class SecretManager:
         except (json.JSONDecodeError, IOError) as e:
             raise ValueError(f"Failed to load secrets: {e}")
 
-    def save_secrets(self) -> bool:
+    def save_secrets(self, strict: bool = True) -> bool:
         """Save secrets to the config file; return whether it was written.
 
-        A store that can't be written is NOT fatal (BUGS #263): in production the app
-        runs as a non-root user in a read-only image dir, and the store is only a cache
-        of the env-seeded SECRET_KEY there. Raising here escaped the constructor, so
+        ``strict=False`` is used only for the implicit seed-from-SECRET_KEY write in
+        ``load_secrets``: there an unwritable store is NOT fatal (BUGS #263). In
+        production the app runs as a non-root user in a read-only image dir and the store
+        is only a cache of the env secret; raising there escaped the constructor, so
         get_secret_manager() never cached an instance and every token mint/check — login
         and every authenticated request — returned 500. The secrets stay in memory.
+
+        Explicit changes (add / rotate / revoke) keep ``strict=True`` and raise, so an
+        operator never sees a rotation reported as done when nothing was persisted.
         """
         data = {
             "secrets": [asdict(secret) for secret in self.secrets.values()],
@@ -126,6 +132,8 @@ class SecretManager:
                 json.dump(data, f, indent=2)
             temp_path.replace(self.config_path)
         except OSError as e:
+            if strict:
+                raise
             logger.warning(
                 "Secrets store %s is not writable (%s); keeping secrets in memory only.",
                 self.config_path,

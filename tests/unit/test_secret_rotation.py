@@ -265,3 +265,11 @@ class TestUnwritableSecretsStore:
         m = SecretManager(config_path=tmp_path / "secrets.json")
 
         assert m.get_primary_secret() == "env-signing-secret-value-32-chars-min!"
+
+    def test_explicit_change_on_unwritable_store_still_raises(self, tmp_path, monkeypatch):
+        # Codex review of f01573d: only the implicit seed-from-env write is best-effort.
+        # An operator's rotate/revoke must not report success when nothing persisted.
+        monkeypatch.setenv("SECRET_KEY", "env-signing-secret-value-32-chars-min!")
+        m = SecretManager(config_path=tmp_path / "missing-dir" / "secrets.json")
+        with pytest.raises(OSError):
+            m.add_secret("operator-rotated-secret-32-chars-min!")
