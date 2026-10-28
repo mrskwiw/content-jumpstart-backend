@@ -236,13 +236,22 @@ class TestHealthcareFullWorkflow:
             },
             {
                 "name": "story_mining",
+                # The tool's inputs changed from a `customer_stories` list to a required
+                # `customer_context` (30-2000 chars) + optional `interview_notes`; the old
+                # shape now fails validation with "customer_context is required" (BUGS #244).
                 "params": {
                     "business_description": client_data["business_description"],
-                    "customer_stories": [
-                        "Patient came after 12 years, severe anxiety from childhood trauma. Started with consultation only. Now comes every 6 months and said 'I don't dread coming to the dentist anymore.'",
-                        "Teenage patient bullied about crooked teeth. Payment plan for Invisalign. 14 months later, full smile at prom - first time in 3 years.",
-                        "58-year-old executive wanted smile for daughter's wedding. Whitening and veneers. Teared up saying 'I look like myself again - the version from 20 years ago.' Referred 6 friends.",
-                    ],
+                    "customer_context": (
+                        "Family dental practice patients: anxious adults returning after years "
+                        "away, teens seeking orthodontics, and professionals wanting cosmetic work."
+                    ),
+                    "interview_notes": "\n\n".join(
+                        [
+                            "Patient came after 12 years, severe anxiety from childhood trauma. Started with consultation only. Now comes every 6 months and said 'I don't dread coming to the dentist anymore.'",
+                            "Teenage patient bullied about crooked teeth. Payment plan for Invisalign. 14 months later, full smile at prom - first time in 3 years.",
+                            "58-year-old executive wanted smile for daughter's wedding. Whitening and veneers. Teared up saying 'I look like myself again - the version from 20 years ago.' Referred 6 friends.",
+                        ]
+                    ),
                 },
             },
         ]
