@@ -11,16 +11,25 @@ the HMAC-SHA256 key is the base64-decoded secret after ``whsec_``, the signed co
 is ``"{webhook-id}.{webhook-timestamp}.{body}"``, and ``webhook-signature`` holds
 space-separated ``v1,<base64>`` values (several during secret rotation).
 
-Render disables a webhook after 8 failed deliveries, and expects a 2xx within 15s. So
-once a request is authentic it is always acknowledged with 200, and the email is sent
-in a background task — a broken mailer can never turn into a disabled webhook.
+Delivery: the response is 200 only once the alert email has actually gone out (or the
+event needs no alert); otherwise 503, so Render retries. Render's retries are the
+durable queue — up to 8 attempts over ~33h, and after the 3rd failure Render emails
+the account that the webhook is failing, so even a broken mailer surfaces. A webhook-id
+is remembered only after a successful send, so a retry of an unsent alert is sent and a
+retry of a sent one is not. The send is capped at 12s to stay inside Render's 15s
+deadline (the mailer alone can take ~33s); a send that outlives the cap and later
+succeeds still marks its id, so the retry isn't re-sent. Production runs one worker
+(Dockerfile), so the in-process id memory is shared by all requests; a restart can at
+worst repeat one email.
 
 Environment:
     RENDER_WEBHOOK_SECRET  the webhook's signing secret (unset → route answers 404, so
                            customer instances, which also ship this route, stay inert)
-    OPS_ALERT_EMAIL        who receives alerts (unset → logged as an error, not sent)
+    OPS_ALERT_EMAIL        who receives alerts (unset → 503, so Render retries and,
+                           after 3 failures, emails the account)
 """
 
+import asyncio
 import base64
 import binascii
 import hashlib
@@ -34,7 +43,8 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Deque, Dict, Optional, Set
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.concurrency import run_in_threadpool
 
 from backend.utils.logger import logger
 
@@ -43,8 +53,13 @@ router = APIRouter()
 # Standard Webhooks tolerance; Render's docs suggest "within the last five minutes".
 _TOLERANCE_SECONDS = 300
 
-# Lifecycle events whose `status` can be "failed"; image_pull_failed is a failure by type.
-_STATUS_EVENTS = frozenset({"deploy_ended", "build_ended", "pre_deploy_ended"})
+# Lifecycle events whose `status` can be "failed" (Render sets `status` only on
+# build_ended, deploy_ended and job events; a failed pre-deploy surfaces as
+# deploy_ended: failed). image_pull_failed is a failure by its type alone.
+_STATUS_EVENTS = frozenset({"deploy_ended", "build_ended"})
+
+# Must finish inside Render's 15s delivery deadline.
+_SEND_DEADLINE_SECONDS = 12.0
 _FAILURE_EVENTS = frozenset({"image_pull_failed"})
 
 # Render retries a notification with the same webhook-id. Remember recent ids so one
@@ -94,15 +109,14 @@ def _is_failure(event: Dict[str, Any]) -> bool:
     return event_type in _STATUS_EVENTS and data.get("status") == "failed"
 
 
-def _first_time(msg_id: str) -> bool:
-    """True the first time a webhook-id is seen (retries reuse it)."""
+def _remember(msg_id: str) -> None:
+    """Record a webhook-id whose alert went out (retries reuse the id)."""
     if msg_id in _seen_ids:
-        return False
+        return
     _seen_ids.add(msg_id)
     _seen_order.append(msg_id)
     while len(_seen_order) > _SEEN_LIMIT:
         _seen_ids.discard(_seen_order.popleft())
-    return True
 
 
 def _format_time(iso: Optional[str]) -> str:
@@ -138,7 +152,15 @@ def _send_email(message: Any) -> bool:
     return ok
 
 
-def _alert(event: Dict[str, Any], recipient: str) -> None:
+def _deliver(event: Dict[str, Any], recipient: str, msg_id: str) -> bool:
+    """Send the alert; remember the id only if it went out. Returns whether it did."""
+    if _alert(event, recipient):
+        _remember(msg_id)
+        return True
+    return False
+
+
+def _alert(event: Dict[str, Any], recipient: str) -> bool:
     from agent.email_system import EmailMessage, EmailPriority
 
     data = event.get("data") or {}
@@ -155,7 +177,7 @@ def _alert(event: Dict[str, Any], recipient: str) -> None:
         "The previous version keeps serving after a failed deploy, so the site can look "
         "healthy while new code never ships. Check the deploy logs (BUGS #239)."
     )
-    _send_email(
+    return _send_email(
         EmailMessage(
             message_id=f"render-alert-{uuid.uuid4().hex[:12]}",
             to_email=recipient,
@@ -167,7 +189,7 @@ def _alert(event: Dict[str, Any], recipient: str) -> None:
 
 
 @router.post("/render-webhook", status_code=status.HTTP_200_OK)
-async def render_webhook(request: Request, background_tasks: BackgroundTasks) -> Dict[str, str]:
+async def render_webhook(request: Request) -> Dict[str, str]:
     """Receive a Render workspace webhook and email on deploy failures."""
     secret = os.getenv("RENDER_WEBHOOK_SECRET", "").strip()
     if not secret:
@@ -186,7 +208,6 @@ async def render_webhook(request: Request, background_tasks: BackgroundTasks) ->
         logger.warning("Render webhook rejected: invalid or stale signature")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
 
-    # Authentic from here on: always acknowledge, so Render never retries or disables us.
     try:
         event = json.loads(body)
     except ValueError:
@@ -194,16 +215,23 @@ async def render_webhook(request: Request, background_tasks: BackgroundTasks) ->
         return {"status": "ignored"}
     if not isinstance(event, dict) or not _is_failure(event):
         return {"status": "ignored"}
-    if not _first_time(msg_id):
+    if msg_id in _seen_ids:
         return {"status": "duplicate"}
 
+    service = (event.get("data") or {}).get("serviceName")
     recipient = os.getenv("OPS_ALERT_EMAIL", "").strip()
     if not recipient:
-        logger.error(
-            f"Render deploy failure for {(event.get('data') or {}).get('serviceName')} "
-            "but OPS_ALERT_EMAIL is unset; no alert sent"
-        )
-        return {"status": "unrouted"}
+        logger.error(f"Render deploy failure for {service} but OPS_ALERT_EMAIL is unset")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="Alert not routed")
 
-    background_tasks.add_task(_alert, event, recipient)
+    try:
+        sent = await asyncio.wait_for(
+            run_in_threadpool(_deliver, event, recipient, msg_id),
+            timeout=_SEND_DEADLINE_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        sent = False
+        logger.error(f"Render deploy-failure alert for {service} timed out; Render will retry")
+    if not sent:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail="Alert not sent")
     return {"status": "alerted"}

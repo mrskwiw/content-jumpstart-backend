@@ -61,16 +61,10 @@ def client(monkeypatch):
 
 
 @pytest.fixture
-def sent(monkeypatch, mock_background_tasks):
-    """Capture alert emails instead of sending them.
-
-    The integration conftest replaces BackgroundTasks.add_task with a no-op Mock for
-    every test; run the queued task inline instead, so the real background path —
-    the one the route uses to stay under Render's 15s deadline — is exercised.
-    """
+def sent(monkeypatch):
+    """Capture alert emails instead of sending them."""
     messages = []
     monkeypatch.setattr(ops_webhooks, "_send_email", lambda msg: messages.append(msg) or True)
-    mock_background_tasks.side_effect = lambda fn, *args, **kwargs: fn(*args, **kwargs)
     return messages
 
 
@@ -145,7 +139,7 @@ def test_body_tampering_is_rejected(client, sent):
 # ---------- what alerts ----------
 
 
-@pytest.mark.parametrize("etype", ["deploy_ended", "build_ended", "pre_deploy_ended"])
+@pytest.mark.parametrize("etype", ["deploy_ended", "build_ended"])
 def test_failed_lifecycle_event_sends_one_alert(client, sent, etype):
     assert _post(client, _event(type_=etype, status="failed")).status_code == 200
     assert len(sent) == 1
@@ -171,6 +165,10 @@ def test_image_pull_failed_alerts_without_a_status(client, sent):
         _event(status="canceled"),
         _event(type_="deploy_started", status=None),
         _event(type_="build_ended", status="succeeded"),
+        # Codex review of 0a2d6b2: Render only puts `status` on build_ended,
+        # deploy_ended and job events, so pre_deploy_ended can never be matched as a
+        # failure; a failed pre-deploy surfaces as deploy_ended: failed.
+        _event(type_="pre_deploy_ended", status=None),
     ],
 )
 def test_non_failures_do_not_alert(client, sent, event):
@@ -185,19 +183,42 @@ def test_retried_delivery_alerts_only_once(client, sent):
     assert len(sent) == 1
 
 
-# ---------- never make Render retry / disable the webhook ----------
+# ---------- delivery: 200 only once the alert is out; otherwise let Render retry ----------
+# Codex review of 0a2d6b2: acknowledging before the email was sent (and marking the
+# webhook-id seen) meant a failed send lost the alert for good, since Render does not
+# retry a 2xx. Render's own retries (8 attempts over ~33h, plus an email to the account
+# after the 3rd failure) are the durable queue: answer 503 until the alert is out.
 
 
-def test_email_failure_still_returns_200(client, monkeypatch):
-    # Render disables a webhook after 8 failed deliveries; a broken mailer must not
-    # turn into that.
-    monkeypatch.setattr(ops_webhooks, "_send_email", lambda msg: False)
-    assert _post(client, _event()).status_code == 200
+def test_email_failure_returns_503_and_the_retry_sends_it(client, monkeypatch):
+    outcomes = iter([False, True])
+    delivered = []
+
+    def flaky(msg):
+        ok = next(outcomes)
+        if ok:
+            delivered.append(msg)
+        return ok
+
+    monkeypatch.setattr(ops_webhooks, "_send_email", flaky)
+    assert _post(client, _event(), msg_id="msg_retry").status_code == 503
+    # Render retries with the same id: not treated as a duplicate, because it never went out.
+    assert _post(client, _event(), msg_id="msg_retry").status_code == 200
+    assert len(delivered) == 1
 
 
-def test_missing_alert_address_still_returns_200(client, monkeypatch, sent):
+def test_slow_email_returns_503_within_rendering_deadline(client, monkeypatch):
+    monkeypatch.setattr(ops_webhooks, "_SEND_DEADLINE_SECONDS", 0.05)
+    monkeypatch.setattr(ops_webhooks, "_send_email", lambda msg: time.sleep(0.5) or True)
+    start = time.monotonic()
+    assert _post(client, _event(), msg_id="msg_slow").status_code == 503
+    assert time.monotonic() - start < 0.4  # answered before the send finished
+
+
+def test_missing_alert_address_returns_503(client, monkeypatch, sent):
+    # Misconfiguration: retries + Render's "webhook failing" email beat a silent log.
     monkeypatch.delenv("OPS_ALERT_EMAIL", raising=False)
-    assert _post(client, _event()).status_code == 200
+    assert _post(client, _event()).status_code == 503
     assert sent == []
 
 
