@@ -1276,8 +1276,16 @@ class ResearchService:
             or "",
             "target_audience": cached_client_ideal_customer or client.ideal_customer or "",
             "platforms": cached_project_platforms or project.platforms or ["LinkedIn"],
-            **params,  # Merge in additional parameters (explicit params take precedence)
         }
+        # Merge in additional parameters — explicit params take precedence, but a None is
+        # not explicit: validated params come from schema.model_dump(), which emits every
+        # omitted optional field as None, and that used to overwrite the profile defaults
+        # above (e.g. business_name → None). Keys stay present so no tool sees a new
+        # KeyError (BUGS #262).
+        for key, value in params.items():
+            if value is None and inputs.get(key) is not None:
+                continue
+            inputs[key] = value
 
         # Tool-specific input preparation
         if tool_name == "voice_analysis":

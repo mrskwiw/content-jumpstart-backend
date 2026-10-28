@@ -290,3 +290,30 @@ def test_avoid_platforms_ignore_a_soft_deleted_platform_strategy(db_session, wor
 
 def test_avoid_platforms_empty_without_a_strategy(db_session, world):
     assert ResearchService()._latest_avoid_platforms(db_session, world["clients"]["a"].id) == []
+
+
+class TestPrepareInputsNoneNeverOverrides:
+    """Codex review of 124229d (BUGS #262): validated params come from
+    schema(**params).model_dump(), which emits omitted optional fields as None. Merged
+    with `**params`, that None overwrote the client-profile default — e.g. an omitted
+    business_name replaced the client's real name with None."""
+
+    def _prepare(self, params):
+        project = Mock(platforms=["LinkedIn"])
+        client = Mock(business_description="A family dental practice.", ideal_customer="Families")
+        client.name = "Cascade Family Dentistry"
+        return ResearchService()._prepare_inputs(project, client, "story_mining", params)
+
+    def test_none_param_keeps_the_profile_default(self):
+        inputs = self._prepare({"business_name": None, "business_description": None})
+        assert inputs["business_name"] == "Cascade Family Dentistry"
+        assert inputs["business_description"] == "A family dental practice."
+
+    def test_explicit_param_still_wins(self):
+        inputs = self._prepare({"business_name": "Cascade Dental"})
+        assert inputs["business_name"] == "Cascade Dental"
+
+    def test_none_for_a_key_without_a_default_is_kept(self):
+        # Key presence is preserved so no tool sees a KeyError it didn't before.
+        inputs = self._prepare({"interview_notes": None})
+        assert "interview_notes" in inputs and inputs["interview_notes"] is None
