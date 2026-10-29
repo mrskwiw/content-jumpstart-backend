@@ -27,6 +27,14 @@ NATIVE_FLAG_PLATFORMS: frozenset[str] = frozenset({"tiktok", "youtube"})
 
 DEFAULT_LABEL = "Drafted with AI"
 
+# D6: one statement at the top of post deliverables (DOCX / MD / TXT). CSV carries a
+# per-post column instead.
+EXPORT_STATEMENT = (
+    "AI disclosure: the posts in this document are AI-generated first drafts. "
+    "Review and edit them before publishing — a post published unedited is "
+    "labelled as AI-generated."
+)
+
 # Media produced by the platform's own generation pipeline (a MediaAsset always has a
 # job_id), as opposed to a plain URL to the user's own media.
 _GENERATED_MEDIA_PREFIX = "media-asset://"

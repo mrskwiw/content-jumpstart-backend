@@ -39,6 +39,7 @@ def _make_post(content="A clean post.", platform="linkedin", template="Story", w
     p.target_platform = platform
     p.template_name = template
     p.word_count = words
+    p.ai_draft_content = None  # real Posts hold str/None; a bare MagicMock attr is a Mock
     return p
 
 
@@ -74,6 +75,7 @@ def test_csv_has_header_and_one_row_per_post():
             "content",
             "word_count",
             "character_count",
+            "ai_generated_unedited",  # COMPLIANCE-01 D6
         }
         assert rows[0]["platform"] == "linkedin"  # raw slug, not display name
     finally:

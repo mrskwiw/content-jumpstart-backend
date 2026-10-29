@@ -13,7 +13,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from backend.models.client import Client
 from backend.models.post import Post
 from backend.models.project import Project
 from backend.services.csv_export import posts_to_csv
+from backend.services.distribution.disclosure import EXPORT_STATEMENT, is_unedited_draft
 from src.analysis.geo import (
     article_jsonld,
     check_answer_block,
@@ -36,7 +37,14 @@ _HOWTO_STEP_RE = re.compile(r"^\s*(?:\d+[.)]|step\s+\d+[:.)]?)\s+(.+)$", re.IGNO
 
 # Flat-table columns for the CSV deliverable, in operator order. Raw platform slug
 # (not the display name) keeps the file friendly to scheduler/spreadsheet re-import.
-_CSV_COLUMNS: tuple = ("platform", "template", "content", "word_count", "character_count")
+_CSV_COLUMNS: tuple = (
+    "platform",
+    "template",
+    "content",
+    "word_count",
+    "character_count",
+    "ai_generated_unedited",  # COMPLIANCE-01 D6: still the AI draft? yes/no
+)
 
 # Human-readable display names for platform enum values stored in the database
 _PLATFORM_DISPLAY_NAMES: dict = {
@@ -489,6 +497,14 @@ async def _generate_csv(posts: List[Post], output_path: Path) -> Tuple[Path, int
             "content": p.content or "",
             "word_count": p.word_count,
             "character_count": len(p.content) if p.content else 0,
+            # COMPLIANCE-01: same rule as publish time (no snapshot ⇒ unedited).
+            "ai_generated_unedited": (
+                "yes"
+                if is_unedited_draft(
+                    cast(Optional[str], p.content), cast(Optional[str], p.ai_draft_content)
+                )
+                else "no"
+            ),
         }
         for p in posts
     ]
@@ -527,6 +543,9 @@ async def _generate_txt(
     lines.append("")
     lines.append("=" * 60)
     lines.append("")
+    if posts:
+        lines.append(EXPORT_STATEMENT)  # COMPLIANCE-01 D6
+        lines.append("")
 
     # Posts
     for i, post in enumerate(posts, 1):
@@ -623,6 +642,9 @@ async def _generate_markdown(
         lines.append(f"**Project:** {_safe_project_name(project, client)}")
     lines.append(f'**Generated:** {datetime.now().strftime("%B %d, %Y at %H:%M")}')
     lines.append("")
+    if posts:
+        lines.append(f"> **{EXPORT_STATEMENT}**")  # COMPLIANCE-01 D6
+        lines.append("")
     lines.append("---")
     lines.append("")
 
@@ -860,6 +882,15 @@ async def _generate_docx(
     date_run.font.size = Pt(12)
     date_run.font.italic = True
     date_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    if posts:
+        # COMPLIANCE-01 D6: disclosure statement on the cover, before any post.
+        notice = doc.add_paragraph()
+        notice_run = notice.add_run(EXPORT_STATEMENT)
+        notice_run.font.name = "Calibri"
+        notice_run.font.size = Pt(10)
+        notice_run.font.italic = True
+        notice.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     doc.add_page_break()
 
