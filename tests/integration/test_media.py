@@ -228,7 +228,10 @@ def test_fail_closed_without_dry_run(client, db_session, monkeypatch):
     jobs = client.get("/api/media/jobs?pipeline=cinematic", headers=_hdr(user)).json()
     clip = next(j for j in jobs if j["kind"] == "gen_clip")
     assert clip["status"] == "failed"
-    assert "KLING_API_KEY" in (clip["error_message"] or "")
+    # b54a2c6 stopped leaking raw env var names to users (_require_env): the job fails
+    # closed with a generic "not configured" message that must not name the key.
+    assert "isn't configured" in (clip["error_message"] or "")
+    assert "KLING_API_KEY" not in (clip["error_message"] or "")
 
 
 # ── Ownership, cancel ─────────────────────────────────────────────────────────

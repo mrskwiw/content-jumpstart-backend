@@ -2,6 +2,8 @@
 Unit tests for web search utility.
 """
 
+import os
+
 import pytest
 from unittest.mock import Mock, patch
 
@@ -316,7 +318,19 @@ class TestUtilityFunctions:
     @patch.dict("os.environ", {}, clear=True)
     def test_get_search_client_no_env(self):
         """Test get_search_client with no environment variables"""
-        client = get_search_client()
+        # Order-dependent before, two ways: once any test imports the app, backend/.env's
+        # real search keys are in os.environ; and get_search_client caches a module-level
+        # singleton an earlier test may already have built. Isolate both.
+        import src.utils.web_search as web_search_module
+
+        keys = ("BRAVE_API_KEY", "TAVILY_API_KEY", "SERPAPI_API_KEY", "WEB_SEARCH_PROVIDER")
+        with (
+            patch.dict("os.environ", {}, clear=False),
+            patch.object(web_search_module, "_default_client", None),
+        ):
+            for key in keys:
+                os.environ.pop(key, None)
+            client = get_search_client()
         assert client.provider == "stub"
 
     @patch.dict("os.environ", {"BRAVE_API_KEY": "test_brave_key"})
