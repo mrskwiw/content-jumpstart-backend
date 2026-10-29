@@ -584,3 +584,46 @@ def test_inaccessible_linked_post_is_treated_as_unlinked(db_session):
     _owned_linked_post(db_session, owner.id, content="d", draft="their draft", pid="post-c01-y")
     sp = _scheduled(db_session, other.id, content="totally different text", post_id="post-c01-y")
     assert orchestrator._disclose(db_session, sp) is True
+
+
+def test_schedule_api_accepts_the_free_text_checkbox_and_reports_disclosure(client, db_session):
+    """COMPLIANCE-01 Task 5: the API carries the schedule-time checkbox for free text and
+    tells the UI whether the post will be disclosed (the rule lives server-side only)."""
+    u = _make_user(db_session, "c01-api@example.com", "user-c01api")
+    base = {
+        "platform": "stub",
+        "content": "Written by me.",
+        "scheduled_for": "2030-01-01T00:00:00Z",
+    }
+
+    ticked = client.post("/api/distribution/schedule", json=base, headers=_hdr(u))
+    assert ticked.status_code == 201, ticked.text
+    assert ticked.json()["ai_generated"] is None  # unanswered
+    assert ticked.json()["will_disclose"] is True  # None counts as AI
+
+    unticked = client.post(
+        "/api/distribution/schedule", json={**base, "ai_generated": False}, headers=_hdr(u)
+    )
+    assert unticked.status_code == 201, unticked.text
+    assert unticked.json()["ai_generated"] is False
+    assert unticked.json()["will_disclose"] is False
+
+    queue = client.get("/api/distribution/queue", headers=_hdr(u)).json()
+    assert {item["will_disclose"] for item in queue} == {True, False}
+
+
+def test_schedule_api_rejects_someone_elses_post_id(client, db_session):
+    owner = _make_user(db_session, "c01-ao@example.com", "user-c01ao")
+    other = _make_user(db_session, "c01-at@example.com", "user-c01at")
+    theirs = _owned_linked_post(db_session, owner.id, content="d", draft="d", pid="post-c01-api")
+    r = client.post(
+        "/api/distribution/schedule",
+        json={
+            "platform": "stub",
+            "content": "x",
+            "scheduled_for": "2030-01-01T00:00:00Z",
+            "post_id": theirs.id,
+        },
+        headers=_hdr(other),
+    )
+    assert r.status_code == 400

@@ -31,6 +31,7 @@ describe('Distribution Queue — per-client attribution', () => {
       scheduled_for: '2026-02-10T00:00:00Z',
       retry_count: 0,
       is_active: true,
+      will_disclose: true,
     });
     clients.list.mockResolvedValue([
       { id: 'c1', name: 'Acme', businessDescription: '', createdAt: '2026-01-01T00:00:00Z' },
@@ -117,5 +118,69 @@ describe('Distribution Queue — per-client attribution', () => {
     await waitFor(() =>
       expect(dist.schedule).toHaveBeenCalledWith(expect.objectContaining({ platform: 'stub' }))
     );
+  });
+});
+
+describe('Distribution Queue — AI disclosure (COMPLIANCE-01)', () => {
+  const queued = (over: Partial<Parameters<typeof dist.queue.mockResolvedValue>[0][number]>) => ({
+    id: 'q1',
+    platform: 'linkedin',
+    content: 'Queued post',
+    status: 'pending',
+    scheduled_for: '2026-02-10T00:00:00Z',
+    retry_count: 0,
+    is_active: true,
+    will_disclose: false,
+    ...over,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    dist.listCredentials.mockResolvedValue([]);
+    dist.queue.mockResolvedValue([]);
+    dist.schedule.mockResolvedValue(queued({ id: 'sp1', will_disclose: true }));
+    clients.list.mockResolvedValue([] as never);
+  });
+
+  it('pre-ticks "AI-generated" and sends it with the post', async () => {
+    renderWithProviders(<Queue />);
+    const box = await screen.findByRole('checkbox', { name: /ai-generated/i });
+    expect(box).toBeChecked();
+
+    fireEvent.change(screen.getByPlaceholderText(/what do you want to post/i), {
+      target: { value: 'Drafted post' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+
+    await waitFor(() =>
+      expect(dist.schedule).toHaveBeenCalledWith(expect.objectContaining({ ai_generated: true }))
+    );
+  });
+
+  it('sends ai_generated=false when the scheduler unticks it', async () => {
+    renderWithProviders(<Queue />);
+    const box = await screen.findByRole('checkbox', { name: /ai-generated/i });
+    fireEvent.click(box);
+    expect(box).not.toBeChecked();
+
+    fireEvent.change(screen.getByPlaceholderText(/what do you want to post/i), {
+      target: { value: 'My own words' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /add to queue/i }));
+
+    await waitFor(() =>
+      expect(dist.schedule).toHaveBeenCalledWith(expect.objectContaining({ ai_generated: false }))
+    );
+  });
+
+  it('marks queued posts that will be published with an AI disclosure', async () => {
+    dist.queue.mockResolvedValue([
+      queued({ id: 'a', content: 'Labelled one', will_disclose: true }),
+      queued({ id: 'b', content: 'Plain one', will_disclose: false }),
+    ]);
+    renderWithProviders(<Queue />);
+
+    await screen.findByText('Labelled one');
+    expect(screen.getAllByText(/ai-labelled/i)).toHaveLength(1);
   });
 });

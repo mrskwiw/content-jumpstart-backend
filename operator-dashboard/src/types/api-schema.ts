@@ -7988,6 +7988,8 @@ export interface components {
             post_id?: string | null;
             /** Media Url */
             media_url?: string | null;
+            /** Ai Generated */
+            ai_generated?: boolean | null;
         };
         /** ScheduledPostOut */
         ScheduledPostOut: {
@@ -8017,6 +8019,13 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+            /** Ai Generated */
+            ai_generated?: boolean | null;
+            /**
+             * Will Disclose
+             * @default false
+             */
+            will_disclose: boolean;
         };
         /**
          * SearchHistoryResponse

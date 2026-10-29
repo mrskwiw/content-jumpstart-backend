@@ -29,6 +29,10 @@ export default function Queue() {
   // Optional per-client attribution (MULTICLIENT-01): tags the scheduled post with a
   // client so it rolls up in per-client analytics; empty = account-level / unattributed.
   const [clientId, setClientId] = useState('');
+  // COMPLIANCE-01: free-text posts declare whether they are AI-generated. Pre-ticked —
+  // the scheduler unticks it for genuinely human-written text. Ticked posts are published
+  // with the platform's AI label (native flag on TikTok/YouTube, a short text label elsewhere).
+  const [aiGenerated, setAiGenerated] = useState(true);
 
   const schedule = useMutation({
     mutationFn: () =>
@@ -38,6 +42,7 @@ export default function Queue() {
         scheduled_for: new Date(scheduledFor || Date.now()).toISOString(),
         media_url: mediaUrl || undefined,
         client_id: clientId || undefined,
+        ai_generated: aiGenerated,
       }),
     onSuccess: () => {
       setContent('');
@@ -45,6 +50,7 @@ export default function Queue() {
       // Reset the client too (like content/mediaUrl): a sticky selection would silently
       // misattribute the next post to the previous client. Re-select per post.
       setClientId('');
+      setAiGenerated(true); // back to the safe default for the next post
       qc.invalidateQueries({ queryKey: ['queue'] });
     },
   });
@@ -142,6 +148,21 @@ export default function Queue() {
                 required
               />
             </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={aiGenerated}
+                onChange={(e) => setAiGenerated(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">AI-generated</span>
+                <span className="block text-xs text-slate-500">
+                  Published with the platform&apos;s AI label. Untick only if you wrote this
+                  text yourself.
+                </span>
+              </span>
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-700 dark:text-slate-300">
                 Media URL (required for Instagram / TikTok / YouTube)
@@ -191,6 +212,7 @@ function QueueRow({ post, onPublish }: { post: ScheduledPost; onPublish: () => v
           <span className="text-xs text-slate-400">
             {new Date(post.scheduled_for).toLocaleString()}
           </span>
+          {post.will_disclose && <Badge variant="default">AI-labelled</Badge>}
         </div>
         <p className="mt-1 truncate text-sm text-slate-700 dark:text-slate-300">{post.content}</p>
         {post.error_message && (

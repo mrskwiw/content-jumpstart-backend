@@ -65,6 +65,10 @@ class ScheduleCreate(BaseModel):
     client_id: Optional[str] = None
     post_id: Optional[str] = None
     media_url: Optional[str] = None
+    # COMPLIANCE-01: the schedule-time "AI-generated" checkbox for FREE-TEXT posts.
+    # Omitted/None is treated as AI-generated. Ignored when post_id is set — those are
+    # decided by comparing the text to the post's AI draft.
+    ai_generated: Optional[bool] = None
     model_config = ConfigDict(extra="forbid")
 
 
@@ -83,14 +87,19 @@ class ScheduledPostOut(BaseModel):
     # is_active=False has exhausted retries — lets the calendar distinguish "will retry" from
     # "gave up" without reimplementing the retry policy. See Decision #220.
     is_active: bool = True
+    # COMPLIANCE-01: the stored free-text checkbox, and whether this post WILL be disclosed
+    # as AI-generated when published (server-computed; the rule lives in disclosure.py).
+    ai_generated: Optional[bool] = None
+    will_disclose: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
-def _post_out(sp: ScheduledPost) -> ScheduledPostOut:
+def _post_out(sp: ScheduledPost, db: Session) -> ScheduledPostOut:
     """Serialize a ScheduledPost, stamping the server-computed ``is_active`` (the retry policy
-    lives only in the orchestrator)."""
+    lives only in the orchestrator) and ``will_disclose`` (COMPLIANCE-01)."""
     out = ScheduledPostOut.model_validate(sp)
     out.is_active = orchestrator.scheduled_post_is_active(sp)
+    out.will_disclose = orchestrator._disclose(db, sp)
     return out
 
 
@@ -364,10 +373,11 @@ def schedule(
             client_id=body.client_id,
             post_id=body.post_id,
             media_url=body.media_url,
+            ai_generated=body.ai_generated,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return _post_out(sp)
+    return _post_out(sp, db)
 
 
 @router.get("/queue", response_model=List[ScheduledPostOut])
@@ -383,7 +393,7 @@ def list_queue(
     if project_id:
         q = q.filter(ScheduledPost.project_id == project_id)
     rows = q.order_by(ScheduledPost.scheduled_for.asc()).limit(200).all()
-    return [_post_out(sp) for sp in rows]
+    return [_post_out(sp, db) for sp in rows]
 
 
 @router.post("/publish/{scheduled_post_id}", response_model=ScheduledPostOut)
@@ -404,7 +414,7 @@ def publish_now(
         raise HTTPException(status_code=404, detail="Scheduled post not found")
     if sp.status == "posted":
         raise HTTPException(status_code=409, detail="Already posted")
-    return _post_out(orchestrator.publish_now(db, sp))
+    return _post_out(orchestrator.publish_now(db, sp), db)
 
 
 @router.post("/process-due")

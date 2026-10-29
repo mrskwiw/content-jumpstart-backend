@@ -18805,6 +18805,17 @@
               }
             ],
             "title": "Media Url"
+          },
+          "ai_generated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Generated"
           }
         },
         "additionalProperties": false,
@@ -18881,6 +18892,22 @@
             "type": "boolean",
             "title": "Is Active",
             "default": true
+          },
+          "ai_generated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Generated"
+          },
+          "will_disclose": {
+            "type": "boolean",
+            "title": "Will Disclose",
+            "default": false
           }
         },
         "type": "object",

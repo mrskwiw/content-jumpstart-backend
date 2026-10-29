@@ -22,6 +22,10 @@ export interface ScheduledPost {
   // Server-computed: whether the worker will still act on this post. A failed post with
   // is_active=false has exhausted its retries (retry cap or 24h window). See Decision #220.
   is_active: boolean;
+  // COMPLIANCE-01: the free-text "AI-generated" checkbox as stored (null = unanswered,
+  // treated as AI), and whether the post WILL be disclosed when published.
+  ai_generated?: boolean | null;
+  will_disclose: boolean;
 }
 
 export interface OAuthStatus {
@@ -78,7 +82,9 @@ export const distributionApi = {
     scheduled_for: string;
     project_id?: string;
     client_id?: string;
+    post_id?: string;
     media_url?: string;
+    ai_generated?: boolean; // COMPLIANCE-01: free-text posts only
   }): Promise<ScheduledPost> {
     const { data } = await apiClient.post<ScheduledPost>('/api/distribution/schedule', body);
     return data;
