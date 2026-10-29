@@ -1,5 +1,5 @@
 {
-  "current_version": 9,
+  "current_version": 10,
   "version_migrations": {
     "1": {
       "description": "Add file_size_bytes to deliverables table",
@@ -187,6 +187,29 @@
             "type": "BOOLEAN",
             "nullable": false,
             "default": false
+          }
+        ]
+      }
+    },
+    "10": {
+      "description": "COMPLIANCE-01 (AI-content disclosure): posts.ai_draft_content snapshots the AI draft at generation so an unedited draft can be disclosed at publish time; scheduled_posts.ai_generated is the schedule-time checkbox for free-text posts (NULL = treated as AI-generated). Both nullable; NULL draft on pre-v10 posts means unedited (disclosed).",
+      "posts": {
+        "add_columns": [
+          {
+            "name": "ai_draft_content",
+            "type": "TEXT",
+            "nullable": true,
+            "default": null
+          }
+        ]
+      },
+      "scheduled_posts": {
+        "add_columns": [
+          {
+            "name": "ai_generated",
+            "type": "BOOLEAN",
+            "nullable": true,
+            "default": null
           }
         ]
       }

@@ -54,6 +54,12 @@ class Post(Base, SoftDeleteMixin):
     # Placeholder posts are excluded from exports and deliverables.
     is_placeholder = Column(Boolean, nullable=True, default=False)
 
+    # COMPLIANCE-01: snapshot of the AI draft as generated (set at generation and
+    # regeneration, never by user edits). A post published still identical to it —
+    # after normalising whitespace and case — is disclosed as AI-generated; an edited
+    # one is not. NULL on posts created before this column (treated as unedited).
+    ai_draft_content = Column(Text, nullable=True)
+
     # Relationships (using fully qualified paths to avoid conflicts with Pydantic models in src.models)
     project = relationship("backend.models.project.Project", back_populates="posts")
     run = relationship("backend.models.run.Run", back_populates="posts")

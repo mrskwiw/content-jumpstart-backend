@@ -506,6 +506,7 @@ def init_db():
                 ("cache_read_tokens", "INTEGER"),
                 ("cost_usd", "REAL"),
                 ("twitter_share_copy", "VARCHAR"),
+                ("ai_draft_content", "TEXT"),  # COMPLIANCE-01 (schema v10)
             ]
 
             for col_name, col_type in new_post_columns:
@@ -534,6 +535,27 @@ def init_db():
                         print(f">> Migration for {col_name} completed successfully")
                     except Exception as e:
                         print(f">> Migration for {col_name} failed: {e}")
+
+        # COMPLIANCE-01 (schema v10): schedule-time "AI-generated" checkbox for
+        # free-text posts. Additive + nullable, so every instance gets it on its next
+        # boot without a manual step (the ALTER path BUGS #239 showed is mandatory).
+        if "scheduled_posts" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("scheduled_posts")]
+            for col_name, col_type in (("ai_generated", "BOOLEAN"),):
+                if col_name in columns:
+                    continue
+                print(f">> Running migration: Adding {col_name} column to scheduled_posts table")
+                try:
+                    from sqlalchemy.sql import quoted_name
+
+                    safe_col_name = quoted_name(col_name, quote=True)
+                    conn.execute(
+                        text(f"ALTER TABLE scheduled_posts ADD COLUMN {safe_col_name} {col_type}")
+                    )
+                    conn.commit()
+                    print(f">> Migration for {col_name} completed successfully")
+                except Exception as e:
+                    print(f">> Migration for {col_name} failed: {e}")
 
         if "research_results" in inspector.get_table_names():
             columns = [col["name"] for col in inspector.get_columns("research_results")]

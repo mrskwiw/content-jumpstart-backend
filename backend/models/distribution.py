@@ -84,6 +84,10 @@ class ScheduledPost(Base):
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # COMPLIANCE-01: the schedule-time "AI-generated" checkbox for FREE-TEXT posts
+    # (no post_id). NULL is treated as True (conservative). Ignored when post_id is
+    # set — those are decided by comparing the content to the post's AI draft.
+    ai_generated = Column(Boolean, nullable=True)
 
 
 class PostedContent(Base):
