@@ -68,16 +68,33 @@ def _publishable_content(sp: ScheduledPost, *, disclose: bool = False) -> str:
     return content
 
 
+def _accessible_post(db: Session, user_id: str, post_id: Optional[str]):
+    """The linked Post if ``user_id`` may access it (team-aware), else None.
+
+    ``post_id`` comes from the scheduling request, so it must never be trusted: judging
+    one tenant's text against another tenant's draft would let it pass as "edited" and
+    go out undisclosed (COMPLIANCE-01).
+    """
+    if not post_id:
+        return None
+    from backend.middleware.authorization import filter_user_posts
+    from backend.models import User
+    from backend.models.post import Post
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        return None
+    return filter_user_posts(db, user).filter(Post.id == post_id).first()
+
+
 def _disclose(db: Session, sp: ScheduledPost) -> bool:
     """COMPLIANCE-01: must this post be disclosed as AI-generated? (disclosure.py rules)
 
-    A linked post is judged against its AI draft snapshot; if the linked post no longer
-    exists, the free-text checkbox decides.
+    A linked post is judged against its AI draft snapshot. A link that is missing or no
+    longer accessible falls back to the free-text checkbox (None ⇒ AI ⇒ disclosed),
+    never to "edited".
     """
-    from backend.models.post import Post
-
-    post = db.query(Post).filter(Post.id == sp.post_id).first() if sp.post_id else None
-    return disclosure.needs_disclosure(sp, post)
+    return disclosure.needs_disclosure(sp, _accessible_post(db, sp.user_id, sp.post_id))
 
 
 def _gate_compliance(platform: str, content: str) -> None:
@@ -226,6 +243,9 @@ def schedule_post(
     # Validate a media-asset reference up front so a bad/unowned id fails fast (400)
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)
+    # COMPLIANCE-01: a linked post must be one this user can access (400 otherwise).
+    if post_id and _accessible_post(db, user_id, post_id) is None:
+        raise ValueError(f"Post {post_id} not found or not accessible")
     sp = ScheduledPost(
         id=_uuid(),
         user_id=user_id,

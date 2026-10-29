@@ -429,21 +429,6 @@ def test_save_credential_new_gets_default_display_name(db_session):
 # elsewhere; generated media always; free text follows the schedule-time checkbox.
 
 
-def _linked_post(db, *, content, draft):
-    from backend.models.post import Post
-
-    post = Post(
-        id=f"post-{abs(hash(content)) % 10**8}",
-        project_id="proj-c01",
-        run_id="run-c01",
-        content=content,
-        ai_draft_content=draft,
-    )
-    db.add(post)
-    db.commit()
-    return post
-
-
 def _spy_publish(monkeypatch):
     from backend.services.distribution import orchestrator
     from backend.services.distribution.publishers import PublishResult
@@ -485,7 +470,9 @@ def test_unedited_ai_draft_is_published_with_the_label(db_session, monkeypatch):
 
     calls = _spy_publish(monkeypatch)
     u = _make_user(db_session, "c01-a@example.com", "user-c01a")
-    post = _linked_post(db_session, content="Ship notes.", draft="Ship  notes.")
+    post = _owned_linked_post(
+        db_session, u.id, content="Ship notes.", draft="Ship  notes.", pid="post-c01-a"
+    )
     sp = _scheduled(db_session, u.id, content="ship notes.", post_id=post.id)
 
     assert orchestrator._publish(db_session, sp).status == "posted"
@@ -499,7 +486,9 @@ def test_edited_post_is_published_without_the_label(db_session, monkeypatch):
 
     calls = _spy_publish(monkeypatch)
     u = _make_user(db_session, "c01-b@example.com", "user-c01b")
-    post = _linked_post(db_session, content="AI draft text.", draft="AI draft text.")
+    post = _owned_linked_post(
+        db_session, u.id, content="AI draft text.", draft="AI draft text.", pid="post-c01-b"
+    )
     sp = _scheduled(db_session, u.id, content="My own rewrite of it.", post_id=post.id)
 
     assert orchestrator._publish(db_session, sp).status == "posted"
@@ -534,3 +523,64 @@ def test_schedule_time_gate_counts_the_label(db_session):
     # Declared human-written: no label, so it fits.
     sp = orchestrator.schedule_post(db_session, u.id, "twitter", body, when, ai_generated=False)
     assert sp.ai_generated is False
+
+
+def _owned_linked_post(db, owner_id, *, content, draft, pid):
+    """A post inside a project owned by owner_id (posts are owned via their project)."""
+    from backend.models import Client, Project
+    from backend.models.post import Post
+
+    db.add(Client(id=f"cl-{pid}", user_id=owner_id, name="C"))
+    db.add(
+        Project(
+            id=f"pr-{pid}",
+            user_id=owner_id,
+            client_id=f"cl-{pid}",
+            name="P",
+            templates=["1"],
+            template_quantities={"1": 1},
+            num_posts=1,
+            status="active",
+        )
+    )
+    post = Post(
+        id=pid, project_id=f"pr-{pid}", run_id="run-x", content=content, ai_draft_content=draft
+    )
+    db.add(post)
+    db.commit()
+    return post
+
+
+def test_cannot_schedule_against_someone_elses_post(db_session):
+    """Codex review of 07ffb79: post_id was used without an ownership check, so a user
+    could link another tenant's post and have their text judged against its draft."""
+    from datetime import datetime, timezone
+
+    import pytest
+
+    from backend.services.distribution import orchestrator
+
+    owner = _make_user(db_session, "c01-own@example.com", "user-c01own")
+    other = _make_user(db_session, "c01-oth@example.com", "user-c01oth")
+    theirs = _owned_linked_post(db_session, owner.id, content="d", draft="d", pid="post-c01-x")
+    with pytest.raises(ValueError, match="not found"):
+        orchestrator.schedule_post(
+            db_session,
+            other.id,
+            "stub",
+            "my text",
+            datetime(2030, 1, 1, tzinfo=timezone.utc),
+            post_id=theirs.id,
+        )
+
+
+def test_inaccessible_linked_post_is_treated_as_unlinked(db_session):
+    # Defence in depth at publish time: a link that is no longer accessible falls back
+    # to the free-text checkbox (None ⇒ AI ⇒ disclosed), never to "edited".
+    from backend.services.distribution import orchestrator
+
+    owner = _make_user(db_session, "c01-o2@example.com", "user-c01o2")
+    other = _make_user(db_session, "c01-t2@example.com", "user-c01t2")
+    _owned_linked_post(db_session, owner.id, content="d", draft="their draft", pid="post-c01-y")
+    sp = _scheduled(db_session, other.id, content="totally different text", post_id="post-c01-y")
+    assert orchestrator._disclose(db_session, sp) is True
