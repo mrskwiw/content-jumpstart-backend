@@ -307,7 +307,7 @@ def test_publish_sends_utm_tagged_content_when_enabled(db_session, monkeypatch):
     captured = {}
 
     class _Spy:
-        def publish(self, content, media_url=None):
+        def publish(self, content, media_url=None, **kwargs):
             captured["content"] = content
             return PublishResult(success=True, platform_post_id="p1", platform_url="https://x/1")
 
@@ -421,3 +421,116 @@ def test_save_credential_new_gets_default_display_name(db_session):
     u = _make_user(db_session, "dist-defname@example.com", "user-distdefname")
     c = orchestrator.save_credential(db_session, u.id, "linkedin", "tok")
     assert c.display_name == "linkedin account"
+
+
+# ---- COMPLIANCE-01: AI-content disclosure at publish time --------------------------
+# Decisions 2026-10-28 (docs/explore-compliance-01.md v1.1): an unedited AI draft is
+# disclosed, an edited post is not; native API flag on tiktok/youtube, visible label
+# elsewhere; generated media always; free text follows the schedule-time checkbox.
+
+
+def _linked_post(db, *, content, draft):
+    from backend.models.post import Post
+
+    post = Post(
+        id=f"post-{abs(hash(content)) % 10**8}",
+        project_id="proj-c01",
+        run_id="run-c01",
+        content=content,
+        ai_draft_content=draft,
+    )
+    db.add(post)
+    db.commit()
+    return post
+
+
+def _spy_publish(monkeypatch):
+    from backend.services.distribution import orchestrator
+    from backend.services.distribution.publishers import PublishResult
+
+    calls = []
+
+    class _Spy:
+        def publish(self, content, media_url=None, *, ai_generated=False):
+            calls.append({"content": content, "ai_generated": ai_generated})
+            return PublishResult(success=True, platform_post_id="p1", platform_url="https://x/1")
+
+    monkeypatch.setattr(orchestrator, "get_publisher", lambda *a, **k: _Spy())
+    return calls
+
+
+def _scheduled(db, uid, *, content, post_id=None, ai_generated=None, platform="stub"):
+    from datetime import datetime, timezone
+
+    from backend.models.distribution import ScheduledPost
+
+    sp = ScheduledPost(
+        id=f"sp-c01-{abs(hash((content, post_id, ai_generated))) % 10**8}",
+        user_id=uid,
+        post_id=post_id,
+        platform=platform,
+        content=content,
+        ai_generated=ai_generated,
+        scheduled_for=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        status="pending",
+        retry_count=0,
+    )
+    db.add(sp)
+    db.commit()
+    return sp
+
+
+def test_unedited_ai_draft_is_published_with_the_label(db_session, monkeypatch):
+    from backend.services.distribution import orchestrator
+
+    calls = _spy_publish(monkeypatch)
+    u = _make_user(db_session, "c01-a@example.com", "user-c01a")
+    post = _linked_post(db_session, content="Ship notes.", draft="Ship  notes.")
+    sp = _scheduled(db_session, u.id, content="ship notes.", post_id=post.id)
+
+    assert orchestrator._publish(db_session, sp).status == "posted"
+    assert calls[0]["ai_generated"] is True
+    assert calls[0]["content"] == "ship notes.\n\nDrafted with AI"
+    assert sp.content == "ship notes."  # the stored text is never rewritten
+
+
+def test_edited_post_is_published_without_the_label(db_session, monkeypatch):
+    from backend.services.distribution import orchestrator
+
+    calls = _spy_publish(monkeypatch)
+    u = _make_user(db_session, "c01-b@example.com", "user-c01b")
+    post = _linked_post(db_session, content="AI draft text.", draft="AI draft text.")
+    sp = _scheduled(db_session, u.id, content="My own rewrite of it.", post_id=post.id)
+
+    assert orchestrator._publish(db_session, sp).status == "posted"
+    assert calls[0] == {"content": "My own rewrite of it.", "ai_generated": False}
+
+
+def test_free_text_unticked_is_published_unlabelled(db_session, monkeypatch):
+    from backend.services.distribution import orchestrator
+
+    calls = _spy_publish(monkeypatch)
+    u = _make_user(db_session, "c01-c@example.com", "user-c01c")
+    sp = _scheduled(db_session, u.id, content="Written by me.", ai_generated=False)
+
+    orchestrator._publish(db_session, sp)
+    assert calls[0] == {"content": "Written by me.", "ai_generated": False}
+
+
+def test_schedule_time_gate_counts_the_label(db_session):
+    """A free-text X post that only exceeds 280 once labelled is rejected at schedule
+    time, not left to fail in the worker."""
+    from datetime import datetime, timezone
+
+    import pytest
+
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "c01-d@example.com", "user-c01d")
+    body = "x" * 270  # fits 280 alone; the appended label pushes it past
+    when = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    with pytest.raises(ValueError):
+        orchestrator.schedule_post(db_session, u.id, "twitter", body, when)
+    # Declared human-written: no label, so it fits.
+    sp = orchestrator.schedule_post(db_session, u.id, "twitter", body, when, ai_generated=False)
+    assert sp.ai_generated is False

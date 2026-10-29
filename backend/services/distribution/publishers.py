@@ -49,8 +49,14 @@ class BasePublisher:
         self.account_ref = account_ref
 
     def publish(
-        self, content: str, media_url: Optional[str] = None
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
     ) -> PublishResult:  # pragma: no cover
+        """Publish ``content``.
+
+        ``ai_generated`` (COMPLIANCE-01) asks the platform's NATIVE AI-content flag to be
+        set where its API has one (TikTok, YouTube). Platforms without one ignore it; their
+        visible label is already in ``content`` (distribution/disclosure.py).
+        """
         raise NotImplementedError
 
     def verify(self) -> PublishResult:
@@ -69,7 +75,9 @@ class StubPublisher(BasePublisher):
 
     platform = "stub"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import hashlib
 
         digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
@@ -87,7 +95,9 @@ class NotImplementedPublisher(BasePublisher):
         super().__init__(*a, **kw)
         self.platform = platform
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         return PublishResult(
             success=False,
             error=(
@@ -108,7 +118,9 @@ class LinkedInPublisher(BasePublisher):
     platform = "linkedin"
     BASE_URL = "https://api.linkedin.com/v2"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         try:
@@ -172,7 +184,9 @@ class TwitterPublisher(BasePublisher):
 
     platform = "twitter"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         try:
@@ -206,7 +220,9 @@ class FacebookPublisher(BasePublisher):
     platform = "facebook"
     GRAPH = "https://graph.facebook.com/v19.0"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         if not self.account_ref:
@@ -248,7 +264,9 @@ class InstagramPublisher(BasePublisher):
     platform = "instagram"
     GRAPH = "https://graph.facebook.com/v19.0"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         if not self.account_ref:
@@ -308,7 +326,9 @@ class TikTokPublisher(BasePublisher):
     platform = "tiktok"
     INIT = "https://open.tiktokapis.com/v2/post/publish/video/init/"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         if not media_url:
@@ -323,7 +343,12 @@ class TikTokPublisher(BasePublisher):
                     "Content-Type": "application/json; charset=UTF-8",
                 },
                 json={
-                    "post_info": {"title": content[:150], "privacy_level": "SELF_ONLY"},
+                    "post_info": {
+                        "title": content[:150],
+                        "privacy_level": "SELF_ONLY",
+                        # COMPLIANCE-01: TikTok's native "AI-generated" label.
+                        "is_aigc": ai_generated,
+                    },
                     "source_info": {"source": "PULL_FROM_URL", "video_url": media_url},
                 },
                 timeout=_HTTP_TIMEOUT,
@@ -350,7 +375,9 @@ class YouTubePublisher(BasePublisher):
     platform = "youtube"
     UPLOAD = "https://www.googleapis.com/upload/youtube/v3/videos"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import json as _json
 
         import requests
@@ -363,7 +390,11 @@ class YouTubePublisher(BasePublisher):
             title = (content.splitlines()[0] if content else "Untitled")[:95]
             metadata = {
                 "snippet": {"title": title, "description": content},
-                "status": {"privacyStatus": "private"},
+                "status": {
+                    "privacyStatus": "private",
+                    # COMPLIANCE-01: YouTube's native altered/synthetic-content disclosure.
+                    "containsSyntheticMedia": ai_generated,
+                },
             }
             # 1) Open a resumable session.
             init = requests.post(
@@ -511,7 +542,9 @@ class BlueskyPublisher(BasePublisher):
                 success=False, retryable=True, error=f"Bluesky verify network error: {e}"
             )
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
         from datetime import datetime, timezone
 
@@ -567,7 +600,9 @@ class ThreadsPublisher(BasePublisher):
     platform = "threads"
     GRAPH = "https://graph.threads.net/v1.0"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         if not self.account_ref:
@@ -622,7 +657,9 @@ class PinterestPublisher(BasePublisher):
     platform = "pinterest"
     BASE_URL = "https://api.pinterest.com/v5"
 
-    def publish(self, content: str, media_url: Optional[str] = None) -> PublishResult:
+    def publish(
+        self, content: str, media_url: Optional[str] = None, *, ai_generated: bool = False
+    ) -> PublishResult:
         import requests
 
         if not self.account_ref:

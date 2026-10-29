@@ -25,6 +25,7 @@ from backend.models.distribution import (
     PostedContent,
     ScheduledPost,
 )
+from backend.services.distribution import disclosure
 from backend.services.distribution.oauth import ensure_fresh_token
 from backend.services.distribution.publishers import dry_run_enabled, get_publisher
 from backend.services.platform_compliance import check_compliance
@@ -46,16 +47,37 @@ def _utm_tagging_enabled() -> bool:
     return os.getenv("DISTRIBUTION_UTM_TAGGING", "").strip().lower() in ("1", "true", "yes")
 
 
-def _publishable_content(sp: ScheduledPost) -> str:
-    """The exact text that will be sent to the platform (UTM-tagged when enabled)."""
-    if not _utm_tagging_enabled():
-        return sp.content
-    return tag_urls_in_text(
-        sp.content,
-        source=sp.platform,
-        campaign=(sp.project_id or sp.id),
-        medium="social",
-    )
+def _publishable_content(sp: ScheduledPost, *, disclose: bool = False) -> str:
+    """The exact text that will be sent to the platform.
+
+    UTM-tagged when enabled, then — when ``disclose`` (COMPLIANCE-01) — the visible
+    AI label appended on platforms without a native AI flag. Both the schedule-time
+    gate and the publish call use this, so a label that pushes a post over a platform
+    limit is rejected at schedule time. The stored ``sp.content`` is never rewritten.
+    """
+    content = sp.content
+    if _utm_tagging_enabled():
+        content = tag_urls_in_text(
+            content,
+            source=sp.platform,
+            campaign=(sp.project_id or sp.id),
+            medium="social",
+        )
+    if disclose:
+        content = disclosure.with_text_label(content, sp.platform)
+    return content
+
+
+def _disclose(db: Session, sp: ScheduledPost) -> bool:
+    """COMPLIANCE-01: must this post be disclosed as AI-generated? (disclosure.py rules)
+
+    A linked post is judged against its AI draft snapshot; if the linked post no longer
+    exists, the free-text checkbox decides.
+    """
+    from backend.models.post import Post
+
+    post = db.query(Post).filter(Post.id == sp.post_id).first() if sp.post_id else None
+    return disclosure.needs_disclosure(sp, post)
 
 
 def _gate_compliance(platform: str, content: str) -> None:
@@ -197,6 +219,7 @@ def schedule_post(
     client_id: Optional[str] = None,
     post_id: Optional[str] = None,
     media_url: Optional[str] = None,
+    ai_generated: Optional[bool] = None,
 ) -> ScheduledPost:
     if platform not in SUPPORTED_PLATFORMS:
         raise ValueError(f"Unsupported platform: {platform}")
@@ -215,12 +238,13 @@ def schedule_post(
         scheduled_for=scheduled_for,
         status="pending",
         retry_count=0,
+        ai_generated=ai_generated,
     )
     # Gate the EXACT payload that will be published — the UTM-tagged content when
     # tagging is enabled — so a post that passes here also passes at publish time.
     # Otherwise tagging could push a borderline post over the char limit and turn a
     # valid scheduled post into a silent publish-time failure.
-    _gate_compliance(platform, _publishable_content(sp))
+    _gate_compliance(platform, _publishable_content(sp, disclose=_disclose(db, sp)))
     db.add(sp)
     db.commit()
     db.refresh(sp)
@@ -273,7 +297,8 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
     # Resolve the exact payload first (UTM tagging adds characters), then gate THAT —
     # a tweet near 280 chars could tip over once links are tagged, so the gate must
     # see what is actually sent, not the authored text.
-    content_to_publish = _publishable_content(sp)
+    disclose = _disclose(db, sp)  # COMPLIANCE-01, decided on the text actually sent
+    content_to_publish = _publishable_content(sp, disclose=disclose)
 
     # Compliance gate — this is the single choke point every publish path flows
     # through (worker process_due + publish_now), so it catches content that never
@@ -318,7 +343,7 @@ def _publish(db: Session, sp: ScheduledPost) -> ScheduledPost:
         db.commit()
         return sp
 
-    result = publisher.publish(content_to_publish, media_url)
+    result = publisher.publish(content_to_publish, media_url, ai_generated=disclose)
 
     if result.success:
         sp.status = "posted"
