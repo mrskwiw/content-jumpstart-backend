@@ -101,3 +101,43 @@ def test_readability_returns_a_rounded_float():
     )
     assert isinstance(score, float)
     assert round(score, 1) == score  # rounded to one decimal
+
+
+# ---- COMPLIANCE-01: AI draft snapshot -------------------------------------------
+
+
+def test_set_ai_draft_sets_content_and_snapshot_together():
+    from backend.models.post import Post
+    from backend.services.generator_service import _set_ai_draft
+
+    post = Post(id="p1", project_id="proj", run_id="run", content="old")
+    _set_ai_draft(post, "Fresh AI draft.")
+    assert post.content == "Fresh AI draft."
+    assert post.ai_draft_content == "Fresh AI draft."
+
+
+def test_regeneration_replaces_the_snapshot():
+    # A regenerated post is compared against its NEW draft, not the one it replaced.
+    from backend.models.post import Post
+    from backend.services.generator_service import _set_ai_draft
+
+    post = Post(id="p1", project_id="proj", run_id="run", content="v1", ai_draft_content="v1")
+    post.content = "v1 edited by a human"
+    _set_ai_draft(post, "v2 from regeneration")
+    assert post.ai_draft_content == "v2 from regeneration"
+    assert post.content == "v2 from regeneration"
+
+
+def test_both_generation_sites_use_the_snapshot_helper():
+    """Every place generation writes AI output into a post must snapshot it — a site
+    that sets `content` directly would leave a stale or missing draft."""
+    import inspect
+
+    from backend.services import generator_service as gs
+
+    for fn in (
+        gs.GeneratorService._generate_with_template_quantities,
+        gs.GeneratorService.regenerate_posts,
+    ):
+        src = inspect.getsource(fn)
+        assert "_set_ai_draft(" in src, f"{fn.__name__} writes AI content without a snapshot"

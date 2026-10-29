@@ -75,6 +75,18 @@ def _check_batch_consistency(posts: list) -> List[str]:
     return warnings
 
 
+def _set_ai_draft(post: Post, content: str) -> None:
+    """Write AI-generated text into a post AND snapshot it as the AI draft.
+
+    COMPLIANCE-01: at publish time a post still identical to its AI draft (after
+    normalising whitespace and case) is disclosed as AI-generated; an edited one is
+    not. Every generation/regeneration site must go through here so the snapshot is
+    always the latest AI output — user edits (routers/posts.py) never touch it.
+    """
+    post.content = content
+    post.ai_draft_content = content
+
+
 def _calculate_readability(content: str) -> float:
     """Flesch Reading Ease score (0–100) for a post."""
     words = len(content.split())
@@ -349,7 +361,7 @@ class GeneratorService:
                         # preserved so the export query finds all posts via the
                         # original generation run (partial regen would otherwise
                         # leave a mixed-run_id set that exports incompletely).
-                        original_post.content = new_post.content
+                        _set_ai_draft(original_post, new_post.content)
                         original_post.word_count = new_post.word_count
                         original_post.has_cta = new_post.has_cta
                         original_post.status = "approved"  # Reset status after regeneration
@@ -650,6 +662,7 @@ class GeneratorService:
                         created_at=datetime.utcnow(),
                         twitter_share_copy=getattr(post, "twitter_share_copy", None),
                     )
+                    _set_ai_draft(db_post, post.content)  # COMPLIANCE-01 draft snapshot
                     db.add(db_post)
                     posts_created += 1
                     if is_placeholder:
