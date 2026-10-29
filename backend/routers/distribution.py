@@ -94,12 +94,15 @@ class ScheduledPostOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def _post_out(sp: ScheduledPost, db: Session) -> ScheduledPostOut:
+def _post_out(
+    sp: ScheduledPost, db: Session, will_disclose: Optional[bool] = None
+) -> ScheduledPostOut:
     """Serialize a ScheduledPost, stamping the server-computed ``is_active`` (the retry policy
-    lives only in the orchestrator) and ``will_disclose`` (COMPLIANCE-01)."""
+    lives only in the orchestrator) and ``will_disclose`` (COMPLIANCE-01). List endpoints pass
+    ``will_disclose`` precomputed in bulk (orchestrator.disclosure_for_many) to avoid N+1."""
     out = ScheduledPostOut.model_validate(sp)
     out.is_active = orchestrator.scheduled_post_is_active(sp)
-    out.will_disclose = orchestrator._disclose(db, sp)
+    out.will_disclose = orchestrator._disclose(db, sp) if will_disclose is None else will_disclose
     return out
 
 
@@ -393,7 +396,8 @@ def list_queue(
     if project_id:
         q = q.filter(ScheduledPost.project_id == project_id)
     rows = q.order_by(ScheduledPost.scheduled_for.asc()).limit(200).all()
-    return [_post_out(sp, db) for sp in rows]
+    disclose = orchestrator.disclosure_for_many(db, current_user.id, rows)
+    return [_post_out(sp, db, disclose[sp.id]) for sp in rows]
 
 
 @router.post("/publish/{scheduled_post_id}", response_model=ScheduledPostOut)

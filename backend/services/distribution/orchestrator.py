@@ -87,6 +87,28 @@ def _accessible_post(db: Session, user_id: str, post_id: Optional[str]):
     return filter_user_posts(db, user).filter(Post.id == post_id).first()
 
 
+def disclosure_for_many(db: Session, user_id: str, rows: list[ScheduledPost]) -> dict[str, bool]:
+    """``needs_disclosure`` for many of one user's scheduled posts, in O(1) queries.
+
+    Same rule and the same team-aware access check as ``_disclose`` — the user is loaded
+    once and every linked post in one ``IN`` query — so a list endpoint doesn't run two
+    queries per row.
+    """
+    from backend.middleware.authorization import filter_user_posts
+    from backend.models import User
+    from backend.models.post import Post
+
+    post_ids = {sp.post_id for sp in rows if sp.post_id}
+    posts: dict = {}
+    if post_ids:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is not None:
+            posts = {
+                p.id: p for p in filter_user_posts(db, user).filter(Post.id.in_(post_ids)).all()
+            }
+    return {sp.id: disclosure.needs_disclosure(sp, posts.get(sp.post_id)) for sp in rows}
+
+
 def _disclose(db: Session, sp: ScheduledPost) -> bool:
     """COMPLIANCE-01: must this post be disclosed as AI-generated? (disclosure.py rules)
 

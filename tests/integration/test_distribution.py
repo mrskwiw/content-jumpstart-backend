@@ -627,3 +627,41 @@ def test_schedule_api_rejects_someone_elses_post_id(client, db_session):
         headers=_hdr(other),
     )
     assert r.status_code == 400
+
+
+def test_queue_computes_disclosure_without_n_plus_1_queries(client, db_session):
+    """Codex review of 3b01eb4: will_disclose ran a user + post query per row (up to 200
+    rows). The number of post/user lookups must not grow with the queue length."""
+    from sqlalchemy import event
+
+    u = _make_user(db_session, "c01-n1@example.com", "user-c01n1")
+    engine = db_session.get_bind()
+
+    def lookups_for_queue():
+        statements = []
+
+        def _count(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", _count)
+        try:
+            rows = client.get("/api/distribution/queue", headers=_hdr(u)).json()
+        finally:
+            event.remove(engine, "before_cursor_execute", _count)
+        assert all(r["will_disclose"] for r in rows)
+        return len(rows), len([s for s in statements if "FROM posts" in s or "FROM users" in s])
+
+    def add_linked(i):
+        post = _owned_linked_post(
+            db_session, u.id, content=f"d{i}", draft=f"d{i}", pid=f"post-n1-{i}"
+        )
+        _scheduled(db_session, u.id, content=f"d{i}", post_id=post.id)
+
+    add_linked(0)
+    one_row, lookups_one = lookups_for_queue()
+    for i in range(1, 6):
+        add_linked(i)
+    six_rows, lookups_six = lookups_for_queue()
+
+    assert (one_row, six_rows) == (1, 6)
+    assert lookups_six == lookups_one, f"lookups grew {lookups_one} -> {lookups_six}"
