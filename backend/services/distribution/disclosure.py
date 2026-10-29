@@ -51,13 +51,17 @@ def needs_disclosure(sp: Any, post: Optional[Any]) -> bool:
 
     Args:
         sp: the ScheduledPost (uses ``content``, ``media_url``, ``ai_generated``).
-        post: the linked Post (``ai_draft_content``), or None for free text or when
-            the linked post no longer exists.
+        post: the linked Post (``ai_draft_content``), or None — for free text, or when
+            a linked post is missing/inaccessible (then always disclosed).
     """
     if (sp.media_url or "").startswith(_GENERATED_MEDIA_PREFIX):
         return True  # D3
     if post is not None:
         return is_unedited_draft(sp.content, post.ai_draft_content)  # D1/D2
+    if sp.post_id:
+        # Linked, but the post is gone or no longer accessible: there's no draft to
+        # compare against, and the checkbox is for free text only — disclose.
+        return True
     return sp.ai_generated is not False  # D5 — None (unanswered) counts as AI
 
 

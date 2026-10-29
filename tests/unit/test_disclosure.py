@@ -83,8 +83,11 @@ def test_linked_post_ignores_the_free_text_checkbox():
     assert d.needs_disclosure(_sp("draft", post_id="p", ai_generated=False), _post("draft")) is True
 
 
-def test_post_id_whose_post_is_gone_falls_back_to_the_checkbox():
-    assert d.needs_disclosure(_sp("x", post_id="deleted", ai_generated=False), None) is False
+def test_linked_post_that_is_gone_is_always_disclosed():
+    # Codex review of 21ad00e: the free-text checkbox applies to free text only. A post
+    # scheduled against a draft that later vanished (deleted / access revoked) must not
+    # fall back to an "unticked" box and go out undisclosed.
+    assert d.needs_disclosure(_sp("x", post_id="deleted", ai_generated=False), None) is True
     assert d.needs_disclosure(_sp("x", post_id="deleted", ai_generated=None), None) is True
 
 

@@ -91,8 +91,8 @@ def _disclose(db: Session, sp: ScheduledPost) -> bool:
     """COMPLIANCE-01: must this post be disclosed as AI-generated? (disclosure.py rules)
 
     A linked post is judged against its AI draft snapshot. A link that is missing or no
-    longer accessible falls back to the free-text checkbox (None ⇒ AI ⇒ disclosed),
-    never to "edited".
+    longer accessible is always disclosed — never treated as "edited", and the free-text
+    checkbox doesn't apply to it.
     """
     return disclosure.needs_disclosure(sp, _accessible_post(db, sp.user_id, sp.post_id))
 
