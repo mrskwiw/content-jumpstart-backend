@@ -665,3 +665,56 @@ def test_queue_computes_disclosure_without_n_plus_1_queries(client, db_session):
 
     assert (one_row, six_rows) == (1, 6)
     assert lookups_six == lookups_one, f"lookups grew {lookups_one} -> {lookups_six}"
+
+
+def test_regenerating_after_scheduling_still_discloses_the_queued_draft(db_session, monkeypatch):
+    """Counterexample found in integration verification: schedule an unedited draft,
+    regenerate the post (snapshot moves to v2), publish — the queued v1 must still be
+    disclosed, because it is still pure AI text."""
+    from datetime import datetime, timezone
+
+    from backend.services.distribution import orchestrator
+    from backend.services.generator_service import _set_ai_draft
+
+    calls = _spy_publish(monkeypatch)
+    u = _make_user(db_session, "c01-regen@example.com", "user-c01regen")
+    post = _owned_linked_post(
+        db_session, u.id, content="Draft v1.", draft="Draft v1.", pid="post-c01-r"
+    )
+    sp = orchestrator.schedule_post(
+        db_session,
+        u.id,
+        "stub",  # no credential needed; not a native-flag platform, so labelled
+        "Draft v1.",
+        datetime(2030, 1, 1, tzinfo=timezone.utc),
+        post_id=post.id,
+    )
+    assert sp.ai_generated is True  # verdict recorded at schedule time
+
+    _set_ai_draft(post, "Draft v2 after regeneration.")
+    db_session.commit()
+
+    orchestrator._publish(db_session, sp)
+    assert calls[0]["ai_generated"] is True
+    assert calls[0]["content"].endswith("Drafted with AI")
+
+
+def test_scheduling_an_edited_linked_post_records_not_ai(db_session):
+    from datetime import datetime, timezone
+
+    from backend.services.distribution import orchestrator
+
+    u = _make_user(db_session, "c01-ed@example.com", "user-c01ed")
+    post = _owned_linked_post(
+        db_session, u.id, content="AI text.", draft="AI text.", pid="post-c01-e"
+    )
+    sp = orchestrator.schedule_post(
+        db_session,
+        u.id,
+        "linkedin",
+        "My edited version.",
+        datetime(2030, 1, 1, tzinfo=timezone.utc),
+        post_id=post.id,
+        ai_generated=True,  # request value is ignored for linked posts
+    )
+    assert sp.ai_generated is False

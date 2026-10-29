@@ -143,3 +143,17 @@ def test_blank_label_setting_falls_back_to_the_default(monkeypatch):
 def test_label_is_not_appended_twice():
     once = d.with_text_label("Body", "linkedin")
     assert d.with_text_label(once, "linkedin") == once
+
+
+def test_schedule_time_verdict_survives_a_later_regeneration():
+    # Integration verification (semi-formal, 2026-10-29): sp.content is immutable after
+    # scheduling, but regeneration moves the post's snapshot to a NEW draft. A post
+    # scheduled as an unedited draft records that verdict in sp.ai_generated; it must
+    # still be disclosed even though its text no longer matches the current draft.
+    sp = _sp("old AI draft v1", post_id="p", ai_generated=True)
+    assert d.needs_disclosure(sp, _post("regenerated draft v2")) is True
+
+
+def test_linked_post_without_a_recorded_verdict_uses_the_current_draft():
+    sp = _sp("my rewrite", post_id="p", ai_generated=None)  # scheduled before v10
+    assert d.needs_disclosure(sp, _post("AI draft")) is False

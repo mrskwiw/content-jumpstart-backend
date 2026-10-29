@@ -266,8 +266,14 @@ def schedule_post(
     # at schedule time, not silently as a delayed worker failure.
     _owned_media_asset(db, user_id, media_url)
     # COMPLIANCE-01: a linked post must be one this user can access (400 otherwise).
-    if post_id and _accessible_post(db, user_id, post_id) is None:
-        raise ValueError(f"Post {post_id} not found or not accessible")
+    if post_id:
+        linked = _accessible_post(db, user_id, post_id)
+        if linked is None:
+            raise ValueError(f"Post {post_id} not found or not accessible")
+        # Record the verdict NOW: content is immutable once scheduled, but regenerating
+        # the post later moves its draft snapshot. For linked posts this replaces the
+        # request's checkbox (which only applies to free text).
+        ai_generated = disclosure.is_unedited_draft(content, linked.ai_draft_content)
     sp = ScheduledPost(
         id=_uuid(),
         user_id=user_id,
